@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.herddb</groupId>
     <artifactId>herddb-parent</artifactId>
-    <version>0.0.1-SNAPHOST</version>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Herd DB</name>    
     <url>http://herddb.org</url>
@@ -69,6 +69,7 @@
                 <activeByDefault>true</activeByDefault>                
             </activation> 
             <modules>
+                <module>herddb-core</module>
             </modules>
             <distributionManagement>        
                 <repository>            
@@ -115,6 +116,7 @@
                 <activeByDefault>false</activeByDefault>                
             </activation>   
             <modules>
+                <module>herddb-core</module>
             </modules>
             <distributionManagement>
                 <snapshotRepository>
