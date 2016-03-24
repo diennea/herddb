@@ -17,28 +17,25 @@
  under the License.
 
  */
-package herddb.model;
-
-import herddb.utils.Bytes;
+package herddb.storage;
 
 /**
- * A generic record
+ * Error on storage
  *
  * @author enrico.olivelli
  */
-public class Record {
+public class DataStorageManagerException extends Exception {
 
-    public final Bytes key;
-    public final Bytes value;
-
-    public Record(Bytes key, Bytes value) {
-        this.key = key;
-        this.value = value;
+    public DataStorageManagerException(String message) {
+        super(message);
     }
 
-    @Override
-    public String toString() {
-        return "Record{" + "key=" + key + ", value=" + value + '}';
+    public DataStorageManagerException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
+    public DataStorageManagerException(Throwable cause) {
+        super(cause);
     }
 
 }

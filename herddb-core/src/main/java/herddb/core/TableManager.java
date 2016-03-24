@@ -23,6 +23,7 @@ import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogNotAvailableException;
+import herddb.log.SequenceNumber;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
@@ -38,13 +39,20 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.storage.DataStorageManager;
+import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Handles Data of a Table
@@ -52,6 +60,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @author enrico.olivelli
  */
 public class TableManager {
+
+    private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
+
+    private static final int MAX_RECORDS_PER_PAGE = 100;
 
     public static final Long NO_PAGE = Long.valueOf(-1);
 
@@ -68,15 +80,32 @@ public class TableManager {
     private final Map<Bytes, Long> keyToPage = new ConcurrentHashMap<>();
 
     /**
+     * Keys deleted since the last flush
+     */
+    private final Set<Bytes> deletedKeys = new ConcurrentSkipListSet<>();
+
+    /**
      * a structure which holds the set of the pages which are loaded in memory
      * (set<long>)
      */
     private final Set<Long> loadedPages = new HashSet<>();
 
+    private final Set<Long> dirtyPages = new ConcurrentSkipListSet<>();
+
     /**
      * Local locks
      */
     private final LocalLockManager locksManager = new LocalLockManager();
+
+    /**
+     * Access to Pages
+     */
+    private ReentrantReadWriteLock pagesLock = new ReentrantReadWriteLock(true);
+
+    /**
+     * Actual size of data loaded into memory
+     */
+    private AtomicLong actualsize = new AtomicLong();
 
     /**
      * Definition of the table
@@ -91,26 +120,42 @@ public class TableManager {
         this.dataStorageManager = dataStorageManager;
     }
 
-    public void start() {
-
+    public void start() throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
+        pagesLock.writeLock().lock();
+        try {
+            dataStorageManager.loadExistingKeys(table.name, (key, pageId) -> {
+                keyToPage.put(key, pageId);
+            });
+        } finally {
+            pagesLock.writeLock().unlock();
+        }
+        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}", new Object[]{keyToPage.size(), table.name});
     }
 
     StatementExecutionResult executeStatement(Statement statement, Transaction transaction) throws StatementExecutionException {
-        if (statement instanceof UpdateStatement) {
-            UpdateStatement update = (UpdateStatement) statement;
-            return executeUpdate(update, transaction);
-        }
-        if (statement instanceof InsertStatement) {
-            InsertStatement insert = (InsertStatement) statement;
-            return executeInsert(insert, transaction);
-        }
-        if (statement instanceof GetStatement) {
-            GetStatement get = (GetStatement) statement;
-            return executeGet(get, transaction);
-        }
-        if (statement instanceof DeleteStatement) {
-            DeleteStatement delete = (DeleteStatement) statement;
-            return executeDelete(delete, transaction);
+        pagesLock.readLock().lock();
+        try {
+            if (statement instanceof UpdateStatement) {
+                UpdateStatement update = (UpdateStatement) statement;
+                return executeUpdate(update, transaction);
+            }
+            if (statement instanceof InsertStatement) {
+                InsertStatement insert = (InsertStatement) statement;
+                return executeInsert(insert, transaction);
+            }
+            if (statement instanceof GetStatement) {
+                GetStatement get = (GetStatement) statement;
+                return executeGet(get, transaction);
+            }
+            if (statement instanceof DeleteStatement) {
+                DeleteStatement delete = (DeleteStatement) statement;
+                return executeDelete(delete, transaction);
+            }
+        } catch (DataStorageManagerException err) {
+            throw new StatementExecutionException("internal data error", err);
+        } finally {
+            pagesLock.readLock().unlock();
         }
         throw new StatementExecutionException("unsupported statement " + statement);
     }
@@ -133,6 +178,8 @@ public class TableManager {
             log.log(entry);
             keyToPage.put(key, NO_PAGE);
             buffer.put(key, record);
+            deletedKeys.remove(key);
+            actualsize.addAndGet(record.key.data.length + record.value.data.length);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -141,7 +188,7 @@ public class TableManager {
         }
     }
 
-    private StatementExecutionResult executeUpdate(UpdateStatement update, Transaction transaction) throws StatementExecutionException {
+    private StatementExecutionResult executeUpdate(UpdateStatement update, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
         /*
               an update can succeed only if the row is valid, the key is contains in the "keys" structure
               the update will simply override the value of the row, assigning a null page to the row
@@ -152,17 +199,19 @@ public class TableManager {
         Bytes key = record.key;
         ReentrantReadWriteLock lock = locksManager.acquireWriteLockForKey(key);
         try {
-            if (!keyToPage.containsKey(key)) {
+            Long pageId = keyToPage.get(key);
+            if (pageId == null) {
                 // no record at that key
                 return new DMLStatementExecutionResult(0, key);
             }
+            Record loaded = null;
             if (update.getPredicate() != null) {
-                Record actual = buffer.get(key);
-                if (actual == null) {
-                    ensureRecordLoaded(key);
-                    actual = buffer.get(key);
+                loaded = buffer.get(key);
+                if (loaded == null) {
+                    ensurePageLoaded(pageId);
+                    loaded = buffer.get(key);
                 }
-                if (!update.getPredicate().evaluate(actual)) {
+                if (!update.getPredicate().evaluate(loaded)) {
                     // record does not match predicate
                     return new DMLStatementExecutionResult(0, key);
                 }
@@ -170,10 +219,15 @@ public class TableManager {
 
             LogEntry entry = LogEntryFactory.update(table, record, transaction);
             log.log(entry);
-
             // mark record as dirty
             keyToPage.put(key, NO_PAGE);
             buffer.put(key, record);
+            if (loaded != null) {
+                actualsize.addAndGet(record.value.data.length - loaded.value.data.length);
+            } else {
+                actualsize.addAndGet(record.value.data.length);
+            }
+            dirtyPages.add(pageId);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -182,7 +236,7 @@ public class TableManager {
         }
     }
 
-    private StatementExecutionResult executeDelete(DeleteStatement delete, Transaction transaction) throws StatementExecutionException {
+    private StatementExecutionResult executeDelete(DeleteStatement delete, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
         /*
                   a delete can succeed only if the key is contains in the 'keys" structure
                   a delete will remove the key from each of the structures
@@ -192,16 +246,18 @@ public class TableManager {
         Bytes key = delete.getKey();
         ReentrantReadWriteLock lock = locksManager.acquireWriteLockForKey(key);
         try {
-            if (!keyToPage.containsKey(key)) {
+            Long pageId = keyToPage.get(key);
+            if (pageId == null) {
                 // no record at that key
                 return new DMLStatementExecutionResult(0, key);
             }
+            Record actual = buffer.get(key);
+            if (actual == null) {
+                // page always need to be loaded because the other records on that page will be rewritten on a new page
+                ensurePageLoaded(pageId);
+                actual = buffer.get(key);
+            }
             if (delete.getPredicate() != null) {
-                Record actual = buffer.get(key);
-                if (actual == null) {
-                    ensureRecordLoaded(key);
-                    actual = buffer.get(key);
-                }
                 if (!delete.getPredicate().evaluate(actual)) {
                     // record does not match predicate
                     return new DMLStatementExecutionResult(0, key);
@@ -213,7 +269,12 @@ public class TableManager {
 
             // remove the record from the set of existing records
             keyToPage.remove(key);
-            buffer.remove(key);
+            deletedKeys.add(key);
+            Record removed = buffer.remove(key);
+            if (removed != null) {
+                actualsize.addAndGet(removed.key.data.length + removed.value.data.length);
+            }
+            dirtyPages.add(pageId);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -222,20 +283,16 @@ public class TableManager {
         }
     }
 
-    private void ensureRecordLoaded(Bytes key) {
-
-    }
-
     void close() {
         // TODO
     }
 
-    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction) throws StatementExecutionException {
+    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
         Bytes key = get.getKey();
         Predicate predicate = get.getPredicate();
         ReentrantReadWriteLock lock = locksManager.acquireReadLockForKey(key);
         try {
-             // fastest path first, check if the record is loaded in memory
+            // fastest path first, check if the record is loaded in memory
             Record loaded = buffer.get(key);
             if (loaded != null) {
                 if (predicate != null && !predicate.evaluate(loaded)) {
@@ -243,8 +300,9 @@ public class TableManager {
                 }
                 return new GetResult(loaded);
             }
-            if (keyToPage.containsKey(key)) {
-                ensureRecordLoaded(key);
+            Long pageId = keyToPage.get(key);
+            if (pageId != null) {
+                ensurePageLoaded(pageId);
             } else {
                 return GetResult.NOT_FOUND;
             }
@@ -260,6 +318,79 @@ public class TableManager {
             locksManager.releaseReadLockForKey(key, lock);
         }
 
+    }
+
+    private void ensurePageLoaded(Long pageId) throws DataStorageManagerException {
+        pagesLock.readLock().unlock();
+        pagesLock.writeLock().lock();
+        try {
+            if (loadedPages.contains(pageId)) {
+                throw new RuntimeException("corrupted state, page " + pageId + " should already be loaded in memory");
+            }
+            List<Record> page = dataStorageManager.loadPage(table.name, pageId);
+            loadedPages.add(pageId);
+            for (Record r : page) {
+                buffer.put(r.key, r);
+            }
+        } finally {
+            pagesLock.writeLock().unlock();
+            pagesLock.readLock().lock();
+        }
+    }
+
+    void flush() throws DataStorageManagerException {
+        pagesLock.writeLock().lock();
+        SequenceNumber sequenceNumber = log.getActualSequenceNumber();
+        try {
+            /*
+                When the size of loaded data in the memory reaches a maximum value the rows on memory are dumped back to disk creating new pages
+                for each page:
+                if the page is not changed it is only unloaded from memory
+                if the page contains even only one single changed row all the rows to the page will be  scheduled in order to create a new page
+                rows scheduled to create a new page are arranged in a new set of pages which in turn are dumped to disk
+             */
+            List<Bytes> recordsOnDirtyPages = new ArrayList<>();
+            LOGGER.log(Level.SEVERE, "flush dirtyPages {0}", new Object[]{dirtyPages.toString()});
+            for (Bytes key : buffer.keySet()) {
+                Long pageId = keyToPage.get(key);
+                if (dirtyPages.contains(pageId)
+                        || pageId == NO_PAGE // using the '==' because we really use the reference
+                        ) {
+                    recordsOnDirtyPages.add(key);
+                }
+            }
+            LOGGER.log(Level.SEVERE, "flush recordsOnDirtyPages {0}", new Object[]{recordsOnDirtyPages.toString()});
+            List<Record> newPage = new ArrayList<>();
+            int count = 0;
+            for (Bytes key : recordsOnDirtyPages) {
+                Record toKeep = buffer.get(key);
+                if (toKeep != null) {
+                    newPage.add(toKeep);
+                    if (count++ == MAX_RECORDS_PER_PAGE) {
+                        createNewPage(sequenceNumber, newPage);
+                        newPage.clear();
+                    }
+                }
+
+            }
+            if (!newPage.isEmpty()) {
+                createNewPage(sequenceNumber, newPage);
+            }
+            buffer.clear();
+            loadedPages.clear();
+            dirtyPages.clear();
+        } finally {
+            pagesLock.writeLock().unlock();
+        }
+
+    }
+
+    private void createNewPage(SequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "createNewPage at " + sequenceNumber + " with " + newPage);
+        Long newPageId = dataStorageManager.writePage(table.name, sequenceNumber, newPage);
+        for (Record record : newPage) {
+            keyToPage.put(record.key, newPageId);
+        }
     }
 
 }

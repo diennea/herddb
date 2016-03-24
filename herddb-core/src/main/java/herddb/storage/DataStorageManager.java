@@ -19,10 +19,53 @@
  */
 package herddb.storage;
 
+import herddb.log.SequenceNumber;
+import herddb.model.Record;
+import herddb.utils.Bytes;
+import java.util.List;
+import java.util.function.BiConsumer;
+
 /**
+ * Physical storage of data
  *
  * @author enrico.olivelli
  */
-public class DataStorageManager {
+public abstract class DataStorageManager {
+
+    /**
+     * Load a data page in memory
+     *
+     * @param tableName
+     * @param pageId
+     * @return
+     */
+    public abstract List<Record> loadPage(String tableName, Long pageId) throws DataStorageManagerException;
+
+    /**
+     * Load the ful list of keys on a page
+     *
+     * @param tableName
+     * @param consumer
+     */
+    public abstract void loadExistingKeys(String tableName, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException;
+
+    /**
+     * Write a page on disk
+     *
+     * @param tableName
+     * @param sequenceNumber
+     * @param newPage
+     * @return
+     * @throws herddb.storage.DataStorageManagerException
+     */
+    public abstract Long writePage(String tableName, SequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException;
     
+    /**
+     * Return the actual number of pages presents on disk
+     * @param tableName
+     * @return
+     * @throws DataStorageManagerException 
+     */
+    public abstract int getActualNumberOfPages(String tableName) throws DataStorageManagerException;
+
 }

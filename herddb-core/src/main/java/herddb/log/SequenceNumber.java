@@ -63,4 +63,9 @@ public final class SequenceNumber {
         return true;
     }
 
+    @Override
+    public String toString() {
+        return "(" + ledgerId + ',' + offset + ')';
+    }
+
 }

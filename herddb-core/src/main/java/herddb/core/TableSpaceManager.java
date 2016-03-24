@@ -33,6 +33,9 @@ import herddb.model.TableAwareStatement;
 import herddb.model.Transaction;
 import herddb.model.commands.CreateTableStatement;
 import herddb.storage.DataStorageManager;
+import herddb.storage.DataStorageManagerException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -58,7 +61,7 @@ public class TableSpaceManager {
         this.tableSpaceName = tableSpaceName;
     }
 
-    void start() {
+    void start() throws DataStorageManagerException {
         generalLock.writeLock().lock();
         try {
             for (String tableName : metadataStorageManager.listTablesByTableSpace(tableSpaceName)) {
@@ -108,12 +111,14 @@ public class TableSpaceManager {
             metadataStorageManager.registerTable(table);
             bootTable(table);
             return new DDLStatementExecutionResult();
+        } catch (DataStorageManagerException err) {
+            throw new StatementExecutionException(err);
         } finally {
             generalLock.writeLock().unlock();
         }
     }
 
-    private void bootTable(Table table) {
+    private void bootTable(Table table) throws DataStorageManagerException {
         TableManager tableManager = new TableManager(table, log, dataStorageManager);
         tables.put(table.name, tableManager);
         tableManager.start();
@@ -127,6 +132,19 @@ public class TableSpaceManager {
             }
         } finally {
             generalLock.writeLock().unlock();
+        }
+    }
+
+    void flush() throws DataStorageManagerException {
+        List<TableManager> managers;
+        try {
+            generalLock.writeLock().lock();
+            managers = new ArrayList<>(tables.values());
+        } finally {
+            generalLock.writeLock().unlock();
+        }
+        for (TableManager manager : managers) {
+            manager.flush();
         }
     }
 

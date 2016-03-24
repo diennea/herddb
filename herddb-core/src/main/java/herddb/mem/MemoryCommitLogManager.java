@@ -23,7 +23,9 @@ import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
+import herddb.log.SequenceNumber;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * In Memory CommitLogManager, for tests
@@ -35,15 +37,26 @@ public class MemoryCommitLogManager extends CommitLogManager {
     @Override
     public CommitLog createCommitLog(String tableSpace) {
         return new CommitLog() {
+
+            AtomicLong offset = new AtomicLong();
+
             @Override
             public void log(LogEntry entry) throws LogNotAvailableException {
                 // NOOP
+                offset.incrementAndGet();
             }
 
             @Override
             public void log(List<LogEntry> entries) throws LogNotAvailableException {
                 // NOOP
+                offset.addAndGet(entries.size());
             }
+
+            @Override
+            public SequenceNumber getActualSequenceNumber() {
+                return new SequenceNumber(1, offset.get());
+            }
+
         };
     }
 

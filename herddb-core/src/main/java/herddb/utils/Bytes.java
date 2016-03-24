@@ -27,7 +27,7 @@ import java.util.Arrays;
  *
  * @author enrico.olivelli
  */
-public final class Bytes {
+public final class Bytes implements Comparable<Bytes> {
 
     public final byte[] data;
     private final int hashCode;
@@ -125,6 +125,27 @@ public final class Bytes {
             n ^= bytes[i] & 0xFF;
         }
         return n;
+    }
+
+    @Override
+    public int compareTo(Bytes o) {
+        return compare(this.data, o.data);
+    }
+
+    private static int compare(byte[] left, byte[] right) {
+        for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
+            int a = (left[i] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
+        }
+        return left.length - right.length;
+    }
+
+    public String toString() {
+        // ONLY FOR TESTS
+        return new String(data, StandardCharsets.UTF_8);
     }
 
 }

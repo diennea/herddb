@@ -19,14 +19,17 @@
  */
 package herddb.core;
 
+import herddb.log.CommitLogManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.metadata.MetadataStorageManager;
 import herddb.model.ColumnTypes;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.storage.DataStorageManager;
 import java.util.Collections;
 import org.junit.After;
 import org.junit.Before;
@@ -42,10 +45,14 @@ public class BaseTestcase {
     protected Table table;
     protected String tableName;
     protected DBManager manager;
+    protected DataStorageManager dataStorageManager = new MemoryDataStorageManager();
+    protected MetadataStorageManager metadataStorageManager = new MemoryMetadataStorageManager();
+    protected CommitLogManager commitLogManager = new MemoryCommitLogManager();
 
     @Before
     public void setup() throws Exception {
-        manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());
+        System.setErr(System.out);
+        manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager);
         manager.start();
         CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
         manager.executeStatement(st1);

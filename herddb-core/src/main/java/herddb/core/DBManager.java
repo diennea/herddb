@@ -34,6 +34,9 @@ import herddb.model.Transaction;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.storage.DataStorageManager;
+import herddb.storage.DataStorageManagerException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -65,7 +68,7 @@ public class DBManager {
     /**
      * Initial boot of the system
      */
-    public void start() {
+    public void start() throws DataStorageManagerException {
         generalLock.writeLock().lock();
         try {
             for (String tableSpace : metadataStorageManager.listTableSpaces()) {
@@ -76,7 +79,7 @@ public class DBManager {
         }
     }
 
-    private void bootTableSpace(String tableSpaceName) {
+    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException {
         TableSpace tableSpace = metadataStorageManager.describeTableSpace(tableSpaceName);
         if (!tableSpace.replicas.contains(nodeId)) {
             return;
@@ -176,15 +179,33 @@ public class DBManager {
             throw new StatementExecutionException("invalid CREATE TABLESPACE statement: " + invalid.getMessage(), invalid);
         }
 
-        metadataStorageManager.registerTableSpace(tableSpace);
-        if (tableSpace.replicas.contains(nodeId)) {
-            bootTableSpace(tableSpace.name);
+        try {
+            metadataStorageManager.registerTableSpace(tableSpace);
+            if (tableSpace.replicas.contains(nodeId)) {
+                bootTableSpace(tableSpace.name);
+            }
+            return new DDLStatementExecutionResult();
+        } catch (DataStorageManagerException err) {
+            throw new StatementExecutionException(err);
         }
-        return new DDLStatementExecutionResult();
     }
 
     void close() {
 
+    }
+
+    public void flush() throws DataStorageManagerException {
+
+        List<TableSpaceManager> managers;
+        generalLock.readLock().lock();
+        try {
+            managers = new ArrayList<>(tablesSpaces.values());
+        } finally {
+            generalLock.readLock().unlock();
+        }
+        for (TableSpaceManager man : managers) {
+            man.flush();
+        }
     }
 
 }

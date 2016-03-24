@@ -19,12 +19,79 @@
  */
 package herddb.mem;
 
+import herddb.log.SequenceNumber;
+import herddb.model.Record;
 import herddb.storage.DataStorageManager;
+import herddb.storage.DataStorageManagerException;
+import herddb.utils.Bytes;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 /**
  * In memory StorageManager, for tests
+ *
  * @author enrico.olivelli
  */
 public class MemoryDataStorageManager extends DataStorageManager {
-    
+
+    public static final class Page {
+
+        private final List<Record> records;
+        private final SequenceNumber sequenceNumber;
+
+        public Page(List<Record> records, SequenceNumber sequenceNumber) {
+            this.records = records;
+            this.sequenceNumber = sequenceNumber;
+        }
+
+        public List<Record> getRecords() {
+            return records;
+        }
+
+        public SequenceNumber getSequenceNumber() {
+            return sequenceNumber;
+        }
+
+    }
+    private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Set<Bytes>> keysByPage = new ConcurrentHashMap<>();
+    private final AtomicLong newPageId = new AtomicLong();
+
+    @Override
+    public int getActualNumberOfPages(String tableName) throws DataStorageManagerException {
+        int res = 0;
+        for (String key : pages.keySet()) {
+            if (key.startsWith(tableName + "_")) {
+                res++;
+            }
+        }
+        return res;
+    }
+
+    public Page getPage(String tableName, Long pageId) {
+        return pages.get(tableName + "_" + pageId);
+    }
+
+    @Override
+    public List<Record> loadPage(String tableName, Long pageId) {
+        Page page = pages.get(tableName + "_" + pageId);
+        return page != null ? page.records : null;
+    }
+
+    @Override
+    public void loadExistingKeys(String tableName, BiConsumer<Bytes, Long> consumer) {
+        // AT BOOT NO DATA IS PRESENT
+    }
+
+    @Override
+    public Long writePage(String tableName, SequenceNumber sequenceNumber, List<Record> newPage) {
+        long pageId = newPageId.incrementAndGet();
+        Page page = new Page(newPage, sequenceNumber);
+        pages.put(tableName + "_" + pageId, page);
+        return pageId;
+    }
+
 }

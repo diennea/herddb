@@ -47,4 +47,6 @@ public abstract class CommitLog {
      * @throws LogNotAvailableException
      */
     public abstract void log(List<LogEntry> entries) throws LogNotAvailableException;
+
+    public abstract SequenceNumber getActualSequenceNumber();
 }
