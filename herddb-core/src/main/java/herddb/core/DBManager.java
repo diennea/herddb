@@ -21,6 +21,7 @@ package herddb.core;
 
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
+import herddb.log.LogNotAvailableException;
 import herddb.metadata.MetadataStorageManager;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
@@ -86,6 +87,11 @@ public class DBManager {
         }
         LOGGER.log(Level.SEVERE, "Booting tablespace " + tableSpaceName);
         CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
+        try {
+            commitLog.startWriting();
+        } catch (LogNotAvailableException err) {
+            throw new DataStorageManagerException(err);
+        }
         generalLock.writeLock().lock();
         try {
             TableSpaceManager manager = new TableSpaceManager(tableSpaceName, metadataStorageManager, dataStorageManager, commitLog);

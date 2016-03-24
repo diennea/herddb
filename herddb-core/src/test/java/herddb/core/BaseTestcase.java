@@ -45,12 +45,27 @@ public class BaseTestcase {
     protected Table table;
     protected String tableName;
     protected DBManager manager;
-    protected DataStorageManager dataStorageManager = new MemoryDataStorageManager();
-    protected MetadataStorageManager metadataStorageManager = new MemoryMetadataStorageManager();
-    protected CommitLogManager commitLogManager = new MemoryCommitLogManager();
+    protected DataStorageManager dataStorageManager;
+    protected MetadataStorageManager metadataStorageManager;
+    protected CommitLogManager commitLogManager;
+
+    protected CommitLogManager makeCommitLogManager() {
+        return new MemoryCommitLogManager();
+    }
+
+    protected DataStorageManager makeDataStorageManager() {
+        return new MemoryDataStorageManager();
+    }
+
+    protected MetadataStorageManager makeMetadataStorageManager() {
+        return new MemoryMetadataStorageManager();
+    }
 
     @Before
     public void setup() throws Exception {
+        metadataStorageManager = makeMetadataStorageManager();
+        commitLogManager = makeCommitLogManager();
+        dataStorageManager = makeDataStorageManager();
         System.setErr(System.out);
         manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager);
         manager.start();
