@@ -23,15 +23,20 @@ import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogNotAvailableException;
+import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.InsertStatement;
+import herddb.model.GetResult;
+import herddb.model.Predicate;
+import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.Transaction;
-import herddb.model.UpdateStatement;
+import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.GetStatement;
+import herddb.model.commands.UpdateStatement;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
@@ -91,13 +96,21 @@ public class TableManager {
     }
 
     StatementExecutionResult executeStatement(Statement statement, Transaction transaction) throws StatementExecutionException {
+        if (statement instanceof UpdateStatement) {
+            UpdateStatement update = (UpdateStatement) statement;
+            return executeUpdate(update, transaction);
+        }
         if (statement instanceof InsertStatement) {
             InsertStatement insert = (InsertStatement) statement;
             return executeInsert(insert, transaction);
         }
-        if (statement instanceof UpdateStatement) {
-            UpdateStatement update = (UpdateStatement) statement;
-            return executeUpdate(update, transaction);
+        if (statement instanceof GetStatement) {
+            GetStatement get = (GetStatement) statement;
+            return executeGet(get, transaction);
+        }
+        if (statement instanceof DeleteStatement) {
+            DeleteStatement delete = (DeleteStatement) statement;
+            return executeDelete(delete, transaction);
         }
         throw new StatementExecutionException("unsupported statement " + statement);
     }
@@ -120,7 +133,7 @@ public class TableManager {
             log.log(entry);
             keyToPage.put(key, NO_PAGE);
             buffer.put(key, record);
-            return new StatementExecutionResult(1, key);
+            return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -141,7 +154,7 @@ public class TableManager {
         try {
             if (!keyToPage.containsKey(key)) {
                 // no record at that key
-                return new StatementExecutionResult(0, key);
+                return new DMLStatementExecutionResult(0, key);
             }
             if (update.getPredicate() != null) {
                 Record actual = buffer.get(key);
@@ -151,7 +164,7 @@ public class TableManager {
                 }
                 if (!update.getPredicate().evaluate(actual)) {
                     // record does not match predicate
-                    return new StatementExecutionResult(0, key);
+                    return new DMLStatementExecutionResult(0, key);
                 }
             }
 
@@ -161,7 +174,47 @@ public class TableManager {
             // mark record as dirty
             keyToPage.put(key, NO_PAGE);
             buffer.put(key, record);
-            return new StatementExecutionResult(1, key);
+            return new DMLStatementExecutionResult(1, key);
+        } catch (LogNotAvailableException err) {
+            throw new StatementExecutionException(err);
+        } finally {
+            locksManager.releaseWriteLockForKey(key, lock);
+        }
+    }
+
+    private StatementExecutionResult executeDelete(DeleteStatement delete, Transaction transaction) throws StatementExecutionException {
+        /*
+                  a delete can succeed only if the key is contains in the 'keys" structure
+                  a delete will remove the key from each of the structures
+                  locks: the delete uses a lock on the the key
+                  the delete can have a 'where' predicate which is to be evaluated against the decoded row, the delete  will be executed only if the predicate returns boolean 'true' value  (CAS operation)
+         */
+        Bytes key = delete.getKey();
+        ReentrantReadWriteLock lock = locksManager.acquireWriteLockForKey(key);
+        try {
+            if (!keyToPage.containsKey(key)) {
+                // no record at that key
+                return new DMLStatementExecutionResult(0, key);
+            }
+            if (delete.getPredicate() != null) {
+                Record actual = buffer.get(key);
+                if (actual == null) {
+                    ensureRecordLoaded(key);
+                    actual = buffer.get(key);
+                }
+                if (!delete.getPredicate().evaluate(actual)) {
+                    // record does not match predicate
+                    return new DMLStatementExecutionResult(0, key);
+                }
+            }
+
+            LogEntry entry = LogEntryFactory.delete(table, key, transaction);
+            log.log(entry);
+
+            // remove the record from the set of existing records
+            keyToPage.remove(key);
+            buffer.remove(key);
+            return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -175,6 +228,38 @@ public class TableManager {
 
     void close() {
         // TODO
+    }
+
+    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction) throws StatementExecutionException {
+        Bytes key = get.getKey();
+        Predicate predicate = get.getPredicate();
+        ReentrantReadWriteLock lock = locksManager.acquireReadLockForKey(key);
+        try {
+             // fastest path first, check if the record is loaded in memory
+            Record loaded = buffer.get(key);
+            if (loaded != null) {
+                if (predicate != null && !predicate.evaluate(loaded)) {
+                    return GetResult.NOT_FOUND;
+                }
+                return new GetResult(loaded);
+            }
+            if (keyToPage.containsKey(key)) {
+                ensureRecordLoaded(key);
+            } else {
+                return GetResult.NOT_FOUND;
+            }
+            loaded = buffer.get(key);
+            if (loaded == null) {
+                throw new StatementExecutionException("corrupted data, missing record " + key);
+            }
+            if (predicate != null && !predicate.evaluate(loaded)) {
+                return GetResult.NOT_FOUND;
+            }
+            return new GetResult(loaded);
+        } finally {
+            locksManager.releaseReadLockForKey(key, lock);
+        }
+
     }
 
 }

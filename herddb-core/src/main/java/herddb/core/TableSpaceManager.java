@@ -24,6 +24,7 @@ import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogNotAvailableException;
 import herddb.metadata.MetadataStorageManager;
+import herddb.model.DDLStatementExecutionResult;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
@@ -106,7 +107,7 @@ public class TableSpaceManager {
             Table table = statement.getTableDefinition();
             metadataStorageManager.registerTable(table);
             bootTable(table);
-            return new StatementExecutionResult(1);
+            return new DDLStatementExecutionResult();
         } finally {
             generalLock.writeLock().unlock();
         }

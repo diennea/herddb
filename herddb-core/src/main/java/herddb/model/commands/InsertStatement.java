@@ -17,13 +17,27 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.model.commands;
+
+import herddb.model.DMLStatement;
+import herddb.model.Record;
 
 /**
- * Result of the execution of a statement
+ * Insert a new record
  *
  * @author enrico.olivelli
  */
-public abstract class StatementExecutionResult {
+public class InsertStatement extends DMLStatement {
+
+    private final Record record;
+
+    public InsertStatement(String tableSpace, String table, Record record) {
+        super(table, tableSpace);
+        this.record = record;
+    }
+
+    public Record getRecord() {
+        return record;
+    }
 
 }

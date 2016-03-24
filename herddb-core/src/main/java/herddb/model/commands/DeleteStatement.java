@@ -17,13 +17,35 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.model.commands;
+
+import herddb.model.DMLStatement;
+import herddb.model.Predicate;
+import herddb.utils.Bytes;
 
 /**
- * Result of the execution of a statement
+ * Delete an existing record, if the record does not exist the updateCount will
+ * return 0
  *
  * @author enrico.olivelli
  */
-public abstract class StatementExecutionResult {
+public class DeleteStatement extends DMLStatement {
+
+    private final Bytes key;
+    private final Predicate predicate;
+
+    public DeleteStatement(String tableSpace, String table, Bytes key, Predicate predicate) {
+        super(table, tableSpace);
+        this.key = key;
+        this.predicate = predicate;
+    }
+
+    public Bytes getKey() {
+        return key;
+    }
+
+    public Predicate getPredicate() {
+        return predicate;
+    }
 
 }

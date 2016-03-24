@@ -20,10 +20,14 @@
 package herddb.model;
 
 /**
- * Result of the execution of a statement
+ * Data manimulation statementns
  *
  * @author enrico.olivelli
  */
-public abstract class StatementExecutionResult {
+public abstract class DMLStatement extends TableAwareStatement {
+
+    public DMLStatement(String table, String tableSpace) {
+        super(table, tableSpace);
+    }
 
 }

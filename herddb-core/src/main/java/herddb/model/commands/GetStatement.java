@@ -17,13 +17,34 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.model.commands;
+
+import herddb.model.Predicate;
+import herddb.model.TableAwareStatement;
+import herddb.utils.Bytes;
 
 /**
- * Result of the execution of a statement
+ * Lookup a sigle record by primary key, eventually with a condition
  *
  * @author enrico.olivelli
  */
-public abstract class StatementExecutionResult {
+public class GetStatement extends TableAwareStatement {
+
+    private final Bytes key;
+    private final Predicate predicate;
+
+    public GetStatement(String tableSpace, String table, Bytes key, Predicate predicate) {
+        super(table, tableSpace);
+        this.key = key;
+        this.predicate = predicate;
+    }
+
+    public Bytes getKey() {
+        return key;
+    }
+
+    public Predicate getPredicate() {
+        return predicate;
+    }
 
 }

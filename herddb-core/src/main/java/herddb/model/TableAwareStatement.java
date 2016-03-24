@@ -24,9 +24,9 @@ package herddb.model;
  *
  * @author enrico.olivelli
  */
-public class TableAwareStatement extends Statement {
+public abstract class TableAwareStatement extends Statement {
 
-    private String table;
+    protected String table;
 
     public TableAwareStatement(String table, String tableSpace) {
         super(tableSpace);

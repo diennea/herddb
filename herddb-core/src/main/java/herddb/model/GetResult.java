@@ -20,10 +20,25 @@
 package herddb.model;
 
 /**
- * Result of the execution of a statement
+ * Result of the lookup of a single record
  *
  * @author enrico.olivelli
  */
-public abstract class StatementExecutionResult {
+public class GetResult extends StatementExecutionResult {
 
+    private final Record record;
+
+    public GetResult(Record record) {
+        this.record = record;
+    }
+
+    public static final GetResult NOT_FOUND = new GetResult(null);
+
+    public Record getRecord() {
+        return record;
+    }
+
+    public boolean found() {
+        return record != null;
+    }
 }

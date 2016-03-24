@@ -17,14 +17,18 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.model.commands;
+
+import herddb.model.DMLStatement;
+import herddb.model.Predicate;
+import herddb.model.Record;
 
 /**
  * Update an existing record
  *
  * @author enrico.olivelli
  */
-public class UpdateStatement extends TableAwareStatement {
+public class UpdateStatement extends DMLStatement {
 
     private final Record record;
     private final Predicate predicate;

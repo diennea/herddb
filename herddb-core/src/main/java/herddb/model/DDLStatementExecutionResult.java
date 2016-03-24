@@ -19,11 +19,13 @@
  */
 package herddb.model;
 
+import herddb.utils.Bytes;
+
 /**
- * Result of the execution of a statement
+ * Result of statement which mutate data
  *
  * @author enrico.olivelli
  */
-public abstract class StatementExecutionResult {
+public class DDLStatementExecutionResult extends StatementExecutionResult {
 
 }

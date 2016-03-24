@@ -19,51 +19,73 @@
  */
 package herddb.core;
 
-import herddb.model.InsertStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
-import herddb.model.UpdateStatement;
+import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.UpdateStatement;
 import herddb.model.predicates.RawValueEquals;
 import herddb.utils.Bytes;
-import static org.junit.Assert.assertEquals;
 import org.junit.Test;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Tests on table creation
  *
  * @author enrico.olivelli
  */
-public class UpdateTest extends BaseTestcase {
+public class SimpleDMLTest extends BaseTestcase {
 
     @Test
-    public void createTable1() throws Exception {
+    public void test() throws Exception {
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(0));
 
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, null);
-            assertEquals(0, manager.executeStatement(st).getUpdateCount());
+            assertEquals(0, manager.executeUpdate(st).getUpdateCount());
         }
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(0));
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
-            assertEquals(1, manager.executeStatement(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
         }
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(1));
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, null);
-            assertEquals(1, manager.executeStatement(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
         }
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(1));
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, new RawValueEquals(Bytes.from_int(2)));
-            assertEquals(0, manager.executeStatement(st).getUpdateCount());
+            assertEquals(0, manager.executeUpdate(st).getUpdateCount());
         }
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(5));
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, new RawValueEquals(Bytes.from_int(1)));
-            assertEquals(1, manager.executeStatement(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(7)));
+            assertEquals(0, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(5)));
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(1)));
+            assertEquals(0, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(0));
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
         }
 
     }

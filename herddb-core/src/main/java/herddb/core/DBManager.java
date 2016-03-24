@@ -22,12 +22,17 @@ package herddb.core;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.metadata.MetadataStorageManager;
+import herddb.model.DDLStatementExecutionResult;
+import herddb.model.DMLStatement;
+import herddb.model.DMLStatementExecutionResult;
+import herddb.model.GetResult;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Transaction;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.commands.GetStatement;
 import herddb.storage.DataStorageManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -119,6 +124,17 @@ public class DBManager {
     }
 
     /**
+     * Executes a single lookup
+     *
+     * @param statement
+     * @return
+     * @throws StatementExecutionException
+     */
+    public GetResult get(GetStatement statement) throws StatementExecutionException {
+        return (GetResult) executeStatement(statement);
+    }
+
+    /**
      * Utility method for auto-commit statements
      *
      * @param statement
@@ -127,6 +143,29 @@ public class DBManager {
      */
     public StatementExecutionResult executeStatement(Statement statement) throws StatementExecutionException {
         return executeStatement(statement, null);
+    }
+
+    /**
+     * Utility method for DML/DDL statements
+     *
+     * @param statement
+     * @return
+     * @throws herddb.model.StatementExecutionException
+     */
+    public DMLStatementExecutionResult executeUpdate(DMLStatement statement) throws StatementExecutionException {
+        return (DMLStatementExecutionResult) executeStatement(statement);
+    }
+
+    /**
+     * Utility method for DML/DDL statements
+     *
+     * @param statement
+     * @param transaction
+     * @return
+     * @throws herddb.model.StatementExecutionException
+     */
+    public DMLStatementExecutionResult executeUpdate(DMLStatement statement, Transaction transaction) throws StatementExecutionException {
+        return (DMLStatementExecutionResult) executeStatement(statement, transaction);
     }
 
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {
@@ -141,7 +180,7 @@ public class DBManager {
         if (tableSpace.replicas.contains(nodeId)) {
             bootTableSpace(tableSpace.name);
         }
-        return new StatementExecutionResult(1);
+        return new DDLStatementExecutionResult();
     }
 
     void close() {

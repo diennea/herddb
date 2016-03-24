@@ -19,22 +19,34 @@
  */
 package herddb.model;
 
+import herddb.utils.Bytes;
+
 /**
- * Insert a new record
+ * Result of statement which mutate data
  *
  * @author enrico.olivelli
  */
-public class InsertStatement extends TableAwareStatement {
+public class DMLStatementExecutionResult extends StatementExecutionResult {
 
-    private final Record record;
+    private final int updateCount;
+    private final Bytes key;
 
-    public InsertStatement(String tableSpace, String table, Record record) {
-        super(table, tableSpace);
-        this.record = record;
+    public DMLStatementExecutionResult(int updateCount) {
+        this.updateCount = updateCount;
+        this.key = null;
+
     }
 
-    public Record getRecord() {
-        return record;
+    public DMLStatementExecutionResult(int updateCount, Bytes key) {
+        this.updateCount = updateCount;
+        this.key = key;
     }
 
+    public int getUpdateCount() {
+        return updateCount;
+    }
+
+    public Bytes getKey() {
+        return key;
+    }
 }
