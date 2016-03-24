@@ -60,7 +60,7 @@ public class DBManager {
     /**
      * Initial boot of the system
      */
-    public void boot() {
+    public void start() {
         generalLock.writeLock().lock();
         try {
             for (String tableSpace : metadataStorageManager.listTableSpaces()) {
@@ -82,7 +82,7 @@ public class DBManager {
         try {
             TableSpaceManager manager = new TableSpaceManager(tableSpaceName, metadataStorageManager, dataStorageManager, commitLog);
             tablesSpaces.put(tableSpaceName, manager);
-            manager.boot();
+            manager.start();
         } finally {
             generalLock.writeLock().unlock();
         }
@@ -142,6 +142,10 @@ public class DBManager {
             bootTableSpace(tableSpace.name);
         }
         return new StatementExecutionResult(1);
+    }
+
+    void close() {
+
     }
 
 }

@@ -19,10 +19,11 @@
  */
 package herddb.utils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
- * A wrapper for byte[], in order to use it as key on HashMaps
+ * A wrapper for byte[], in order to use it as keys on HashMaps
  *
  * @author enrico.olivelli
  */
@@ -30,6 +31,42 @@ public final class Bytes {
 
     public final byte[] data;
     private final int hashCode;
+
+    public static Bytes from_string(String s) {
+        return new Bytes(s.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static Bytes from_long(long value) {
+        byte[] res = new byte[8];
+        putLong(res, 0, value);
+        return new Bytes(res);
+    }
+
+    public static Bytes from_array(byte[] data) {
+        return new Bytes(data);
+    }
+
+    public byte[] to_array() {
+        return data;
+    }
+
+    public static Bytes from_int(int value) {
+        byte[] res = new byte[4];
+        putInt(res, 0, value);
+        return new Bytes(res);
+    }
+
+    public long to_long() {
+        return toLong(data, 0, 8);
+    }
+
+    public int to_int() {
+        return toInt(data, 0, 4);
+    }
+
+    public String to_string() {
+        return new String(data, StandardCharsets.UTF_8);
+    }
 
     public Bytes(byte[] data) {
         this.data = data;
@@ -54,6 +91,40 @@ public final class Bytes {
         }
         final Bytes other = (Bytes) obj;
         return Arrays.equals(this.data, other.data);
+    }
+
+    public static void putLong(byte[] bytes, int offset, long val) {
+        for (int i = offset + 7; i > offset; i--) {
+            bytes[i] = (byte) val;
+            val >>>= 8;
+        }
+        bytes[offset] = (byte) val;
+    }
+
+    public static void putInt(byte[] bytes, int offset, int val) {
+        for (int i = offset + 3; i > offset; i--) {
+            bytes[i] = (byte) val;
+            val >>>= 8;
+        }
+        bytes[offset] = (byte) val;
+    }
+
+    public static long toLong(byte[] bytes, int offset, final int length) {
+        long l = 0;
+        for (int i = offset; i < offset + length; i++) {
+            l <<= 8;
+            l ^= bytes[i] & 0xFF;
+        }
+        return l;
+    }
+
+    public static int toInt(byte[] bytes, int offset, final int length) {
+        int n = 0;
+        for (int i = offset; i < (offset + length); i++) {
+            n <<= 8;
+            n ^= bytes[i] & 0xFF;
+        }
+        return n;
     }
 
 }

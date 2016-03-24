@@ -28,26 +28,31 @@ import herddb.model.TableSpace;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import java.util.Collections;
-import org.junit.Test;
+import org.junit.After;
+import org.junit.Before;
 
 /**
- * Tests on table creation
  *
  * @author enrico.olivelli
  */
-public class CreateTableTest {
+public class BaseTestcase {
 
-    @Test
-    public void createTable1() throws Exception {
-        String nodeId = "localhost";
-        DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());
+    protected String nodeId = "localhost";
+    protected String tableSpace = TableSpace.DEFAULT;
+    protected Table table;
+    protected String tableName;
+    protected DBManager manager;
+
+    @Before
+    public void setup() throws Exception {
+        manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());
         manager.start();
         CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
         manager.executeStatement(st1);
-
-        Table table = Table
+        tableName = "t1";
+        table = Table
                 .builder()
-                .name("t1")
+                .name(tableName)
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
                 .primaryKey("id")
@@ -55,6 +60,11 @@ public class CreateTableTest {
 
         CreateTableStatement st2 = new CreateTableStatement(table);
         manager.executeStatement(st2);
+    }
 
+    @After
+    public void teardown() throws Exception {
+        manager.close();
+        manager = null;
     }
 }

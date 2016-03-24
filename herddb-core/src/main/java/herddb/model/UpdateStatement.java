@@ -17,18 +17,30 @@
  under the License.
 
  */
-package herddb.log;
+package herddb.model;
 
 /**
- * Types of log entry
+ * Update an existing record
  *
  * @author enrico.olivelli
  */
-public class LogEntryType {
+public class UpdateStatement extends TableAwareStatement {
 
-    public static final short CREATE_TABLE = 1;
-    public static final short INSERT = 2;
-    public static final short UPDATE = 3;
-    public static final short DELETE = 4;
+    private final Record record;
+    private final Predicate predicate;
+
+    public UpdateStatement(String tableSpace, String table, Record record, Predicate predicate) {
+        super(table, tableSpace);
+        this.record = record;
+        this.predicate = predicate;
+    }
+
+    public Record getRecord() {
+        return record;
+    }
+
+    public Predicate getPredicate() {
+        return predicate;
+    }
 
 }

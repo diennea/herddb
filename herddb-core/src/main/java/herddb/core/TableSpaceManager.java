@@ -28,14 +28,13 @@ import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
+import herddb.model.TableAwareStatement;
 import herddb.model.Transaction;
 import herddb.model.commands.CreateTableStatement;
 import herddb.storage.DataStorageManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Manages a TableSet in memory
@@ -58,7 +57,7 @@ public class TableSpaceManager {
         this.tableSpaceName = tableSpaceName;
     }
 
-    void boot() {
+    void start() {
         generalLock.writeLock().lock();
         try {
             for (String tableName : metadataStorageManager.listTablesByTableSpace(tableSpaceName)) {
@@ -74,6 +73,22 @@ public class TableSpaceManager {
         if (statement instanceof CreateTableStatement) {
             return createTable((CreateTableStatement) statement, transaction);
         }
+        if (statement instanceof TableAwareStatement) {
+            TableAwareStatement st = (TableAwareStatement) statement;
+            String table = st.getTable();
+            TableManager manager;
+            generalLock.readLock().lock();
+            try {
+                manager = tables.get(table);
+            } finally {
+                generalLock.readLock().unlock();
+            }
+            if (manager == null) {
+                throw new StatementExecutionException("no table " + table + " in tablespace " + tableSpaceName);
+            }
+            return manager.executeStatement(statement, transaction);
+        }
+
         throw new StatementExecutionException("unsupported statement " + statement);
     }
 
@@ -100,7 +115,18 @@ public class TableSpaceManager {
     private void bootTable(Table table) {
         TableManager tableManager = new TableManager(table, log, dataStorageManager);
         tables.put(table.name, tableManager);
-        tableManager.boot();
+        tableManager.start();
+    }
+
+    public void close() {
+        try {
+            generalLock.writeLock().lock();
+            for (TableManager table : tables.values()) {
+                table.close();
+            }
+        } finally {
+            generalLock.writeLock().unlock();
+        }
     }
 
 }

@@ -17,18 +17,29 @@
  under the License.
 
  */
-package herddb.log;
+package herddb.model.predicates;
+
+import herddb.model.Predicate;
+import herddb.model.Record;
+import herddb.model.StatementExecutionException;
+import herddb.utils.Bytes;
 
 /**
- * Types of log entry
+ * Very raw predicate which acts on serialized value, mostly useful for tests
  *
  * @author enrico.olivelli
  */
-public class LogEntryType {
+public class RawValueEquals extends Predicate {
 
-    public static final short CREATE_TABLE = 1;
-    public static final short INSERT = 2;
-    public static final short UPDATE = 3;
-    public static final short DELETE = 4;
+    private final Bytes value;
+
+    public RawValueEquals(Bytes value) {
+        this.value = value;
+    }
+
+    @Override
+    public boolean evaluate(Record record) throws StatementExecutionException {
+        return record.value.equals(value);
+    }
 
 }

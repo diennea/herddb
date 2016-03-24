@@ -17,18 +17,26 @@
  under the License.
 
  */
-package herddb.log;
+package herddb.model;
+
+import herddb.utils.Bytes;
 
 /**
- * Types of log entry
+ * Record already exists
  *
  * @author enrico.olivelli
  */
-public class LogEntryType {
+public class DuplicatePrimaryKeyException extends StatementExecutionException {
 
-    public static final short CREATE_TABLE = 1;
-    public static final short INSERT = 2;
-    public static final short UPDATE = 3;
-    public static final short DELETE = 4;
+    private final Bytes key;
+
+    public DuplicatePrimaryKeyException(Bytes key, String message) {
+        super(message);
+        this.key = key;
+    }
+
+    public Bytes getKey() {
+        return key;
+    }
 
 }

@@ -19,6 +19,8 @@
  */
 package herddb.model;
 
+import herddb.utils.Bytes;
+
 /**
  * Result of the execution of a statement
  *
@@ -27,13 +29,25 @@ package herddb.model;
 public class StatementExecutionResult {
 
     private final int updateCount;
+    private final Bytes key;
 
     public StatementExecutionResult(int updateCount) {
         this.updateCount = updateCount;
+        this.key = null;
+
+    }
+
+    public StatementExecutionResult(int updateCount, Bytes key) {
+        this.updateCount = updateCount;
+        this.key = key;
     }
 
     public int getUpdateCount() {
         return updateCount;
+    }
+
+    public Bytes getKey() {
+        return key;
     }
 
 }

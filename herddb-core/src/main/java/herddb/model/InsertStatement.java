@@ -17,18 +17,24 @@
  under the License.
 
  */
-package herddb.log;
+package herddb.model;
 
 /**
- * Types of log entry
+ * Insert a new record
  *
  * @author enrico.olivelli
  */
-public class LogEntryType {
+public class InsertStatement extends TableAwareStatement {
 
-    public static final short CREATE_TABLE = 1;
-    public static final short INSERT = 2;
-    public static final short UPDATE = 3;
-    public static final short DELETE = 4;
+    private final Record record;
+
+    public InsertStatement(String tableSpace, String table, Record record) {
+        super(table, tableSpace);
+        this.record = record;
+    }
+
+    public Record getRecord() {
+        return record;
+    }
 
 }

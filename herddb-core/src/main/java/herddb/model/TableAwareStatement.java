@@ -17,18 +17,24 @@
  under the License.
 
  */
-package herddb.log;
+package herddb.model;
 
 /**
- * Types of log entry
+ * Statements on a single table
  *
  * @author enrico.olivelli
  */
-public class LogEntryType {
+public class TableAwareStatement extends Statement {
 
-    public static final short CREATE_TABLE = 1;
-    public static final short INSERT = 2;
-    public static final short UPDATE = 3;
-    public static final short DELETE = 4;
+    private String table;
+
+    public TableAwareStatement(String table, String tableSpace) {
+        super(tableSpace);
+        this.table = table;
+    }
+
+    public String getTable() {
+        return table;
+    }
 
 }
