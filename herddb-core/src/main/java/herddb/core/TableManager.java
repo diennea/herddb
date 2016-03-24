@@ -23,7 +23,7 @@ import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogNotAvailableException;
-import herddb.log.SequenceNumber;
+import herddb.log.LogSequenceNumber;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
@@ -340,7 +340,7 @@ public class TableManager {
 
     void flush() throws DataStorageManagerException {
         pagesLock.writeLock().lock();
-        SequenceNumber sequenceNumber = log.getActualSequenceNumber();
+        LogSequenceNumber sequenceNumber = log.getActualSequenceNumber();
         try {
             /*
                 When the size of loaded data in the memory reaches a maximum value the rows on memory are dumped back to disk creating new pages
@@ -385,7 +385,7 @@ public class TableManager {
 
     }
 
-    private void createNewPage(SequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException {
+    private void createNewPage(LogSequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "createNewPage at " + sequenceNumber + " with " + newPage);
         Long newPageId = dataStorageManager.writePage(table.name, sequenceNumber, newPage);
         for (Record record : newPage) {

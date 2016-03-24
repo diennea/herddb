@@ -24,12 +24,12 @@ package herddb.log;
  *
  * @author enrico.olivelli
  */
-public final class SequenceNumber {
+public final class LogSequenceNumber {
 
     public final long ledgerId;
     public final long offset;
 
-    public SequenceNumber(long ledgerId, long offset) {
+    public LogSequenceNumber(long ledgerId, long offset) {
         this.ledgerId = ledgerId;
         this.offset = offset;
     }
@@ -53,7 +53,7 @@ public final class SequenceNumber {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final SequenceNumber other = (SequenceNumber) obj;
+        final LogSequenceNumber other = (LogSequenceNumber) obj;
         if (this.ledgerId != other.ledgerId) {
             return false;
         }
@@ -66,6 +66,16 @@ public final class SequenceNumber {
     @Override
     public String toString() {
         return "(" + ledgerId + ',' + offset + ')';
+    }
+
+    public boolean after(LogSequenceNumber snapshotSequenceNumber) {
+        if (this.ledgerId < snapshotSequenceNumber.ledgerId) {
+            return false;
+        } else if (this.ledgerId == snapshotSequenceNumber.ledgerId) {
+            return this.offset > snapshotSequenceNumber.offset;
+        } else {
+            return true;
+        }
     }
 
 }

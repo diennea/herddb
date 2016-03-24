@@ -19,7 +19,7 @@
  */
 package herddb.mem;
 
-import herddb.log.SequenceNumber;
+import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -40,9 +40,9 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public static final class Page {
 
         private final List<Record> records;
-        private final SequenceNumber sequenceNumber;
+        private final LogSequenceNumber sequenceNumber;
 
-        public Page(List<Record> records, SequenceNumber sequenceNumber) {
+        public Page(List<Record> records, LogSequenceNumber sequenceNumber) {
             this.records = records;
             this.sequenceNumber = sequenceNumber;
         }
@@ -51,7 +51,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
             return records;
         }
 
-        public SequenceNumber getSequenceNumber() {
+        public LogSequenceNumber getSequenceNumber() {
             return sequenceNumber;
         }
 
@@ -87,7 +87,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public Long writePage(String tableName, SequenceNumber sequenceNumber, List<Record> newPage) {
+    public Long writePage(String tableName, LogSequenceNumber sequenceNumber, List<Record> newPage) {
         long pageId = newPageId.incrementAndGet();
         Page page = new Page(newPage, sequenceNumber);
         pages.put(tableName + "_" + pageId, page);

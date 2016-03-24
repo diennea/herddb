@@ -19,7 +19,7 @@
  */
 package herddb.storage;
 
-import herddb.log.SequenceNumber;
+import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.utils.Bytes;
 import java.util.List;
@@ -58,7 +58,7 @@ public abstract class DataStorageManager {
      * @return
      * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract Long writePage(String tableName, SequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException;
+    public abstract Long writePage(String tableName, LogSequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException;
     
     /**
      * Return the actual number of pages presents on disk

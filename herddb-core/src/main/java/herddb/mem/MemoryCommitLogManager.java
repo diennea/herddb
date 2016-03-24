@@ -23,9 +23,10 @@ import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
-import herddb.log.SequenceNumber;
+import herddb.log.LogSequenceNumber;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 /**
  * In Memory CommitLogManager, for tests
@@ -41,20 +42,35 @@ public class MemoryCommitLogManager extends CommitLogManager {
             AtomicLong offset = new AtomicLong();
 
             @Override
-            public void log(LogEntry entry) throws LogNotAvailableException {
+            public LogSequenceNumber log(LogEntry entry) throws LogNotAvailableException {
                 // NOOP
-                offset.incrementAndGet();
+                return new LogSequenceNumber(1, offset.incrementAndGet());
             }
 
             @Override
-            public void log(List<LogEntry> entries) throws LogNotAvailableException {
-                // NOOP
-                offset.addAndGet(entries.size());
+            public LogSequenceNumber getActualSequenceNumber() {
+                return new LogSequenceNumber(1, offset.get());
+            }
+
+            private volatile boolean closed;
+
+            @Override
+            public void close() throws LogNotAvailableException {
+                closed = true;
             }
 
             @Override
-            public SequenceNumber getActualSequenceNumber() {
-                return new SequenceNumber(1, offset.get());
+            public boolean isClosed() {
+                return closed;
+            }
+
+            @Override
+            public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
+
+            }
+
+            @Override
+            public void startWriting() throws LogNotAvailableException {
             }
 
         };

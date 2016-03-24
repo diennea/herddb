@@ -19,7 +19,9 @@
  */
 package herddb.log;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 /**
  * This is the core write-ahead-log of the system. Every change to data is
@@ -36,17 +38,33 @@ public abstract class CommitLog {
      * @param entry
      * @throws LogNotAvailableException
      */
-    public abstract void log(LogEntry entry) throws LogNotAvailableException;
+    public abstract LogSequenceNumber log(LogEntry entry) throws LogNotAvailableException;
 
     /**
      * Log a batch of entries and returns only when the batch has been safely
      * written to the log. In case of LogNotAvailableException it is not
      * possible to know which entries have been written.
      *
-     * @param entry
+     * @param entries
+     * @return
      * @throws LogNotAvailableException
      */
-    public abstract void log(List<LogEntry> entries) throws LogNotAvailableException;
+    public List<LogSequenceNumber> log(List<LogEntry> entries) throws LogNotAvailableException {
+        List<LogSequenceNumber> res = new ArrayList<>();
+        for (LogEntry entry : entries) {
+            res.add(log(entry));
+        }
+        return res;
+    }
 
-    public abstract SequenceNumber getActualSequenceNumber();
+    public abstract void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException;
+
+    public abstract LogSequenceNumber getActualSequenceNumber();
+
+    public abstract void startWriting() throws LogNotAvailableException;
+
+    public abstract void close() throws LogNotAvailableException;
+
+    public abstract boolean isClosed();
+
 }
