@@ -72,6 +72,7 @@ public class DBManager {
     public void start() throws DataStorageManagerException {
         generalLock.writeLock().lock();
         try {
+            dataStorageManager.start();
             for (String tableSpace : metadataStorageManager.listTableSpaces()) {
                 bootTableSpace(tableSpace);
             }
@@ -196,8 +197,8 @@ public class DBManager {
         }
     }
 
-    void close() {
-
+    void close() throws DataStorageManagerException {
+        dataStorageManager.close();
     }
 
     public void flush() throws DataStorageManagerException {

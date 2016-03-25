@@ -59,13 +59,28 @@ public abstract class DataStorageManager {
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract Long writePage(String tableName, LogSequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException;
-    
+
     /**
      * Return the actual number of pages presents on disk
+     *
      * @param tableName
      * @return
-     * @throws DataStorageManagerException 
+     * @throws DataStorageManagerException
      */
     public abstract int getActualNumberOfPages(String tableName) throws DataStorageManagerException;
+
+    /**
+     * Boots the Storage Manager
+     *
+     * @throws DataStorageManagerException
+     */
+    public abstract void start() throws DataStorageManagerException;
+
+    /**
+     * Shutsdown cleanly the Storage Manager
+     *
+     * @throws DataStorageManagerException
+     */
+    public abstract void close() throws DataStorageManagerException;
 
 }

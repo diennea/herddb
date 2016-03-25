@@ -94,4 +94,15 @@ public class MemoryDataStorageManager extends DataStorageManager {
         return pageId;
     }
 
+    @Override
+    public void start() throws DataStorageManagerException {
+
+    }
+
+    @Override
+    public void close() throws DataStorageManagerException {
+        this.pages.clear();
+        this.keysByPage.clear();
+    }
+
 }
