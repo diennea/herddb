@@ -85,7 +85,7 @@ public class FlushFileTest extends BaseTestcase {
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
             assertEquals(1, manager.executeUpdate(st).getUpdateCount());
         }
-        assertNull(dataStorageManager.loadPage(tableName, 1L));
+        
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableName));
         manager.flush();
         assertNotNull(dataStorageManager.loadPage(tableName, 1L));
@@ -148,13 +148,7 @@ public class FlushFileTest extends BaseTestcase {
         // a new page, containg the key3 record is needed
         manager.flush();
 
-        MemoryDataStorageManager mem = (MemoryDataStorageManager) dataStorageManager;
-        for (long pageId = 1; pageId <= dataStorageManager.getActualNumberOfPages(tableName); pageId++) {
-            Page page = mem.getPage(tableName, pageId);
-            List<Record> records = page.getRecords();
-            System.out.println("PAGE #" + pageId + " records :" + records + " seq " + page.getSequenceNumber());
-        }
-
+        
         assertEquals(5, dataStorageManager.getActualNumberOfPages(tableName));
 
     }

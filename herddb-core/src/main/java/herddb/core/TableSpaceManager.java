@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.codec.RecordSerializer;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -52,7 +53,7 @@ public class TableSpaceManager {
     private final CommitLog log;
     private final String tableSpaceName;
     private final Map<String, TableManager> tables = new ConcurrentHashMap<>();
-    private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
+    private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();    
 
     public TableSpaceManager(String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log) {
         this.metadataStorageManager = metadataStorageManager;

@@ -35,29 +35,62 @@ public class LogEntry {
     public final short type;
     public final byte[] tableSpace;
     public final long transactionId;
-    public final byte[] payload;
+    public final byte[] tableName;
+    public final byte[] key;
+    public final byte[] value;
     public final long timestamp;
 
-    public LogEntry(long timestamp, short type, byte[] tableSpace, long transactionId, byte[] payload) {
+    public LogEntry(long timestamp, short type, byte[] tableSpace, long transactionId, byte[] tableName, byte[] key, byte[] value) {
         this.timestamp = timestamp;
         this.type = type;
         this.tableSpace = tableSpace;
         this.transactionId = transactionId;
-        this.payload = payload;
+        this.key = key;
+        this.value = value;
+        this.tableName = tableName;
     }
 
     public byte[] serialize() {
         try {
-            ByteArrayOutputStream out = new ByteArrayOutputStream(8 + 2 + 2 + tableSpace.length + 8 + 4 + payload.length);
-            DataOutputStream doo = new DataOutputStream(out);
-            doo.writeLong(timestamp);
-            doo.writeShort(type);
-            doo.writeLong(transactionId);
-            doo.writeShort(tableSpace.length);
-            doo.write(tableSpace);
-            doo.writeInt(payload.length);
-            doo.write(payload);
-            doo.close();
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            try (DataOutputStream doo = new DataOutputStream(out)) {
+                doo.writeLong(timestamp);
+                doo.writeShort(type);
+                doo.writeLong(transactionId);
+                doo.writeShort(tableSpace.length);
+                doo.write(tableSpace);
+                switch (type) {
+                    case LogEntryType.UPDATE:
+                        doo.writeInt(tableName.length);
+                        doo.write(tableName);
+                        doo.writeInt(key.length);
+                        doo.write(key);
+                        doo.writeInt(value.length);
+                        doo.write(value);
+                        break;
+                    case LogEntryType.INSERT:
+                        doo.writeInt(tableName.length);
+                        doo.write(tableName);
+                        doo.writeInt(key.length);
+                        doo.write(key);
+                        doo.writeInt(value.length);
+                        doo.write(value);
+                        break;
+                    case LogEntryType.DELETE:
+                        doo.writeInt(tableName.length);
+                        doo.write(tableName);
+                        doo.writeInt(key.length);
+                        doo.write(key);
+                        break;
+                    case LogEntryType.CREATE_TABLE:
+                        // value contains the table definition
+                        doo.writeInt(value.length);
+                        doo.write(value);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("unsupported type " + type);
+                }
+            }
             return out.toByteArray();
         } catch (IOException err) {
             throw new RuntimeException(err);
@@ -74,13 +107,42 @@ public class LogEntry {
             int tableSpaceLen = dis.readShort();
             byte[] tableSpace = new byte[tableSpaceLen];
             dis.readFully(tableSpace);
-            int payloadlen = dis.readInt();
-            byte[] payload = new byte[payloadlen];
-            dis.readFully(payload);
-            return new LogEntry(timestamp, type, tableSpace, transactionId, payload);
+            byte[] key = null;
+            byte[] value = null;
+            byte[] tableName = null;
+            switch (type) {
+                case LogEntryType.UPDATE:
+                    tableName = readArray(dis);
+                    key = readArray(dis);
+                    value = readArray(dis);
+                    break;
+                case LogEntryType.INSERT:
+                    tableName = readArray(dis);
+                    key = readArray(dis);
+                    value = readArray(dis);
+                    break;
+                case LogEntryType.DELETE:
+                    tableName = readArray(dis);
+                    key = readArray(dis);
+                    break;
+                case LogEntryType.CREATE_TABLE:
+                    // value contains the table definition                                        
+                    value = readArray(dis);
+                    break;
+                default:
+                    throw new IllegalArgumentException("unsupported type " + type);
+            }
+            return new LogEntry(timestamp, type, tableSpace, transactionId, tableName, key, value);
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
+    }
+
+    private static byte[] readArray(DataInputStream doo) throws IOException {
+        int len = doo.readInt();
+        byte[] res = new byte[len];
+        doo.readFully(res);
+        return res;
     }
 
 }

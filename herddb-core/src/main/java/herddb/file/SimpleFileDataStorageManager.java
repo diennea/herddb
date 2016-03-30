@@ -30,11 +30,13 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
@@ -82,7 +84,6 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
     public List<Record> loadPage(String tableName, Long pageId) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableName);
         Path pageFile = getPageFile(tableDir, pageId);
-
         try (InputStream input = Files.newInputStream(pageFile, StandardOpenOption.READ);
                 DataInputStream dataIn = new DataInputStream(input)) {
             int numRecords = dataIn.readInt();
@@ -155,7 +156,7 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND);
+        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND,StandardOpenOption.CREATE);
                 DataOutputStream dataOutputKeys = new DataOutputStream(outputKeys)) {
             dataOutputKeys.writeInt(newPage.size());
             for (Record record : newPage) {
@@ -171,7 +172,23 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
 
     @Override
     public int getActualNumberOfPages(String tableName) throws DataStorageManagerException {
-        throw new DataStorageManagerException("not implemented");
+        Path tableDir = getTableDirectory(tableName);
+        try {
+            Files.createDirectories(tableDir);
+
+            AtomicInteger count = new AtomicInteger();
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(tableDir, (path) -> {
+                return path.toString().endsWith(".page");
+            });) {
+                stream.forEach(p -> {
+                    System.out.println("GOT PAGE " + p.toString());
+                    count.incrementAndGet();
+                });
+            }
+            return count.get();
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
 }

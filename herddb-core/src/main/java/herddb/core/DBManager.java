@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.codec.RecordSerializer;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;

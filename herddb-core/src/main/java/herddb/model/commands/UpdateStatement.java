@@ -22,6 +22,9 @@ package herddb.model.commands;
 import herddb.model.DMLStatement;
 import herddb.model.Predicate;
 import herddb.model.Record;
+import herddb.model.RecordFunction;
+import herddb.model.ConstValueRecordFunction;
+import herddb.utils.Bytes;
 
 /**
  * Update an existing record
@@ -30,17 +33,27 @@ import herddb.model.Record;
  */
 public class UpdateStatement extends DMLStatement {
 
-    private final Record record;
+    private final RecordFunction function;
+    private final Bytes key;
     private final Predicate predicate;
 
     public UpdateStatement(String tableSpace, String table, Record record, Predicate predicate) {
-        super(table, tableSpace);
-        this.record = record;
-        this.predicate = predicate;
+        this(tableSpace, table, record.key, new ConstValueRecordFunction(record.value.data), predicate);
     }
 
-    public Record getRecord() {
-        return record;
+    public UpdateStatement(String tableSpace, String table, Bytes key, RecordFunction function, Predicate predicate) {
+        super(table, tableSpace);
+        this.function = function;
+        this.predicate = predicate;
+        this.key = key;
+    }
+
+    public RecordFunction getFunction() {
+        return function;
+    }
+
+    public Bytes getKey() {
+        return key;
     }
 
     public Predicate getPredicate() {

@@ -22,12 +22,14 @@ package herddb.core;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
+import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Predicate;
+import herddb.model.RecordFunction;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.Statement;
@@ -49,7 +51,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -101,11 +102,6 @@ public class TableManager {
      * Access to Pages
      */
     private ReentrantReadWriteLock pagesLock = new ReentrantReadWriteLock(true);
-
-    /**
-     * Actual size of data loaded into memory
-     */
-    private AtomicLong actualsize = new AtomicLong();
 
     /**
      * Definition of the table
@@ -174,12 +170,10 @@ public class TableManager {
             if (keyToPage.containsKey(key)) {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
             }
-            LogEntry entry = LogEntryFactory.insert(table, record, transaction);
+            LogEntry entry = LogEntryFactory.insert(table, record.key.data, record.value.data, transaction);
             log.log(entry);
-            keyToPage.put(key, NO_PAGE);
-            buffer.put(key, record);
-            deletedKeys.remove(key);
-            actualsize.addAndGet(record.key.data.length + record.value.data.length);
+            apply(entry);
+
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -195,8 +189,10 @@ public class TableManager {
               the update can have a 'where' predicate which is to be evaluated against the decoded row, the update will be executed only if the predicate returns boolean 'true' value  (CAS operation)
               locks: the update  uses a lock on the the key
          */
-        Record record = update.getRecord();
-        Bytes key = record.key;
+        RecordFunction function = update.getFunction();
+        boolean requiresNewValue = function.requiresPreviousValue();
+        Predicate predicate = update.getPredicate();
+        Bytes key = update.getKey();
         ReentrantReadWriteLock lock = locksManager.acquireWriteLockForKey(key);
         try {
             Long pageId = keyToPage.get(key);
@@ -205,7 +201,7 @@ public class TableManager {
                 return new DMLStatementExecutionResult(0, key);
             }
             Record loaded = null;
-            if (update.getPredicate() != null) {
+            if (predicate != null || requiresNewValue) {
                 loaded = buffer.get(key);
                 if (loaded == null) {
                     ensurePageLoaded(pageId);
@@ -216,18 +212,15 @@ public class TableManager {
                     return new DMLStatementExecutionResult(0, key);
                 }
             }
-
-            LogEntry entry = LogEntryFactory.update(table, record, transaction);
-            log.log(entry);
-            // mark record as dirty
-            keyToPage.put(key, NO_PAGE);
-            buffer.put(key, record);
-            if (loaded != null) {
-                actualsize.addAndGet(record.value.data.length - loaded.value.data.length);
-            } else {
-                actualsize.addAndGet(record.value.data.length);
+            byte[] newValue = function.computeNewValue(loaded);
+            if (newValue == null) {
+                throw new NullPointerException("new value cannot be null");
             }
-            dirtyPages.add(pageId);
+            LogEntry entry = LogEntryFactory.update(table, key.data, newValue, transaction);
+            log.log(entry);
+
+            apply(entry);
+
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -264,22 +257,49 @@ public class TableManager {
                 }
             }
 
-            LogEntry entry = LogEntryFactory.delete(table, key, transaction);
+            LogEntry entry = LogEntryFactory.delete(table, key.data, transaction);
             log.log(entry);
 
-            // remove the record from the set of existing records
-            keyToPage.remove(key);
-            deletedKeys.add(key);
-            Record removed = buffer.remove(key);
-            if (removed != null) {
-                actualsize.addAndGet(removed.key.data.length + removed.value.data.length);
-            }
-            dirtyPages.add(pageId);
+            apply(entry);
+
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
             locksManager.releaseWriteLockForKey(key, lock);
+        }
+    }
+
+    private void apply(LogEntry entry) {
+        switch (entry.type) {
+            case LogEntryType.DELETE: {
+                // remove the record from the set of existing records
+                Bytes key = new Bytes(entry.key);
+                Long pageId = keyToPage.remove(key);
+                deletedKeys.add(key);
+                buffer.remove(key);
+                dirtyPages.add(pageId);
+                break;
+            }
+            case LogEntryType.UPDATE: {
+                // mark record as dirty
+                Bytes key = new Bytes(entry.key);
+                Bytes value = new Bytes(entry.value);
+                Long pageId = keyToPage.put(key, NO_PAGE);
+                buffer.put(key, new Record(key, value));
+                dirtyPages.add(pageId);
+                break;
+            }
+            case LogEntryType.INSERT: {
+                Bytes key = new Bytes(entry.key);
+                Bytes value = new Bytes(entry.value);
+                keyToPage.put(key, NO_PAGE);
+                buffer.put(key, new Record(key, value));
+                deletedKeys.remove(key);
+                break;
+            }
+            default:
+                throw new IllegalArgumentException("unhandled entry type " + entry.type);
         }
     }
 

@@ -19,36 +19,29 @@
  */
 package herddb.model;
 
-import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
-import java.util.Map;
 
 /**
- * A generic record
+ * A Constant value for the record
  *
  * @author enrico.olivelli
  */
-public class Record {
+public class ConstValueRecordFunction extends RecordFunction {
 
-    public final Bytes key;
-    public final Bytes value;
-    public Map<String, Object> bean;
+    private final byte[] value;
 
-    public Record(Bytes key, Bytes value) {
-        this.key = key;
+    public ConstValueRecordFunction(byte[] value) {
         this.value = value;
     }
 
-    public synchronized Map<String, Object> toBean(Table table) {
-        if (bean == null) {
-            bean = RecordSerializer.toBean(this, table);
-        }
-        return bean;
+    @Override
+    public byte[] computeNewValue(Record previous) {
+        return value;
     }
 
     @Override
-    public String toString() {
-        return "Record{" + "key=" + key + ", value=" + value + '}';
+    public boolean requiresPreviousValue() {
+        return false;
     }
 
 }
