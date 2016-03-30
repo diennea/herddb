@@ -17,26 +17,23 @@
  under the License.
 
  */
-package herddb.model;
-
-import herddb.utils.Bytes;
+package herddb.utils;
 
 /**
- * A Constant value for the record
+ * Handle to a lock
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class LockHandle {
 
-    private final byte[] value;
+    public final long stamp;
+    public final boolean write;
+    public final Bytes key;
 
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
-    }
-
-    @Override
-    public byte[] computeNewValue(Record previous) {
-        return value;
+    public LockHandle(long stamp, Bytes key, boolean write) {
+        this.stamp = stamp;
+        this.key = key;
+        this.write = write;
     }
 
 }

@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.StampedLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -36,15 +36,15 @@ public class LocalLockManager {
 
     private static final Logger LOGGER = Logger.getLogger(LocalLockManager.class.getName());
 
-    private ReentrantReadWriteLock makeLock() {
-        return new ReentrantReadWriteLock();
+    private StampedLock makeLock() {
+        return new StampedLock();
     }
     private final ReentrantLock generalLock = new ReentrantLock(true);
-    private final Map<Bytes, ReentrantReadWriteLock> liveLocks = new HashMap<>();
+    private final Map<Bytes, StampedLock> liveLocks = new HashMap<>();
     private final Map<Bytes, AtomicInteger> locksCounter = new HashMap<>();
 
-    private ReentrantReadWriteLock makeLockForKey(Bytes key) {
-        ReentrantReadWriteLock lock;
+    private StampedLock makeLockForKey(Bytes key) {
+        StampedLock lock;
         generalLock.lock();
         try {
             lock = liveLocks.get(key);
@@ -61,8 +61,8 @@ public class LocalLockManager {
         return lock;
     }
 
-    private ReentrantReadWriteLock returnLockForKey(Bytes key) throws IllegalStateException {
-        ReentrantReadWriteLock lock;
+    private StampedLock returnLockForKey(Bytes key) throws IllegalStateException {
+        StampedLock lock;
         generalLock.lock();
         try {
             lock = liveLocks.get(key);
@@ -81,26 +81,32 @@ public class LocalLockManager {
         return lock;
     }
 
-    public ReentrantReadWriteLock acquireWriteLockForKey(Bytes key) {
-        ReentrantReadWriteLock lock = makeLockForKey(key);
-        lock.writeLock().lock();
-        return lock;
+    public LockHandle acquireWriteLockForKey(Bytes key) {
+        StampedLock lock = makeLockForKey(key);
+        return new LockHandle(lock.writeLock(), key, true);
     }
 
-    public void releaseWriteLockForKey(Bytes key, ReentrantReadWriteLock lockStamp) {
-        ReentrantReadWriteLock lock = returnLockForKey(key);
-        lock.writeLock().unlock();
+    public void releaseWriteLockForKey(Bytes key, LockHandle lockStamp) {
+        StampedLock lock = returnLockForKey(key);
+        lock.unlockWrite(lockStamp.stamp);
     }
 
-    public ReentrantReadWriteLock acquireReadLockForKey(Bytes key) {
-        ReentrantReadWriteLock lock = makeLockForKey(key);
-        lock.readLock().lock();
-        return lock;
+    public LockHandle acquireReadLockForKey(Bytes key) {
+        StampedLock lock = makeLockForKey(key);
+        return new LockHandle(lock.readLock(), key, false);
     }
 
-    public void releaseReadLockForKey(Bytes key, ReentrantReadWriteLock lockStamp) {
-        ReentrantReadWriteLock lock = returnLockForKey(key);
-        lock.readLock().unlock();
+    public void releaseReadLockForKey(Bytes key, LockHandle lockStamp) {
+        StampedLock lock = returnLockForKey(key);
+        lock.unlockRead(lockStamp.stamp);
+    }
+
+    public void releaseLock(LockHandle l) {
+        if (l.write) {
+            releaseWriteLockForKey(l.key, l);
+        } else {
+            releaseReadLockForKey(l.key, l);
+        }
     }
 
 }

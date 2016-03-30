@@ -17,26 +17,26 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.model.commands;
 
-import herddb.utils.Bytes;
+import herddb.model.Statement;
 
 /**
- * A Constant value for the record
+ * Rollback a transaction over a given tablespace
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class RollbackTransactionStatement extends Statement {
 
-    private final byte[] value;
+    private final long transactionId;
 
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
+    public RollbackTransactionStatement(String tableSpace, long transactionId) {
+        super(tableSpace);
+        this.transactionId = transactionId;
     }
 
-    @Override
-    public byte[] computeNewValue(Record previous) {
-        return value;
+    public long getTransactionId() {
+        return transactionId;
     }
 
 }

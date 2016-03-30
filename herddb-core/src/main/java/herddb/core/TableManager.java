@@ -44,6 +44,7 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
+import herddb.utils.LockHandle;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -165,7 +166,10 @@ public class TableManager {
          */
         Record record = insert.getRecord();
         Bytes key = record.key;
-        ReentrantReadWriteLock lock = locksManager.acquireWriteLockForKey(key);
+        LockHandle lock = locksManager.acquireWriteLockForKey(key);
+        if (transaction != null) {
+            transaction.registerLockOnTable(this.table.name, lock);
+        }
         try {
             if (keyToPage.containsKey(key)) {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
@@ -174,11 +178,17 @@ public class TableManager {
             log.log(entry);
             apply(entry);
 
+            if (transaction != null) {
+                transaction.registerInsertOnTable(table.name, key);
+            }
+
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            locksManager.releaseWriteLockForKey(key, lock);
+            if (transaction == null) {
+                locksManager.releaseWriteLockForKey(key, lock);
+            }
         }
     }
 
@@ -190,29 +200,33 @@ public class TableManager {
               locks: the update  uses a lock on the the key
          */
         RecordFunction function = update.getFunction();
-        boolean requiresNewValue = function.requiresPreviousValue();
+
         Predicate predicate = update.getPredicate();
         Bytes key = update.getKey();
-        ReentrantReadWriteLock lock = locksManager.acquireWriteLockForKey(key);
+        LockHandle lock = locksManager.acquireWriteLockForKey(key);
+        if (transaction != null) {
+            transaction.registerLockOnTable(this.table.name, lock);
+        }
         try {
             Long pageId = keyToPage.get(key);
             if (pageId == null) {
                 // no record at that key
                 return new DMLStatementExecutionResult(0, key);
             }
-            Record loaded = null;
-            if (predicate != null || requiresNewValue) {
-                loaded = buffer.get(key);
-                if (loaded == null) {
-                    ensurePageLoaded(pageId);
-                    loaded = buffer.get(key);
-                }
-                if (!update.getPredicate().evaluate(loaded)) {
-                    // record does not match predicate
-                    return new DMLStatementExecutionResult(0, key);
-                }
+            Record actual = buffer.get(key);
+            if (actual == null) {
+                ensurePageLoaded(pageId);
+                actual = buffer.get(key);
             }
-            byte[] newValue = function.computeNewValue(loaded);
+            if (predicate != null && !predicate.evaluate(actual)) {
+                // record does not match predicate
+                return new DMLStatementExecutionResult(0, key);
+            }
+            if (transaction != null) {
+                transaction.registerChangedOnTable(this.table.name, actual);
+            }
+
+            byte[] newValue = function.computeNewValue(actual);
             if (newValue == null) {
                 throw new NullPointerException("new value cannot be null");
             }
@@ -225,7 +239,9 @@ public class TableManager {
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            locksManager.releaseWriteLockForKey(key, lock);
+            if (transaction == null) {
+                locksManager.releaseWriteLockForKey(key, lock);
+            }
         }
     }
 
@@ -237,7 +253,10 @@ public class TableManager {
                   the delete can have a 'where' predicate which is to be evaluated against the decoded row, the delete  will be executed only if the predicate returns boolean 'true' value  (CAS operation)
          */
         Bytes key = delete.getKey();
-        ReentrantReadWriteLock lock = locksManager.acquireWriteLockForKey(key);
+        LockHandle lock = locksManager.acquireWriteLockForKey(key);
+        if (transaction != null) {
+            transaction.registerLockOnTable(this.table.name, lock);
+        }
         try {
             Long pageId = keyToPage.get(key);
             if (pageId == null) {
@@ -249,12 +268,12 @@ public class TableManager {
                 // page always need to be loaded because the other records on that page will be rewritten on a new page
                 ensurePageLoaded(pageId);
                 actual = buffer.get(key);
+            } else if (transaction != null) {
+                transaction.registerChangedOnTable(this.table.name, actual);
             }
-            if (delete.getPredicate() != null) {
-                if (!delete.getPredicate().evaluate(actual)) {
-                    // record does not match predicate
-                    return new DMLStatementExecutionResult(0, key);
-                }
+            if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
+                // record does not match predicate
+                return new DMLStatementExecutionResult(0, key);
             }
 
             LogEntry entry = LogEntryFactory.delete(table, key.data, transaction);
@@ -266,8 +285,36 @@ public class TableManager {
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            locksManager.releaseWriteLockForKey(key, lock);
+            if (transaction == null) {
+                locksManager.releaseWriteLockForKey(key, lock);
+            }
         }
+    }
+
+    void onTransactionCommit(Transaction transaction) {
+        transaction.releaseLocksOnTable(table.name, locksManager);
+    }
+
+    void onTransactionRollback(Transaction transaction) {
+        List<Record> changedRecords = transaction.getChangedRecordsForTable(table.name);
+        // transaction is still holding locks on each record, so we can change records
+        if (changedRecords != null) {
+            for (Record r : changedRecords) {
+                buffer.put(r.key, r);
+                Long pageId = keyToPage.put(r.key, NO_PAGE);
+                if (pageId != null) {
+                    dirtyPages.add(pageId);
+                }
+            }
+        }
+        List<Bytes> newRecords = transaction.getNewRecordsForTable(table.name);
+        if (newRecords != null) {
+            for (Bytes key : newRecords) {
+                buffer.remove(key);
+                keyToPage.remove(key);
+            }
+        }
+        transaction.releaseLocksOnTable(table.name, locksManager);
     }
 
     private void apply(LogEntry entry) {
@@ -310,7 +357,10 @@ public class TableManager {
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
         Bytes key = get.getKey();
         Predicate predicate = get.getPredicate();
-        ReentrantReadWriteLock lock = locksManager.acquireReadLockForKey(key);
+        LockHandle lock = locksManager.acquireReadLockForKey(key);
+        if (transaction != null) {
+            transaction.registerLockOnTable(this.table.name, lock);
+        }
         try {
             // fastest path first, check if the record is loaded in memory
             Record loaded = buffer.get(key);
@@ -335,9 +385,10 @@ public class TableManager {
             }
             return new GetResult(loaded);
         } finally {
-            locksManager.releaseReadLockForKey(key, lock);
+            if (transaction == null) {
+                locksManager.releaseReadLockForKey(key, lock);
+            }
         }
-
     }
 
     private void ensurePageLoaded(Long pageId) throws DataStorageManagerException {

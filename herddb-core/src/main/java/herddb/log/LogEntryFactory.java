@@ -19,10 +19,8 @@
  */
 package herddb.log;
 
-import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
-import herddb.utils.Bytes;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -39,6 +37,18 @@ public class LogEntryFactory {
     public static LogEntry createTable(Table table, Transaction transaction) {
         byte[] payload = table.serialize();
         return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_TABLE, bytes(table.tablespace), transaction != null ? transaction.transactionId : 0, null, null, payload);
+    }
+
+    public static LogEntry beginTransaction(String tablespace, Transaction transaction) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, bytes(tablespace), transaction.transactionId, null, null, null);
+    }
+
+    public static LogEntry commitTransaction(String tablespace, Transaction transaction) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.COMMITTRANSACTION, bytes(tablespace), transaction.transactionId, null, null, null);
+    }
+
+    public static LogEntry rollbackTransaction(String tablespace, Transaction transaction) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.ROLLBACKTRANSACTION, bytes(tablespace), transaction.transactionId, null, null, null);
     }
 
     public static LogEntry insert(Table table, byte[] key, byte[] value, Transaction transaction) {

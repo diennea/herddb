@@ -17,26 +17,19 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.model.commands;
 
-import herddb.utils.Bytes;
+import herddb.model.Statement;
 
 /**
- * A Constant value for the record
+ * Begin a transaction over a given tablespace
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class BeginTransactionStatement extends Statement {
 
-    private final byte[] value;
-
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
-    }
-
-    @Override
-    public byte[] computeNewValue(Record previous) {
-        return value;
+    public BeginTransactionStatement(String tableSpace) {
+        super(tableSpace);
     }
 
 }

@@ -19,6 +19,14 @@
  */
 package herddb.model;
 
+import herddb.utils.Bytes;
+import herddb.utils.LocalLockManager;
+import herddb.utils.LockHandle;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
  * semantics on a set of tables of the same TableSet
@@ -29,10 +37,60 @@ public class Transaction {
 
     public final long transactionId;
     public final String tableSpace;
+    public final Map<String, List<LockHandle>> locks;
+    public final Map<String, List<Record>> changedRecords;
+    public final Map<String, List<Bytes>> newRecords;
 
     public Transaction(long transactionId, String tableSpace) {
         this.transactionId = transactionId;
         this.tableSpace = tableSpace;
+        this.locks = new HashMap<>();
+        this.changedRecords = new HashMap<>();
+        this.newRecords = new HashMap<>();
+    }
+
+    public List<Record> getChangedRecordsForTable(String tableName) {
+        return changedRecords.get(tableName);
+    }
+    
+    public List<Bytes> getNewRecordsForTable(String tableName) {
+        return newRecords.get(tableName);
+    }
+
+    public void registerLockOnTable(String tableName, LockHandle handle) {
+        List<LockHandle> ll = locks.get(tableName);
+        if (ll == null) {
+            ll = new ArrayList<>();
+            locks.put(tableName, ll);
+        }
+        ll.add(handle);
+    }
+
+    public void registerChangedOnTable(String tableName, Record record) {
+        List<Record> ll = changedRecords.get(tableName);
+        if (ll == null) {
+            ll = new ArrayList<>();
+            changedRecords.put(tableName, ll);
+        }
+        ll.add(record);
+    }
+    
+    public void registerInsertOnTable(String tableName, Bytes key) {
+        List<Bytes> ll = newRecords.get(tableName);
+        if (ll == null) {
+            ll = new ArrayList<>();
+            newRecords.put(tableName, ll);
+        }
+        ll.add(key);
+    }
+
+    public void releaseLocksOnTable(String tableName, LocalLockManager lockManager) {
+        List<LockHandle> ll = locks.get(tableName);
+        if (ll != null) {
+            for (LockHandle l : ll) {
+                lockManager.releaseLock(l);
+            }
+        }
     }
 
 }

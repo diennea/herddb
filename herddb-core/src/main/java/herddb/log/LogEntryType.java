@@ -30,5 +30,8 @@ public class LogEntryType {
     public static final short INSERT = 2;
     public static final short UPDATE = 3;
     public static final short DELETE = 4;
+    public static final short BEGINTRANSACTION = 5;
+    public static final short COMMITTRANSACTION = 6;
+    public static final short ROLLBACKTRANSACTION = 7;
 
 }

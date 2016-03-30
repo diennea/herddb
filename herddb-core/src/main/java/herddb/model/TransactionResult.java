@@ -19,24 +19,21 @@
  */
 package herddb.model;
 
-import herddb.utils.Bytes;
-
 /**
- * A Constant value for the record
+ * Result of an action on a transaction
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class TransactionResult extends StatementExecutionResult {
 
-    private final byte[] value;
+    private final long transactionId;
 
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
+    public TransactionResult(long transactionId) {
+        this.transactionId = transactionId;
     }
 
-    @Override
-    public byte[] computeNewValue(Record previous) {
-        return value;
+    public long getTransactionId() {
+        return transactionId;
     }
 
 }

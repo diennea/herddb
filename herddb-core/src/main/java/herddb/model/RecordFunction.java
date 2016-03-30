@@ -26,10 +26,6 @@ package herddb.model;
  */
 public abstract class RecordFunction {
 
-    public boolean requiresPreviousValue() {
-        return false;
-    }
-
     public abstract byte[] computeNewValue(Record previous);
 
 }

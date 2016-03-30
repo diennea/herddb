@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
@@ -104,21 +103,18 @@ public class DBManager {
         }
     }
 
-    public StatementExecutionResult executeStatement(Statement statement, Transaction transaction) throws StatementExecutionException {
-        LOGGER.log(Level.FINEST, "executeStatement {0} {1}", new Object[]{statement, transaction});
+    public StatementExecutionResult executeStatement(Statement statement) throws StatementExecutionException {
+        LOGGER.log(Level.FINEST, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
         }
 
         if (statement instanceof CreateTableSpaceStatement) {
-            if (transaction != null) {
+            if (statement.getTransactionId() > 0) {
                 throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
             }
             return createTableSpace((CreateTableSpaceStatement) statement);
-        }
-        if (transaction != null && !transaction.tableSpace.equals(tableSpace)) {
-            throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpace);
         }
 
         TableSpaceManager manager;
@@ -131,7 +127,7 @@ public class DBManager {
         if (manager == null) {
             throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
         }
-        return manager.executeStatement(statement, transaction);
+        return manager.executeStatement(statement);
     }
 
     /**
@@ -146,28 +142,6 @@ public class DBManager {
     }
 
     /**
-     * Utility method for auto-commit statements
-     *
-     * @param statement
-     * @return
-     * @throws StatementExecutionException
-     */
-    public StatementExecutionResult executeStatement(Statement statement) throws StatementExecutionException {
-        return executeStatement(statement, null);
-    }
-
-    /**
-     * Utility method for DML/DDL statements
-     *
-     * @param statement
-     * @return
-     * @throws herddb.model.StatementExecutionException
-     */
-    public DMLStatementExecutionResult executeUpdate(DMLStatement statement) throws StatementExecutionException {
-        return (DMLStatementExecutionResult) executeStatement(statement);
-    }
-
-    /**
      * Utility method for DML/DDL statements
      *
      * @param statement
@@ -175,8 +149,8 @@ public class DBManager {
      * @return
      * @throws herddb.model.StatementExecutionException
      */
-    public DMLStatementExecutionResult executeUpdate(DMLStatement statement, Transaction transaction) throws StatementExecutionException {
-        return (DMLStatementExecutionResult) executeStatement(statement, transaction);
+    public DMLStatementExecutionResult executeUpdate(DMLStatement statement) throws StatementExecutionException {
+        return (DMLStatementExecutionResult) executeStatement(statement);
     }
 
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {

@@ -27,6 +27,7 @@ package herddb.model;
 public abstract class Statement {
 
     private String tableSpace;
+    private long transactionId;
 
     public Statement(String tableSpace) {
         this.tableSpace = tableSpace;
@@ -34,6 +35,15 @@ public abstract class Statement {
 
     public String getTableSpace() {
         return tableSpace;
+    }
+
+    public long getTransactionId() {
+        return transactionId;
+    }
+
+    public <T extends Statement> T setTransactionId(long transactionId) {
+        this.transactionId = transactionId;
+        return (T) this;
     }
 
 }
