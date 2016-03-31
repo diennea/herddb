@@ -19,11 +19,14 @@
  */
 package herddb.core;
 
+import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
 import herddb.model.Record;
+import herddb.model.Table;
 import herddb.model.TransactionResult;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -221,6 +224,47 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null));
         assertFalse(get_after_rollback.found());
+    }
+
+    @Test
+    public void testCommitMultiTable() throws Exception {
+
+        String tableName2 = "t2";
+        Table table2 = Table
+                .builder()
+                .name(tableName2)
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
+
+        CreateTableStatement st2 = new CreateTableStatement(table2);
+        manager.executeStatement(st2);
+
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(tableSpace))).getTransactionId();
+
+        Bytes key = Bytes.from_string("key1");
+        {
+            Record record = new Record(key, Bytes.from_int(0));
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record)
+                    .setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            Record record = new Record(key, Bytes.from_int(1));
+            InsertStatement st = new InsertStatement(tableSpace, tableName2, record)
+                    .setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+        manager.executeStatement(new CommitTransactionStatement(tableSpace, tx));
+
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null));
+        assertTrue(get.found());
+        assertEquals(Bytes.from_int(0),get.getRecord().value);
+        
+        GetResult get2 = manager.get(new GetStatement(tableSpace, tableName2, key, null));
+        assertTrue(get2.found());
+        assertEquals(Bytes.from_int(1),get2.getRecord().value);
     }
 
 }
