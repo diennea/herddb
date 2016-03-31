@@ -157,6 +157,47 @@ public class TableManager {
         throw new StatementExecutionException("unsupported statement " + statement);
     }
 
+    private LockHandle lockForWrite(Bytes key, Transaction transaction) {
+        if (transaction != null) {
+            LockHandle lock = transaction.lookupLock(table.name, key);
+            if (lock != null) {
+                if (lock.write) {
+                    // transaction already locked the key for writes
+                    return lock;
+                } else {
+                    // transaction already locked the key, but we need to upgrade the lock
+                    locksManager.releaseLock(lock);
+                    transaction.unregisterUpgradedLocksOnTable(table.name, lock);
+                    lock = locksManager.acquireWriteLockForKey(key);
+                    transaction.registerLockOnTable(this.table.name, lock);
+                    return lock;
+                }
+            } else {
+                lock = locksManager.acquireWriteLockForKey(key);
+                transaction.registerLockOnTable(this.table.name, lock);
+                return lock;
+            }
+        } else {
+            return locksManager.acquireWriteLockForKey(key);
+        }
+    }
+
+    private LockHandle lockForRead(Bytes key, Transaction transaction) {
+        if (transaction != null) {
+            LockHandle lock = transaction.lookupLock(table.name, key);
+            if (lock != null) {
+                // transaction already locked the key
+                return lock;
+            } else {
+                lock = locksManager.acquireReadLockForKey(key);
+                transaction.registerLockOnTable(this.table.name, lock);
+                return lock;
+            }
+        } else {
+            return locksManager.acquireReadLockForKey(key);
+        }
+    }
+
     private StatementExecutionResult executeInsert(InsertStatement insert, Transaction transaction) throws StatementExecutionException {
         /*
             an insert can succeed only if the row is valid and the "keys" structure  does not contain the requested key
@@ -166,10 +207,7 @@ public class TableManager {
          */
         Record record = insert.getRecord();
         Bytes key = record.key;
-        LockHandle lock = locksManager.acquireWriteLockForKey(key);
-        if (transaction != null) {
-            transaction.registerLockOnTable(this.table.name, lock);
-        }
+        LockHandle lock = lockForWrite(key, transaction);
         try {
             if (keyToPage.containsKey(key)) {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
@@ -203,10 +241,7 @@ public class TableManager {
 
         Predicate predicate = update.getPredicate();
         Bytes key = update.getKey();
-        LockHandle lock = locksManager.acquireWriteLockForKey(key);
-        if (transaction != null) {
-            transaction.registerLockOnTable(this.table.name, lock);
-        }
+        LockHandle lock = lockForWrite(key, transaction);
         try {
             Long pageId = keyToPage.get(key);
             if (pageId == null) {
@@ -253,10 +288,7 @@ public class TableManager {
                   the delete can have a 'where' predicate which is to be evaluated against the decoded row, the delete  will be executed only if the predicate returns boolean 'true' value  (CAS operation)
          */
         Bytes key = delete.getKey();
-        LockHandle lock = locksManager.acquireWriteLockForKey(key);
-        if (transaction != null) {
-            transaction.registerLockOnTable(this.table.name, lock);
-        }
+        LockHandle lock = lockForWrite(key, transaction);
         try {
             Long pageId = keyToPage.get(key);
             if (pageId == null) {
@@ -357,10 +389,7 @@ public class TableManager {
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
         Bytes key = get.getKey();
         Predicate predicate = get.getPredicate();
-        LockHandle lock = locksManager.acquireReadLockForKey(key);
-        if (transaction != null) {
-            transaction.registerLockOnTable(this.table.name, lock);
-        }
+        LockHandle lock = lockForRead(key, transaction);
         try {
             // fastest path first, check if the record is loaded in memory
             Record loaded = buffer.get(key);

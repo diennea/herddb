@@ -24,6 +24,7 @@ import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -52,9 +53,22 @@ public class Transaction {
     public List<Record> getChangedRecordsForTable(String tableName) {
         return changedRecords.get(tableName);
     }
-    
+
     public List<Bytes> getNewRecordsForTable(String tableName) {
         return newRecords.get(tableName);
+    }
+
+    public LockHandle lookupLock(String tableName, Bytes key) {
+        List<LockHandle> ll = locks.get(tableName);
+        if (ll == null) {
+            return null;
+        }
+        for (LockHandle l : ll) {
+            if (l.key.equals(key)) {
+                return l;
+            }
+        }
+        return null;
     }
 
     public void registerLockOnTable(String tableName, LockHandle handle) {
@@ -74,7 +88,7 @@ public class Transaction {
         }
         ll.add(record);
     }
-    
+
     public void registerInsertOnTable(String tableName, Bytes key) {
         List<Bytes> ll = newRecords.get(tableName);
         if (ll == null) {
@@ -89,6 +103,19 @@ public class Transaction {
         if (ll != null) {
             for (LockHandle l : ll) {
                 lockManager.releaseLock(l);
+            }
+        }
+    }
+
+    public void unregisterUpgradedLocksOnTable(String tableName, LockHandle lock) {
+        List<LockHandle> ll = locks.get(tableName);
+        if (ll != null) {
+            for (Iterator<LockHandle> it = ll.iterator(); it.hasNext();) {
+                LockHandle next = it.next();
+                if (next == lock) {
+                    it.remove();
+                    break;
+                }
             }
         }
     }
