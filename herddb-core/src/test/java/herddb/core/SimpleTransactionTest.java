@@ -146,7 +146,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         assertTrue(get.found());
         assertEquals(get.getRecord().value, record.value);
     }
-    
+
     @Test
     public void testRollbackUpdate2() throws Exception {
 
@@ -165,12 +165,62 @@ public class SimpleTransactionTest extends BaseTestcase {
         GetResult get_before_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null).setTransactionId(tx));
         assertTrue(get_before_rollback.found());
         assertEquals(get_before_rollback.getRecord().value, record2.value);
-        
+
         manager.executeStatement(new RollbackTransactionStatement(tableSpace, tx));
 
         GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null));
         assertTrue(get_after_rollback.found());
         assertEquals(get_after_rollback.getRecord().value, record.value);
+    }
+
+    @Test
+    public void testRollbackInsertUpdateDelete() throws Exception {
+
+        Bytes key = Bytes.from_string("key1");
+
+        Record record = new Record(key, Bytes.from_int(0));
+        InsertStatement st_insert = new InsertStatement(tableSpace, tableName, record);
+        assertEquals(1, manager.executeUpdate(st_insert).getUpdateCount());
+
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(tableSpace))).getTransactionId();
+        Record record2 = new Record(key, Bytes.from_int(1));
+
+        // UPDATE
+        UpdateStatement st_update = new UpdateStatement(tableSpace, tableName, record2, null)
+                .setTransactionId(tx);
+        assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+
+        // DELETE
+        DeleteStatement st_delete = new DeleteStatement(tableSpace, tableName, key, null)
+                .setTransactionId(tx);
+        assertEquals(1, manager.executeUpdate(st_delete).getUpdateCount());
+
+        manager.executeStatement(new RollbackTransactionStatement(tableSpace, tx));
+
+        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null));
+        assertTrue(get_after_rollback.found());
+        assertEquals(get_after_rollback.getRecord().value, record.value);
+    }
+
+    @Test
+    public void testRollbackInsertDelete() throws Exception {
+
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(tableSpace))).getTransactionId();
+        Bytes key = Bytes.from_string("key1");
+
+        Record record = new Record(key, Bytes.from_int(0));
+        InsertStatement st_insert = new InsertStatement(tableSpace, tableName, record).setTransactionId(tx);
+        assertEquals(1, manager.executeUpdate(st_insert).getUpdateCount());
+
+        // DELETE RETURNS update-count = 1 during the transaction
+        DeleteStatement st_delete = new DeleteStatement(tableSpace, tableName, key, null)
+                .setTransactionId(tx);
+        assertEquals(1, manager.executeUpdate(st_delete).getUpdateCount());
+
+        manager.executeStatement(new RollbackTransactionStatement(tableSpace, tx));
+
+        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null));
+        assertFalse(get_after_rollback.found());
     }
 
 }

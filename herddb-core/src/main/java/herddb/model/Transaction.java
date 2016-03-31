@@ -86,6 +86,12 @@ public class Transaction {
             ll = new ArrayList<>();
             changedRecords.put(tableName, ll);
         }
+        for (Record r : ll) {
+            if (r.key.equals(record.key)) {
+                // already tracked original value before the start of the transaction
+                return;
+            }
+        }
         ll.add(record);
     }
 
