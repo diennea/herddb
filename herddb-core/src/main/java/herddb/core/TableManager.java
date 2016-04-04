@@ -349,7 +349,7 @@ public class TableManager {
         transaction.releaseLocksOnTable(table.name, locksManager);
     }
 
-    private void apply(LogEntry entry) {
+    void apply(LogEntry entry) {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records

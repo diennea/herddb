@@ -39,16 +39,16 @@ public class LogEntryFactory {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_TABLE, bytes(table.tablespace), transaction != null ? transaction.transactionId : 0, null, null, payload);
     }
 
-    public static LogEntry beginTransaction(String tablespace, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, bytes(tablespace), transaction.transactionId, null, null, null);
+    public static LogEntry beginTransaction(String tablespace, long transactionId) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, bytes(tablespace), transactionId, null, null, null);
     }
 
-    public static LogEntry commitTransaction(String tablespace, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.COMMITTRANSACTION, bytes(tablespace), transaction.transactionId, null, null, null);
+    public static LogEntry commitTransaction(String tablespace, long transactionId) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.COMMITTRANSACTION, bytes(tablespace), transactionId, null, null, null);
     }
 
-    public static LogEntry rollbackTransaction(String tablespace, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.ROLLBACKTRANSACTION, bytes(tablespace), transaction.transactionId, null, null, null);
+    public static LogEntry rollbackTransaction(String tablespace, long transactionId) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.ROLLBACKTRANSACTION, bytes(tablespace), transactionId, null, null, null);
     }
 
     public static LogEntry insert(Table table, byte[] key, byte[] value, Transaction transaction) {

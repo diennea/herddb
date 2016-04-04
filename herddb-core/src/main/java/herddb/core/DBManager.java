@@ -31,7 +31,6 @@ import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
-import herddb.model.Transaction;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.storage.DataStorageManager;
@@ -39,7 +38,12 @@ import herddb.storage.DataStorageManagerException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -58,44 +62,56 @@ public class DBManager {
     private final CommitLogManager commitLogManager;
     private final String nodeId;
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
+    private final Thread activator;
+    private final AtomicBoolean stopped = new AtomicBoolean();
+    private final BlockingQueue<Object> activatorQueue = new LinkedBlockingDeque<>();
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager) {
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
         this.nodeId = nodeId;
+        this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
+        this.activator.setDaemon(true);
     }
 
     /**
      * Initial boot of the system
      */
-    public void start() throws DataStorageManagerException {
+    public void start() throws DataStorageManagerException, LogNotAvailableException {
+
+        activator.start();
+
         generalLock.writeLock().lock();
         try {
             dataStorageManager.start();
-            for (String tableSpace : metadataStorageManager.listTableSpaces()) {
-                bootTableSpace(tableSpace);
-            }
         } finally {
             generalLock.writeLock().unlock();
         }
+        triggerActivator();
     }
 
-    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException {
+    public boolean waitForTablespace(String tableSpace, int millis) throws InterruptedException {
+        long now = System.currentTimeMillis();
+        while (System.currentTimeMillis() - now <= millis) {
+            if (tablesSpaces.containsKey(tableSpace)) {
+                return true;
+            }
+            Thread.sleep(100);
+        }
+        return false;
+    }
+
+    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException, LogNotAvailableException {
         TableSpace tableSpace = metadataStorageManager.describeTableSpace(tableSpaceName);
         if (!tableSpace.replicas.contains(nodeId)) {
             return;
         }
-        LOGGER.log(Level.SEVERE, "Booting tablespace " + tableSpaceName);
+        LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
         CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
-        try {
-            commitLog.startWriting();
-        } catch (LogNotAvailableException err) {
-            throw new DataStorageManagerException(err);
-        }
         generalLock.writeLock().lock();
         try {
-            TableSpaceManager manager = new TableSpaceManager(tableSpaceName, metadataStorageManager, dataStorageManager, commitLog);
+            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog);
             tablesSpaces.put(tableSpaceName, manager);
             manager.start();
         } finally {
@@ -163,17 +179,21 @@ public class DBManager {
 
         try {
             metadataStorageManager.registerTableSpace(tableSpace);
-            if (tableSpace.replicas.contains(nodeId)) {
-                bootTableSpace(tableSpace.name);
-            }
+            triggerActivator();
             return new DDLStatementExecutionResult();
-        } catch (DataStorageManagerException err) {
+        } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
     }
 
     void close() throws DataStorageManagerException {
-        dataStorageManager.close();
+        stopped.set(true);
+        triggerActivator();
+        try {
+            activator.join();
+        } catch (InterruptedException ignore) {
+            ignore.printStackTrace();
+        }
     }
 
     public void flush() throws DataStorageManagerException {
@@ -190,4 +210,57 @@ public class DBManager {
         }
     }
 
+    private void triggerActivator() {
+        activatorQueue.offer("");
+    }
+
+    private class Activator implements Runnable {
+
+        @Override
+        public void run() {
+            try {
+                while (!stopped.get()) {
+                    activatorQueue.take();
+                    if (!stopped.get()) {
+                        generalLock.writeLock().lock();
+                        try {
+                            for (String tableSpace : metadataStorageManager.listTableSpaces()) {
+                                if (!tablesSpaces.containsKey(tableSpace)) {
+                                    try {
+                                        bootTableSpace(tableSpace);
+                                    } catch (Exception err) {
+                                        err.printStackTrace();
+                                    }
+                                }
+                            }
+                        } finally {
+                            generalLock.writeLock().unlock();
+                        }
+                    }
+                }
+
+            } catch (InterruptedException ee) {
+            }
+
+            generalLock.writeLock().lock();
+            try {
+                for (Map.Entry<String, TableSpaceManager> manager : tablesSpaces.entrySet()) {
+                    try {
+                        manager.getValue().close();
+                    } catch (Exception err) {
+                        LOGGER.log(Level.SEVERE, "error during shutdown of manager of tablespace " + manager.getKey(), err);
+                    }
+                }
+            } finally {
+                generalLock.writeLock().unlock();
+            }
+            try {
+                dataStorageManager.close();
+            } catch (Exception err) {
+                LOGGER.log(Level.SEVERE, "error during shutdown", err);
+            }
+            LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
+
+        }
+    }
 }

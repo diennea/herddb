@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.log.LogSequenceNumber;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -45,10 +46,13 @@ public class TableSpace {
      */
     public final Set<String> replicas;
 
-    private TableSpace(String name, String leaderId, Set<String> replicas) {
+    public final LogSequenceNumber lastCheckpointLogPosition;
+
+    private TableSpace(String name, String leaderId, Set<String> replicas, LogSequenceNumber lastCheckpointLogPosition) {
         this.name = name;
         this.leaderId = leaderId;
         this.replicas = replicas;
+        this.lastCheckpointLogPosition = lastCheckpointLogPosition;
     }
 
     public static Builder builder() {
@@ -60,6 +64,7 @@ public class TableSpace {
         private final Set<String> replicas = new HashSet<>();
         private String name;
         private String leaderId;
+        private LogSequenceNumber lastCheckpointLogPosition = new LogSequenceNumber(-1, -1);
 
         private Builder() {
         }
@@ -69,10 +74,16 @@ public class TableSpace {
             return this;
         }
 
+        public Builder lastCheckpointLogPosition(LogSequenceNumber lastCheckpointLogPosition) {
+            this.lastCheckpointLogPosition = lastCheckpointLogPosition;
+            return this;
+        }
+
         public Builder replica(String id) {
             this.replicas.add(id);
             return this;
         }
+
         public Builder replicas(Set<String> replicas) {
             this.replicas.addAll(replicas);
             return this;
@@ -96,7 +107,7 @@ public class TableSpace {
             if (!replicas.contains(leaderId)) {
                 throw new IllegalArgumentException("leader " + leaderId + " must be in replica list " + replicas);
             }
-            return new TableSpace(name, leaderId, Collections.unmodifiableSet(replicas));
+            return new TableSpace(name, leaderId, Collections.unmodifiableSet(replicas), lastCheckpointLogPosition);
         }
 
     }

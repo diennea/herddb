@@ -36,6 +36,7 @@ import herddb.utils.Bytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -260,11 +261,11 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null));
         assertTrue(get.found());
-        assertEquals(Bytes.from_int(0),get.getRecord().value);
-        
+        assertEquals(Bytes.from_int(0), get.getRecord().value);
+
         GetResult get2 = manager.get(new GetStatement(tableSpace, tableName2, key, null));
         assertTrue(get2.found());
-        assertEquals(Bytes.from_int(1),get2.getRecord().value);
+        assertEquals(Bytes.from_int(1), get2.getRecord().value);
     }
 
 }
