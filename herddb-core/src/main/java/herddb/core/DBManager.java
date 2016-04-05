@@ -94,7 +94,8 @@ public class DBManager {
     public boolean waitForTablespace(String tableSpace, int millis) throws InterruptedException {
         long now = System.currentTimeMillis();
         while (System.currentTimeMillis() - now <= millis) {
-            if (tablesSpaces.containsKey(tableSpace)) {
+            TableSpaceManager manager = tablesSpaces.get(tableSpace);
+            if (manager != null && manager.isLeader()) {
                 return true;
             }
             Thread.sleep(100);

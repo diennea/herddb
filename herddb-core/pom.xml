@@ -11,8 +11,6 @@
     <artifactId>herddb-core</artifactId>
     <name>HerdDB Core</name>
     <packaging>jar</packaging>
-    <dependencies>       
-    </dependencies>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>

@@ -47,7 +47,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -67,6 +66,8 @@ public class TableSpaceManager {
     private final Map<Bytes, TableManager> tables = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
+    private final Map<String, Table> tablesMetadata = new ConcurrentHashMap<>();
+    private boolean leader;
 
     public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log) {
         this.nodeId = nodeId;
@@ -77,15 +78,7 @@ public class TableSpaceManager {
     }
 
     void start() throws DataStorageManagerException, LogNotAvailableException {
-        generalLock.writeLock().lock();
-        try {
-            for (String tableName : metadataStorageManager.listTablesByTableSpace(tableSpaceName)) {
-                Table table = metadataStorageManager.describeTable(tableName);
-                bootTable(table);
-            }
-        } finally {
-            generalLock.writeLock().unlock();
-        }
+
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         recover(tableSpaceInfo);
 
@@ -96,6 +89,12 @@ public class TableSpaceManager {
     }
 
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException {
+
+        List<Table> tablesAtBoot = dataStorageManager.loadTables(tableSpaceInfo.lastCheckpointLogPosition, tableSpaceName);
+        for (Table table : tablesAtBoot) {
+            bootTable(table);
+        }
+
         log.recovery(tableSpaceInfo.lastCheckpointLogPosition, new BiConsumer<LogSequenceNumber, LogEntry>() {
             @Override
             public void accept(LogSequenceNumber t, LogEntry u) {
@@ -151,7 +150,6 @@ public class TableSpaceManager {
             break;
             case LogEntryType.CREATE_TABLE: {
                 Table table = Table.deserialize(entry.value);
-                metadataStorageManager.registerTable(table);
                 bootTable(table);
             }
             ;
@@ -168,6 +166,7 @@ public class TableSpaceManager {
     void startAsLeader() throws DataStorageManagerException {
         try {
             log.startWriting();
+            leader = true;
         } catch (LogNotAvailableException err) {
             throw new DataStorageManagerException(err);
         }
@@ -237,6 +236,7 @@ public class TableSpaceManager {
     }
 
     private void bootTable(Table table) throws DataStorageManagerException {
+        tablesMetadata.put(table.name, table);
         TableManager tableManager = new TableManager(table, log, dataStorageManager);
         tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();
@@ -310,6 +310,10 @@ public class TableSpaceManager {
         }
 
         return new TransactionResult(tx.transactionId);
+    }
+
+    public boolean isLeader() {
+        return leader;
     }
 
 }

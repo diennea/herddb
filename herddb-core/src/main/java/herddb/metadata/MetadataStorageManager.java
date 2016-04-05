@@ -40,13 +40,6 @@ public abstract class MetadataStorageManager {
     public abstract Collection<String> listTableSpaces();
 
     /**
-     * Enumerates all the available TableSpaces in the system
-     *
-     * @return
-     */
-    public abstract Collection<String> listTablesByTableSpace(String tableSpace);
-
-    /**
      * Describe a single TableSpace
      *
      * @param name
@@ -55,32 +48,11 @@ public abstract class MetadataStorageManager {
     public abstract TableSpace describeTableSpace(String name);
 
     /**
-     * Describe a single table
-     *
-     * @return
-     */
-    public abstract Table describeTable(String name);
-
-    /**
-     * Registers a new table on the metadata storage
-     *
-     * @param table
-     */
-    public abstract void registerTable(Table table) throws DDLException;
-
-    /**
      * Registers a new table space on the metadata storage
      *
      * @param tableSpace
      */
     public abstract void registerTableSpace(TableSpace tableSpace) throws DDLException;
-
-    /**
-     * Updates table metadata on the metadata storage
-     *
-     * @param table
-     */
-    public abstract void updateTable(Table table) throws DDLException;
 
     /**
      * Updates table space metadata on the metadata storage
