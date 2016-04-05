@@ -19,8 +19,7 @@
  */
 package herddb.core;
 
-import herddb.file.FileCommitLog;
-import herddb.log.CommitLog;
+import herddb.file.FileCommitLogManager;
 import herddb.log.CommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.model.GetResult;
@@ -29,9 +28,7 @@ import herddb.model.Record;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.UpdateStatement;
-import herddb.model.predicates.RawValueEquals;
 import herddb.utils.Bytes;
-import java.io.IOException;
 import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -53,17 +50,8 @@ public class SimpleDMLFileTest extends BaseTestcase {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Override
-    protected CommitLogManager makeCommitLogManager() {
-        return new CommitLogManager() {
-            @Override
-            public CommitLog createCommitLog(String tableSpace) {
-                try {
-                    return new FileCommitLog(folder.newFolder(tableSpace).toPath(), 1024 * 1024);
-                } catch (IOException err) {
-                    throw new RuntimeException(err);
-                }
-            }
-        };
+    protected CommitLogManager makeCommitLogManager() throws Exception {
+        return new FileCommitLogManager(folder.newFolder().toPath());
     }
 
     @Test

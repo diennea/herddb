@@ -40,21 +40,23 @@ public class CreateTableTest {
     @Test
     public void createTable1() throws Exception {
         String nodeId = "localhost";
-        DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());
-        manager.start();
-        CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
-        manager.executeStatement(st1);
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            manager.executeStatement(st1);
+            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
 
-        Table table = Table
-                .builder()
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+            Table table = Table
+                    .builder()
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
-        CreateTableStatement st2 = new CreateTableStatement(table);
-        manager.executeStatement(st2);
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2);
+        }
 
     }
 }

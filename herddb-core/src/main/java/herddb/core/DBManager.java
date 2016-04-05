@@ -53,7 +53,7 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-public class DBManager {
+public class DBManager implements AutoCloseable {
 
     private final Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
@@ -187,7 +187,8 @@ public class DBManager {
         }
     }
 
-    void close() throws DataStorageManagerException {
+    @Override
+    public void close() throws DataStorageManagerException {
         stopped.set(true);
         triggerActivator();
         try {

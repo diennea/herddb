@@ -50,15 +50,15 @@ public class BaseTestcase {
     protected MetadataStorageManager metadataStorageManager;
     protected CommitLogManager commitLogManager;
 
-    protected CommitLogManager makeCommitLogManager() {
+    protected CommitLogManager makeCommitLogManager() throws Exception {
         return new MemoryCommitLogManager();
     }
 
-    protected DataStorageManager makeDataStorageManager() {
+    protected DataStorageManager makeDataStorageManager() throws Exception {
         return new MemoryDataStorageManager();
     }
 
-    protected MetadataStorageManager makeMetadataStorageManager() {
+    protected MetadataStorageManager makeMetadataStorageManager() throws Exception {
         return new MemoryMetadataStorageManager();
     }
 
