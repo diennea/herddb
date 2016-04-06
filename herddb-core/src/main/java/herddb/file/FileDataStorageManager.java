@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -48,13 +49,13 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-public class SimpleFileDataStorageManager extends DataStorageManager {
+public class FileDataStorageManager extends DataStorageManager {
 
-    private static final Logger LOGGER = Logger.getLogger(SimpleFileDataStorageManager.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(FileDataStorageManager.class.getName());
     private final Path baseDirectory;
     private final AtomicLong newPageId = new AtomicLong();
 
-    public SimpleFileDataStorageManager(Path baseDirectory) {
+    public FileDataStorageManager(Path baseDirectory) {
         this.baseDirectory = baseDirectory;
     }
 
@@ -208,7 +209,9 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
+            LOGGER.log(Level.SEVERE, "loadTables for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString());
             if (!Files.isRegularFile(file)) {
+                LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString()+" not found");
                 return Collections.emptyList();
             }
             try (InputStream in = Files.newInputStream(file);
@@ -239,11 +242,12 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {        
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
+            LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber "+sequenceNumber+" to " + file.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
                     DataOutputStream dout = new DataOutputStream(out)) {
                 dout.writeUTF(tableSpace);

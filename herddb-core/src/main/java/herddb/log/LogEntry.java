@@ -24,6 +24,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * An entry on the log
@@ -143,6 +144,11 @@ public class LogEntry {
         byte[] res = new byte[len];
         doo.readFully(res);
         return res;
+    }
+
+    @Override
+    public String toString() {
+        return "LogEntry{" + "type=" + type + ", tableSpace=" + new String(tableSpace, StandardCharsets.UTF_8) + ", transactionId=" + transactionId + ", tableName=" + tableName + '}';
     }
 
 }

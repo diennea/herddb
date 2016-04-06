@@ -20,6 +20,9 @@
 package herddb.model;
 
 import herddb.log.LogSequenceNumber;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -57,6 +60,34 @@ public class TableSpace {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    public static TableSpace deserialize(DataInputStream in) throws IOException {
+        String name = in.readUTF();
+        String leaderId = in.readUTF();
+        int numreplicas = in.readInt();
+        Set<String> replicas = new HashSet<>();
+        for (int i = 0; i < numreplicas; i++) {
+            replicas.add(in.readUTF());
+        }
+        LogSequenceNumber number = new LogSequenceNumber(in.readLong(), in.readLong());
+        return new TableSpace(name, leaderId, replicas, number);
+    }
+
+    public void serialize(DataOutputStream out) throws IOException {
+        out.writeUTF(name);
+        out.writeUTF(leaderId);
+        out.writeInt(replicas.size());
+        for (String replica : replicas) {
+            out.writeUTF(replica);
+        }
+        if (lastCheckpointLogPosition != null) {
+            out.writeLong(-1);
+            out.writeLong(-1);
+        } else {
+            out.writeLong(lastCheckpointLogPosition.ledgerId);
+            out.writeLong(lastCheckpointLogPosition.offset);
+        }
     }
 
     public static class Builder {

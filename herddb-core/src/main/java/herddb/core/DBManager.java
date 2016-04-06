@@ -23,6 +23,7 @@ import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
 import herddb.metadata.MetadataStorageManager;
+import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
@@ -36,6 +37,7 @@ import herddb.model.commands.GetStatement;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -78,7 +80,9 @@ public class DBManager implements AutoCloseable {
     /**
      * Initial boot of the system
      */
-    public void start() throws DataStorageManagerException, LogNotAvailableException {
+    public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+
+        metadataStorageManager.start();
 
         activator.start();
 
@@ -103,7 +107,7 @@ public class DBManager implements AutoCloseable {
         return false;
     }
 
-    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException, LogNotAvailableException {
+    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
         TableSpace tableSpace = metadataStorageManager.describeTableSpace(tableSpaceName);
         if (!tableSpace.replicas.contains(nodeId)) {
             return;
@@ -226,7 +230,8 @@ public class DBManager implements AutoCloseable {
                     if (!stopped.get()) {
                         generalLock.writeLock().lock();
                         try {
-                            for (String tableSpace : metadataStorageManager.listTableSpaces()) {
+                            Collection<String> actualTablesSpaces = metadataStorageManager.listTableSpaces();
+                            for (String tableSpace : actualTablesSpaces) {
                                 if (!tablesSpaces.containsKey(tableSpace)) {
                                     try {
                                         bootTableSpace(tableSpace);
@@ -235,6 +240,8 @@ public class DBManager implements AutoCloseable {
                                     }
                                 }
                             }
+                        } catch (MetadataStorageManagerException error) {
+                            LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
                         } finally {
                             generalLock.writeLock().unlock();
                         }
@@ -258,6 +265,11 @@ public class DBManager implements AutoCloseable {
             }
             try {
                 dataStorageManager.close();
+            } catch (Exception err) {
+                LOGGER.log(Level.SEVERE, "error during shutdown", err);
+            }
+            try {
+                metadataStorageManager.close();
             } catch (Exception err) {
                 LOGGER.log(Level.SEVERE, "error during shutdown", err);
             }

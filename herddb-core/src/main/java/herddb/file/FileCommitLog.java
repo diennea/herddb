@@ -23,19 +23,14 @@ import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
-import herddb.utils.FileUtils;
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,8 +39,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * Commit log on file
@@ -65,8 +58,7 @@ public class FileCommitLog extends CommitLog {
 
     private volatile CommitFileWriter writer;
 
-    private final ReentrantLock writeLock = new ReentrantLock();
-    private final ReentrantLock snapshotLock = new ReentrantLock();
+    private final ReentrantLock writeLock = new ReentrantLock();    
 
     private final static byte ENTRY_START = 13;
     private final static byte ENTRY_END = 25;

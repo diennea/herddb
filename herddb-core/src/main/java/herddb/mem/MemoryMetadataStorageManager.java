@@ -21,8 +21,6 @@ package herddb.mem;
 
 import herddb.metadata.MetadataStorageManager;
 import herddb.model.DDLException;
-import herddb.model.InvalidTableException;
-import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
@@ -41,7 +39,6 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
 
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Map<String, TableSpace> tableSpaces = new HashMap<>();
-    private final Map<String, Table> tables = new HashMap<>();
 
     @Override
     public Collection<String> listTableSpaces() {
@@ -91,11 +88,14 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
         }
     }
 
-    private void validateTableSpace(TableSpace tableSpace) throws DDLException {
-        // TODO: implement sensible validations
-        if (tableSpace.name == null) {
-            throw new InvalidTableException("null tablespace name");
-        }
+    @Override
+    public void start() {
+
+    }
+
+    @Override
+    public void close() {
+
     }
 
 }

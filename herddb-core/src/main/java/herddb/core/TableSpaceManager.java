@@ -26,6 +26,7 @@ import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.metadata.MetadataStorageManager;
+import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
 import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
@@ -50,6 +51,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Manages a TableSet in memory
@@ -57,6 +61,8 @@ import java.util.function.BiConsumer;
  * @author enrico.olivelli
  */
 public class TableSpaceManager {
+
+    private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
 
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
@@ -77,7 +83,7 @@ public class TableSpaceManager {
         this.tableSpaceName = tableSpaceName;
     }
 
-    void start() throws DataStorageManagerException, LogNotAvailableException {
+    void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
 
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         recover(tableSpaceInfo);
@@ -91,9 +97,14 @@ public class TableSpaceManager {
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException {
 
         List<Table> tablesAtBoot = dataStorageManager.loadTables(tableSpaceInfo.lastCheckpointLogPosition, tableSpaceName);
+        LOGGER.log(Level.SEVERE, "tablesAtBoot", tablesAtBoot.stream().map(t -> {
+            return t.name;
+        }).collect(Collectors.joining()));
         for (Table table : tablesAtBoot) {
             bootTable(table);
         }
+
+        LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + tableSpaceInfo.lastCheckpointLogPosition);
 
         log.recovery(tableSpaceInfo.lastCheckpointLogPosition, new BiConsumer<LogSequenceNumber, LogEntry>() {
             @Override
@@ -108,7 +119,7 @@ public class TableSpaceManager {
     }
 
     void apply(LogEntry entry) throws DataStorageManagerException, DDLException {
-
+        LOGGER.log(Level.SEVERE, "apply entry {0}", new Object[]{entry});
         switch (entry.type) {
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
@@ -236,18 +247,19 @@ public class TableSpaceManager {
     }
 
     private void bootTable(Table table) throws DataStorageManagerException {
-        tablesMetadata.put(table.name, table);
+        LOGGER.log(Level.SEVERE, "bootTable", table.name);
         TableManager tableManager = new TableManager(table, log, dataStorageManager);
         tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();
     }
 
-    public void close() {
+    public void close() throws LogNotAvailableException {
         try {
             generalLock.writeLock().lock();
             for (TableManager table : tables.values()) {
                 table.close();
             }
+            log.close();
         } finally {
             generalLock.writeLock().unlock();
         }
