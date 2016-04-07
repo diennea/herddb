@@ -35,6 +35,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
+import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.Transaction;
 import herddb.model.commands.BeginTransactionStatement;
@@ -139,7 +140,12 @@ public class TableSpaceManager {
                     generalLock.writeLock().unlock();
                 }
                 for (TableManager manager : managers) {
-                    manager.onTransactionRollback(transaction);
+                    if (transaction.getNewTables().containsKey(manager.getTable().name)) {
+                        manager.close();
+                        tables.remove(Bytes.from_string(manager.getTable().name));
+                    } else {
+                        manager.onTransactionRollback(transaction);
+                    }
                 }
                 transactions.remove(transaction.transactionId);
             }
@@ -162,6 +168,11 @@ public class TableSpaceManager {
             break;
             case LogEntryType.CREATE_TABLE: {
                 Table table = Table.deserialize(entry.value);
+                if (entry.transactionId > 0) {
+                    long id = entry.transactionId;
+                    Transaction transaction = transactions.get(id);
+                    transaction.registerNewTable(table);
+                }
                 bootTable(table);
             }
             ;
@@ -225,7 +236,7 @@ public class TableSpaceManager {
                 generalLock.readLock().unlock();
             }
             if (manager == null) {
-                throw new StatementExecutionException("no table " + table + " in tablespace " + tableSpaceName);
+                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
             }
             return manager.executeStatement(statement, transaction);
         }

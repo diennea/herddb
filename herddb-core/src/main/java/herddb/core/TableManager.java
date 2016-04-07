@@ -119,6 +119,10 @@ public class TableManager {
         this.dataStorageManager = dataStorageManager;
     }
 
+    public Table getTable() {
+        return table;
+    }
+
     public void start() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
         pagesLock.writeLock().lock();
