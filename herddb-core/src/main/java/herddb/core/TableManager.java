@@ -102,7 +102,7 @@ public class TableManager {
     /**
      * Access to Pages
      */
-    private ReentrantReadWriteLock pagesLock = new ReentrantReadWriteLock(true);
+    private final ReentrantReadWriteLock pagesLock = new ReentrantReadWriteLock(true);
 
     /**
      * Definition of the table
@@ -110,11 +110,17 @@ public class TableManager {
     private Table table;
     private final CommitLog log;
     private final DataStorageManager dataStorageManager;
+    private final TableSpaceManager tableSpaceManager;
 
-    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager) {
+    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager) {
         this.table = table;
+        this.tableSpaceManager = tableSpaceManager;
         this.log = log;
         this.dataStorageManager = dataStorageManager;
+    }
+
+    public Table getTable() {
+        return table;
     }
 
     public void start() throws DataStorageManagerException {
@@ -198,7 +204,7 @@ public class TableManager {
         }
     }
 
-    private StatementExecutionResult executeInsert(InsertStatement insert, Transaction transaction) throws StatementExecutionException {
+    private StatementExecutionResult executeInsert(InsertStatement insert, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
         /*
             an insert can succeed only if the row is valid and the "keys" structure  does not contain the requested key
             the insert will add the row in the 'buffer' without assigning a page to it
@@ -215,11 +221,6 @@ public class TableManager {
             LogEntry entry = LogEntryFactory.insert(table, record.key.data, record.value.data, transaction);
             log.log(entry);
             apply(entry);
-
-            if (transaction != null) {
-                transaction.registerInsertOnTable(table.name, key);
-            }
-
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -257,10 +258,6 @@ public class TableManager {
                 // record does not match predicate
                 return new DMLStatementExecutionResult(0, key);
             }
-            if (transaction != null) {
-                transaction.registerChangedOnTable(this.table.name, actual);
-            }
-
             byte[] newValue = function.computeNewValue(actual);
             if (newValue == null) {
                 throw new NullPointerException("new value cannot be null");
@@ -300,8 +297,6 @@ public class TableManager {
                 // page always need to be loaded because the other records on that page will be rewritten on a new page
                 ensurePageLoaded(pageId);
                 actual = buffer.get(key);
-            } else if (transaction != null) {
-                transaction.registerChangedOnTable(this.table.name, actual);
             }
             if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
                 // record does not match predicate
@@ -349,15 +344,26 @@ public class TableManager {
         transaction.releaseLocksOnTable(table.name, locksManager);
     }
 
-    private void apply(LogEntry entry) {
+    void apply(LogEntry entry) throws DataStorageManagerException {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
                 Bytes key = new Bytes(entry.key);
                 Long pageId = keyToPage.remove(key);
                 deletedKeys.add(key);
-                buffer.remove(key);
                 dirtyPages.add(pageId);
+                Record actual = buffer.get(key);
+                if (actual == null) {
+                    // page always need to be loaded because the other records on that page will be rewritten on a new page
+                    ensurePageLoaded(pageId);
+                    actual = buffer.get(key);
+                }
+                buffer.remove(key);
+                if (entry.transactionId > 0) {
+                    Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                    transaction.registerChangedOnTable(this.table.name, actual);
+                }
+
                 break;
             }
             case LogEntryType.UPDATE: {
@@ -365,16 +371,29 @@ public class TableManager {
                 Bytes key = new Bytes(entry.key);
                 Bytes value = new Bytes(entry.value);
                 Long pageId = keyToPage.put(key, NO_PAGE);
-                buffer.put(key, new Record(key, value));
+                Record actual = buffer.put(key, new Record(key, value));
+                if (actual == null) {
+                    ensurePageLoaded(pageId);
+                    actual = buffer.get(key);
+                }
                 dirtyPages.add(pageId);
+                if (entry.transactionId > 0) {
+                    Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                    transaction.registerChangedOnTable(this.table.name, actual);
+                }
                 break;
             }
             case LogEntryType.INSERT: {
+
                 Bytes key = new Bytes(entry.key);
                 Bytes value = new Bytes(entry.value);
                 keyToPage.put(key, NO_PAGE);
                 buffer.put(key, new Record(key, value));
                 deletedKeys.remove(key);
+                if (entry.transactionId > 0) {
+                    Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                    transaction.registerInsertOnTable(table.name, key);
+                }
                 break;
             }
             default:

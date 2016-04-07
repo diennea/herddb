@@ -32,6 +32,7 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.storage.DataStorageManager;
 import java.util.Collections;
 import org.junit.After;
+import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 
 /**
@@ -49,15 +50,15 @@ public class BaseTestcase {
     protected MetadataStorageManager metadataStorageManager;
     protected CommitLogManager commitLogManager;
 
-    protected CommitLogManager makeCommitLogManager() {
+    protected CommitLogManager makeCommitLogManager() throws Exception {
         return new MemoryCommitLogManager();
     }
 
-    protected DataStorageManager makeDataStorageManager() {
+    protected DataStorageManager makeDataStorageManager() throws Exception {
         return new MemoryDataStorageManager();
     }
 
-    protected MetadataStorageManager makeMetadataStorageManager() {
+    protected MetadataStorageManager makeMetadataStorageManager() throws Exception {
         return new MemoryMetadataStorageManager();
     }
 
@@ -71,6 +72,7 @@ public class BaseTestcase {
         manager.start();
         CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
         manager.executeStatement(st1);
+        assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
         tableName = "t1";
         table = Table
                 .builder()
@@ -88,5 +90,13 @@ public class BaseTestcase {
     public void teardown() throws Exception {
         manager.close();
         manager = null;
+
+        table = null;
+        tableName = null;
+
+        dataStorageManager = null;
+        metadataStorageManager = null;
+        commitLogManager = null;
+
     }
 }

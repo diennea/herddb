@@ -20,7 +20,7 @@
 package herddb.metadata;
 
 import herddb.model.DDLException;
-import herddb.model.Table;
+import herddb.model.InvalidTableException;
 import herddb.model.TableSpace;
 import java.util.Collection;
 
@@ -30,21 +30,18 @@ import java.util.Collection;
  *
  * @author enrico.olivelli
  */
-public abstract class MetadataStorageManager {
+public abstract class MetadataStorageManager implements AutoCloseable {
+
+    public abstract void start() throws MetadataStorageManagerException;
+
+    public abstract void close() throws MetadataStorageManagerException;
 
     /**
      * Enumerates all the available TableSpaces in the system
      *
      * @return
      */
-    public abstract Collection<String> listTableSpaces();
-
-    /**
-     * Enumerates all the available TableSpaces in the system
-     *
-     * @return
-     */
-    public abstract Collection<String> listTablesByTableSpace(String tableSpace);
+    public abstract Collection<String> listTableSpaces() throws MetadataStorageManagerException;
 
     /**
      * Describe a single TableSpace
@@ -52,40 +49,27 @@ public abstract class MetadataStorageManager {
      * @param name
      * @return
      */
-    public abstract TableSpace describeTableSpace(String name);
-
-    /**
-     * Describe a single table
-     *
-     * @return
-     */
-    public abstract Table describeTable(String name);
-
-    /**
-     * Registers a new table on the metadata storage
-     *
-     * @param table
-     */
-    public abstract void registerTable(Table table) throws DDLException;
+    public abstract TableSpace describeTableSpace(String name) throws MetadataStorageManagerException;
 
     /**
      * Registers a new table space on the metadata storage
      *
      * @param tableSpace
      */
-    public abstract void registerTableSpace(TableSpace tableSpace) throws DDLException;
-
-    /**
-     * Updates table metadata on the metadata storage
-     *
-     * @param table
-     */
-    public abstract void updateTable(Table table) throws DDLException;
+    public abstract void registerTableSpace(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException;
 
     /**
      * Updates table space metadata on the metadata storage
      *
      * @param tableSpace
      */
-    public abstract void updateTableSpace(TableSpace tableSpace) throws DDLException;
+    public abstract void updateTableSpace(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException;
+
+    protected void validateTableSpace(TableSpace tableSpace) throws DDLException {
+        // TODO: implement sensible validations
+        if (tableSpace.name == null || tableSpace.name.trim().isEmpty()) {
+            throw new InvalidTableException("null tablespace name");
+        }
+    }
+
 }

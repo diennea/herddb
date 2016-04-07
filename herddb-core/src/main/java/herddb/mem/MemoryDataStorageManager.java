@@ -21,14 +21,18 @@ package herddb.mem;
 
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
+import herddb.model.Table;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 /**
  * In memory StorageManager, for tests
@@ -59,6 +63,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<Bytes>> keysByPage = new ConcurrentHashMap<>();
     private final AtomicLong newPageId = new AtomicLong();
+    private final ConcurrentHashMap<String, List<Table>> tablesByTablespace = new ConcurrentHashMap<>();
 
     @Override
     public int getActualNumberOfPages(String tableName) throws DataStorageManagerException {
@@ -103,6 +108,32 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public void close() throws DataStorageManagerException {
         this.pages.clear();
         this.keysByPage.clear();
+    }
+
+    @Override
+    public List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
+        List<Table> res = tablesByTablespace.get(tableSpace);
+        if (res != null) {
+            return Collections.unmodifiableList(res);
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
+
+        tables.forEach((t) -> {
+            if (!t.tablespace.equals(tableSpace)) {
+                throw new IllegalArgumentException("illegal tablespace");
+            }
+        });
+        List<Table> res = tablesByTablespace.get(tableSpace);
+        if (res == null) {
+            this.tablesByTablespace.put(tableSpace, new ArrayList<>(tables));
+        } else {
+            res.addAll(tables);
+        }
     }
 
 }

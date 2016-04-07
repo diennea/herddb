@@ -21,6 +21,7 @@ package herddb.file;
 
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
+import herddb.model.Table;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
@@ -35,22 +36,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Data Storage on local filesystem
  *
  * @author enrico.olivelli
  */
-public class SimpleFileDataStorageManager extends DataStorageManager {
+public class FileDataStorageManager extends DataStorageManager {
 
+    private static final Logger LOGGER = Logger.getLogger(FileDataStorageManager.class.getName());
     private final Path baseDirectory;
     private final AtomicLong newPageId = new AtomicLong();
 
-    public SimpleFileDataStorageManager(Path baseDirectory) {
+    public FileDataStorageManager(Path baseDirectory) {
         this.baseDirectory = baseDirectory;
     }
 
@@ -68,8 +73,16 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
 
     }
 
+    private Path getTablespaceDirectory(String tablespace) {
+        return baseDirectory.resolve(tablespace + ".tablespace");
+    }
+
+    private Path getTablespaceTablesMetadataFile(String tablespace, LogSequenceNumber sequenceNumber) {
+        return getTableDirectory(tablespace).resolve("tables." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".tablesmetadata");
+    }
+
     private Path getTableDirectory(String tablename) {
-        return baseDirectory.resolve(tablename);
+        return baseDirectory.resolve(tablename + ".table");
     }
 
     private Path getPageFile(Path tableDirectory, Long pageId) {
@@ -156,7 +169,7 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND,StandardOpenOption.CREATE);
+        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
                 DataOutputStream dataOutputKeys = new DataOutputStream(outputKeys)) {
             dataOutputKeys.writeInt(newPage.size());
             for (Record record : newPage) {
@@ -181,7 +194,6 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
                 return path.toString().endsWith(".page");
             });) {
                 stream.forEach(p -> {
-                    System.out.println("GOT PAGE " + p.toString());
                     count.incrementAndGet();
                 });
             }
@@ -189,6 +201,69 @@ public class SimpleFileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+    }
+
+    @Override
+    public List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
+        try {
+            Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
+            Files.createDirectories(tableSpaceDirectory);
+            Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
+            LOGGER.log(Level.SEVERE, "loadTables for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString());
+            if (!Files.isRegularFile(file)) {
+                LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString()+" not found");
+                return Collections.emptyList();
+            }
+            try (InputStream in = Files.newInputStream(file);
+                    DataInputStream din = new DataInputStream(in);) {
+                String readname = din.readUTF();
+                if (!readname.equals(tableSpace)) {
+                    throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
+                }
+                long ledgerId = din.readLong();
+                long offset = din.readLong();
+                if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
+                    throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for sequence number " + sequenceNumber);
+                }
+                int numTables = din.readInt();
+                List<Table> res = new ArrayList<>();
+                for (int i = 0; i < numTables; i++) {
+                    int size = din.readInt();
+                    byte[] tableData = new byte[size];
+                    din.readFully(tableData);
+                    Table table = Table.deserialize(tableData);
+                    res.add(table);
+                }
+                return Collections.unmodifiableList(res);
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {        
+        try {
+            Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
+            Files.createDirectories(tableSpaceDirectory);
+            Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
+            LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber "+sequenceNumber+" to " + file.toAbsolutePath().toString());
+            try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
+                    DataOutputStream dout = new DataOutputStream(out)) {
+                dout.writeUTF(tableSpace);
+                dout.writeLong(sequenceNumber.ledgerId);
+                dout.writeLong(sequenceNumber.offset);
+                dout.writeInt(tables.size());
+                for (Table t : tables) {
+                    byte[] tableSerialized = t.serialize();
+                    dout.writeInt(tableSerialized.length);
+                    dout.write(tableSerialized);
+                }
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+
     }
 
 }

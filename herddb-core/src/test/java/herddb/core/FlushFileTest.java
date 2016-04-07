@@ -20,7 +20,7 @@
 package herddb.core;
 
 import herddb.file.FileCommitLog;
-import herddb.file.SimpleFileDataStorageManager;
+import herddb.file.FileDataStorageManager;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -71,7 +71,7 @@ public class FlushFileTest extends BaseTestcase {
     @Override
     protected DataStorageManager makeDataStorageManager() {
         try {
-            return new SimpleFileDataStorageManager(folder.newFolder("data").toPath());
+            return new FileDataStorageManager(folder.newFolder("data").toPath());
         } catch (IOException err) {
             throw new RuntimeException(err);
         }

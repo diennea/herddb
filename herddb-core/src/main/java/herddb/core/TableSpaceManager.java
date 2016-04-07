@@ -22,8 +22,12 @@ package herddb.core;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
+import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
+import herddb.log.LogSequenceNumber;
 import herddb.metadata.MetadataStorageManager;
+import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.DDLException;
 import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.Statement;
@@ -31,6 +35,8 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
+import herddb.model.TableDoesNotExistException;
+import herddb.model.TableSpace;
 import herddb.model.Transaction;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
@@ -38,12 +44,17 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Manages a TableSet in memory
@@ -52,31 +63,143 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class TableSpaceManager {
 
+    private static final Logger LOGGER = Logger.getLogger(TableSpaceManager.class.getName());
+
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
     private final CommitLog log;
     private final String tableSpaceName;
-    private final Map<String, TableManager> tables = new ConcurrentHashMap<>();
+    private final String nodeId;
+    private final Map<Bytes, TableManager> tables = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
+    private final Map<String, Table> tablesMetadata = new ConcurrentHashMap<>();
+    private boolean leader;
 
-    public TableSpaceManager(String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log) {
+    public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log) {
+        this.nodeId = nodeId;
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.log = log;
         this.tableSpaceName = tableSpaceName;
     }
 
-    void start() throws DataStorageManagerException {
-        generalLock.writeLock().lock();
-        try {
-            for (String tableName : metadataStorageManager.listTablesByTableSpace(tableSpaceName)) {
-                Table table = metadataStorageManager.describeTable(tableName);
+    void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
+
+        TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
+        recover(tableSpaceInfo);
+
+        tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
+        if (tableSpaceInfo.leaderId.equals(nodeId)) {
+            startAsLeader();
+        }
+    }
+
+    void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException {
+
+        List<Table> tablesAtBoot = dataStorageManager.loadTables(tableSpaceInfo.lastCheckpointLogPosition, tableSpaceName);
+        LOGGER.log(Level.SEVERE, "tablesAtBoot", tablesAtBoot.stream().map(t -> {
+            return t.name;
+        }).collect(Collectors.joining()));
+        for (Table table : tablesAtBoot) {
+            bootTable(table);
+        }
+
+        LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + tableSpaceInfo.lastCheckpointLogPosition);
+
+        log.recovery(tableSpaceInfo.lastCheckpointLogPosition, new BiConsumer<LogSequenceNumber, LogEntry>() {
+            @Override
+            public void accept(LogSequenceNumber t, LogEntry u) {
+                try {
+                    apply(u);
+                } catch (Exception err) {
+                    throw new RuntimeException(err);
+                }
+            }
+        }, false);
+
+    }
+
+    void apply(LogEntry entry) throws DataStorageManagerException, DDLException {
+        LOGGER.log(Level.SEVERE, "apply entry {0}", new Object[]{entry});
+        switch (entry.type) {
+            case LogEntryType.BEGINTRANSACTION: {
+                long id = entry.transactionId;
+                Transaction transaction = new Transaction(id, tableSpaceName);
+                transactions.put(id, transaction);
+            }
+            break;
+            case LogEntryType.ROLLBACKTRANSACTION: {
+                long id = entry.transactionId;
+                Transaction transaction = transactions.get(id);
+                List<TableManager> managers;
+                try {
+                    generalLock.writeLock().lock();
+                    managers = new ArrayList<>(tables.values());
+                } finally {
+                    generalLock.writeLock().unlock();
+                }
+                for (TableManager manager : managers) {
+                    if (transaction.getNewTables().containsKey(manager.getTable().name)) {
+                        manager.close();
+                        tables.remove(Bytes.from_string(manager.getTable().name));
+                    } else {
+                        manager.onTransactionRollback(transaction);
+                    }
+                }
+                transactions.remove(transaction.transactionId);
+            }
+            break;
+            case LogEntryType.COMMITTRANSACTION: {
+                long id = entry.transactionId;
+                Transaction transaction = transactions.get(id);
+                List<TableManager> managers;
+                try {
+                    generalLock.writeLock().lock();
+                    managers = new ArrayList<>(tables.values());
+                } finally {
+                    generalLock.writeLock().unlock();
+                }
+                for (TableManager manager : managers) {
+                    manager.onTransactionCommit(transaction);
+                }
+                transactions.remove(transaction.transactionId);
+            }
+            break;
+            case LogEntryType.CREATE_TABLE: {
+                Table table = Table.deserialize(entry.value);
+                if (entry.transactionId > 0) {
+                    long id = entry.transactionId;
+                    Transaction transaction = transactions.get(id);
+                    transaction.registerNewTable(table);
+                }
                 bootTable(table);
             }
-        } finally {
-            generalLock.writeLock().unlock();
+            ;
+            break;
         }
+
+        if (entry.tableName != null) {
+            TableManager tableManager = tables.get(new Bytes(entry.tableName));
+            tableManager.apply(entry);
+        }
+
+    }
+
+    void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
+
+        // every pending transaction MUST be rollback back
+        List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
+        log.startWriting();
+        LOGGER.log(Level.SEVERE, "startAsLeader tablespace " + tableSpaceName + " log, there were " + transactions.size() + " pending transactions to be rolledback");
+        for (long tx : pending_transactions) {
+            LOGGER.log(Level.SEVERE, "rolling back transaction " + tx);
+            LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
+            // let followers see the rollback on the log
+            log.log(rollback);
+            apply(rollback);
+        }
+        leader = true;
     }
 
     private ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
@@ -108,12 +231,12 @@ public class TableSpaceManager {
             TableManager manager;
             generalLock.readLock().lock();
             try {
-                manager = tables.get(table);
+                manager = tables.get(Bytes.from_string(table));
             } finally {
                 generalLock.readLock().unlock();
             }
             if (manager == null) {
-                throw new StatementExecutionException("no table " + table + " in tablespace " + tableSpaceName);
+                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
             }
             return manager.executeStatement(statement, transaction);
         }
@@ -125,16 +248,15 @@ public class TableSpaceManager {
         try {
             generalLock.writeLock().lock();
 
+            LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
             try {
-                LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
                 log.log(entry);
             } catch (LogNotAvailableException ex) {
                 throw new StatementExecutionException(ex);
             }
 
-            Table table = statement.getTableDefinition();
-            metadataStorageManager.registerTable(table);
-            bootTable(table);
+            apply(entry);
+
             return new DDLStatementExecutionResult();
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
@@ -144,17 +266,19 @@ public class TableSpaceManager {
     }
 
     private void bootTable(Table table) throws DataStorageManagerException {
-        TableManager tableManager = new TableManager(table, log, dataStorageManager);
-        tables.put(table.name, tableManager);
+        LOGGER.log(Level.SEVERE, "bootTable", table.name);
+        TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
+        tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();
     }
 
-    public void close() {
+    public void close() throws LogNotAvailableException {
         try {
             generalLock.writeLock().lock();
             for (TableManager table : tables.values()) {
                 table.close();
             }
+            log.close();
         } finally {
             generalLock.writeLock().unlock();
         }
@@ -175,14 +299,15 @@ public class TableSpaceManager {
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {
         long id = newTransactionId.incrementAndGet();
-        Transaction transaction = new Transaction(id, tableSpaceName);
-        LogEntry entry = LogEntryFactory.beginTransaction(tableSpaceName, transaction);
+
+        LogEntry entry = LogEntryFactory.beginTransaction(tableSpaceName, id);
         try {
             log.log(entry);
-        } catch (LogNotAvailableException err) {
+            apply(entry);
+        } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
-        transactions.put(id, transaction);
+
         return new TransactionResult(id);
     }
 
@@ -191,23 +316,14 @@ public class TableSpaceManager {
         if (tx == null) {
             throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
         }
-        LogEntry entry = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
+        LogEntry entry = LogEntryFactory.rollbackTransaction(tableSpaceName, tx.transactionId);
         try {
             log.log(entry);
-        } catch (LogNotAvailableException err) {
+            apply(entry);
+        } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
-        List<TableManager> managers;
-        try {
-            generalLock.writeLock().lock();
-            managers = new ArrayList<>(tables.values());
-        } finally {
-            generalLock.writeLock().unlock();
-        }
-        for (TableManager manager : managers) {
-            manager.onTransactionRollback(tx);
-        }
-        transactions.remove(tx.transactionId);
+
         return new TransactionResult(tx.transactionId);
     }
 
@@ -216,24 +332,23 @@ public class TableSpaceManager {
         if (tx == null) {
             throw new StatementExecutionException("no such transaction " + commitTransactionStatement.getTransactionId());
         }
-        LogEntry entry = LogEntryFactory.commitTransaction(tableSpaceName, tx);
+        LogEntry entry = LogEntryFactory.commitTransaction(tableSpaceName, tx.transactionId);
         try {
             log.log(entry);
-        } catch (LogNotAvailableException err) {
+            apply(entry);
+        } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
-        List<TableManager> managers;
-        try {
-            generalLock.writeLock().lock();
-            managers = new ArrayList<>(tables.values());
-        } finally {
-            generalLock.writeLock().unlock();
-        }
-        for (TableManager manager : managers) {
-            manager.onTransactionCommit(tx);
-        }
-        transactions.remove(tx.transactionId);
+
         return new TransactionResult(tx.transactionId);
+    }
+
+    public boolean isLeader() {
+        return leader;
+    }
+
+    Transaction getTransaction(long transactionId) {
+        return transactions.get(transactionId);
     }
 
 }

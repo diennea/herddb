@@ -24,6 +24,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * An entry on the log
@@ -87,6 +88,10 @@ public class LogEntry {
                         doo.writeInt(value.length);
                         doo.write(value);
                         break;
+                    case LogEntryType.BEGINTRANSACTION:
+                    case LogEntryType.COMMITTRANSACTION:
+                    case LogEntryType.ROLLBACKTRANSACTION:
+                        break;
                     default:
                         throw new IllegalArgumentException("unsupported type " + type);
                 }
@@ -129,6 +134,10 @@ public class LogEntry {
                     // value contains the table definition                                        
                     value = readArray(dis);
                     break;
+                case LogEntryType.BEGINTRANSACTION:
+                case LogEntryType.COMMITTRANSACTION:
+                case LogEntryType.ROLLBACKTRANSACTION:
+                    break;
                 default:
                     throw new IllegalArgumentException("unsupported type " + type);
             }
@@ -143,6 +152,11 @@ public class LogEntry {
         byte[] res = new byte[len];
         doo.readFully(res);
         return res;
+    }
+
+    @Override
+    public String toString() {
+        return "LogEntry{" + "type=" + type + ", tableSpace=" + new String(tableSpace, StandardCharsets.UTF_8) + ", transactionId=" + transactionId + ", tableName=" + tableName + '}';
     }
 
 }

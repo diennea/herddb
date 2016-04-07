@@ -41,6 +41,7 @@ public class Transaction {
     public final Map<String, List<LockHandle>> locks;
     public final Map<String, List<Record>> changedRecords;
     public final Map<String, List<Bytes>> newRecords;
+    public final Map<String, Table> newTables;
 
     public Transaction(long transactionId, String tableSpace) {
         this.transactionId = transactionId;
@@ -48,6 +49,7 @@ public class Transaction {
         this.locks = new HashMap<>();
         this.changedRecords = new HashMap<>();
         this.newRecords = new HashMap<>();
+        this.newTables = new HashMap<>();
     }
 
     public List<Record> getChangedRecordsForTable(String tableName) {
@@ -56,6 +58,10 @@ public class Transaction {
 
     public List<Bytes> getNewRecordsForTable(String tableName) {
         return newRecords.get(tableName);
+    }
+
+    public Map<String, Table> getNewTables() {
+        return newTables;
     }
 
     public LockHandle lookupLock(String tableName, Bytes key) {
@@ -78,6 +84,10 @@ public class Transaction {
             locks.put(tableName, ll);
         }
         ll.add(handle);
+    }
+
+    public void registerNewTable(Table table) {
+        newTables.put(table.name, table);
     }
 
     public void registerChangedOnTable(String tableName, Record record) {

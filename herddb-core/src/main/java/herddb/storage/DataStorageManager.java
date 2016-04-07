@@ -21,6 +21,7 @@ package herddb.storage;
 
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
+import herddb.model.Table;
 import herddb.utils.Bytes;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -82,5 +83,23 @@ public abstract class DataStorageManager {
      * @throws DataStorageManagerException
      */
     public abstract void close() throws DataStorageManagerException;
+
+    /**
+     * Load tables metadata
+     * @param sequenceNumber 
+     * @param tableSpace 
+     * @return
+     * @throws DataStorageManagerException
+     */
+    public abstract List<Table> loadTables(LogSequenceNumber sequenceNumber,String tableSpace) throws DataStorageManagerException;
+
+    /**
+     * Writes tables metadata
+     * @param sequenceNumber
+     * @param tableSpace 
+     * @param tables
+     * @throws DataStorageManagerException 
+     */
+    public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException;
 
 }

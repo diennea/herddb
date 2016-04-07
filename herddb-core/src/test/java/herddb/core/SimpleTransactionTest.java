@@ -19,13 +19,19 @@
  */
 package herddb.core;
 
+import herddb.file.FileCommitLogManager;
+import herddb.file.FileDataStorageManager;
+import herddb.file.FileMetadataStorageManager;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.TableDoesNotExistException;
+import herddb.model.TableSpace;
 import herddb.model.TransactionResult;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
@@ -33,9 +39,13 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import java.nio.file.Path;
+import java.util.Collections;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -260,11 +270,52 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null));
         assertTrue(get.found());
-        assertEquals(Bytes.from_int(0),get.getRecord().value);
-        
+        assertEquals(Bytes.from_int(0), get.getRecord().value);
+
         GetResult get2 = manager.get(new GetStatement(tableSpace, tableName2, key, null));
         assertTrue(get2.found());
-        assertEquals(Bytes.from_int(1),get2.getRecord().value);
+        assertEquals(Bytes.from_int(1), get2.getRecord().value);
+    }
+
+    @Test
+    public void rollbackCreateTable() throws Exception {
+
+        Bytes key = Bytes.from_int(1234);
+        Bytes value = Bytes.from_long(8888);
+
+        CreateTableStatement st2 = new CreateTableStatement(table);
+        manager.executeStatement(st2);
+        manager.flush();
+
+        Table transacted_table = Table
+                .builder()
+                .name("t2")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
+
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(TableSpace.DEFAULT))).getTransactionId();
+        CreateTableStatement st_create = new CreateTableStatement(transacted_table).setTransactionId(tx);
+        manager.executeStatement(st_create);
+
+        InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t2", new Record(key, value)).setTransactionId(tx);
+        assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+
+        GetStatement get = new GetStatement(TableSpace.DEFAULT, "t2", key, null).setTransactionId(tx);
+        GetResult result = manager.get(get);
+        assertTrue(result.found());
+        assertEquals(key, result.getRecord().key);
+        assertEquals(value, result.getRecord().value);
+
+        RollbackTransactionStatement rollback = new RollbackTransactionStatement(TableSpace.DEFAULT, tx);
+        manager.executeStatement(rollback);
+        try {
+            manager.get(new GetStatement(TableSpace.DEFAULT, "t2", key, null));
+            fail();
+        } catch (TableDoesNotExistException error) {
+        }
+
     }
 
 }
