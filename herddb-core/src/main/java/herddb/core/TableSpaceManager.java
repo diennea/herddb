@@ -83,7 +83,7 @@ public class TableSpaceManager {
         this.tableSpaceName = tableSpaceName;
     }
 
-    void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+    void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
 
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         recover(tableSpaceInfo);
@@ -116,6 +116,7 @@ public class TableSpaceManager {
                 }
             }
         }, false);
+
     }
 
     void apply(LogEntry entry) throws DataStorageManagerException, DDLException {
@@ -174,13 +175,20 @@ public class TableSpaceManager {
 
     }
 
-    void startAsLeader() throws DataStorageManagerException {
-        try {
-            log.startWriting();
-            leader = true;
-        } catch (LogNotAvailableException err) {
-            throw new DataStorageManagerException(err);
+    void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
+
+        // every pending transaction MUST be rollback back
+        List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
+        log.startWriting();
+        LOGGER.log(Level.SEVERE, "startAsLeader tablespace " + tableSpaceName + " log, there were " + transactions.size() + " pending transactions to be rolledback");
+        for (long tx : pending_transactions) {
+            LOGGER.log(Level.SEVERE, "rolling back transaction " + tx);
+            LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
+            // let followers see the rollback on the log
+            log.log(rollback);
+            apply(rollback);
         }
+        leader = true;
     }
 
     private ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
@@ -248,7 +256,7 @@ public class TableSpaceManager {
 
     private void bootTable(Table table) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "bootTable", table.name);
-        TableManager tableManager = new TableManager(table, log, dataStorageManager);
+        TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
         tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();
     }
@@ -326,6 +334,10 @@ public class TableSpaceManager {
 
     public boolean isLeader() {
         return leader;
+    }
+
+    Transaction getTransaction(long transactionId) {
+        return transactions.get(transactionId);
     }
 
 }

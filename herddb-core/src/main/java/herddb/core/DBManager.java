@@ -24,6 +24,7 @@ import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.DDLException;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
@@ -107,7 +108,7 @@ public class DBManager implements AutoCloseable {
         return false;
     }
 
-    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
         TableSpace tableSpace = metadataStorageManager.describeTableSpace(tableSpaceName);
         if (!tableSpace.replicas.contains(nodeId)) {
             return;

@@ -88,6 +88,10 @@ public class LogEntry {
                         doo.writeInt(value.length);
                         doo.write(value);
                         break;
+                    case LogEntryType.BEGINTRANSACTION:
+                    case LogEntryType.COMMITTRANSACTION:
+                    case LogEntryType.ROLLBACKTRANSACTION:
+                        break;
                     default:
                         throw new IllegalArgumentException("unsupported type " + type);
                 }
@@ -129,6 +133,10 @@ public class LogEntry {
                 case LogEntryType.CREATE_TABLE:
                     // value contains the table definition                                        
                     value = readArray(dis);
+                    break;
+                case LogEntryType.BEGINTRANSACTION:
+                case LogEntryType.COMMITTRANSACTION:
+                case LogEntryType.ROLLBACKTRANSACTION:
                     break;
                 default:
                     throw new IllegalArgumentException("unsupported type " + type);
