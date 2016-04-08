@@ -36,7 +36,6 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
-import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import java.nio.file.Path;

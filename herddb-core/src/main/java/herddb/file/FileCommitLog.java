@@ -58,7 +58,7 @@ public class FileCommitLog extends CommitLog {
 
     private volatile CommitFileWriter writer;
 
-    private final ReentrantLock writeLock = new ReentrantLock();    
+    private final ReentrantLock writeLock = new ReentrantLock();
 
     private final static byte ENTRY_START = 13;
     private final static byte ENTRY_END = 25;
@@ -74,7 +74,7 @@ public class FileCommitLog extends CommitLog {
             LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
             this.out = new DataOutputStream(
                     new BufferedOutputStream(
-                            Files.newOutputStream(filename, StandardOpenOption.CREATE_NEW)
+                            Files.newOutputStream(filename, StandardOpenOption.CREATE_NEW, StandardOpenOption.DSYNC)
                     )
             );
             writtenBytes = 0;
@@ -87,11 +87,11 @@ public class FileCommitLog extends CommitLog {
             this.out.writeInt(serialize.length);
             this.out.write(serialize);
             this.out.writeByte(ENTRY_END);
+            this.out.flush(); // flush the BufferedOutputStream, it will write on the File stream wchi is opened with StandardOpenOption.DSYNC option 
             writtenBytes += (1 + 8 + 4 + serialize.length + 1);
         }
 
-        public void flush() throws LogNotAvailableException {
-            // TODO: FD.synch ??
+        public void flush() throws LogNotAvailableException {            
             try {
                 this.out.flush();
             } catch (IOException err) {
@@ -286,6 +286,5 @@ public class FileCommitLog extends CommitLog {
     public LogSequenceNumber getActualSequenceNumber() {
         return new LogSequenceNumber(currentLedgerId, currentOffset);
     }
-    
 
 }
