@@ -56,7 +56,7 @@ public class FileDataStorageManager extends DataStorageManager {
     private final AtomicLong newPageId = new AtomicLong();
 
     public FileDataStorageManager(Path baseDirectory) {
-        this.baseDirectory = baseDirectory;
+        this.baseDirectory = baseDirectory.resolve("data");
     }
 
     @Override
