@@ -17,35 +17,26 @@
  under the License.
 
  */
-package herddb.file;
+package herddb.server;
 
-import herddb.log.CommitLog;
-import herddb.log.CommitLogManager;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
- * Commit logs on local files
+ * Basic server boot test
  *
  * @author enrico.olivelli
  */
-public class FileCommitLogManager extends CommitLogManager {
+public class ServerBootTest {
 
-    private final Path baseDirectory;
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
 
-    public FileCommitLogManager(Path baseDirectory) {
-        this.baseDirectory = baseDirectory.resolve("txlog");
-    }
-
-    @Override
-    public CommitLog createCommitLog(String tableSpace) {
-        try {
-            Path folder = baseDirectory.resolve(tableSpace + ".txlog");
-            Files.createDirectories(folder);
-            return new FileCommitLog(folder, 1024 * 1024);
-        } catch (IOException err) {
-            throw new RuntimeException(err);
+    @Test
+    public void test() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
         }
     }
 }

@@ -56,7 +56,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     private final static Logger LOGGER = Logger.getLogger(FileMetadataStorageManager.class.getName());
 
     public FileMetadataStorageManager(Path baseDirectory) {
-        this.baseDirectory = baseDirectory;
+        this.baseDirectory = baseDirectory.resolve("metadata");
     }
 
     @Override
