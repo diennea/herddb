@@ -52,6 +52,8 @@
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <libs.netty4>4.0.31.Final</libs.netty4>
+        <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
     </properties>
         
     <dependencies>
@@ -69,6 +71,7 @@
                 <activeByDefault>true</activeByDefault>                
             </activation> 
             <modules>
+                <module>herddb-net</module>
                 <module>herddb-core</module>
             </modules>
             <distributionManagement>        
