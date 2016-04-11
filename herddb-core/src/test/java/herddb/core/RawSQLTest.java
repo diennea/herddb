@@ -26,6 +26,7 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.GetResult;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
@@ -34,15 +35,19 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Tests on table creation
  *
  * @author enrico.olivelli
  */
-public class CreateSQLTest {
+public class RawSQLTest {
 
     @Test
     public void createTable1() throws Exception {
@@ -78,6 +83,24 @@ public class CreateSQLTest {
                 Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
+            }
+
+            GetStatement st_get = (GetStatement) manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"));
+            {
+                GetResult result = manager.get(st_get);
+                assertTrue(result.found());
+                assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
+                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
+            }
+
+            DeleteStatement st_delete = (DeleteStatement) manager.getTranslator().translate("DELETE FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"));
+            assertEquals(1, manager.executeUpdate(st_delete).getUpdateCount());
+
+            {
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                assertFalse(result.found());
             }
         }
 
