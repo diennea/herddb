@@ -19,19 +19,35 @@
  */
 package herddb.sql;
 
+import herddb.codec.RecordSerializer;
+import herddb.core.DBManager;
+import herddb.core.TableManager;
+import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.Predicate;
+import herddb.model.RecordFunction;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.commands.CreateTableStatement;
-import java.util.ArrayList;
+import herddb.model.commands.InsertStatement;
+import herddb.model.commands.UpdateStatement;
+import herddb.utils.Bytes;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.delete.Delete;
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.statement.update.Update;
 
 /**
  * Translates SQL to Internal API
@@ -40,11 +56,26 @@ import net.sf.jsqlparser.statement.create.table.CreateTable;
  */
 public class SQLTranslator {
 
+    private final DBManager manager;
+
+    public SQLTranslator(DBManager manager) {
+        this.manager = manager;
+    }
+
     public Statement translate(String query, List<Object> parameters) throws StatementExecutionException {
         try {
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
                 return buildCreateTableStatement((CreateTable) stmt);
+            }
+            if (stmt instanceof Insert) {
+                return buildInsertStatement((Insert) stmt, parameters);
+            }
+            if (stmt instanceof Delete) {
+                return buildDeleteStatement((Delete) stmt, parameters);
+            }
+            if (stmt instanceof Update) {
+                return buildUpdateStatement((Update) stmt, parameters);
             }
         } catch (JSQLParserException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
@@ -89,5 +120,107 @@ public class SQLTranslator {
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition", err);
         }
+    }
+
+    private Statement buildInsertStatement(Insert s, List<Object> parameters) throws StatementExecutionException {
+        String tableSpace = s.getTable().getSchemaName();
+        String tableName = s.getTable().getName();
+        if (tableSpace == null) {
+            tableSpace = TableSpace.DEFAULT;
+        }
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
+        }
+        TableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
+        }
+        Table table = tableManager.getTable();
+        Map<String, Object> record = new HashMap<>();
+        System.out.println("itemslist:" + s.getItemsList());
+        int index = 0;
+        for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
+            Column column = table.getColumn(c.getColumnName());
+            if (column == null) {
+                throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
+            }
+            Object _value = parameters.get(index++);
+            record.put(column.name, _value);
+        }
+
+        try {
+            return new InsertStatement(tableSpace, tableName, RecordSerializer.toRecord(record, table));
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException(err);
+        }
+    }
+
+    private Statement buildDeleteStatement(Delete delete, List<Object> parameters) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    private Statement buildUpdateStatement(Update s, List<Object> parameters) throws StatementExecutionException {
+        net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
+        String tableSpace = fromTable.getSchemaName();
+        String tableName = fromTable.getName();
+        if (tableSpace == null) {
+            tableSpace = TableSpace.DEFAULT;
+        }
+        TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+        if (tableSpaceManager == null) {
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
+        }
+        TableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        if (tableManager == null) {
+            throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
+        }
+        Table table = tableManager.getTable();
+        Map<String, Object> record = new HashMap<>();
+
+        int index = 0;
+        for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
+            Column column = table.getColumn(c.getColumnName());
+            Expression expression = s.getExpressions().get(index++);
+            if (column == null) {
+                throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
+            }
+        }
+
+        System.out.println("where:" + s.getWhere() + " " + s.getWhere().getClass());
+        RecordFunction function = buildRecordFunction(s.getColumns(), s.getExpressions(), parameters, table);
+        long whereParamters = s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
+        Predicate where = null;
+        Bytes key = null;
+        if (s.getWhere() instanceof EqualsTo) {
+            // UPDATE TABLE SET XXX WHERE KEY=?
+            EqualsTo e = (EqualsTo) s.getWhere();
+            net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
+            if (!column.getColumnName().equals(table.primaryKeyColumn)) {
+                throw new StatementExecutionException("unsupported where, only on primary key field " + table.primaryKeyColumn);
+            }
+            JdbcParameter jdbcparam = (JdbcParameter) e.getRightExpression();
+            key = new Bytes(
+                    RecordSerializer.serialize(
+                            parameters.get((int) whereParamters),
+                            table.getColumn(table.primaryKeyColumn).type));
+        } else {
+            // UPDATE TABLE SET XXX WHERE KEY=? AND ....
+            throw new StatementExecutionException("unsupported where " + s.getWhere());
+        }
+
+        try {
+            return new UpdateStatement(tableSpace, tableName, key, function, where);
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException(err);
+        }
+    }
+
+    private RecordFunction buildRecordFunction(List<net.sf.jsqlparser.schema.Column> columns, List<Expression> expressions, List<Object> parameters, Table table) {
+        return new SQLRecordFunction(table, columns, expressions, parameters);
+    }
+
+    private Predicate buildPredicate(Expression where, Table table) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 }

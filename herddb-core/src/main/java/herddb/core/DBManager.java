@@ -74,7 +74,7 @@ public class DBManager implements AutoCloseable {
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
         this.nodeId = nodeId;
-        this.translator = new SQLTranslator();
+        this.translator = new SQLTranslator(this);
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
     }
@@ -288,5 +288,9 @@ public class DBManager implements AutoCloseable {
             LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
 
         }
+    }
+
+    public TableSpaceManager getTableSpaceManager(String tableSpace) {
+        return tablesSpaces.get(tableSpace);
     }
 }

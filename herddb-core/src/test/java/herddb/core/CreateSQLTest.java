@@ -19,20 +19,20 @@
  */
 package herddb.core;
 
+import herddb.codec.RecordSerializer;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
-import herddb.model.Record;
-import herddb.model.Table;
-import herddb.model.TableSpace;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
+import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
@@ -53,20 +53,31 @@ public class CreateSQLTest {
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
-            CreateTableStatement st2 = (CreateTableStatement) manager.getTranslator().translate("CREATE TABLE tblspace1.tsql (n1 string primary key)", Collections.emptyList());
+            CreateTableStatement st2 = (CreateTableStatement) manager.getTranslator().translate("CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int)", Collections.emptyList());
             manager.executeStatement(st2);
 
-            {
-                Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(0));
-                InsertStatement st = new InsertStatement("tblspace1", "tsql", record);
-                assertEquals(1, manager.executeUpdate(st).getUpdateCount());
-            }
+            InsertStatement st_insert = (InsertStatement) manager.getTranslator().translate("INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234)));
+            assertEquals(1, manager.executeUpdate(st_insert).getUpdateCount());
 
             {
-                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("key1"), null));
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
                 assertTrue(result.found());
-                assertEquals(result.getRecord().key, Bytes.from_string("key1"));
-                assertEquals(result.getRecord().value, Bytes.from_int(0));
+                assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
+                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(Integer.valueOf(1234), finalRecord.get("n1"));
+            }
+
+            UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=? where k1 = ?", Arrays.asList(Integer.valueOf(999), "mykey"));
+            assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+
+            {
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                assertTrue(result.found());
+                assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
+                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
         }
 
