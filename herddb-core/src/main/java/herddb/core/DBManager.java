@@ -35,18 +35,17 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
+import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -68,14 +67,20 @@ public class DBManager implements AutoCloseable {
     private final Thread activator;
     private final AtomicBoolean stopped = new AtomicBoolean();
     private final BlockingQueue<Object> activatorQueue = new LinkedBlockingDeque<>();
+    private final SQLTranslator translator;
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager) {
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
         this.nodeId = nodeId;
+        this.translator = new SQLTranslator(this);
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
+    }
+
+    public SQLTranslator getTranslator() {
+        return translator;
     }
 
     /**
@@ -84,6 +89,8 @@ public class DBManager implements AutoCloseable {
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
 
         metadataStorageManager.start();
+
+        metadataStorageManager.ensureDefaultTableSpace(nodeId);
 
         activator.start();
 
@@ -221,6 +228,10 @@ public class DBManager implements AutoCloseable {
         activatorQueue.offer("");
     }
 
+    public String getNodeId() {
+        return nodeId;
+    }
+
     private class Activator implements Runnable {
 
         @Override
@@ -277,5 +288,9 @@ public class DBManager implements AutoCloseable {
             LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
 
         }
+    }
+
+    public TableSpaceManager getTableSpaceManager(String tableSpace) {
+        return tablesSpaces.get(tableSpace);
     }
 }

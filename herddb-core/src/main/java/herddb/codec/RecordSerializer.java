@@ -55,7 +55,7 @@ public final class RecordSerializer {
         }
     }
 
-    private static byte[] serialize(Object v, int type) {
+    public static byte[] serialize(Object v, int type) {
         if (v == null) {
             return null;
         }

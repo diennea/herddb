@@ -72,12 +72,13 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -95,10 +96,11 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -128,12 +130,13 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -144,7 +147,7 @@ public class SimpleRecoveryTest {
             manager.executeStatement(st2);
             manager.flush();
 
-            InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t1", new Record(key, value));
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
             assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
         }
 
@@ -154,8 +157,8 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
-            GetStatement get = new GetStatement(TableSpace.DEFAULT, "t1", key, null);
+            manager.waitForTablespace("tblspace1", 10000);
+            GetStatement get = new GetStatement("tblspace1", "t1", key, null);
             GetResult result = manager.get(get);
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
@@ -180,12 +183,13 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -196,12 +200,12 @@ public class SimpleRecoveryTest {
             manager.executeStatement(st2);
             manager.flush();
 
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(TableSpace.DEFAULT))).getTransactionId();
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
 
-            InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t1", new Record(key, value)).setTransactionId(tx);
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value)).setTransactionId(tx);
             assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
 
-            manager.executeStatement(new CommitTransactionStatement(TableSpace.DEFAULT, tx));
+            manager.executeStatement(new CommitTransactionStatement("tblspace1", tx));
         }
 
         try (DBManager manager = new DBManager("localhost",
@@ -210,8 +214,8 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
-            GetStatement get = new GetStatement(TableSpace.DEFAULT, "t1", key, null);
+            manager.waitForTablespace("tblspace1", 10000);
+            GetStatement get = new GetStatement("tblspace1", "t1", key, null);
             GetResult result = manager.get(get);
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
@@ -237,12 +241,13 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -253,12 +258,12 @@ public class SimpleRecoveryTest {
             manager.executeStatement(st2);
             manager.flush();
 
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(TableSpace.DEFAULT))).getTransactionId();
-            InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t1", new Record(key, value)).setTransactionId(tx);
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value)).setTransactionId(tx);
             assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
 
             // transaction is not committed, and the leader dies, key MUST not appear anymore
-            InsertStatement insert2 = new InsertStatement(TableSpace.DEFAULT, "t1", new Record(key2, value));
+            InsertStatement insert2 = new InsertStatement("tblspace1", "t1", new Record(key2, value));
             assertEquals(1, manager.executeUpdate(insert2).getUpdateCount());
 
         }
@@ -269,10 +274,10 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             {
-                GetStatement get = new GetStatement(TableSpace.DEFAULT, "t1", key2, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key2, null);
                 GetResult result = manager.get(get);
                 assertTrue(result.found());
                 assertEquals(key2, result.getRecord().key);
@@ -281,7 +286,7 @@ public class SimpleRecoveryTest {
 
             {
                 // transaction rollback occurred
-                GetStatement get = new GetStatement(TableSpace.DEFAULT, "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
                 GetResult result = manager.get(get);
                 assertFalse(result.found());
             }
@@ -306,12 +311,13 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -322,12 +328,12 @@ public class SimpleRecoveryTest {
             manager.executeStatement(st2);
             manager.flush();
 
-            InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t1", new Record(key, value));
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
             assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
 
             // transaction is not committed, and the leader dies, key appear again
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(TableSpace.DEFAULT))).getTransactionId();
-            DeleteStatement delete = new DeleteStatement(TableSpace.DEFAULT, "t1", key, null).setTransactionId(tx);
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
+            DeleteStatement delete = new DeleteStatement("tblspace1", "t1", key, null).setTransactionId(tx);
             assertEquals(1, manager.executeUpdate(delete).getUpdateCount());
 
         }
@@ -338,10 +344,10 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             {
-                GetStatement get = new GetStatement(TableSpace.DEFAULT, "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
                 GetResult result = manager.get(get);
                 assertTrue(result.found());
                 assertEquals(key, result.getRecord().key);
@@ -369,12 +375,13 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -385,12 +392,12 @@ public class SimpleRecoveryTest {
             manager.executeStatement(st2);
             manager.flush();
 
-            InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t1", new Record(key, value));
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
             assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
 
             // transaction is not committed, and the leader dies, key appear again with the old value
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(TableSpace.DEFAULT))).getTransactionId();
-            UpdateStatement update = new UpdateStatement(TableSpace.DEFAULT, "t1", new Record(key, value2), null).setTransactionId(tx);
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
+            UpdateStatement update = new UpdateStatement("tblspace1", "t1", new Record(key, value2), null).setTransactionId(tx);
             assertEquals(1, manager.executeUpdate(update).getUpdateCount());
 
         }
@@ -401,10 +408,10 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             {
-                GetStatement get = new GetStatement(TableSpace.DEFAULT, "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
                 GetResult result = manager.get(get);
                 assertTrue(result.found());
                 assertEquals(key, result.getRecord().key);
@@ -432,12 +439,13 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
@@ -450,20 +458,21 @@ public class SimpleRecoveryTest {
 
             Table transacted_table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t2")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
                     .primaryKey("id")
                     .build();
 
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(TableSpace.DEFAULT))).getTransactionId();
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
             CreateTableStatement st_create = new CreateTableStatement(transacted_table).setTransactionId(tx);
             manager.executeStatement(st_create);
 
-            InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t2", new Record(key, value)).setTransactionId(tx);
+            InsertStatement insert = new InsertStatement("tblspace1", "t2", new Record(key, value)).setTransactionId(tx);
             assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
 
-            GetStatement get = new GetStatement(TableSpace.DEFAULT, "t2", key, null).setTransactionId(tx);
+            GetStatement get = new GetStatement("tblspace1", "t2", key, null).setTransactionId(tx);
             GetResult result = manager.get(get);
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
@@ -478,9 +487,9 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
-            GetStatement get = new GetStatement(TableSpace.DEFAULT, "t2", key, null);
+            GetStatement get = new GetStatement("tblspace1", "t2", key, null);
             try {
                 manager.get(get);
                 fail();

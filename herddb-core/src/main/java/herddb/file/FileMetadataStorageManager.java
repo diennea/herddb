@@ -161,5 +161,26 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             throw new MetadataStorageManagerException(err);
         }
     }
+    
+    @Override
+    public void ensureDefaultTableSpace(String localNodeId) throws MetadataStorageManagerException {
+        lock.writeLock().lock();
+        try {
+            TableSpace exists = tableSpaces.get(TableSpace.DEFAULT);
+            if (exists == null) {
+                TableSpace defaultTableSpace = TableSpace
+                        .builder()
+                        .leader(localNodeId)
+                        .replica(localNodeId)
+                        .name(TableSpace.DEFAULT)
+                        .build();
+                registerTableSpace(defaultTableSpace);
+            }
+        } catch (DDLException err) {
+            throw new MetadataStorageManagerException(err);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
 
 }

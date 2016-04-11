@@ -351,4 +351,8 @@ public class TableSpaceManager {
         return transactions.get(transactionId);
     }
 
+    public TableManager getTableManager(String tableName) {
+        return tables.get(Bytes.from_string(tableName));
+    }
+
 }

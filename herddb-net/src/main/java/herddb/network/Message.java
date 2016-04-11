@@ -22,6 +22,7 @@ package herddb.network;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -56,6 +57,23 @@ public final class Message {
         return new Message(clientId, TYPE_CLIENT_SHUTDOWN, new HashMap<>());
     }
 
+    public static Message EXECUTE_STATEMENT(String clientId, String query, List<Object> params) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("query", query);
+        data.put("params", params);
+        return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
+    }
+
+    public static Message EXECUTE_STATEMENT_RESULT(long updateCount) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("updateCount", updateCount);
+        return new Message(null, TYPE_EXECUTE_STATEMENT_RESULT, data);
+    }
+
     public final String clientId;
     public final int type;
     public final Map<String, Object> parameters;
@@ -72,6 +90,8 @@ public final class Message {
     public static final int TYPE_CLIENT_CONNECTION_REQUEST = 2;
     public static final int TYPE_CLIENT_SHUTDOWN = 3;
     public static final int TYPE_ERROR = 4;
+    public static final int TYPE_EXECUTE_STATEMENT = 5;
+    public static final int TYPE_EXECUTE_STATEMENT_RESULT = 6;
 
     public static String typeToString(int type) {
         switch (type) {
@@ -83,6 +103,10 @@ public final class Message {
                 return "CLIENT_CONNECTION_REQUEST";
             case TYPE_CLIENT_SHUTDOWN:
                 return "CLIENT_SHUTDOWN";
+            case TYPE_EXECUTE_STATEMENT:
+                return "EXECUTE_STATEMENT";
+            case TYPE_EXECUTE_STATEMENT_RESULT:
+                return "EXECUTE_STATEMENT_RESULT";
             default:
                 return "?" + type;
         }
