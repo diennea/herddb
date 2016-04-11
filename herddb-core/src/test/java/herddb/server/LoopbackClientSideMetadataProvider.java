@@ -17,31 +17,32 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.server;
 
+import herddb.client.ClientSideMetadataProvider;
+import herddb.client.ClientSideMetadataProviderException;
 import herddb.network.ServerHostData;
 
 /**
- * Provide Metadata to the client
- *
+ * Loopback for tests
  * @author enrico.olivelli
  */
-public interface ClientSideMetadataProvider {
+public class LoopbackClientSideMetadataProvider implements ClientSideMetadataProvider {
 
-    /**
-     * Returns the actual leader for the given tableSpace
-     *
-     * @param tableSpace
-     * @return
-     * @throws ClientSideMetadataProviderException
-     */
-    public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException;
+    private final Server server;
 
-    /**
-     * Returns the actual address of a node
-     * @param nodeId
-     * @return
-     * @throws ClientSideMetadataProviderException
-     */
-    public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException;
+    public LoopbackClientSideMetadataProvider(Server server) {
+        this.server = server;
+    }
+
+    @Override
+    public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException {
+        return server.getServerHostData();
+    }
+
+    @Override
+    public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
+        return server.getNodeId();
+    }
+
 }

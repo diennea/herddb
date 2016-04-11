@@ -25,12 +25,14 @@ import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
 import herddb.metadata.MetadataStorageManager;
 import herddb.network.Channel;
+import herddb.network.ServerHostData;
 import herddb.network.ServerSideConnection;
 import herddb.network.ServerSideConnectionAcceptor;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.storage.DataStorageManager;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -47,6 +49,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final NettyChannelAcceptor networkServer;
     private final ServerConfiguration configuration;
     private final Path baseDirectory;
+    private final ServerHostData serverHostData;
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
 
     public Server(ServerConfiguration configuration) {
@@ -57,15 +60,18 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 buildMetadataStorageManager(),
                 buildDataStorageManager(),
                 buildFileCommitLogManager());
+        this.serverHostData = new ServerHostData(
+                configuration.getString(ServerConfiguration.PROPERTY_HOST, "localhost"),
+                configuration.getInt(ServerConfiguration.PROPERTY_PORT, 0),
+                "",
+                configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
+                new HashMap<>());
         this.networkServer = buildChannelAcceptor();
         this.networkServer.setAcceptor(this);
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {
-        return new NettyChannelAcceptor(
-                configuration.getString(ServerConfiguration.PROPERTY_HOST, "localhost"),
-                configuration.getInt(ServerConfiguration.PROPERTY_PORT, 0),
-                configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false));
+        return new NettyChannelAcceptor(serverHostData.getHost(), serverHostData.getPort(), serverHostData.isSsl());
     }
 
     private MetadataStorageManager buildMetadataStorageManager() {
@@ -103,6 +109,14 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     void connectionClosed(ServerSideConnectionPeer connection) {
         connections.remove(connection.getConnectionId());
+    }
+
+    public String getNodeId() {
+        return dbmanager.getNodeId();
+    }
+
+    public ServerHostData getServerHostData() {
+        return serverHostData;
     }
 
 }

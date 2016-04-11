@@ -242,6 +242,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         String tableName2 = "t2";
         Table table2 = Table
                 .builder()
+                .tablespace("tblspace1")
                 .name(tableName2)
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
@@ -289,29 +290,30 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         Table transacted_table = Table
                 .builder()
+                .tablespace("tblspace1")
                 .name("t2")
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
                 .primaryKey("id")
                 .build();
 
-        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(TableSpace.DEFAULT))).getTransactionId();
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
         CreateTableStatement st_create = new CreateTableStatement(transacted_table).setTransactionId(tx);
         manager.executeStatement(st_create);
 
-        InsertStatement insert = new InsertStatement(TableSpace.DEFAULT, "t2", new Record(key, value)).setTransactionId(tx);
+        InsertStatement insert = new InsertStatement("tblspace1", "t2", new Record(key, value)).setTransactionId(tx);
         assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
 
-        GetStatement get = new GetStatement(TableSpace.DEFAULT, "t2", key, null).setTransactionId(tx);
+        GetStatement get = new GetStatement("tblspace1", "t2", key, null).setTransactionId(tx);
         GetResult result = manager.get(get);
         assertTrue(result.found());
         assertEquals(key, result.getRecord().key);
         assertEquals(value, result.getRecord().value);
 
-        RollbackTransactionStatement rollback = new RollbackTransactionStatement(TableSpace.DEFAULT, tx);
+        RollbackTransactionStatement rollback = new RollbackTransactionStatement("tblspace1", tx);
         manager.executeStatement(rollback);
         try {
-            manager.get(new GetStatement(TableSpace.DEFAULT, "t2", key, null));
+            manager.get(new GetStatement("tblspace1", "t2", key, null));
             fail();
         } catch (TableDoesNotExistException error) {
         }

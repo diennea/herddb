@@ -19,25 +19,23 @@
  */
 package herddb.client;
 
-import herddb.network.ServerHostData;
-import java.util.Collections;
-import java.util.Map;
-
 /**
- * Metadata on tables/tablespaces.
+ * Generic client side exception
  *
  * @author enrico.olivelli
  */
-public class ClientSideMetadata {
+public class HDBException extends Exception {
 
-    private final Map<String, ServerHostData> leadersByTableSpace;
-
-    public ClientSideMetadata(Map<String, ServerHostData> leadersByTableSpace) {
-        this.leadersByTableSpace = Collections.unmodifiableMap(leadersByTableSpace);
+    public HDBException(String message) {
+        super(message);
     }
 
-    public Map<String, ServerHostData> getLeadersByTableSpace() {
-        return leadersByTableSpace;
+    public HDBException(Throwable cause) {
+        super(cause);
+    }
+
+    public HDBException(String message, Throwable cause) {
+        super(message, cause);
     }
 
 }

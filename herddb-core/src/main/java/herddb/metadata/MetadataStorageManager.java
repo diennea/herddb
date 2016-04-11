@@ -33,6 +33,8 @@ import java.util.Collection;
 public abstract class MetadataStorageManager implements AutoCloseable {
 
     public abstract void start() throws MetadataStorageManagerException;
+    
+    public abstract void ensureDefaultTableSpace(String localNodeId) throws MetadataStorageManagerException;
 
     public abstract void close() throws MetadataStorageManagerException;
 

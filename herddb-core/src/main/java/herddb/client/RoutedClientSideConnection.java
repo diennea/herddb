@@ -19,28 +19,86 @@
  */
 package herddb.client;
 
-import com.sun.media.sound.AutoConnectSequencer;
+import herddb.network.Channel;
+import herddb.network.ChannelEventListener;
+import herddb.network.Message;
 import herddb.network.netty.NettyConnector;
+import java.util.List;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * A real connection to a server
  *
  * @author enrico.olivelli
  */
-public class RoutedClientSideConnection implements AutoCloseable {
+public class RoutedClientSideConnection implements AutoCloseable, ChannelEventListener {
 
-    private NettyConnector connector;
-    private final ClientSideConnection connection;
-    private final String key;
+    private Logger LOGGER = Logger.getLogger(RoutedClientSideConnection.class.getName());
+    private final NettyConnector connector;
+    private final HDBConnection connection;
+    private final String nodeId;
+    private final long timeout;
+    private final String clientId;
+    private final ReentrantLock connectionLock = new ReentrantLock(true);
+    private Channel channel;
 
-    public RoutedClientSideConnection(ClientSideConnection connection, String key) {
+    public RoutedClientSideConnection(HDBConnection connection, String nodeId) {
         this.connection = connection;
-        this.key = key;
+        this.nodeId = nodeId;
+        this.connector = new NettyConnector(this);
+        this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
+        this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
+    }
+
+    @Override
+    public void messageReceived(Message message) {
+        LOGGER.log(Level.SEVERE, "{0} - received {1}", new Object[]{nodeId, message.toString()});
+    }
+
+    @Override
+    public void channelClosed() {
+        channel = null;
     }
 
     @Override
     public void close() {
-        this.connection.releaseRoute(key);
+        LOGGER.log(Level.SEVERE, "{0} - close");
+        this.connector.close();
+        this.connection.releaseRoute(nodeId);
+    }
+
+    private void ensureOpen() throws HDBException {
+        connectionLock.lock();
+        try {
+            if (channel == null) {
+                channel = connector.connect();
+            }
+        } catch (Exception err) {
+            throw new HDBException(err);
+        } finally {
+            connectionLock.unlock();
+        }
+    }
+
+    long executeUpdate(String query, List<Object> params) throws HDBException {
+        ensureOpen();
+        Channel _channel = channel;
+        if (_channel == null) {
+            throw new HDBException("not connected to node " + nodeId);
+        }
+        try {
+            Message message = Message.EXECUTE_STATEMENT(clientId, query, params);
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            if (reply.type == Message.TYPE_ERROR) {
+                throw new HDBException(reply + "");
+            }
+            return (Long) reply.parameters.get("updateCount");
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
     }
 
 }

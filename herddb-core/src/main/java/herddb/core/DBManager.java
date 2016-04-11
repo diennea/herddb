@@ -85,6 +85,8 @@ public class DBManager implements AutoCloseable {
 
         metadataStorageManager.start();
 
+        metadataStorageManager.ensureDefaultTableSpace(nodeId);
+
         activator.start();
 
         generalLock.writeLock().lock();
@@ -219,6 +221,10 @@ public class DBManager implements AutoCloseable {
 
     private void triggerActivator() {
         activatorQueue.offer("");
+    }
+
+    public String getNodeId() {
+        return nodeId;
     }
 
     private class Activator implements Runnable {

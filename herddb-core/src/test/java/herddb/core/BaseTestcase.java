@@ -42,7 +42,7 @@ import org.junit.Before;
 public class BaseTestcase {
 
     protected String nodeId = "localhost";
-    protected String tableSpace = TableSpace.DEFAULT;
+    protected String tableSpace = "tblspace1";
     protected Table table;
     protected String tableName;
     protected DBManager manager;
@@ -70,13 +70,15 @@ public class BaseTestcase {
         System.setErr(System.out);
         manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager);
         manager.start();
-        CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+        CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
         manager.executeStatement(st1);
-        assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
+        assertTrue(manager.waitForTablespace(tableSpace, 10000));
         tableName = "t1";
         table = Table
                 .builder()
+                .tablespace("tblspace1")
                 .name(tableName)
+                .tablespace(tableSpace)
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
                 .primaryKey("id")

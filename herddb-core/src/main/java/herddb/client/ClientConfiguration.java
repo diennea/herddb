@@ -32,6 +32,10 @@ public class ClientConfiguration {
     private final Properties properties;
 
     public static final String PROPERTY_BASEDIR = "baseDir";
+    public static final String PROPERTY_TIMEOUT = "timeout";
+    public static final String PROPERTY_CLIENTID = "clientId";
+    public static final long PROPERTY_TIMEOUT_DEFAULT = 1000L * 60 * 5;
+    public static final String PROPERTY_CLIENTID_DEFAULT = "localhost";
 
     public ClientConfiguration(Properties properties) {
         this.properties = properties;

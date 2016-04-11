@@ -33,10 +33,8 @@ import java.util.concurrent.locks.ReentrantLock;
 public class HDBClient implements AutoCloseable {
 
     private final ClientConfiguration configuration;
-    private final Map<Long, ClientSideConnection> connections = new ConcurrentHashMap<>();
+    private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();
     private ClientSideMetadataProvider clientSideMetadataProvider;
-    private final ReentrantLock metadataLock = new ReentrantLock(true);
-    private ClientSideMetadata metadata;
 
     public HDBClient(ClientConfiguration configuration) {
         this.configuration = configuration;
@@ -50,42 +48,25 @@ public class HDBClient implements AutoCloseable {
         this.clientSideMetadataProvider = clientSideMetadataProvider;
     }
 
-    public ClientSideMetadata getMetadata() throws ClientSideMetadataProviderException {
-        metadataLock.lock();
-        try {
-            if (metadata == null) {
-                metadata = clientSideMetadataProvider.readMetadata();
-            }
-            return metadata;
-        } finally {
-            metadataLock.unlock();
-        }
-    }
-
-    public void invalidateMetadata() {
-        metadataLock.lock();
-        try {
-            metadata = null;
-        } finally {
-            metadataLock.unlock();
-        }
+    public ClientConfiguration getConfiguration() {
+        return configuration;
     }
 
     @Override
     public void close() {
-        List<ClientSideConnection> connectionsAtClose = new ArrayList<>(this.connections.values());
-        for (ClientSideConnection connection : connectionsAtClose) {
+        List<HDBConnection> connectionsAtClose = new ArrayList<>(this.connections.values());
+        for (HDBConnection connection : connectionsAtClose) {
             connection.close();
         }
     }
 
-    public ClientSideConnection openConnection() {
-        ClientSideConnection con = new ClientSideConnection(this);
+    public HDBConnection openConnection() {
+        HDBConnection con = new HDBConnection(this);
         connections.put(con.getId(), con);
         return con;
     }
 
-    void releaseConnection(ClientSideConnection connection) {
+    void releaseConnection(HDBConnection connection) {
         connections.remove(connection.getId());
     }
 

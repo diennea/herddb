@@ -42,12 +42,13 @@ public class CreateTableTest {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(TableSpace.DEFAULT, Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
             manager.executeStatement(st1);
-            manager.waitForTablespace(TableSpace.DEFAULT, 10000);
+            manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
                     .builder()
+                    .tablespace("tblspace1")
                     .name("t1")
                     .column("id", ColumnTypes.STRING)
                     .column("name", ColumnTypes.STRING)
