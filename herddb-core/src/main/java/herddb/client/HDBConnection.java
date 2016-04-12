@@ -65,9 +65,29 @@ public class HDBConnection implements AutoCloseable {
         routes.remove(nodeId);
     }
 
-    public long executeUpdate(String tableSpace, String query, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+    public long beginTransaction(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        return route.executeUpdate(query, params);
+        return route.beginTransaction(tableSpace);
+    }
+
+    public void rollbackTransaction(String tableSpace, long tx) throws ClientSideMetadataProviderException, HDBException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        route.rollbackTransaction(tableSpace, tx);
+    }
+
+    public void commitTransaction(String tableSpace, long tx) throws ClientSideMetadataProviderException, HDBException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        route.commitTransaction(tableSpace, tx);
+    }
+
+    public long executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        return route.executeUpdate(query, tx, params);
+    }
+
+    public Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        return route.executeGet(query, tx, params);
     }
 
     private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {

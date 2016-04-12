@@ -34,7 +34,9 @@ public class ServerConfiguration {
     public static final String PROPERTY_NODEID = "nodeId";
     public static final String PROPERTY_BASEDIR = "baseDir";
     public static final String PROPERTY_HOST = "host";
+    public static final String PROPERTY_HOST_DEFAULT = "localhost";
     public static final String PROPERTY_PORT = "port";
+    public static final int PROPERTY_PORT_DEFAULT = 7000;
     public static final String PROPERTY_SSL = "ssl";
 
     public ServerConfiguration(Properties properties) {

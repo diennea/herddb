@@ -23,7 +23,9 @@ import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.netty.NettyConnector;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
@@ -83,19 +85,94 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    long executeUpdate(String query, List<Object> params) throws HDBException {
+    long executeUpdate(String query, long tx, List<Object> params) throws HDBException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, query, params);
+            Message message = Message.EXECUTE_STATEMENT(clientId, query, tx, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
             }
             return (Long) reply.parameters.get("updateCount");
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
+    Map<String, Object> executeGet(String query, long tx, List<Object> params) throws HDBException {
+        ensureOpen();
+        Channel _channel = channel;
+        if (_channel == null) {
+            throw new HDBException("not connected to node " + nodeId);
+        }
+        try {
+            Message message = Message.EXECUTE_STATEMENT(clientId, query, tx, params);
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            if (reply.type == Message.TYPE_ERROR) {
+                throw new HDBException(reply + "");
+            }
+            long found = (Long) reply.parameters.get("updateCount");
+            if (found <= 0) {
+                return null;
+            }
+            return (Map<String, Object>) reply.parameters.get("data");
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
+    long beginTransaction(String tableSpace) throws HDBException {
+        ensureOpen();
+        Channel _channel = channel;
+        if (_channel == null) {
+            throw new HDBException("not connected to node " + nodeId);
+        }
+        try {
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE BEGINTRANSACTION ?", 0, Arrays.asList(tableSpace));
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            if (reply.type == Message.TYPE_ERROR) {
+                throw new HDBException(reply + "");
+            }
+            Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
+            return (Long) data.get("tx");
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
+    void commitTransaction(String tableSpace, long tx) throws HDBException {
+        ensureOpen();
+        Channel _channel = channel;
+        if (_channel == null) {
+            throw new HDBException("not connected to node " + nodeId);
+        }
+        try {
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE COMMITTRANSACTION ?,?", 0, Arrays.asList(tableSpace, tx));
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            if (reply.type == Message.TYPE_ERROR) {
+                throw new HDBException(reply + "");
+            }
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
+    void rollbackTransaction(String tableSpace, long tx) throws HDBException {
+        ensureOpen();
+        Channel _channel = channel;
+        if (_channel == null) {
+            throw new HDBException("not connected to node " + nodeId);
+        }
+        try {
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION ?,?", 0, Arrays.asList(tableSpace, tx));
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            if (reply.type == Message.TYPE_ERROR) {
+                throw new HDBException(reply + "");
+            }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }

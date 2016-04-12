@@ -123,6 +123,7 @@ public class SQLTranslator {
                     type = ColumnTypes.LONG;
                     break;
                 case "int":
+                case "integer":
                     type = ColumnTypes.INTEGER;
                     break;
                 case "bytea":

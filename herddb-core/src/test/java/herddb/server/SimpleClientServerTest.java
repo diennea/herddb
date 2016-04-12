@@ -23,9 +23,11 @@ import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
 import herddb.client.HDBClient;
 import herddb.model.TableSpace;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import org.junit.Assert;
-import org.junit.Ignore;
+import static org.junit.Assert.assertEquals;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -41,16 +43,30 @@ public class SimpleClientServerTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    @Ignore
     public void test() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
-                long count = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string)", Collections.emptyList());
-                Assert.assertEquals(1, count);
+
+                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList());
+                Assert.assertEquals(1, resultCreateTable);
+
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+
+                long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test", 1, 2));
+                Assert.assertEquals(1, countInsert);
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
+
+                Map<String, Object> record = connection.executeGet(TableSpace.DEFAULT,
+                        "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());
+                Assert.assertNotNull(record);
+                assertEquals("test", record.get("id"));
+                assertEquals(Long.valueOf(1), record.get("n1"));
+                assertEquals(Integer.valueOf(2), record.get("n2"));
 
             }
         }
