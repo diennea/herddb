@@ -416,7 +416,7 @@ public class TableManager {
                 if (predicate != null && !predicate.evaluate(loaded)) {
                     return GetResult.NOT_FOUND;
                 }
-                return new GetResult(loaded);
+                return new GetResult(loaded, table);
             }
             Long pageId = keyToPage.get(key);
             if (pageId != null) {
@@ -431,7 +431,7 @@ public class TableManager {
             if (predicate != null && !predicate.evaluate(loaded)) {
                 return GetResult.NOT_FOUND;
             }
-            return new GetResult(loaded);
+            return new GetResult(loaded, table);
         } finally {
             if (transaction == null) {
                 locksManager.releaseReadLockForKey(key, lock);

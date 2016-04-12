@@ -45,24 +45,29 @@ import java.util.logging.Logger;
 public class Server implements AutoCloseable, ServerSideConnectionAcceptor<ServerSideConnection> {
 
     private static final Logger LOGGER = Logger.getLogger(Server.class.getName());
-    private final DBManager dbmanager;
+    private final DBManager manager;
     private final NettyChannelAcceptor networkServer;
     private final ServerConfiguration configuration;
     private final Path baseDirectory;
     private final ServerHostData serverHostData;
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
 
+    public DBManager getManager() {
+        return manager
+                ;
+    }
+
     public Server(ServerConfiguration configuration) {
         this.configuration = configuration;
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
-        this.dbmanager = new DBManager(nodeId,
+        this.manager = new DBManager(nodeId,
                 buildMetadataStorageManager(),
                 buildDataStorageManager(),
                 buildFileCommitLogManager());
         this.serverHostData = new ServerHostData(
-                configuration.getString(ServerConfiguration.PROPERTY_HOST, "localhost"),
-                configuration.getInt(ServerConfiguration.PROPERTY_PORT, 0),
+                configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT),
+                configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT),
                 "",
                 configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
                 new HashMap<>());
@@ -87,7 +92,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public void start() throws Exception {
-        this.dbmanager.start();
+        this.manager.start();
         this.networkServer.start();
     }
 
@@ -96,7 +101,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         try {
             networkServer.close();
         } finally {
-            dbmanager.close();
+            manager.close();
         }
     }
 
@@ -112,7 +117,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public String getNodeId() {
-        return dbmanager.getNodeId();
+        return manager.getNodeId();
     }
 
     public ServerHostData getServerHostData() {

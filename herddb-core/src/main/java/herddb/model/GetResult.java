@@ -27,12 +27,18 @@ package herddb.model;
 public class GetResult extends StatementExecutionResult {
 
     private final Record record;
+    private final Table table;
 
-    public GetResult(Record record) {
+    public GetResult(Record record, Table table) {
         this.record = record;
+        this.table = table;
     }
 
-    public static final GetResult NOT_FOUND = new GetResult(null);
+    public static final GetResult NOT_FOUND = new GetResult(null, null);
+
+    public Table getTable() {
+        return table;
+    }
 
     public Record getRecord() {
         return record;

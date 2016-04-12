@@ -28,6 +28,8 @@ import java.util.Map;
 import static javax.management.Query.value;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.schema.Column;
 
 /**
@@ -58,6 +60,10 @@ public class SQLRecordFunction extends RecordFunction {
             if (e instanceof JdbcParameter) {
                 Object param = parameters.get(paramIndex++);
                 bean.put(columns.get(i).getColumnName(), param);
+            } else if (e instanceof LongValue) {
+                bean.put(columns.get(i).getColumnName(), ((LongValue) e).getValue());
+            } else if (e instanceof StringValue) {
+                bean.put(columns.get(i).getColumnName(), ((StringValue) e).getValue());
             } else {
                 throw new RuntimeException("unsupported type " + e.getClass() + " " + e);
             }
