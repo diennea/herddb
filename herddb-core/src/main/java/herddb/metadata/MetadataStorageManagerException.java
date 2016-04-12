@@ -30,4 +30,8 @@ public class MetadataStorageManagerException extends Exception {
         super(cause);
     }
 
+    public MetadataStorageManagerException(String message) {
+        super(message);
+    }
+
 }
