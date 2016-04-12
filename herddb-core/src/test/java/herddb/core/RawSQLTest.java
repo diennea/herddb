@@ -34,9 +34,6 @@ import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -73,8 +70,30 @@ public class RawSQLTest {
                 assertEquals(Integer.valueOf(1234), finalRecord.get("n1"));
             }
 
-            UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=? where k1 = ?", Arrays.asList(Integer.valueOf(999), "mykey"));
-            assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=? where k1 = ?", Arrays.asList(Integer.valueOf(999), "mykey"));
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=? where k1 = ? and n1 = ?", Arrays.asList(Integer.valueOf(100), "mykey", Integer.valueOf(999)));
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=? where k1 = ? and (n1 = ? or n1 <> ?)", Arrays.asList(Integer.valueOf(999), "mykey", Integer.valueOf(100), Integer.valueOf(1000)));
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=? where k1 = ? and (n1 <> ?)", Arrays.asList(Integer.valueOf(34), "mykey", Integer.valueOf(15)));
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=? where k1 = ? and not (n1 <> ?)", Arrays.asList(Integer.valueOf(999), "mykey", Integer.valueOf(34)));
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
 
             {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
@@ -95,8 +114,43 @@ public class RawSQLTest {
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
 
+            GetStatement st_get_with_condition = (GetStatement) manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 999));
+            {
+                GetResult result = manager.get(st_get_with_condition);
+                assertTrue(result.found());
+                assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
+                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
+            }
+
+            GetStatement st_get_with_wrong_condition = (GetStatement) manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 9992));
+            {
+                GetResult result = manager.get(st_get_with_wrong_condition);
+                assertFalse(result.found());
+            }
+
+            DeleteStatement st_delete_with_wrong_condition = (DeleteStatement) manager.getTranslator().translate("DELETE FROM tblspace1.tsql where k1 = ? and n1 = ?", Arrays.asList("mykey", 123));
+            assertEquals(0, manager.executeUpdate(st_delete_with_wrong_condition).getUpdateCount());
+
             DeleteStatement st_delete = (DeleteStatement) manager.getTranslator().translate("DELETE FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"));
             assertEquals(1, manager.executeUpdate(st_delete).getUpdateCount());
+
+            {
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                assertFalse(result.found());
+            }
+
+            InsertStatement st_insert_2 = (InsertStatement) manager.getTranslator().translate("INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234)));
+            assertEquals(1, manager.executeUpdate(st_insert_2).getUpdateCount());
+
+            {
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                assertTrue(result.found());
+            }
+
+            DeleteStatement st_delete_with_condition = (DeleteStatement) manager.getTranslator().translate("DELETE FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 1234));
+            assertEquals(1, manager.executeUpdate(st_delete_with_condition).getUpdateCount());
 
             {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));

@@ -41,8 +41,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
@@ -50,12 +52,8 @@ import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
-import net.sf.jsqlparser.statement.select.AllTableColumns;
-import net.sf.jsqlparser.statement.select.FromItem;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
-import net.sf.jsqlparser.statement.select.SelectBody;
-import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.update.Update;
 
@@ -185,26 +183,12 @@ public class SQLTranslator {
         }
         Table table = tableManager.getTable();
 
-        long whereParamters = 0;
-        Predicate where = null;
-        Bytes key = null;
-        if (s.getWhere() instanceof EqualsTo) {
-            // DELETE FROM TABLE WHERE KEY=?
-            EqualsTo e = (EqualsTo) s.getWhere();
-            net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
-            if (!column.getColumnName().equals(table.primaryKeyColumn)) {
-                throw new StatementExecutionException("unsupported where, only on primary key field " + table.primaryKeyColumn);
-            }
-            JdbcParameter jdbcparam = (JdbcParameter) e.getRightExpression();
-            key = new Bytes(
-                    RecordSerializer.serialize(
-                            parameters.get((int) whereParamters),
-                            table.getColumn(table.primaryKeyColumn).type));
-        } else {
+        Bytes key = findPrimaryKeyEqualsTo(s.getWhere(), table, parameters, 0);
+        if (key == null) {
             // DELETE FROM TABLE WHERE KEY=? AND ....
             throw new StatementExecutionException("unsupported where " + s.getWhere());
         }
-
+        Predicate where = buildPredicate(s.getWhere(), table, parameters, 0);
         try {
             return new DeleteStatement(tableSpace, tableName, key, where);
         } catch (IllegalArgumentException err) {
@@ -238,25 +222,14 @@ public class SQLTranslator {
             }
         }
         RecordFunction function = buildRecordFunction(s.getColumns(), s.getExpressions(), parameters, table);
-        long whereParamters = s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
-        Predicate where = null;
-        Bytes key = null;
-        if (s.getWhere() instanceof EqualsTo) {
-            // UPDATE TABLE SET XXX WHERE KEY=?
-            EqualsTo e = (EqualsTo) s.getWhere();
-            net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
-            if (!column.getColumnName().equals(table.primaryKeyColumn)) {
-                throw new StatementExecutionException("unsupported where, only on primary key field " + table.primaryKeyColumn);
-            }
-            JdbcParameter jdbcparam = (JdbcParameter) e.getRightExpression();
-            key = new Bytes(
-                    RecordSerializer.serialize(
-                            parameters.get((int) whereParamters),
-                            table.getColumn(table.primaryKeyColumn).type));
-        } else {
+        int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
+        Bytes key = findPrimaryKeyEqualsTo(s.getWhere(), table, parameters, setClauseParamters);
+        if (key == null) {
             // UPDATE TABLE SET XXX WHERE KEY=? AND ....
             throw new StatementExecutionException("unsupported where " + s.getWhere());
         }
+
+        Predicate where = buildPredicate(s.getWhere(), table, parameters, setClauseParamters);
 
         try {
             return new UpdateStatement(tableSpace, tableName, key, function, where);
@@ -269,8 +242,68 @@ public class SQLTranslator {
         return new SQLRecordFunction(table, columns, expressions, parameters);
     }
 
-    private Predicate buildPredicate(Expression where, Table table) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    private Predicate buildPredicate(Expression where, Table table, List<Object> parameters, int parameterPos) {
+        if (where instanceof EqualsTo) {
+            // surely this is the only predicate on the PK, we can skip it
+            return null;
+        }
+        return new SQLRecordPredicate(table, where, parameters, parameterPos);
+
+    }
+
+    private int countJdbcParametersUsedByExpression(Expression e) {
+        if (e instanceof Column) {
+            return 0;
+        }
+        if (e instanceof BinaryExpression) {
+            BinaryExpression bi = (BinaryExpression) e;
+            return countJdbcParametersUsedByExpression(bi.getLeftExpression()) + countJdbcParametersUsedByExpression(bi.getRightExpression());
+        }
+        if (e instanceof JdbcParameter) {
+            return 1;
+        }
+        throw new UnsupportedOperationException("unsupported expression type " + e.getClass() + " (" + e + ")");
+    }
+
+    private Bytes findPrimaryKeyEqualsTo(Expression where, Table table, List<Object> parameters, int jdbcParameterPos) throws StatementExecutionException {
+        if (where instanceof AndExpression) {
+            AndExpression and = (AndExpression) where;
+            Bytes keyOnLeft = validatePrimaryKeyEqualsToExpression(and.getLeftExpression(), table, parameters, jdbcParameterPos);
+            if (keyOnLeft != null) {
+                return keyOnLeft;
+            }
+            int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
+            jdbcParameterPos += countJdbcParametersUsedByLeft;
+
+            Bytes keyOnRight = validatePrimaryKeyEqualsToExpression(and.getRightExpression(), table, parameters, jdbcParameterPos);
+            if (keyOnRight != null) {
+                return keyOnRight;
+            }
+        } else if (where instanceof EqualsTo) {
+            Bytes keyDirect = validatePrimaryKeyEqualsToExpression(where, table, parameters, jdbcParameterPos);
+            if (keyDirect != null) {
+                return keyDirect;
+            }
+        }
+
+        return null;
+    }
+
+    private Bytes validatePrimaryKeyEqualsToExpression(Expression testExpression, Table table1, List<Object> parameters, int jdbcParameterPos) throws StatementExecutionException {
+        Bytes result = null;
+        if (testExpression instanceof EqualsTo) {
+            EqualsTo e = (EqualsTo) testExpression;
+            if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
+                net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
+                if (column.getColumnName().equals(table1.primaryKeyColumn)) {
+                    JdbcParameter jdbcparam = (JdbcParameter) e.getRightExpression();
+                    result = new Bytes(RecordSerializer.serialize(parameters.get(jdbcParameterPos), table1.getColumn(table1.primaryKeyColumn).type));
+                }
+            } else if (e.getLeftExpression() instanceof AndExpression) {
+                result = findPrimaryKeyEqualsTo((AndExpression) e.getLeftExpression(), table1, parameters, jdbcParameterPos);
+            }
+        }
+        return result;
     }
 
     private Statement buildSelectStatement(Select s, List<Object> parameters) throws StatementExecutionException {
@@ -298,25 +331,18 @@ public class SQLTranslator {
                 throw new StatementExecutionException("unsupported select " + c.getClass() + " " + c);
             }
         }
-        long whereParamters = 0;
-        Predicate where = null;
-        Bytes key = null;
-        if (selectBody.getWhere() instanceof EqualsTo) {
-            // SELECT * FROM WHERE KEY=?
-            EqualsTo e = (EqualsTo) selectBody.getWhere();
-            net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
-            if (!column.getColumnName().equals(table.primaryKeyColumn)) {
-                throw new StatementExecutionException("unsupported where, only on primary key field " + table.primaryKeyColumn);
-            }
-            JdbcParameter jdbcparam = (JdbcParameter) e.getRightExpression();
-            key = new Bytes(
-                    RecordSerializer.serialize(
-                            parameters.get((int) whereParamters),
-                            table.getColumn(table.primaryKeyColumn).type));
-        } else {
-            // SELECT * FROM WHERE KEY=? AND ....
-            throw new StatementExecutionException("unsupported where " + selectBody.getWhere());
+        if (selectBody.getWhere() == null) {
+            throw new StatementExecutionException("unsupported SELECT without WHERE");
         }
+
+        // SELECT * FROM WHERE KEY=? AND ....
+        Bytes key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, parameters, index);
+
+        if (key == null) {
+            throw new StatementExecutionException("unsupported where " + selectBody.getWhere() + " " + selectBody.getWhere().getClass());
+        }
+
+        Predicate where = buildPredicate(selectBody.getWhere(), table, parameters, 0);
 
         try {
             return new GetStatement(tableSpace, tableName, key, where);
