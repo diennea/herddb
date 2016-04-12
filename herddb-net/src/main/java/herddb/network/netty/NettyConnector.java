@@ -130,6 +130,7 @@ public class NettyConnector implements AutoCloseable {
                     }
                 });
 
+        LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2}", new Object[]{host, port, ssl});
         ChannelFuture f = b.connect(host, port).sync();
         socketchannel = f.channel();
         return channel;
