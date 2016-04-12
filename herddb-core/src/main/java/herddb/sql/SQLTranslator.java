@@ -31,10 +31,13 @@ import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.commands.BeginTransactionStatement;
+import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
+import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import java.util.HashMap;
@@ -54,6 +57,7 @@ import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.delete.Delete;
+import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.PlainSelect;
@@ -92,10 +96,14 @@ public class SQLTranslator {
             if (stmt instanceof Select) {
                 return buildSelectStatement((Select) stmt, parameters);
             }
+            if (stmt instanceof Execute) {
+                return buildExecuteStatement((Execute) stmt, parameters);
+            }
+            throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
         } catch (JSQLParserException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
-        throw new StatementExecutionException("unable to parse query " + query);
+
     }
 
     private Statement buildCreateTableStatement(CreateTable s) throws StatementExecutionException {
@@ -366,6 +374,62 @@ public class SQLTranslator {
             return new GetStatement(tableSpace, tableName, key, where);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
+        }
+    }
+
+    private Statement buildExecuteStatement(Execute execute, List<Object> parameters) throws StatementExecutionException {
+        switch (execute.getName()) {
+            case "BEGINTRANSACTION": {
+                if (execute.getExprList().getExpressions().size() != 1) {
+                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName");
+                }
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), parameters, new AtomicInteger());
+                if (tableSpaceName == null) {
+                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName");
+                }
+                return new BeginTransactionStatement(tableSpaceName.toString());
+            }
+            case "COMMITTRANSACTION": {
+                if (execute.getExprList().getExpressions().size() != 2) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                }
+                AtomicInteger pos = new AtomicInteger();
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), parameters, pos);
+                if (tableSpaceName == null) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                }
+                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), parameters, pos);
+                if (transactionId == null) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                }
+                try {
+                    return new CommitTransactionStatement(tableSpaceName.toString(), Long.parseLong(transactionId.toString()));
+                } catch (NumberFormatException err) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
+                }
+
+            }
+            case "ROLLBACKTRANSACTION": {
+                if (execute.getExprList().getExpressions().size() != 2) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                }
+                AtomicInteger pos = new AtomicInteger();
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), parameters, pos);
+                if (tableSpaceName == null) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                }
+                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), parameters, pos);
+                if (transactionId == null) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                }
+                try {
+                    return new RollbackTransactionStatement(tableSpaceName.toString(), Long.parseLong(transactionId.toString()));
+                } catch (NumberFormatException err) {
+                    throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                }
+            }
+            default:
+                throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
     }
 }
