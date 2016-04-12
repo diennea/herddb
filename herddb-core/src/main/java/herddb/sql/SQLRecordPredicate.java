@@ -30,10 +30,13 @@ import java.util.Map;
 import java.util.Objects;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.Parenthesis;
+import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 
 /**
@@ -119,6 +122,18 @@ public class SQLRecordPredicate extends Predicate {
         if (expression instanceof Parenthesis) {
             Parenthesis p = (Parenthesis) expression;
             return handleNot(p.isNot(), evaluateExpression(p.getExpression(), bean));
+        }
+        if (expression instanceof StringValue) {
+            return ((StringValue) expression).getValue();
+        }
+        if (expression instanceof LongValue) {
+            return ((LongValue) expression).getValue();
+        }
+        if (expression instanceof IsNullExpression) {
+            IsNullExpression e = (IsNullExpression) expression;
+            Object value = evaluateExpression(e.getLeftExpression(), bean);
+            boolean result = value == null;
+            return handleNot(e.isNot(), result);
         }
         throw new StatementExecutionException("unsupported operand " + expression.getClass());
     }

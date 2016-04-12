@@ -55,7 +55,7 @@ public class RawSQLTest {
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
-            CreateTableStatement st2 = (CreateTableStatement) manager.getTranslator().translate("CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int)", Collections.emptyList());
+            CreateTableStatement st2 = (CreateTableStatement) manager.getTranslator().translate("CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             manager.executeStatement(st2);
 
             InsertStatement st_insert = (InsertStatement) manager.getTranslator().translate("INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234)));
@@ -154,6 +154,35 @@ public class RawSQLTest {
 
             {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                assertFalse(result.found());
+            }
+
+            InsertStatement st_insert_3 = (InsertStatement) manager.getTranslator().translate("INSERT INTO tblspace1.tsql(k1,n1) values('mykey2',1234)", Collections.emptyList());
+            assertEquals(1, manager.executeUpdate(st_insert_3).getUpdateCount());
+
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=2135 where k1 = 'mykey2'", Collections.emptyList());
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=2138,s1='foo' where k1 = 'mykey2' and s1 is null", Collections.emptyList());
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=2138,s1='bar' where k1 = 'mykey2' and s1 is not null", Collections.emptyList());
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+            {
+                UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=2138,s1='bar' where k1 = 'mykey2' and s1 is null", Collections.emptyList());
+                assertEquals(0, manager.executeUpdate(st_update).getUpdateCount());
+            }
+            {
+                DeleteStatement st_update = (DeleteStatement) manager.getTranslator().translate("DELETE FROM  tblspace1.tsql where k1 = 'mykey2' and s1 is not null", Collections.emptyList());
+                assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
+            }
+            {
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey2"), null));
                 assertFalse(result.found());
             }
         }
