@@ -75,7 +75,7 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
-    public void updateTableSpace(TableSpace tableSpace) throws DDLException {
+    public void updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {

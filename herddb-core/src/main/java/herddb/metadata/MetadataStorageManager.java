@@ -65,7 +65,7 @@ public abstract class MetadataStorageManager implements AutoCloseable {
      *
      * @param tableSpace
      */
-    public abstract void updateTableSpace(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException;
+    public abstract void updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException;
 
     protected void validateTableSpace(TableSpace tableSpace) throws DDLException {
         // TODO: implement sensible validations

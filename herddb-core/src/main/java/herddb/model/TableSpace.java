@@ -20,6 +20,8 @@
 package herddb.model;
 
 import herddb.log.LogSequenceNumber;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -51,18 +53,25 @@ public class TableSpace {
 
     public final LogSequenceNumber lastCheckpointLogPosition;
 
-    private TableSpace(String name, String leaderId, Set<String> replicas, LogSequenceNumber lastCheckpointLogPosition) {
+    public final Object metadataStorageVersion;
+
+    private TableSpace(String name, String leaderId, Set<String> replicas, LogSequenceNumber lastCheckpointLogPosition, Object metadataStorageVersion) {
         this.name = name;
         this.leaderId = leaderId;
         this.replicas = replicas;
         this.lastCheckpointLogPosition = lastCheckpointLogPosition;
+        this.metadataStorageVersion = metadataStorageVersion;
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    public static TableSpace deserialize(DataInputStream in) throws IOException {
+    public static TableSpace deserialize(byte[] data, Object metadataStorageVersion) throws IOException {
+        return deserialize(new DataInputStream(new ByteArrayInputStream(data)), metadataStorageVersion);
+    }
+
+    public static TableSpace deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
         String name = in.readUTF();
         String leaderId = in.readUTF();
         int numreplicas = in.readInt();
@@ -71,7 +80,15 @@ public class TableSpace {
             replicas.add(in.readUTF());
         }
         LogSequenceNumber number = new LogSequenceNumber(in.readLong(), in.readLong());
-        return new TableSpace(name, leaderId, replicas, number);
+        return new TableSpace(name, leaderId, replicas, number, metadataStorageVersion);
+    }
+
+    public byte[] serialize() throws IOException {
+        ByteArrayOutputStream oo = new ByteArrayOutputStream();
+        try (DataOutputStream doo = new DataOutputStream(oo)) {
+            serialize(doo);
+        }
+        return oo.toByteArray();
     }
 
     public void serialize(DataOutputStream out) throws IOException {
@@ -138,7 +155,7 @@ public class TableSpace {
             if (!replicas.contains(leaderId)) {
                 throw new IllegalArgumentException("leader " + leaderId + " must be in replica list " + replicas);
             }
-            return new TableSpace(name, leaderId, Collections.unmodifiableSet(replicas), lastCheckpointLogPosition);
+            return new TableSpace(name, leaderId, Collections.unmodifiableSet(replicas), lastCheckpointLogPosition, null);
         }
 
     }

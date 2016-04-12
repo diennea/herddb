@@ -54,6 +54,9 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <libs.netty4>4.0.31.Final</libs.netty4>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
+        <libs.zookeeper>3.4.6</libs.zookeeper>
+        <libs.jsqlparser>0.9.5</libs.jsqlparser>
+        <libs.curator>2.8.0</libs.curator>
     </properties>
         
     <dependencies>

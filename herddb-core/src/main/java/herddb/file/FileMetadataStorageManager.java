@@ -110,7 +110,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
-    public void updateTableSpace(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
+    public void updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {
@@ -133,7 +133,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
                 if (filename.endsWith(".metadata")) {
                     try (InputStream in = Files.newInputStream(p);
                             DataInputStream iin = new DataInputStream(in);) {
-                        TableSpace ts = TableSpace.deserialize(iin);
+                        TableSpace ts = TableSpace.deserialize(iin, 0);
                         if (filename.equals(ts.name + ".metadata")) {
                             tableSpaces.put(ts.name, ts);
                         }
@@ -161,7 +161,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             throw new MetadataStorageManagerException(err);
         }
     }
-    
+
     @Override
     public void ensureDefaultTableSpace(String localNodeId) throws MetadataStorageManagerException {
         lock.writeLock().lock();
