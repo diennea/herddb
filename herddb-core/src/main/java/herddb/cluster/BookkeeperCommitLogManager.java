@@ -37,7 +37,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
 
     @Override
     public CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException {
-        return new BookkeeperCommitLog(metadataStorageManager);
+        return new BookkeeperCommitLog(tableSpace, metadataStorageManager);
     }
 
 }

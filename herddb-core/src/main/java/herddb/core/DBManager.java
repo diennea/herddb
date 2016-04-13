@@ -40,11 +40,17 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
@@ -68,6 +74,14 @@ public class DBManager implements AutoCloseable {
     private final AtomicBoolean stopped = new AtomicBoolean();
     private final BlockingQueue<Object> activatorQueue = new LinkedBlockingDeque<>();
     private final SQLTranslator translator;
+    private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, r + "");
+            t.setDaemon(true);
+            return t;
+        }
+    });
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager) {
         this.metadataStorageManager = metadataStorageManager;
@@ -92,23 +106,53 @@ public class DBManager implements AutoCloseable {
 
         metadataStorageManager.ensureDefaultTableSpace(nodeId);
 
-        activator.start();
-
         generalLock.writeLock().lock();
         try {
             dataStorageManager.start();
         } finally {
             generalLock.writeLock().unlock();
         }
+        activator.start();
+
         triggerActivator();
     }
 
     public boolean waitForTablespace(String tableSpace, int millis) throws InterruptedException {
+        return waitForTablespace(tableSpace, millis, true);
+    }
+
+    public boolean waitForTablespace(String tableSpace, int millis, boolean checkLeader) throws InterruptedException {
         long now = System.currentTimeMillis();
         while (System.currentTimeMillis() - now <= millis) {
             TableSpaceManager manager = tablesSpaces.get(tableSpace);
-            if (manager != null && manager.isLeader()) {
-                return true;
+            if (manager != null) {
+                if (checkLeader && manager.isLeader()) {
+                    return true;
+                }
+                if (!checkLeader) {
+                    return true;
+                }
+            }
+            Thread.sleep(100);
+        }
+        return false;
+    }
+
+    public boolean waitForTable(String tableSpace, String table, int millis, boolean checkLeader) throws InterruptedException {
+        long now = System.currentTimeMillis();
+        while (System.currentTimeMillis() - now <= millis) {
+            TableSpaceManager manager = tablesSpaces.get(tableSpace);
+            if (manager != null) {
+                if (checkLeader && manager.isLeader()) {
+                    if (manager.getTableManager(table) != null) {
+                        return true;
+                    }
+                }
+                if (!checkLeader) {
+                    if (manager.getTableManager(table) != null) {
+                        return true;
+                    }
+                }
             }
             Thread.sleep(100);
         }
@@ -124,7 +168,7 @@ public class DBManager implements AutoCloseable {
         CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
         generalLock.writeLock().lock();
         try {
-            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog);
+            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this);
             tablesSpaces.put(tableSpaceName, manager);
             manager.start();
         } finally {
@@ -208,6 +252,7 @@ public class DBManager implements AutoCloseable {
         } catch (InterruptedException ignore) {
             ignore.printStackTrace();
         }
+        threadPool.shutdown();
     }
 
     public void flush() throws DataStorageManagerException {
@@ -232,6 +277,14 @@ public class DBManager implements AutoCloseable {
         return nodeId;
     }
 
+    void submit(Runnable runnable) {
+        try {
+            threadPool.submit(runnable);
+        } catch (RejectedExecutionException err) {
+            LOGGER.log(Level.SEVERE, "rejected " + runnable, err);
+        }
+    }
+
     private class Activator implements Runnable {
 
         @Override
@@ -243,6 +296,7 @@ public class DBManager implements AutoCloseable {
                         generalLock.writeLock().lock();
                         try {
                             Collection<String> actualTablesSpaces = metadataStorageManager.listTableSpaces();
+                            LOGGER.log(Level.SEVERE, "actualTablesSpaces {0} node {1}, already booted {2}", new Object[]{actualTablesSpaces, nodeId, tablesSpaces});
                             for (String tableSpace : actualTablesSpaces) {
                                 if (!tablesSpaces.containsKey(tableSpace)) {
                                     try {
@@ -256,6 +310,27 @@ public class DBManager implements AutoCloseable {
                             LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
                         } finally {
                             generalLock.writeLock().unlock();
+                        }
+                        Set<String> failedTableSpaces = new HashSet<>();
+                        for (Map.Entry<String, TableSpaceManager> entry : tablesSpaces.entrySet()) {
+                            if (entry.getValue().isFailed()) {
+                                failedTableSpaces.add(entry.getKey());
+                            }
+                        }
+                        if (!failedTableSpaces.isEmpty()) {
+                            generalLock.writeLock().lock();
+                            try {
+                                for (String tableSpace : failedTableSpaces) {
+                                    try {
+                                        tablesSpaces.get(tableSpace).close();
+                                    } catch (LogNotAvailableException err) {
+                                        LOGGER.log(Level.SEVERE, "cannot reboot tablespace " + tableSpace, err);
+                                    }
+                                    tablesSpaces.remove(tableSpace);
+                                }
+                            } finally {
+                                generalLock.writeLock().unlock();
+                            }
                         }
                     }
                 }

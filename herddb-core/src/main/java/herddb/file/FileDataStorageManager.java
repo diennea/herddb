@@ -267,4 +267,10 @@ public class FileDataStorageManager extends DataStorageManager {
 
     }
 
+    @Override
+    public LogSequenceNumber getLastcheckpointSequenceNumber() {
+        // TODO
+        return new LogSequenceNumber(-1, -1);
+    }
+
 }

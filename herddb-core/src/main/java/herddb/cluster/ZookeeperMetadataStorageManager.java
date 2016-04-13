@@ -95,7 +95,6 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         } catch (KeeperException.NodeExistsException ok) {
         }
         try {
-
             this.zooKeeper.create(ledgersPath, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         } catch (KeeperException.NodeExistsException ok) {
         }
@@ -140,22 +139,22 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         throw new LogNotAvailableException(new Exception("zk client closed"));
     }
 
-    public LedgersInfo getActualLedgersList() throws LogNotAvailableException {
-        return readActualLedgersListFromZookeeper(zooKeeper, ledgersPath);
+    public LedgersInfo getActualLedgersList(String tableSpace) throws LogNotAvailableException {
+        return readActualLedgersListFromZookeeper(zooKeeper, ledgersPath + "/" + tableSpace);
     }
 
-    public void saveActualLedgersList(LedgersInfo info) throws LogNotAvailableException {
+    public void saveActualLedgersList(String tableSpace, LedgersInfo info) throws LogNotAvailableException {
         byte[] actualLedgers = info.serialize();
         try {
             while (true) {
                 try {
                     try {
-                        Stat newStat = zooKeeper.setData(ledgersPath, actualLedgers, info.getZkVersion());
+                        Stat newStat = zooKeeper.setData(ledgersPath + "/" + tableSpace, actualLedgers, info.getZkVersion());
                         info.setZkVersion(newStat.getVersion());
                         LOGGER.log(Level.SEVERE, "save new ledgers list " + info);
                         return;
                     } catch (KeeperException.NoNodeException firstboot) {
-                        zooKeeper.create(ledgersPath, actualLedgers, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                        zooKeeper.create(ledgersPath + "/" + tableSpace, actualLedgers, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
                     } catch (KeeperException.BadVersionException fenced) {
                         throw new LogNotAvailableException(new Exception("ledgers actual list was fenced, expecting version " + info.getZkVersion() + " " + fenced, fenced).fillInStackTrace());
                     }

@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -74,10 +75,15 @@ public class TableSpaceManager {
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final Map<String, Table> tablesMetadata = new ConcurrentHashMap<>();
+    private final DBManager manager;
     private boolean leader;
+    private boolean closed;
+    private boolean failed;
+    private LogSequenceNumber actualLogSequenceNumber;
 
-    public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log) {
+    public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager) {
         this.nodeId = nodeId;
+        this.manager = manager;
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.log = log;
@@ -89,9 +95,13 @@ public class TableSpaceManager {
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         recover(tableSpaceInfo);
 
+        actualLogSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber();
+
         tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         if (tableSpaceInfo.leaderId.equals(nodeId)) {
             startAsLeader();
+        } else {
+            startAsFollower();
         }
     }
 
@@ -111,7 +121,7 @@ public class TableSpaceManager {
             @Override
             public void accept(LogSequenceNumber t, LogEntry u) {
                 try {
-                    apply(u);
+                    apply(t, u);
                 } catch (Exception err) {
                     throw new RuntimeException(err);
                 }
@@ -120,8 +130,9 @@ public class TableSpaceManager {
 
     }
 
-    void apply(LogEntry entry) throws DataStorageManagerException, DDLException {
-        LOGGER.log(Level.SEVERE, "apply entry {0}", new Object[]{entry});
+    void apply(LogSequenceNumber position, LogEntry entry) throws DataStorageManagerException, DDLException {
+        this.actualLogSequenceNumber = position;
+        LOGGER.log(Level.SEVERE, "apply entry {0} {1}", new Object[]{position, entry});
         switch (entry.type) {
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
@@ -186,18 +197,63 @@ public class TableSpaceManager {
 
     }
 
+    private class FollowerThread implements Runnable {
+
+        @Override
+        public String toString() {
+            return "FollowerThread{" + tableSpaceName + '}';
+        }
+
+        @Override
+        public void run() {
+            try {
+                while (!isLeader() && !closed) {
+                    log.followTheLeader(actualLogSequenceNumber, new BiConsumer< LogSequenceNumber, LogEntry>() {
+                        @Override
+                        public void accept(LogSequenceNumber num, LogEntry u
+                        ) {
+                            LOGGER.log(Level.SEVERE, "follow " + num + ", " + u.toString());
+                            try {
+                                apply(num, u);
+                            } catch (Throwable t) {
+                                throw new RuntimeException(t);
+                            }
+                        }
+                    });
+                }
+            } catch (Throwable t) {
+                LOGGER.log(Level.SEVERE, "follower error " + tableSpaceName, t);
+                setFailed();
+            }
+        }
+
+    }
+
+    void setFailed() {
+        LOGGER.log(Level.SEVERE, "failed!", new Exception().fillInStackTrace());
+        failed = true;
+    }
+
+    boolean isFailed() {
+        return failed;
+    }
+
+    void startAsFollower() throws DataStorageManagerException, DDLException, LogNotAvailableException {
+        manager.submit(new FollowerThread());
+    }
+
     void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
 
         // every pending transaction MUST be rollback back
         List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
         log.startWriting();
-        LOGGER.log(Level.SEVERE, "startAsLeader tablespace " + tableSpaceName + " log, there were " + transactions.size() + " pending transactions to be rolledback");
+        LOGGER.log(Level.SEVERE, "startAsLeader tablespace {0} log, there were {1} pending transactions to be rolledback", new Object[]{tableSpaceName, transactions.size()});
         for (long tx : pending_transactions) {
-            LOGGER.log(Level.SEVERE, "rolling back transaction " + tx);
+            LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
             LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
             // let followers see the rollback on the log
-            log.log(rollback);
-            apply(rollback);
+            LogSequenceNumber pos = log.log(rollback);
+            apply(pos, rollback);
         }
         leader = true;
     }
@@ -249,13 +305,14 @@ public class TableSpaceManager {
             generalLock.writeLock().lock();
 
             LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
+            LogSequenceNumber pos;
             try {
-                log.log(entry);
+                pos = log.log(entry);
             } catch (LogNotAvailableException ex) {
                 throw new StatementExecutionException(ex);
             }
 
-            apply(entry);
+            apply(pos, entry);
 
             return new DDLStatementExecutionResult();
         } catch (DataStorageManagerException err) {
@@ -266,13 +323,14 @@ public class TableSpaceManager {
     }
 
     private void bootTable(Table table) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "bootTable", table.name);
+        LOGGER.log(Level.SEVERE, "bootTable "+nodeId+" "+tableSpaceName+"."+table.name);
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
         tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();
     }
 
     public void close() throws LogNotAvailableException {
+        closed = true;
         try {
             generalLock.writeLock().lock();
             for (TableManager table : tables.values()) {
@@ -301,9 +359,10 @@ public class TableSpaceManager {
         long id = newTransactionId.incrementAndGet();
 
         LogEntry entry = LogEntryFactory.beginTransaction(tableSpaceName, id);
+        LogSequenceNumber pos;
         try {
-            log.log(entry);
-            apply(entry);
+            pos = log.log(entry);
+            apply(pos, entry);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -317,9 +376,10 @@ public class TableSpaceManager {
             throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
         }
         LogEntry entry = LogEntryFactory.rollbackTransaction(tableSpaceName, tx.transactionId);
+        LogSequenceNumber pos;
         try {
-            log.log(entry);
-            apply(entry);
+            pos = log.log(entry);
+            apply(pos, entry);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -333,9 +393,10 @@ public class TableSpaceManager {
             throw new StatementExecutionException("no such transaction " + commitTransactionStatement.getTransactionId());
         }
         LogEntry entry = LogEntryFactory.commitTransaction(tableSpaceName, tx.transactionId);
+
         try {
-            log.log(entry);
-            apply(entry);
+            LogSequenceNumber pos = log.log(entry);
+            apply(pos, entry);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }

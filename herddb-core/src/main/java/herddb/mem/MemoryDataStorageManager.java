@@ -136,4 +136,9 @@ public class MemoryDataStorageManager extends DataStorageManager {
         }
     }
 
+    @Override
+    public LogSequenceNumber getLastcheckpointSequenceNumber() {
+        return new LogSequenceNumber(-1, -1);
+    }
+
 }
