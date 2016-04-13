@@ -50,9 +50,10 @@ public class BaseTestcase {
     protected MetadataStorageManager metadataStorageManager;
     protected CommitLogManager commitLogManager;
 
-    protected void beforeSetup() throws Exception {    
+    protected void beforeSetup() throws Exception {
     }
-    protected void afterTeardown() throws Exception {    
+
+    protected void afterTeardown() throws Exception {
     }
 
     protected CommitLogManager makeCommitLogManager() throws Exception {
@@ -96,7 +97,9 @@ public class BaseTestcase {
 
     @After
     public void teardown() throws Exception {
-        manager.close();
+        if (manager != null) {
+            manager.close();
+        }
         manager = null;
 
         table = null;

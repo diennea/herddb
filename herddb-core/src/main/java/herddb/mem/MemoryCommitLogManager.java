@@ -44,6 +44,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
             @Override
             public LogSequenceNumber log(LogEntry entry) throws LogNotAvailableException {
                 // NOOP
+                entry.serialize();
                 return new LogSequenceNumber(1, offset.incrementAndGet());
             }
 
@@ -66,11 +67,19 @@ public class MemoryCommitLogManager extends CommitLogManager {
 
             @Override
             public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
+            }
 
+            @Override
+            public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException {
             }
 
             @Override
             public void startWriting() throws LogNotAvailableException {
+            }
+
+            @Override
+            public void clear() throws LogNotAvailableException {
+
             }
 
         };

@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.file.FileCommitLogManager;
 import herddb.log.CommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -30,10 +31,12 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
-import herddb.zookeeper.ZookeeperMetadataStorageManager;
+import herddb.cluster.ZookeeperMetadataStorageManager;
+import herddb.file.FileDataStorageManager;
+import herddb.storage.DataStorageManager;
+import herddb.utils.ZKTestEnv;
 import java.util.List;
 import org.apache.curator.test.TestingServer;
-import org.junit.After;
 import org.junit.Test;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
@@ -42,40 +45,44 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import org.junit.Before;
 
 /**
  * Tests on table creation
  *
  * @author enrico.olivelli
  */
-public class SimpleDMLZookeeperTest extends BaseTestcase {
+public class SimpleClusterTest extends BaseTestcase {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
-    private TestingServer testingServer;
-
-    @Override
-    protected CommitLogManager makeCommitLogManager() throws Exception {
-        return new FileCommitLogManager(folder.newFolder().toPath());
-    }
+    private ZKTestEnv testEnv;
 
     @Override
     protected void beforeSetup() throws Exception {
-        testingServer = new TestingServer();
-        testingServer.start();
+        testEnv = new ZKTestEnv(folder.newFolder().toPath());
+        testEnv.startBookie();
     }
 
     @Override
     public void afterTeardown() throws Exception {
-        if (testingServer != null) {
-            testingServer.stop();
+        if (testEnv != null) {
+            testEnv.close();
         }
     }
 
     @Override
     protected MetadataStorageManager makeMetadataStorageManager() throws Exception {
-        return new ZookeeperMetadataStorageManager(testingServer.getConnectString(), 60, "/tests");
+        return new ZookeeperMetadataStorageManager(testEnv.getAddress(), testEnv.getTimeout(), "/tests");
+    }
+
+    @Override
+    protected CommitLogManager makeCommitLogManager() throws Exception {
+        return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) metadataStorageManager);
+    }
+
+    @Override
+    protected DataStorageManager makeDataStorageManager() throws Exception {
+        return new FileDataStorageManager(folder.newFolder().toPath());
     }
 
     @Test
@@ -86,7 +93,6 @@ public class SimpleDMLZookeeperTest extends BaseTestcase {
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
             assertEquals(1, manager.executeUpdate(st).getUpdateCount());
         }
-        assertNull(dataStorageManager.loadPage(tableName, 1L));
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableName));
         manager.flush();
         assertNotNull(dataStorageManager.loadPage(tableName, 1L));
@@ -149,11 +155,9 @@ public class SimpleDMLZookeeperTest extends BaseTestcase {
         // a new page, containg the key3 record is needed
         manager.flush();
 
-        MemoryDataStorageManager mem = (MemoryDataStorageManager) dataStorageManager;
         for (long pageId = 1; pageId <= dataStorageManager.getActualNumberOfPages(tableName); pageId++) {
-            MemoryDataStorageManager.Page page = mem.getPage(tableName, pageId);
-            List<Record> records = page.getRecords();
-            System.out.println("PAGE #" + pageId + " records :" + records + " seq " + page.getSequenceNumber());
+            List<Record> records = dataStorageManager.loadPage(tableName, pageId);
+            System.out.println("PAGE #" + pageId + " records :" + records);
         }
 
         assertEquals(5, dataStorageManager.getActualNumberOfPages(tableName));

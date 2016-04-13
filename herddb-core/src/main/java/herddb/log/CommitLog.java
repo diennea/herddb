@@ -58,13 +58,21 @@ public abstract class CommitLog {
     }
 
     public abstract void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException;
+    
+    public abstract void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException;
 
     public abstract LogSequenceNumber getActualSequenceNumber();
 
     public abstract void startWriting() throws LogNotAvailableException;
 
+    public abstract void clear() throws LogNotAvailableException;
+
     public abstract void close() throws LogNotAvailableException;
 
     public abstract boolean isClosed();
+
+    public void checkpoint() throws LogNotAvailableException {
+
+    }
 
 }

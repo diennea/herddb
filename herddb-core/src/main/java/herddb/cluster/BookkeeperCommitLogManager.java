@@ -17,14 +17,27 @@
  under the License.
 
  */
-package herddb.log;
+package herddb.cluster;
+
+import herddb.log.CommitLog;
+import herddb.log.CommitLogManager;
+import herddb.log.LogNotAvailableException;
 
 /**
- * Manages the whole set of CommitLogs
  *
  * @author enrico.olivelli
  */
-public abstract class CommitLogManager {
+public class BookkeeperCommitLogManager extends CommitLogManager {
 
-    public abstract CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException;
+    private ZookeeperMetadataStorageManager metadataStorageManager;
+
+    public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager) {
+        this.metadataStorageManager = metadataStorageManager;
+    }
+
+    @Override
+    public CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException {
+        return new BookkeeperCommitLog(metadataStorageManager);
+    }
+
 }
