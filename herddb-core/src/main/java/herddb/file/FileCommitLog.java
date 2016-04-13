@@ -23,6 +23,7 @@ import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.utils.FileUtils;
 import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -91,7 +92,7 @@ public class FileCommitLog extends CommitLog {
             writtenBytes += (1 + 8 + 4 + serialize.length + 1);
         }
 
-        public void flush() throws LogNotAvailableException {            
+        public void flush() throws LogNotAvailableException {
             try {
                 this.out.flush();
             } catch (IOException err) {
@@ -207,6 +208,11 @@ public class FileCommitLog extends CommitLog {
     }
 
     @Override
+    public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException {
+        // we are always the leader!
+    }
+
+    @Override
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
         LOGGER.log(Level.SEVERE, "recovery, snapshotSequenceNumber: {0}", snapshotSequenceNumber);
         // no lock is needed, we are at boot time
@@ -280,6 +286,15 @@ public class FileCommitLog extends CommitLog {
     @Override
     public boolean isClosed() {
         return closed;
+    }
+
+    @Override
+    public void clear() throws LogNotAvailableException {
+        try {
+            FileUtils.cleanDirectory(logDirectory);
+        } catch (IOException err) {
+            throw new LogNotAvailableException(err);
+        }
     }
 
     @Override

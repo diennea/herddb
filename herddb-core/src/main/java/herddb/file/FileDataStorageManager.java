@@ -62,6 +62,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void start() throws DataStorageManagerException {
         try {
+            LOGGER.log(Level.SEVERE, "ensuring directory {0}", baseDirectory.toAbsolutePath().toString());
             Files.createDirectories(baseDirectory);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
@@ -211,7 +212,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
             LOGGER.log(Level.SEVERE, "loadTables for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString());
             if (!Files.isRegularFile(file)) {
-                LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString()+" not found");
+                LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString() + " not found");
                 return Collections.emptyList();
             }
             try (InputStream in = Files.newInputStream(file);
@@ -242,12 +243,12 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {        
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
-            LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber "+sequenceNumber+" to " + file.toAbsolutePath().toString());
+            LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW);
                     DataOutputStream dout = new DataOutputStream(out)) {
                 dout.writeUTF(tableSpace);
