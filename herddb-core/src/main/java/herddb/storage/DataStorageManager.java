@@ -102,4 +102,6 @@ public abstract class DataStorageManager {
      */
     public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException;
 
+    public abstract LogSequenceNumber getLastcheckpointSequenceNumber();
+
 }

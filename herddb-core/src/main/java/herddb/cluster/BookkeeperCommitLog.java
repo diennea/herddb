@@ -62,6 +62,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private BookKeeper bookKeeper;
     private ZookeeperMetadataStorageManager metadataManager;
     private final ReentrantLock writeLock = new ReentrantLock();
+    private final String tableSpace;
     private volatile CommitFileWriter writer;
     private long currentLedgerId = 0;
     private long lastSequenceNumber = -1;
@@ -221,8 +222,9 @@ public class BookkeeperCommitLog extends CommitLog {
         }
     }
 
-    public BookkeeperCommitLog(ZookeeperMetadataStorageManager metadataStorageManager) throws LogNotAvailableException {
+    public BookkeeperCommitLog(String tableSpace, ZookeeperMetadataStorageManager metadataStorageManager) throws LogNotAvailableException {
         this.metadataManager = metadataStorageManager;
+        this.tableSpace = tableSpace;
         ClientConfiguration config = new ClientConfiguration();
         try {
             this.bookKeeper = new BookKeeper(config, metadataManager.getZooKeeper());
@@ -359,7 +361,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 actualLedgersList.setFirstLedger(currentLedgerId);
             }
             actualLedgersList.addLedger(currentLedgerId);
-            metadataManager.saveActualLedgersList(actualLedgersList);
+            metadataManager.saveActualLedgersList(tableSpace, actualLedgersList);
         } finally {
             writeLock.unlock();
         }
@@ -367,7 +369,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
-        this.actualLedgersList = metadataManager.getActualLedgersList();
+        this.actualLedgersList = metadataManager.getActualLedgersList(tableSpace);
         LOGGER.log(Level.SEVERE, "Actual ledgers list:" + actualLedgersList);
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
         LOGGER.log(Level.SEVERE, "Latest snapshotSequenceNumber:" + snapshotSequenceNumber);
@@ -438,14 +440,14 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public void startWriting() throws LogNotAvailableException {
-        actualLedgersList = metadataManager.getActualLedgersList();
+        actualLedgersList = metadataManager.getActualLedgersList(tableSpace);
         openNewLedger();
     }
 
     @Override
     public void clear() throws LogNotAvailableException {
         this.currentLedgerId = 0;
-        metadataManager.saveActualLedgersList(new LedgersInfo());
+        metadataManager.saveActualLedgersList(tableSpace, new LedgersInfo());
     }
 
     @Override
@@ -474,7 +476,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     LOGGER.log(Level.SEVERE, "dropping ledger {0}", ledgerId);
                     actualLedgersList.removeLedger(ledgerId);
                     bookKeeper.deleteLedger(ledgerId);
-                    metadataManager.saveActualLedgersList(actualLedgersList);
+                    metadataManager.saveActualLedgersList(tableSpace, actualLedgersList);
                     LOGGER.log(Level.SEVERE, "dropping ledger {0}, finished", ledgerId);
                 } catch (BKException | InterruptedException error) {
                     LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId, error);
@@ -527,7 +529,7 @@ public class BookkeeperCommitLog extends CommitLog {
     @Override
     public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException {
 
-        List<Long> actualList = metadataManager.getActualLedgersList().getActiveLedgers();
+        List<Long> actualList = metadataManager.getActualLedgersList(tableSpace).getActiveLedgers();
 
         List<Long> toRead = actualList;
         if (skipPast.ledgerId != -1) {
@@ -535,7 +537,7 @@ public class BookkeeperCommitLog extends CommitLog {
         }
         try {
             long nextEntry = skipPast.offset + 1;
-            LOGGER.log(Level.SEVERE, "followTheLeader skipPast:{0} toRead: {1} actualList:{2}, nextEntry:{3}", new Object[]{skipPast, toRead, actualList, nextEntry});
+//            LOGGER.log(Level.SEVERE, "followTheLeader "+tableSpace+" skipPast:{0} toRead: {1} actualList:{2}, nextEntry:{3}", new Object[]{skipPast, toRead, actualList, nextEntry});
             for (Long previous : toRead) {
                 //LOGGER.log(Level.SEVERE, "followTheLeader openLedger " + previous + " nextEntry:" + nextEntry);
                 LedgerHandle lh;
@@ -548,7 +550,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 try {
                     long lastAddConfirmed = lh.getLastAddConfirmed();
-                    LOGGER.log(Level.FINE, "followTheLeader openLedger {0} -> lastAddConfirmed:{1}, nextEntry:{2}", new Object[]{previous, lastAddConfirmed, nextEntry});
+                    LOGGER.log(Level.FINE, "followTheLeader "+tableSpace+" openLedger {0} -> lastAddConfirmed:{1}, nextEntry:{2}", new Object[]{previous, lastAddConfirmed, nextEntry});
                     if (nextEntry > lastAddConfirmed) {
                         nextEntry = 0;
                         continue;
@@ -562,7 +564,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
                         byte[] entryData = e.getEntry();
                         LogEntry statusEdit = LogEntry.deserialize(entryData);
-                        LOGGER.log(Level.FINEST, "entry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
+                        LOGGER.log(Level.SEVERE, ""+tableSpace+" followentry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
                         LogSequenceNumber number = new LogSequenceNumber(previous, entryId);
                         consumer.accept(number, statusEdit);
                         lastSequenceNumber = number.offset;
