@@ -313,6 +313,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public LogSequenceNumber log(LogEntry edit) throws LogNotAvailableException {
+        LOGGER.log(Level.SEVERE, "log {0}", new Object[]{edit});
         while (true) {
             if (closed) {
                 throw new LogNotAvailableException(new Exception("closed"));
@@ -550,7 +551,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 try {
                     long lastAddConfirmed = lh.getLastAddConfirmed();
-                    LOGGER.log(Level.FINE, "followTheLeader "+tableSpace+" openLedger {0} -> lastAddConfirmed:{1}, nextEntry:{2}", new Object[]{previous, lastAddConfirmed, nextEntry});
+                    LOGGER.log(Level.FINE, "followTheLeader " + tableSpace + " openLedger {0} -> lastAddConfirmed:{1}, nextEntry:{2}", new Object[]{previous, lastAddConfirmed, nextEntry});
                     if (nextEntry > lastAddConfirmed) {
                         nextEntry = 0;
                         continue;
@@ -564,7 +565,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
                         byte[] entryData = e.getEntry();
                         LogEntry statusEdit = LogEntry.deserialize(entryData);
-                        LOGGER.log(Level.SEVERE, ""+tableSpace+" followentry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
+                        LOGGER.log(Level.SEVERE, "" + tableSpace + " followentry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
                         LogSequenceNumber number = new LogSequenceNumber(previous, entryId);
                         consumer.accept(number, statusEdit);
                         lastSequenceNumber = number.offset;

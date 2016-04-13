@@ -47,11 +47,12 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setZkServers("localhost:1282");
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());
-        conf.setFlushInterval(100);
+        conf.setFlushInterval(10);
         conf.setGcWaitTime(10);
         conf.setAutoRecoveryDaemonEnabled(false);
 
         conf.setAllowLoopback(true);
+        conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms            
 
         ClientConfiguration adminConf = new ClientConfiguration(conf);
         BookKeeperAdmin.format(adminConf, false, true);
