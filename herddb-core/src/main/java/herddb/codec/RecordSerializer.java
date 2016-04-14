@@ -50,6 +50,8 @@ public final class RecordSerializer {
                 return new Bytes(data).to_long();
             case ColumnTypes.STRING:
                 return new Bytes(data).to_string();
+            case ColumnTypes.TIMESTAMP:
+                return new Bytes(data).to_timestamp();
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -80,6 +82,11 @@ public final class RecordSerializer {
                 }
             case ColumnTypes.STRING:
                 return Bytes.from_string(v.toString()).data;
+            case ColumnTypes.TIMESTAMP:
+                if (!(v instanceof java.sql.Timestamp)){
+                    throw new IllegalArgumentException("bad value type for column " + type+": required java.sql.Timestamp, but was " + v.getClass());
+                }
+                return Bytes.from_timestamp((java.sql.Timestamp) v).data;
             default:
                 throw new IllegalArgumentException("bad column type " + type);
 

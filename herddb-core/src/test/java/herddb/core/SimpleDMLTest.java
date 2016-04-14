@@ -35,11 +35,11 @@ import static org.junit.Assert.assertEquals;
  */
 public class SimpleDMLTest extends BaseTestcase {
 
+    
     @Test
     public void test() throws Exception {
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(0));
-
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, null);
             assertEquals(0, manager.executeUpdate(st).getUpdateCount());
         }

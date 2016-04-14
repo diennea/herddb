@@ -56,6 +56,12 @@ public final class Bytes implements Comparable<Bytes> {
         return new Bytes(res);
     }
 
+    public static Bytes from_timestamp(java.sql.Timestamp value) {
+        byte[] res = new byte[8];
+        putLong(res, 0, value.getTime());
+        return new Bytes(res);
+    }
+
     public long to_long() {
         return toLong(data, 0, 8);
     }
@@ -66,6 +72,10 @@ public final class Bytes implements Comparable<Bytes> {
 
     public String to_string() {
         return new String(data, StandardCharsets.UTF_8);
+    }
+
+    public java.sql.Timestamp to_timestamp() {
+        return toTimestamp(data, 0, 8);
     }
 
     public Bytes(byte[] data) {
@@ -109,6 +119,14 @@ public final class Bytes implements Comparable<Bytes> {
         bytes[offset] = (byte) val;
     }
 
+    public static void putTimestamp(byte[] bytes, int offset, int val) {
+        for (int i = offset + 7; i > offset; i--) {
+            bytes[i] = (byte) val;
+            val >>>= 8;
+        }
+        bytes[offset] = (byte) val;
+    }
+
     public static long toLong(byte[] bytes, int offset, final int length) {
         long l = 0;
         for (int i = offset; i < offset + length; i++) {
@@ -125,6 +143,18 @@ public final class Bytes implements Comparable<Bytes> {
             n ^= bytes[i] & 0xFF;
         }
         return n;
+    }
+
+    public static java.sql.Timestamp toTimestamp(byte[] bytes, int offset, final int length) {
+        long l = 0;
+        for (int i = offset; i < offset + length; i++) {
+            l <<= 8;
+            l ^= bytes[i] & 0xFF;
+        }
+        if (l < 0){
+            return null;
+        }
+        return new java.sql.Timestamp(l);
     }
 
     @Override
