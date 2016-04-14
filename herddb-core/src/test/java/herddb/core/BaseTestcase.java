@@ -88,7 +88,6 @@ public class BaseTestcase {
                 .tablespace(tableSpace)
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
-                .column("ts1", ColumnTypes.TIMESTAMP)
                 .primaryKey("id")
                 .build();
 
