@@ -23,21 +23,19 @@ import herddb.model.DDLStatement;
 import java.util.Set;
 
 /**
- * Create a TableSpace
+ * Alters a TableSpace
  *
  * @author enrico.olivelli
  */
-public class CreateTableSpaceStatement extends DDLStatement {
+public class AlterTableSpaceStatement extends DDLStatement {
 
     private final Set<String> replicas;
     private final String leaderId;
-    private final int expectedReplicaCount;
 
-    public CreateTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount) {
+    public AlterTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId) {
         super(tableSpace);
         this.replicas = replicas;
         this.leaderId = leaderId;
-        this.expectedReplicaCount = expectedReplicaCount;
     }
 
     public Set<String> getReplicas() {
@@ -46,10 +44,6 @@ public class CreateTableSpaceStatement extends DDLStatement {
 
     public String getLeaderId() {
         return leaderId;
-    }
-
-    public int getExpectedReplicaCount() {
-        return expectedReplicaCount;
     }
 
 }

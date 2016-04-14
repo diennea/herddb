@@ -110,7 +110,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
-    public void updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException {
+    public boolean updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {
@@ -119,6 +119,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             }
             persistTableSpaceOnDisk(tableSpace);
             tableSpaces.put(tableSpace.name, tableSpace);
+            return true;
         } finally {
             lock.writeLock().unlock();
         }

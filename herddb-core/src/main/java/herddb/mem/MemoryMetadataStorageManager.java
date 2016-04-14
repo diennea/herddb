@@ -75,7 +75,7 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
-    public void updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException {
+    public boolean updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {
@@ -84,6 +84,7 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
                 throw new TableSpaceDoesNotExistException(prev.name);
             }
             tableSpaces.put(tableSpace.name, tableSpace);
+            return false;
         } finally {
             lock.writeLock().unlock();
         }

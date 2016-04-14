@@ -51,15 +51,18 @@ public class TableSpace {
      */
     public final Set<String> replicas;
 
-    public final LogSequenceNumber lastCheckpointLogPosition;
+    /**
+     * Expected number of replicas for this TableSpace
+     */
+    public final int expectedReplicaCount;
 
     public final Object metadataStorageVersion;
 
-    private TableSpace(String name, String leaderId, Set<String> replicas, LogSequenceNumber lastCheckpointLogPosition, Object metadataStorageVersion) {
+    private TableSpace(String name, String leaderId, Set<String> replicas, int expectedReplicaCount, Object metadataStorageVersion) {
         this.name = name;
         this.leaderId = leaderId;
         this.replicas = replicas;
-        this.lastCheckpointLogPosition = lastCheckpointLogPosition;
+        this.expectedReplicaCount = expectedReplicaCount;
         this.metadataStorageVersion = metadataStorageVersion;
     }
 
@@ -74,13 +77,13 @@ public class TableSpace {
     public static TableSpace deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
         String name = in.readUTF();
         String leaderId = in.readUTF();
+        int expectedReplicaCount = in.readInt();
         int numreplicas = in.readInt();
         Set<String> replicas = new HashSet<>();
         for (int i = 0; i < numreplicas; i++) {
             replicas.add(in.readUTF());
         }
-        LogSequenceNumber number = new LogSequenceNumber(in.readLong(), in.readLong());
-        return new TableSpace(name, leaderId, replicas, number, metadataStorageVersion);
+        return new TableSpace(name, leaderId, replicas, expectedReplicaCount, metadataStorageVersion);
     }
 
     public byte[] serialize() throws IOException {
@@ -94,16 +97,10 @@ public class TableSpace {
     public void serialize(DataOutputStream out) throws IOException {
         out.writeUTF(name);
         out.writeUTF(leaderId);
+        out.writeInt(expectedReplicaCount);
         out.writeInt(replicas.size());
         for (String replica : replicas) {
             out.writeUTF(replica);
-        }
-        if (lastCheckpointLogPosition != null) {
-            out.writeLong(-1);
-            out.writeLong(-1);
-        } else {
-            out.writeLong(lastCheckpointLogPosition.ledgerId);
-            out.writeLong(lastCheckpointLogPosition.offset);
         }
     }
 
@@ -112,9 +109,18 @@ public class TableSpace {
         private final Set<String> replicas = new HashSet<>();
         private String name;
         private String leaderId;
-        private LogSequenceNumber lastCheckpointLogPosition = new LogSequenceNumber(-1, -1);
+        private int expectedReplicaCount = 1;
 
         private Builder() {
+        }
+
+        public Builder cloning(TableSpace tableSpace) {
+            this.name = tableSpace.name;
+            this.replicas.clear();
+            this.replicas.addAll(tableSpace.replicas);
+            this.leaderId = tableSpace.leaderId;
+            this.expectedReplicaCount = tableSpace.expectedReplicaCount;
+            return this;
         }
 
         public Builder name(String name) {
@@ -122,8 +128,8 @@ public class TableSpace {
             return this;
         }
 
-        public Builder lastCheckpointLogPosition(LogSequenceNumber lastCheckpointLogPosition) {
-            this.lastCheckpointLogPosition = lastCheckpointLogPosition;
+        public Builder expectedReplicaCount(int expectedReplicaCount) {
+            this.expectedReplicaCount = expectedReplicaCount;
             return this;
         }
 
@@ -155,7 +161,10 @@ public class TableSpace {
             if (!replicas.contains(leaderId)) {
                 throw new IllegalArgumentException("leader " + leaderId + " must be in replica list " + replicas);
             }
-            return new TableSpace(name, leaderId, Collections.unmodifiableSet(replicas), lastCheckpointLogPosition, null);
+            if (expectedReplicaCount <= 0) {
+                throw new IllegalArgumentException("expectedReplicaCount must be > 0");
+            }
+            return new TableSpace(name, leaderId, Collections.unmodifiableSet(replicas), expectedReplicaCount, null);
         }
 
     }

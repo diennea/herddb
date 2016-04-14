@@ -77,7 +77,7 @@ public class BaseTestcase {
         System.setErr(System.out);
         manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager);
         manager.start();
-        CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+        CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
         manager.executeStatement(st1);
         assertTrue(manager.waitForTablespace(tableSpace, 10000));
         tableName = "t1";
