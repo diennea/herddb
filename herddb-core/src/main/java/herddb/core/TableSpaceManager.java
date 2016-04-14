@@ -30,6 +30,7 @@ import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
 import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
+import herddb.model.ScanResultSink;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
@@ -42,9 +43,11 @@ import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -197,6 +200,24 @@ public class TableSpaceManager {
 
     }
 
+    long scan(ScanStatement statement, ScanResultSink sink) throws StatementExecutionException, InvocationTargetException {
+        if (statement.getTransactionId() > 0) {
+            throw new StatementExecutionException("transactions are not supported on scan");
+        }
+        String table = statement.getTable();
+        TableManager manager;
+        generalLock.readLock().lock();
+        try {
+            manager = tables.get(Bytes.from_string(table));
+        } finally {
+            generalLock.readLock().unlock();
+        }
+        if (manager == null) {
+            throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
+        }
+        return manager.scan(statement, sink);
+    }
+
     private class FollowerThread implements Runnable {
 
         @Override
@@ -323,7 +344,7 @@ public class TableSpaceManager {
     }
 
     private void bootTable(Table table) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "bootTable " + nodeId + " " + tableSpaceName + "." + table.name);
+        LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
         tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();

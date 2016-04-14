@@ -32,6 +32,7 @@ import herddb.model.Predicate;
 import herddb.model.RecordFunction;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
+import herddb.model.ScanResultSink;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
@@ -39,12 +40,14 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -509,6 +512,41 @@ public class TableManager {
         Long newPageId = dataStorageManager.writePage(table.name, sequenceNumber, newPage);
         for (Record record : newPage) {
             keyToPage.put(record.key, newPageId);
+        }
+    }
+
+    long scan(ScanStatement statement, ScanResultSink sink) throws StatementExecutionException, InvocationTargetException {
+        Predicate predicate = statement.getPredicate();
+
+        try {
+            sink.begin(table);
+            long count = 0;
+            for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
+                Bytes key = entry.getKey();
+                Long pageId = entry.getValue();
+                Record record;
+                if (pageId == NO_PAGE) {
+                    record = buffer.get(key);
+                } else {
+                    // TODO: read page and not keep it in memory
+                    ensurePageLoaded(pageId);
+                    record = buffer.get(key);
+                }
+                if (predicate == null || predicate.evaluate(record)) {
+                    count++;
+                    boolean goOn = sink.accept(record);
+                    if (!goOn) {
+                        break;
+                    }
+                }
+            }
+            sink.finished();
+            return count;
+        } catch (DataStorageManagerException error) {
+            throw new StatementExecutionException(error);
+        } catch (Exception error) {
+            // generic sink
+            throw new InvocationTargetException(error);
         }
     }
 
