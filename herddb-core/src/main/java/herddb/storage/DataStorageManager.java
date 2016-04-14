@@ -86,22 +86,24 @@ public abstract class DataStorageManager {
 
     /**
      * Load tables metadata
-     * @param sequenceNumber 
-     * @param tableSpace 
+     *
+     * @param sequenceNumber
+     * @param tableSpace
      * @return
      * @throws DataStorageManagerException
      */
-    public abstract List<Table> loadTables(LogSequenceNumber sequenceNumber,String tableSpace) throws DataStorageManagerException;
+    public abstract List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException;
 
     /**
      * Writes tables metadata
+     *
      * @param sequenceNumber
-     * @param tableSpace 
+     * @param tableSpace
      * @param tables
-     * @throws DataStorageManagerException 
+     * @throws DataStorageManagerException
      */
     public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException;
 
-    public abstract LogSequenceNumber getLastcheckpointSequenceNumber();
+    public abstract LogSequenceNumber getLastcheckpointSequenceNumber() throws DataStorageManagerException;
 
 }

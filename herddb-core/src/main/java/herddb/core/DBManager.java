@@ -30,6 +30,7 @@ import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
+import herddb.model.ScanResultSink;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
@@ -38,9 +39,11 @@ import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -253,6 +256,24 @@ public class DBManager implements AutoCloseable {
      */
     public GetResult get(GetStatement statement) throws StatementExecutionException {
         return (GetResult) executeStatement(statement);
+    }
+
+    public long scan(ScanStatement statement, ScanResultSink sink) throws StatementExecutionException, InvocationTargetException {
+        String tableSpace = statement.getTableSpace();
+        if (tableSpace == null) {
+            throw new StatementExecutionException("invalid tableSpace " + tableSpace);
+        }
+        TableSpaceManager manager;
+        generalLock.readLock().lock();
+        try {
+            manager = tablesSpaces.get(tableSpace);
+        } finally {
+            generalLock.readLock().unlock();
+        }
+        if (manager == null) {
+            throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
+        }
+        return manager.scan(statement, sink);
     }
 
     /**
