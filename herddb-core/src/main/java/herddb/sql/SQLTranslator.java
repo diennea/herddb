@@ -129,6 +129,9 @@ public class SQLTranslator {
                 case "bytea":
                     type = ColumnTypes.BYTEARRAY;
                     break;
+                case "timestamp":
+                    type = ColumnTypes.TIMESTAMP;
+                    break;
                 default:
                     throw new StatementExecutionException("bad type " + cf.getColDataType().getDataType());
             }

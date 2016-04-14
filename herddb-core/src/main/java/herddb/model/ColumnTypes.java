@@ -30,5 +30,6 @@ public class ColumnTypes {
     public static final int LONG = 1;
     public static final int INTEGER = 2;
     public static final int BYTEARRAY = 3;
+    public static final int TIMESTAMP = 4;
     
 }
