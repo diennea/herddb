@@ -30,6 +30,7 @@ import herddb.network.ServerSideConnection;
 import herddb.network.ServerSideConnectionAcceptor;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.storage.DataStorageManager;
+import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -53,13 +54,15 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
 
     public DBManager getManager() {
-        return manager
-                ;
+        return manager;
     }
 
     public Server(ServerConfiguration configuration) {
         this.configuration = configuration;
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
+        if (nodeId.isEmpty()) {
+            nodeId = ManagementFactory.getRuntimeMXBean().getName();
+        }
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
         this.manager = new DBManager(nodeId,
                 buildMetadataStorageManager(),

@@ -106,8 +106,8 @@ public class TableSpaceManager {
     }
 
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException {
-
-        List<Table> tablesAtBoot = dataStorageManager.loadTables(tableSpaceInfo.lastCheckpointLogPosition, tableSpaceName);
+        LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber();
+        List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceName);
         LOGGER.log(Level.SEVERE, "tablesAtBoot", tablesAtBoot.stream().map(t -> {
             return t.name;
         }).collect(Collectors.joining()));
@@ -115,9 +115,9 @@ public class TableSpaceManager {
             bootTable(table);
         }
 
-        LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + tableSpaceInfo.lastCheckpointLogPosition);
+        LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
 
-        log.recovery(tableSpaceInfo.lastCheckpointLogPosition, new BiConsumer<LogSequenceNumber, LogEntry>() {
+        log.recovery(logSequenceNumber, new BiConsumer<LogSequenceNumber, LogEntry>() {
             @Override
             public void accept(LogSequenceNumber t, LogEntry u) {
                 try {
@@ -323,7 +323,7 @@ public class TableSpaceManager {
     }
 
     private void bootTable(Table table) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "bootTable "+nodeId+" "+tableSpaceName+"."+table.name);
+        LOGGER.log(Level.SEVERE, "bootTable " + nodeId + " " + tableSpaceName + "." + table.name);
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
         tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();

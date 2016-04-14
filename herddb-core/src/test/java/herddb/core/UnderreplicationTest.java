@@ -38,40 +38,16 @@ import org.junit.Test;
  *
  * @author enrico.olivelli
  */
-public class SimpleReplicationTest extends ReplicatedLogtestcase {
+public class UnderreplicationTest extends ReplicatedLogtestcase {
 
     @Test
     public void test() throws Exception {
-        final String tableName = "table1";
         final String tableSpaceName = "t2";
         try (DBManager manager1 = startDBManager("node1")) {
-
-            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1"));
+            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1")), "node1", 2));
             assertTrue(manager1.waitForTablespace(tableSpaceName, 10000, true));
             try (DBManager manager2 = startDBManager("node2")) {
                 assertTrue(manager2.waitForTablespace(tableSpaceName, 10000, false));
-
-                manager1.executeStatement(new CreateTableStatement(Table.builder().tablespace(tableSpaceName).name(tableName).primaryKey("key").column("key", ColumnTypes.STRING).build()));
-
-                assertTrue(manager1.waitForTable(tableSpaceName, tableName, 10000, true));
-
-                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("one"), Bytes.from_string("two"))));
-                
-                // write a second entry on the ledger, to speed up the ack from the bookie
-                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))));
-                
-                assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null)).found());
-
-                assertTrue(manager2.waitForTable(tableSpaceName, tableName, 10000, false));
-
-                for (int i = 0; i < 100; i++) {
-                    boolean ok = manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null)).found();
-                    if (ok) {
-                        break;
-                    }
-                    Thread.sleep(100);
-                }
-                assertTrue(manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null)).found());
             }
         }
     }

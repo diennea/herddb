@@ -46,7 +46,7 @@ public class SimpleReplicationTest extends ReplicatedLogtestcase {
         final String tableSpaceName = "t2";
         try (DBManager manager1 = startDBManager("node1")) {
 
-            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1"));
+            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1", 2));
             assertTrue(manager1.waitForTablespace(tableSpaceName, 10000, true));
             try (DBManager manager2 = startDBManager("node2")) {
                 assertTrue(manager2.waitForTablespace(tableSpaceName, 10000, false));
@@ -56,10 +56,10 @@ public class SimpleReplicationTest extends ReplicatedLogtestcase {
                 assertTrue(manager1.waitForTable(tableSpaceName, tableName, 10000, true));
 
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("one"), Bytes.from_string("two"))));
-                
+
                 // write a second entry on the ledger, to speed up the ack from the bookie
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))));
-                
+
                 assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null)).found());
 
                 assertTrue(manager2.waitForTable(tableSpaceName, tableName, 10000, false));

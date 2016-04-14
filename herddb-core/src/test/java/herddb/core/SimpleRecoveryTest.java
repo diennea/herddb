@@ -72,7 +72,7 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
@@ -130,7 +130,7 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
@@ -183,7 +183,7 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
@@ -241,7 +241,7 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
@@ -311,7 +311,7 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
@@ -375,7 +375,7 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 
@@ -439,7 +439,7 @@ public class SimpleRecoveryTest {
                 new FileCommitLogManager(logsPath))) {
             manager.start();
 
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1);
             manager.waitForTablespace("tblspace1", 10000);
 

@@ -21,8 +21,11 @@ package herddb.metadata;
 
 import herddb.model.DDLException;
 import herddb.model.InvalidTableException;
+import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Store of all metadata of the system: definition of tables, tablesets,
@@ -33,7 +36,7 @@ import java.util.Collection;
 public abstract class MetadataStorageManager implements AutoCloseable {
 
     public abstract void start() throws MetadataStorageManagerException;
-    
+
     public abstract void ensureDefaultTableSpace(String localNodeId) throws MetadataStorageManagerException;
 
     public abstract void close() throws MetadataStorageManagerException;
@@ -65,13 +68,30 @@ public abstract class MetadataStorageManager implements AutoCloseable {
      *
      * @param tableSpace
      */
-    public abstract void updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException;
+    public abstract boolean updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException;
 
     protected void validateTableSpace(TableSpace tableSpace) throws DDLException {
         // TODO: implement sensible validations
         if (tableSpace.name == null || tableSpace.name.trim().isEmpty()) {
             throw new InvalidTableException("null tablespace name");
         }
+    }
+
+    /**
+     * Registers a node in the system
+     * @param nodeMetadata
+     * @throws MetadataStorageManagerException 
+     */
+    public void registerNode(NodeMetadata nodeMetadata) throws MetadataStorageManagerException {
+    }
+
+    /**
+     * Enumerates all known nodes
+     *
+     * @return
+     */
+    public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
+        return Collections.emptyList();
     }
 
 }

@@ -29,10 +29,13 @@ import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.GetResult;
+import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.sql.SQLTranslator;
@@ -40,6 +43,7 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,10 +55,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * General Manager of the local instance of HerdDB
@@ -103,6 +109,7 @@ public class DBManager implements AutoCloseable {
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
 
         metadataStorageManager.start();
+        metadataStorageManager.registerNode(NodeMetadata.builder().nodeId(nodeId).build());
 
         metadataStorageManager.ensureDefaultTableSpace(nodeId);
 
@@ -159,20 +166,47 @@ public class DBManager implements AutoCloseable {
         return false;
     }
 
-    private void bootTableSpace(String tableSpaceName) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
-        TableSpace tableSpace = metadataStorageManager.describeTableSpace(tableSpaceName);
-        if (!tableSpace.replicas.contains(nodeId)) {
-            return;
-        }
-        LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
-        CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
-        generalLock.writeLock().lock();
-        try {
+    private void handleTableSpace(TableSpace tableSpace) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
+
+        String tableSpaceName = tableSpace.name;
+        if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
+            LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
+            CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
             TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this);
             tablesSpaces.put(tableSpaceName, manager);
             manager.start();
-        } finally {
-            generalLock.writeLock().unlock();
+        } else if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
+            stopTableSpace(tableSpaceName);
+        }
+
+        LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas});
+        if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
+
+            List<NodeMetadata> nodes = metadataStorageManager.listNodes();
+            LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, nodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, nodes});
+            List<String> availableOtherNodes = nodes.stream().map(n -> {
+                return n.nodeId;
+            }).filter(n -> {
+                return !tableSpace.replicas.contains(n);
+            }).collect(Collectors.toList());
+            Collections.shuffle(availableOtherNodes);
+            LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, availableOtherNodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, availableOtherNodes});
+            if (!availableOtherNodes.isEmpty()) {
+                int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
+                TableSpace.Builder newTableSpaceBuilder
+                        = TableSpace
+                        .builder()
+                        .cloning(tableSpace);
+                while (!availableOtherNodes.isEmpty() && countMissing > 0) {
+                    String node = availableOtherNodes.remove(0);
+                    newTableSpaceBuilder.replica(node);
+                }
+                TableSpace newTableSpace = newTableSpaceBuilder.build();
+                boolean ok = metadataStorageManager.updateTableSpace(newTableSpace, tableSpace);
+                if (!ok) {
+                    LOGGER.log(Level.SEVERE, "updating tableSpace " + tableSpaceName + " metadata failed");
+                }
+            }
         }
     }
 
@@ -188,6 +222,13 @@ public class DBManager implements AutoCloseable {
                 throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
             }
             return createTableSpace((CreateTableSpaceStatement) statement);
+        }
+
+        if (statement instanceof AlterTableSpaceStatement) {
+            if (statement.getTransactionId() > 0) {
+                throw new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction");
+            }
+            return alterTableSpace((AlterTableSpaceStatement) statement);
         }
 
         TableSpaceManager manager;
@@ -229,7 +270,7 @@ public class DBManager implements AutoCloseable {
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {
         TableSpace tableSpace;
         try {
-            tableSpace = TableSpace.builder().leader(createTableSpaceStatement.getLeaderId()).name(createTableSpaceStatement.getTableSpace()).replicas(createTableSpaceStatement.getReplicas()).build();
+            tableSpace = TableSpace.builder().leader(createTableSpaceStatement.getLeaderId()).name(createTableSpaceStatement.getTableSpace()).replicas(createTableSpaceStatement.getReplicas()).expectedReplicaCount(createTableSpaceStatement.getExpectedReplicaCount()).build();
         } catch (IllegalArgumentException invalid) {
             throw new StatementExecutionException("invalid CREATE TABLESPACE statement: " + invalid.getMessage(), invalid);
         }
@@ -285,25 +326,49 @@ public class DBManager implements AutoCloseable {
         }
     }
 
+    private StatementExecutionResult alterTableSpace(AlterTableSpaceStatement alterTableSpaceStatement) throws StatementExecutionException {
+        TableSpace tableSpace;
+        try {
+            tableSpace = TableSpace.builder().leader(
+                    alterTableSpaceStatement.getLeaderId())
+                    .name(alterTableSpaceStatement.getTableSpace())
+                    .replicas(alterTableSpaceStatement.getReplicas())
+                    .build();
+        } catch (IllegalArgumentException invalid) {
+            throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);
+        }
+
+        try {
+            TableSpace previous = metadataStorageManager.describeTableSpace(alterTableSpaceStatement.getTableSpace());
+            if (previous == null) {
+                throw new TableSpaceDoesNotExistException(alterTableSpaceStatement.getTableSpace());
+            }
+            metadataStorageManager.updateTableSpace(tableSpace, previous);
+            triggerActivator();
+            return new DDLStatementExecutionResult();
+        } catch (Exception err) {
+            throw new StatementExecutionException(err);
+        }
+    }
+
     private class Activator implements Runnable {
 
         @Override
         public void run() {
             try {
                 while (!stopped.get()) {
-                    activatorQueue.take();
+                    activatorQueue.poll(1, TimeUnit.SECONDS);
+                    activatorQueue.clear();
                     if (!stopped.get()) {
                         generalLock.writeLock().lock();
                         try {
                             Collection<String> actualTablesSpaces = metadataStorageManager.listTableSpaces();
-                            LOGGER.log(Level.SEVERE, "actualTablesSpaces {0} node {1}, already booted {2}", new Object[]{actualTablesSpaces, nodeId, tablesSpaces});
                             for (String tableSpace : actualTablesSpaces) {
-                                if (!tablesSpaces.containsKey(tableSpace)) {
-                                    try {
-                                        bootTableSpace(tableSpace);
-                                    } catch (Exception err) {
-                                        err.printStackTrace();
-                                    }
+                                TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);
+                                try {
+                                    handleTableSpace(tableSpaceMetadata);
+                                } catch (Exception err) {
+                                    LOGGER.log(Level.SEVERE, "cannot handle tablespace " + tableSpace, err);
                                 }
                             }
                         } catch (MetadataStorageManagerException error) {
@@ -321,12 +386,7 @@ public class DBManager implements AutoCloseable {
                             generalLock.writeLock().lock();
                             try {
                                 for (String tableSpace : failedTableSpaces) {
-                                    try {
-                                        tablesSpaces.get(tableSpace).close();
-                                    } catch (LogNotAvailableException err) {
-                                        LOGGER.log(Level.SEVERE, "cannot reboot tablespace " + tableSpace, err);
-                                    }
-                                    tablesSpaces.remove(tableSpace);
+                                    stopTableSpace(tableSpace);
                                 }
                             } finally {
                                 generalLock.writeLock().unlock();
@@ -363,6 +423,16 @@ public class DBManager implements AutoCloseable {
             LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
 
         }
+
+    }
+
+    private void stopTableSpace(String tableSpace) {
+        try {
+            tablesSpaces.get(tableSpace).close();
+        } catch (LogNotAvailableException err) {
+            LOGGER.log(Level.SEVERE, "cannot close for reboot tablespace " + tableSpace, err);
+        }
+        tablesSpaces.remove(tableSpace);
     }
 
     public TableSpaceManager getTableSpaceManager(String tableSpace) {
