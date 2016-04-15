@@ -74,7 +74,7 @@ public final class RecordSerializer {
                 }
             case ColumnTypes.LONG:
                 if (v instanceof Long) {
-                    return Bytes.from_long((Integer) v).data;
+                    return Bytes.from_long((Long) v).data;
                 } else if (v instanceof Number) {
                     return Bytes.from_long(((Number) v).longValue()).data;
                 } else {
