@@ -181,10 +181,8 @@ public class DBManager implements AutoCloseable {
         } else if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
             stopTableSpace(tableSpaceName);
         }
-
-        LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas});
+        
         if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
-
             List<NodeMetadata> nodes = metadataStorageManager.listNodes();
             LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, nodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, nodes});
             List<String> availableOtherNodes = nodes.stream().map(n -> {

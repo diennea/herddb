@@ -67,6 +67,36 @@ public final class Message {
         return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
     }
 
+    public static Message OPEN_SCANNER(String clientId, String query, String scannerId, List<Object> params) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("scannerId", scannerId);
+        data.put("query", query);
+        data.put("params", params);
+        return new Message(clientId, TYPE_OPENSCANNER, data);
+    }
+
+    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<Map<String, Object>> records, long totalCountAtEnd) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("scannerId", scannerId);
+        data.put("records", records);
+        if (totalCountAtEnd >= 0) {
+            data.put("totalCountAtEnd", totalCountAtEnd);
+        }
+        return new Message(clientId, TYPE_RESULTSET_CHUNK, data);
+    }
+
+    public static Message CLOSE_SCANNER(String clientId, String scannerId) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("scannerId", scannerId);
+        return new Message(clientId, TYPE_CLOSESCANNER, data);
+    }
+
     public static Message EXECUTE_STATEMENT_RESULT(long updateCount, Map<String, Object> otherdata) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
@@ -94,6 +124,9 @@ public final class Message {
     public static final int TYPE_ERROR = 4;
     public static final int TYPE_EXECUTE_STATEMENT = 5;
     public static final int TYPE_EXECUTE_STATEMENT_RESULT = 6;
+    public static final int TYPE_OPENSCANNER = 7;
+    public static final int TYPE_RESULTSET_CHUNK = 8;
+    public static final int TYPE_CLOSESCANNER = 9;
 
     public static String typeToString(int type) {
         switch (type) {
@@ -109,6 +142,12 @@ public final class Message {
                 return "EXECUTE_STATEMENT";
             case TYPE_EXECUTE_STATEMENT_RESULT:
                 return "EXECUTE_STATEMENT_RESULT";
+            case TYPE_OPENSCANNER:
+                return "OPENSCANNER";
+            case TYPE_RESULTSET_CHUNK:
+                return "RESULTSET_CHUNK";
+            case TYPE_CLOSESCANNER:
+                return "CLOSESCANNER";
             default:
                 return "?" + type;
         }

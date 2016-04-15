@@ -27,13 +27,17 @@ import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionResult;
+import herddb.model.commands.GetStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.ServerSideConnection;
+import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -50,6 +54,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     private final long id = IDGENERATOR.incrementAndGet();
     private final Channel channel;
     private final Server server;
+    private final Map<String, ServerSideScannerPeer> scanners = new ConcurrentHashMap<>();
 
     public ServerSideConnectionPeer(Channel channel, Server server) {
         this.channel = channel;
@@ -67,7 +72,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         LOGGER.log(Level.SEVERE, "messageReceived", message);
         Channel _channel = channel;
         switch (message.type) {
-            case Message.TYPE_EXECUTE_STATEMENT:
+            case Message.TYPE_EXECUTE_STATEMENT: {
                 Long tx = (Long) message.parameters.get("tx");
                 String query = (String) message.parameters.get("query");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
@@ -102,7 +107,45 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 } catch (StatementExecutionException err) {
                     _channel.sendReplyMessage(message, Message.ERROR(null, err));
                 }
+            }
+            break;
+            case Message.TYPE_OPENSCANNER: {
+                String query = (String) message.parameters.get("query");
+                String scannerId = (String) message.parameters.get("scannerId");
+                List<Object> parameters = (List<Object>) message.parameters.get("params");
+                try {
+                    Statement statement = server.getManager().getTranslator().translate(query, parameters, true);
+                    if (statement instanceof ScanStatement) {
+                        ScanStatement scan = (ScanStatement) statement;
+                        try {
+                            ServerSideScannerPeer scanner = new ServerSideScannerPeer(channel, scannerId, message);
+                            scanners.put(scannerId, scanner);
+                            server.getManager().scan(scan, scanner);
+                        } catch (InvocationTargetException impossible) {
+                            LOGGER.log(Level.SEVERE, "impossible error", impossible);
+                            scanners.remove(scannerId);
+                        }
+                    } else {
+                        scanners.remove(scannerId);
+                        _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
+                    }
+                } catch (StatementExecutionException err) {
+                    scanners.remove(scannerId);
+                    _channel.sendReplyMessage(message, Message.ERROR(null, err));
+                }
                 break;
+            }
+            case Message.TYPE_CLOSESCANNER: {
+                String scannerId = (String) message.parameters.get("scannerId");
+                ServerSideScannerPeer removed = scanners.remove(scannerId);
+                if (removed != null) {
+                    removed.clientClose();
+                    _channel.sendReplyMessage(message, Message.ACK(null).setParameter("scannerId", scannerId));
+                } else {
+                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("not such scanner " + scannerId)).setParameter("scannerId", scannerId));
+                }
+
+            }
 
             default:
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported message type " + message.type)));
