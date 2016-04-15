@@ -19,11 +19,12 @@
  */
 package herddb.client;
 
-import herddb.network.ServerHostData;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -88,6 +89,30 @@ public class HDBConnection implements AutoCloseable {
     public Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
         return route.executeGet(query, tx, params);
+    }
+
+    public void executeScanAsync(String tableSpace, String query, List<Object> params, ScanRecordConsumer consumer) throws ClientSideMetadataProviderException, HDBException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        route.executeScanAsync(query, params, consumer);
+    }
+
+    public boolean executeScan(String tableSpace, String query, List<Object> params, ScanRecordConsumer consumer, int timeoutMillis) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+        CountDownLatch finishedLatch = new CountDownLatch(1);
+        ScanRecordConsumer wrapper = new ScanRecordConsumer() {
+            @Override
+            public void finish() {
+                consumer.finish();
+                finishedLatch.countDown();
+            }
+
+            @Override
+            public boolean accept(Map<String, Object> record) throws Exception {
+                return consumer.accept(record);
+            }
+
+        };
+        executeScanAsync(tableSpace, query, params, wrapper);
+        return finishedLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
     }
 
     private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {

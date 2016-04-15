@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.client.impl;
+package herddb.model.commands;
 
 import herddb.model.Record;
 import herddb.model.ScanResultSink;

@@ -38,6 +38,7 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import java.util.HashMap;
@@ -79,6 +80,10 @@ public class SQLTranslator {
     }
 
     public Statement translate(String query, List<Object> parameters) throws StatementExecutionException {
+        return translate(query, parameters, false);
+    }
+
+    public Statement translate(String query, List<Object> parameters, boolean scan) throws StatementExecutionException {
         try {
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
@@ -94,7 +99,7 @@ public class SQLTranslator {
                 return buildUpdateStatement((Update) stmt, parameters);
             }
             if (stmt instanceof Select) {
-                return buildSelectStatement((Select) stmt, parameters);
+                return buildSelectStatement((Select) stmt, scan, parameters);
             }
             if (stmt instanceof Execute) {
                 return buildExecuteStatement((Execute) stmt, parameters);
@@ -337,7 +342,7 @@ public class SQLTranslator {
         return result;
     }
 
-    private Statement buildSelectStatement(Select s, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildSelectStatement(Select s, boolean scan, List<Object> parameters) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
@@ -361,23 +366,30 @@ public class SQLTranslator {
                 throw new StatementExecutionException("unsupported select " + c.getClass() + " " + c);
             }
         }
-        if (selectBody.getWhere() == null) {
-            throw new StatementExecutionException("unsupported SELECT without WHERE");
-        }
+        if (scan) {
+            Predicate where = selectBody.getWhere() != null ? buildPredicate(selectBody.getWhere(), table, parameters, 0) : null;
+            try {
+                return new ScanStatement(tableSpace, tableName, where);
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
+        } else {
+            if (selectBody.getWhere() == null) {
+                throw new StatementExecutionException("unsupported SELECT without WHERE");
+            }
+            // SELECT * FROM WHERE KEY=? AND ....
+            Bytes key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, parameters, new AtomicInteger());
+            if (key == null) {
+                throw new StatementExecutionException("unsupported where " + selectBody.getWhere() + " " + selectBody.getWhere().getClass());
+            }
 
-        // SELECT * FROM WHERE KEY=? AND ....
-        Bytes key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, parameters, new AtomicInteger());
+            Predicate where = buildPredicate(selectBody.getWhere(), table, parameters, 0);
 
-        if (key == null) {
-            throw new StatementExecutionException("unsupported where " + selectBody.getWhere() + " " + selectBody.getWhere().getClass());
-        }
-
-        Predicate where = buildPredicate(selectBody.getWhere(), table, parameters, 0);
-
-        try {
-            return new GetStatement(tableSpace, tableName, key, where);
-        } catch (IllegalArgumentException err) {
-            throw new StatementExecutionException(err);
+            try {
+                return new GetStatement(tableSpace, tableName, key, where);
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
         }
     }
 

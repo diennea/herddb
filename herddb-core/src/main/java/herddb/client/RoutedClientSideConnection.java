@@ -19,13 +19,17 @@
  */
 package herddb.client;
 
+import herddb.client.impl.ClientSideScannerPeer;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
+import herddb.network.SendResultCallback;
 import herddb.network.netty.NettyConnector;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
@@ -46,6 +50,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final String clientId;
     private final ReentrantLock connectionLock = new ReentrantLock(true);
     private Channel channel;
+    private Map<String, ClientSideScannerPeer> scanners = new ConcurrentHashMap<>();
 
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) {
         this.connection = connection;
@@ -58,6 +63,24 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     @Override
     public void messageReceived(Message message) {
         LOGGER.log(Level.SEVERE, "{0} - received {1}", new Object[]{nodeId, message.toString()});
+        if (message.type == Message.TYPE_RESULTSET_CHUNK) {
+            String scannerId = (String) message.parameters.get("scannerId");
+            Long totalCountAtEnd = (Long) message.parameters.get("totalCountAtEnd");
+            if (totalCountAtEnd == null) {
+                totalCountAtEnd = -1L;
+            }
+            ClientSideScannerPeer scanner = (ClientSideScannerPeer) scanners.get(scannerId);
+            if (scanner == null || scanner.isClosed()) {
+                LOGGER.log(Level.SEVERE, "scanner {0} is closed", scannerId);
+                scanners.remove(scannerId);
+            } else {
+                List<Map<String, Object>> records = (List<Map<String, Object>>) message.parameters.get("records");                
+                scanner.accept(records, totalCountAtEnd);
+                if (scanner.isClosed()) {
+                    scanners.remove(scannerId);
+                }
+            }
+        }
     }
 
     @Override
@@ -169,6 +192,26 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION ?,?", 0, Arrays.asList(tableSpace, tx));
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            if (reply.type == Message.TYPE_ERROR) {
+                throw new HDBException(reply + "");
+            }
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
+    void executeScanAsync(String query, List<Object> params, ScanRecordConsumer consumer) throws HDBException {
+        ensureOpen();
+        Channel _channel = channel;
+        if (_channel == null) {
+            throw new HDBException("not connected to node " + nodeId);
+        }
+        try {
+            String scannerId = UUID.randomUUID().toString();
+            ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, consumer, _channel);
+            scanners.put(scannerId, scanner);
+            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");

@@ -69,8 +69,7 @@ public class ColumnTimestampTest extends BaseTestcase {
         {
             GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null));
             assertTrue(result.found());
-            Map<String, Object> resultbean = RecordSerializer.toBean(result.getRecord(), table2);
-            System.out.println("resultbean " +resultbean);
+            Map<String, Object> resultbean = RecordSerializer.toBean(result.getRecord(), table2);            
             assertEquals(Bytes.from_string("key1"), result.getRecord().key);
             assertEquals(1, resultbean.entrySet().size());
             assertEquals("key1", resultbean.get("id"));

@@ -19,7 +19,7 @@
  */
 package herddb.core;
 
-import herddb.client.impl.ScanResultList;
+import herddb.model.commands.ScanResultList;
 import herddb.model.GetResult;
 import herddb.model.Predicate;
 import herddb.model.commands.InsertStatement;
