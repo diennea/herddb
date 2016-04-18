@@ -17,37 +17,21 @@
  under the License.
 
  */
-package herddb.model.commands;
-
-import herddb.model.Record;
-import herddb.model.ScanResultSink;
-import herddb.model.Table;
-import java.util.ArrayList;
-import java.util.List;
+package herddb.model;
 
 /**
- * Gathers all the results in a in memory list
+ * Generic exception while running a DataScanner
  *
  * @author enrico.olivelli
  */
-public class ScanResultList extends ScanResultSink {
+public class DataScannerException extends Exception {
 
-    public final List<Record> results = new ArrayList<>();
-    public Table table;
-
-    @Override
-    public void finished() throws Exception {
+    public DataScannerException(Throwable cause) {
+        super(cause);
     }
 
-    @Override
-    public boolean accept(Record record) throws Exception {
-        results.add(record);
-        return true;
-    }
-
-    @Override
-    public void begin(Table table) throws Exception {
-        this.table = table;
+    public DataScannerException(String message) {
+        super(message);
     }
 
 }

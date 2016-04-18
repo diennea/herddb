@@ -22,17 +22,11 @@ package herddb.server;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
 import herddb.client.HDBClient;
-import herddb.client.ScanRecordConsumer;
 import herddb.model.TableSpace;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -62,101 +56,11 @@ public class SimpleClientScanTest {
                 for (int i = 0; i < 100; i++) {
                     Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)));
                 }
-                AtomicInteger readCount = new AtomicInteger();
-                AtomicBoolean finishedCalled = new AtomicBoolean();
-                assertTrue(connection.executeScan(TableSpace.DEFAULT,
-                        "SELECT * FROM mytable", Collections.emptyList(), new ScanRecordConsumer() {
-                    @Override
-                    public void finish() {
-                        finishedCalled.set(true);
-                    }
 
-                    @Override
-                    public boolean accept(Map<String, Object> record) throws Exception {                        
-                        readCount.incrementAndGet();
-                        return true;
-                    }
+                assertEquals(100, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList()).consume().size());
 
-                }, 60000));
-                assertEquals(100, readCount.get());
-                assertTrue(finishedCalled.get());
             }
         }
     }
 
-    @Test
-    public void testInterruptedScan() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
-            server.start();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                    HDBConnection connection = client.openConnection()) {
-                client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
-
-                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList());
-                Assert.assertEquals(1, resultCreateTable);
-
-                for (int i = 0; i < 100; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)));
-                }
-                AtomicInteger readCount = new AtomicInteger();
-                AtomicBoolean finishedCalled = new AtomicBoolean();
-                assertTrue(connection.executeScan(TableSpace.DEFAULT,
-                        "SELECT * FROM mytable", Collections.emptyList(), new ScanRecordConsumer() {
-                    @Override
-                    public void finish() {
-                        finishedCalled.set(true);
-                    }
-
-                    @Override
-                    public boolean accept(Map<String, Object> record) throws Exception {
-                        return readCount.incrementAndGet() < 37;
-                    }
-
-                }, 60000));
-                assertTrue(readCount.get() < 100); // the 'interruption' is asynch and so there is no real control on the number of record returned
-                assertTrue(finishedCalled.get());
-            }
-        }
-    }
-
-    @Test
-    public void testInterruptedScanWithClientException() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
-            server.start();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                    HDBConnection connection = client.openConnection()) {
-                client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
-
-                long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList());
-                Assert.assertEquals(1, resultCreateTable);
-
-                for (int i = 0; i < 100; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)));
-                }
-                AtomicInteger readCount = new AtomicInteger();
-                AtomicBoolean finishedCalled = new AtomicBoolean();
-                assertTrue(connection.executeScan(TableSpace.DEFAULT,
-                        "SELECT * FROM mytable", Collections.emptyList(), new ScanRecordConsumer() {
-                    @Override
-                    public void finish() {
-                        finishedCalled.set(true);
-                    }
-
-                    @Override
-                    public boolean accept(Map<String, Object> record) throws Exception {
-                        boolean ok = readCount.incrementAndGet() < 37;
-                        if (!ok) {
-                            throw new Exception("client error, please close scanner on server");
-                        }
-                        return true;
-                    }
-
-                }, 60000));
-                assertTrue(readCount.get() < 100); // the 'interruption' is asynch and so there is no real control on the number of record returned
-                assertTrue(finishedCalled.get());
-            }
-        }
-    }
 }

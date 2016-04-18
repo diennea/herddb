@@ -19,18 +19,16 @@
  */
 package herddb.core;
 
-import herddb.model.commands.ScanResultList;
-import herddb.model.GetResult;
+import herddb.model.DataScanner;
 import herddb.model.Predicate;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.StatementExecutionException;
 import herddb.model.commands.DeleteStatement;
-import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.utils.Bytes;
+import java.util.List;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import org.junit.Test;
 
 /**
@@ -57,9 +55,9 @@ public class ScanTest extends BaseTestcase {
                     return value >= 50;
                 }
             });
-            ScanResultList result = new ScanResultList();
-            assertEquals(50, manager.scan(scan, result));
-            assertEquals(50, result.results.size());
+            DataScanner scanner = manager.scan(scan);
+            List<Record> result = scanner.consume();
+            assertEquals(50, result.size());
         }
 
         for (int i = 0; i < 20; i++) {
@@ -75,16 +73,16 @@ public class ScanTest extends BaseTestcase {
                     return value < 50;
                 }
             });
-            ScanResultList result = new ScanResultList();
-            assertEquals(30, manager.scan(scan, result));
-            assertEquals(30, result.results.size());
+            DataScanner scanner = manager.scan(scan);
+            List<Record> result = scanner.consume();
+            assertEquals(30, result.size());
         }
-        
+
         {
             ScanStatement scan = new ScanStatement(tableSpace, tableName, null);
-            ScanResultList result = new ScanResultList();
-            assertEquals(80, manager.scan(scan, result));
-            assertEquals(80, result.results.size());
+            DataScanner scanner = manager.scan(scan);
+            List<Record> result = scanner.consume();
+            assertEquals(80, result.size());
         }
     }
 }

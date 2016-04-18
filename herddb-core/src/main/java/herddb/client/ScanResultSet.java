@@ -17,37 +17,34 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.client;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Receives resutls of a scan
+ * Receives records from a Scan
  *
  * @author enrico.olivelli
  */
-public class ScanResultSink {
+public abstract class ScanResultSet implements AutoCloseable {
 
-    /**
-     * Called at the end of the scan
-     *
-     * @param table
-     */
-    public void begin(Table table) throws Exception {
+    public abstract boolean hasNext() throws HDBException;
+
+    public abstract Map<String, Object> next() throws HDBException;
+
+    @Override
+    public void close() {
     }
 
-    /**
-     * Called for every record
-     * @param record
-     * @return
-     * @throws Exception 
-     */
-    public boolean accept(Record record) throws Exception {
-        return true;
-    }
-
-    /**
-     * Called at the end of the scan
-     * @throws Exception 
-     */
-    public void finished() throws Exception {
+    public List< Map<String, Object>> consume() throws HDBException {
+        List<Map<String, Object>> result = new ArrayList<>();
+        while (hasNext()) {
+            Map<String, Object> record = next();
+            System.out.println("GOT " + record);
+            result.add(record);
+        }
+        return result;
     }
 }

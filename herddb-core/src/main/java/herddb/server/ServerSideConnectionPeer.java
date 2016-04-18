@@ -22,18 +22,21 @@ package herddb.server;
 import herddb.codec.RecordSerializer;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.GetResult;
+import herddb.model.Record;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
 import herddb.model.TransactionResult;
-import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.ServerSideConnection;
-import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +72,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void messageReceived(Message message) {
-        LOGGER.log(Level.SEVERE, "messageReceived", message);
+        LOGGER.log(Level.SEVERE, "messageReceived "+message);
         Channel _channel = channel;
         switch (message.type) {
             case Message.TYPE_EXECUTE_STATEMENT: {
@@ -117,24 +120,46 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     Statement statement = server.getManager().getTranslator().translate(query, parameters, true);
                     if (statement instanceof ScanStatement) {
                         ScanStatement scan = (ScanStatement) statement;
-                        try {
-                            ServerSideScannerPeer scanner = new ServerSideScannerPeer(channel, scannerId, message);
-                            scanners.put(scannerId, scanner);
-                            server.getManager().scan(scan, scanner);
-                        } catch (InvocationTargetException impossible) {
-                            LOGGER.log(Level.SEVERE, "impossible error", impossible);
-                            scanners.remove(scannerId);
-                        }
+                        DataScanner dataScanner = server.getManager().scan(scan);
+                        ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
+                        this.channel.sendReplyMessage(message, Message.ACK(null));
+                        scanners.put(scannerId, scanner);
                     } else {
-                        scanners.remove(scannerId);
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
                     }
                 } catch (StatementExecutionException err) {
                     scanners.remove(scannerId);
                     _channel.sendReplyMessage(message, Message.ERROR(null, err));
                 }
+
                 break;
             }
+
+            case Message.TYPE_FETCHSCANNERDATA: {
+                String scannerId = (String) message.parameters.get("scannerId");
+                int fetchSize = (Integer) message.parameters.get("fetchSize");
+                ServerSideScannerPeer scanner = scanners.get(scannerId);
+                if (scanner != null) {
+                    try {
+                        List<Record> records = scanner.getScanner().consume(fetchSize);
+                        Table table = scanner.getScanner().getTable();
+                        List<Map<String, Object>> converted = new ArrayList<>();
+                        for (Record r : records) {
+                            converted.add(r.toBean(table));
+                        }
+                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
+                        _channel.sendReplyMessage(message,
+                                Message.RESULTSET_CHUNK(null, scannerId, converted));
+                    } catch (DataScannerException error) {
+                        _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
+                    }
+                } else {
+                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId)).setParameter("scannerId", scannerId));
+                }
+            }
+            ;
+            break;
+
             case Message.TYPE_CLOSESCANNER: {
                 String scannerId = (String) message.parameters.get("scannerId");
                 ServerSideScannerPeer removed = scanners.remove(scannerId);
@@ -142,7 +167,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     removed.clientClose();
                     _channel.sendReplyMessage(message, Message.ACK(null).setParameter("scannerId", scannerId));
                 } else {
-                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("not such scanner " + scannerId)).setParameter("scannerId", scannerId));
+                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId)).setParameter("scannerId", scannerId));
                 }
 
             }

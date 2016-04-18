@@ -91,28 +91,9 @@ public class HDBConnection implements AutoCloseable {
         return route.executeGet(query, tx, params);
     }
 
-    public void executeScanAsync(String tableSpace, String query, List<Object> params, ScanRecordConsumer consumer) throws ClientSideMetadataProviderException, HDBException {
+    public ScanResultSet executeScan(String tableSpace, String query, List<Object> params) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        route.executeScanAsync(query, params, consumer);
-    }
-
-    public boolean executeScan(String tableSpace, String query, List<Object> params, ScanRecordConsumer consumer, int timeoutMillis) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
-        CountDownLatch finishedLatch = new CountDownLatch(1);
-        ScanRecordConsumer wrapper = new ScanRecordConsumer() {
-            @Override
-            public void finish() {
-                consumer.finish();
-                finishedLatch.countDown();
-            }
-
-            @Override
-            public boolean accept(Map<String, Object> record) throws Exception {
-                return consumer.accept(record);
-            }
-
-        };
-        executeScanAsync(tableSpace, query, params, wrapper);
-        return finishedLatch.await(timeoutMillis, TimeUnit.MILLISECONDS);
+        return route.executeScan(query, params);
     }
 
     private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {

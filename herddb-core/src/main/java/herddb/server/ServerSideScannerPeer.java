@@ -19,82 +19,36 @@
  */
 package herddb.server;
 
-import herddb.model.Record;
-import herddb.model.ScanResultSink;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.Table;
 import herddb.network.Channel;
-import herddb.network.Message;
-import herddb.network.SendResultCallback;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Scanner on the server-side
  *
  * @author enrico.olivelli
  */
-public class ServerSideScannerPeer extends ScanResultSink {
+public class ServerSideScannerPeer {
 
-    private static final int MAX_RECORDS_PER_CHUNK = 10;
-    private final Channel channel;
-    private final String scannerId;
-    private List<Map<String, Object>> buffer = new ArrayList<>();
-    private volatile boolean closed;
-    private Table table;
-    private Message queryMessage;
-    private long totalCount = 0;
+    private DataScanner scanner;
 
-    public ServerSideScannerPeer(Channel channel, String scannerId, Message message) {
-        this.channel = channel;
-        this.scannerId = scannerId;
-        this.queryMessage = message;
+    public ServerSideScannerPeer(DataScanner scanner) {
+        this.scanner = scanner;
     }
 
-    @Override
-    public void finished() throws Exception {
-        channel.sendOneWayMessage(Message.RESULTSET_CHUNK(null, scannerId, buffer, totalCount), new SendResultCallback() {
-            @Override
-            public void messageSent(Message originalMessage, Throwable error) {
-                if (error != null) {
-                    closed = true;
-                }
-            }
-        });
+    public DataScanner getScanner() {
+        return scanner;
     }
 
     public void clientClose() {
-        closed = true;
-    }
+        try {
+            scanner.close();
+        } catch (DataScannerException ex) {
 
-    @Override
-    public boolean accept(Record record) throws Exception {
-        if (closed) {
-            return false;
         }
-        totalCount++;
-        buffer.add(record.toBean(table));
-        if (buffer.size() == MAX_RECORDS_PER_CHUNK) { // TODO: configuration parameter?
-            channel.sendOneWayMessage(Message.RESULTSET_CHUNK(null, scannerId, buffer, -1L), new SendResultCallback() {
-                @Override
-                public void messageSent(Message originalMessage, Throwable error) {
-                    if (error != null) {
-                        closed = true;
-                    }
-                }
-            });
-            buffer = new ArrayList<>();
-        }
-
-        return !closed;
-    }
-
-    @Override
-    public void begin(Table table) throws Exception {
-        this.table = table;
-        this.channel.sendReplyMessage(queryMessage, Message.ACK(null));
     }
 
 }
