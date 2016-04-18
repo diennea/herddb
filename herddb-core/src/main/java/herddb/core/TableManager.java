@@ -218,6 +218,14 @@ public class TableManager {
         Bytes key = record.key;
         LockHandle lock = lockForWrite(key, transaction);
         try {
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    // OK, INSERT on a DELETED record inside this transaction
+                } else if (transaction.recordInserted(table.name, key) != null) {
+                    // ERROR, INSERT on a INSERTED record inside this transaction
+                    throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
+                }
+            }
             if (keyToPage.containsKey(key)) {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
             }
@@ -247,21 +255,59 @@ public class TableManager {
         Bytes key = update.getKey();
         LockHandle lock = lockForWrite(key, transaction);
         try {
-            Long pageId = keyToPage.get(key);
-            if (pageId == null) {
-                // no record at that key
-                return new DMLStatementExecutionResult(0, key);
+            byte[] newValue;
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    // UPDATE on a deleted record
+                    return new DMLStatementExecutionResult(0, key);
+                }
+                // UPDATE on a updated record
+                Record actual = transaction.recordUpdated(table.name, key);
+                if (actual == null) {
+                    // UPDATE on a inserted record
+                    actual = transaction.recordInserted(table.name, key);
+                }
+                if (actual != null) {
+                    if (predicate != null && !predicate.evaluate(actual)) {
+                        // record does not match predicate
+                        return new DMLStatementExecutionResult(0, key);
+                    }
+                    newValue = function.computeNewValue(actual);
+                } else {
+                    // update on a untouched record by this transaction
+                    Long pageId = keyToPage.get(key);
+                    if (pageId == null) {
+                        // no record at that key
+                        return new DMLStatementExecutionResult(0, key);
+                    }
+                    actual = buffer.get(key);
+                    if (actual == null) {
+                        ensurePageLoaded(pageId);
+                        actual = buffer.get(key);
+                    }
+                    if (predicate != null && !predicate.evaluate(actual)) {
+                        // record does not match predicate
+                        return new DMLStatementExecutionResult(0, key);
+                    }
+                    newValue = function.computeNewValue(actual);
+                }
+            } else {
+                Long pageId = keyToPage.get(key);
+                if (pageId == null) {
+                    // no record at that key
+                    return new DMLStatementExecutionResult(0, key);
+                }
+                Record actual = buffer.get(key);
+                if (actual == null) {
+                    ensurePageLoaded(pageId);
+                    actual = buffer.get(key);
+                }
+                if (predicate != null && !predicate.evaluate(actual)) {
+                    // record does not match predicate
+                    return new DMLStatementExecutionResult(0, key);
+                }
+                newValue = function.computeNewValue(actual);
             }
-            Record actual = buffer.get(key);
-            if (actual == null) {
-                ensurePageLoaded(pageId);
-                actual = buffer.get(key);
-            }
-            if (predicate != null && !predicate.evaluate(actual)) {
-                // record does not match predicate
-                return new DMLStatementExecutionResult(0, key);
-            }
-            byte[] newValue = function.computeNewValue(actual);
             if (newValue == null) {
                 throw new NullPointerException("new value cannot be null");
             }
@@ -290,27 +336,61 @@ public class TableManager {
         Bytes key = delete.getKey();
         LockHandle lock = lockForWrite(key, transaction);
         try {
-            Long pageId = keyToPage.get(key);
-            if (pageId == null) {
-                // no record at that key
-                return new DMLStatementExecutionResult(0, key);
-            }
-            Record actual = buffer.get(key);
-            if (actual == null) {
-                // page always need to be loaded because the other records on that page will be rewritten on a new page
-                ensurePageLoaded(pageId);
-                actual = buffer.get(key);
-            }
-            if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
-                // record does not match predicate
-                return new DMLStatementExecutionResult(0, key);
-            }
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    // delete on a deleted record inside this transaction
+                    return new DMLStatementExecutionResult(0, key);
+                }
 
+                // delete on a updated record inside this transaction
+                Record actual = transaction.recordUpdated(table.name, key);
+                if (actual == null) {
+                    // delete on a inserted record inside this transaction
+                    actual = transaction.recordInserted(table.name, key);
+                }
+                if (actual != null) {
+                    if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
+                        // record does not match predicate
+                        return new DMLStatementExecutionResult(0, key);
+                    }
+                } else {
+                    // matching a record untouched by the transaction till now
+                    Long pageId = keyToPage.get(key);
+                    if (pageId == null) {
+                        // no record at that key
+                        return new DMLStatementExecutionResult(0, key);
+                    }
+                    actual = buffer.get(key);
+                    if (actual == null) {
+                        // page always need to be loaded because the other records on that page will be rewritten on a new page
+                        ensurePageLoaded(pageId);
+                        actual = buffer.get(key);
+                    }
+                    if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
+                        // record does not match predicate
+                        return new DMLStatementExecutionResult(0, key);
+                    }
+                }
+            } else {
+                Long pageId = keyToPage.get(key);
+                if (pageId == null) {
+                    // no record at that key
+                    return new DMLStatementExecutionResult(0, key);
+                }
+                Record actual = buffer.get(key);
+                if (actual == null) {
+                    // page always need to be loaded because the other records on that page will be rewritten on a new page
+                    ensurePageLoaded(pageId);
+                    actual = buffer.get(key);
+                }
+                if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
+                    // record does not match predicate
+                    return new DMLStatementExecutionResult(0, key);
+                }
+            }
             LogEntry entry = LogEntryFactory.delete(table, key.data, transaction);
             log.log(entry);
-
             apply(entry);
-
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -322,28 +402,29 @@ public class TableManager {
     }
 
     void onTransactionCommit(Transaction transaction) {
+        List<Record> changedRecords = transaction.changedRecords.get(table.name);
+        // transaction is still holding locks on each record, so we can change records
+        if (changedRecords != null) {
+            for (Record r : changedRecords) {
+                applyUpdate(r.key, r.value);
+            }
+        }
+        List<Record> newRecords = transaction.newRecords.get(table.name);
+        if (newRecords != null) {
+            for (Record record : newRecords) {
+                applyInsert(record.key, record.value);
+            }
+        }
+        List<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
+        if (deletedRecords != null) {
+            for (Bytes key : deletedRecords) {
+                applyDelete(key);
+            }
+        }
         transaction.releaseLocksOnTable(table.name, locksManager);
     }
 
     void onTransactionRollback(Transaction transaction) {
-        List<Record> changedRecords = transaction.getChangedRecordsForTable(table.name);
-        // transaction is still holding locks on each record, so we can change records
-        if (changedRecords != null) {
-            for (Record r : changedRecords) {
-                buffer.put(r.key, r);
-                Long pageId = keyToPage.put(r.key, NO_PAGE);
-                if (pageId != null) {
-                    dirtyPages.add(pageId);
-                }
-            }
-        }
-        List<Bytes> newRecords = transaction.getNewRecordsForTable(table.name);
-        if (newRecords != null) {
-            for (Bytes key : newRecords) {
-                buffer.remove(key);
-                keyToPage.remove(key);
-            }
-        }
         transaction.releaseLocksOnTable(table.name, locksManager);
     }
 
@@ -352,37 +433,22 @@ public class TableManager {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
                 Bytes key = new Bytes(entry.key);
-                Long pageId = keyToPage.remove(key);
-                deletedKeys.add(key);
-                dirtyPages.add(pageId);
-                Record actual = buffer.get(key);
-                if (actual == null) {
-                    // page always need to be loaded because the other records on that page will be rewritten on a new page
-                    ensurePageLoaded(pageId);
-                    actual = buffer.get(key);
-                }
-                buffer.remove(key);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
-                    transaction.registerChangedOnTable(this.table.name, actual);
+                    transaction.registerDeleteOnTable(this.table.name, key);
+                } else {
+                    applyDelete(key);
                 }
-
                 break;
             }
             case LogEntryType.UPDATE: {
-                // mark record as dirty
                 Bytes key = new Bytes(entry.key);
                 Bytes value = new Bytes(entry.value);
-                Long pageId = keyToPage.put(key, NO_PAGE);
-                Record actual = buffer.put(key, new Record(key, value));
-                if (actual == null) {
-                    ensurePageLoaded(pageId);
-                    actual = buffer.get(key);
-                }
-                dirtyPages.add(pageId);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
-                    transaction.registerChangedOnTable(this.table.name, actual);
+                    transaction.registerRecoredUpdate(this.table.name, key, value);
+                } else {
+                    applyUpdate(key, value);
                 }
                 break;
             }
@@ -390,18 +456,36 @@ public class TableManager {
 
                 Bytes key = new Bytes(entry.key);
                 Bytes value = new Bytes(entry.value);
-                keyToPage.put(key, NO_PAGE);
-                buffer.put(key, new Record(key, value));
-                deletedKeys.remove(key);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
-                    transaction.registerInsertOnTable(table.name, key);
+                    transaction.registerInsertOnTable(table.name, key, value);
+                } else {
+                    applyInsert(key, value);
                 }
                 break;
             }
             default:
                 throw new IllegalArgumentException("unhandled entry type " + entry.type);
         }
+    }
+
+    private void applyDelete(Bytes key) {
+        Long pageId = keyToPage.remove(key);
+        deletedKeys.add(key);
+        dirtyPages.add(pageId);
+        buffer.remove(key);
+    }
+
+    private void applyUpdate(Bytes key, Bytes value) {
+        Long pageId = keyToPage.put(key, NO_PAGE);
+        buffer.put(key, new Record(key, value));
+        dirtyPages.add(pageId);
+    }
+
+    private void applyInsert(Bytes key, Bytes value) {
+        keyToPage.put(key, NO_PAGE);
+        buffer.put(key, new Record(key, value));
+        deletedKeys.remove(key);
     }
 
     void close() {
@@ -413,6 +497,25 @@ public class TableManager {
         Predicate predicate = get.getPredicate();
         LockHandle lock = lockForRead(key, transaction);
         try {
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    return GetResult.NOT_FOUND;
+                }
+                Record loadedInTransaction = transaction.recordUpdated(table.name, key);
+                if (loadedInTransaction != null) {
+                    if (predicate != null && !predicate.evaluate(loadedInTransaction)) {
+                        return GetResult.NOT_FOUND;
+                    }
+                    return new GetResult(loadedInTransaction, table);
+                }
+                loadedInTransaction = transaction.recordInserted(table.name, key);
+                if (loadedInTransaction != null) {
+                    if (predicate != null && !predicate.evaluate(loadedInTransaction)) {
+                        return GetResult.NOT_FOUND;
+                    }
+                    return new GetResult(loadedInTransaction, table);
+                }
+            }
             // fastest path first, check if the record is loaded in memory
             Record loaded = buffer.get(key);
             if (loaded != null) {
@@ -435,6 +538,7 @@ public class TableManager {
                 return GetResult.NOT_FOUND;
             }
             return new GetResult(loaded, table);
+
         } finally {
             if (transaction == null) {
                 locksManager.releaseReadLockForKey(key, lock);
