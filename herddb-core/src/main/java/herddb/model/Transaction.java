@@ -40,7 +40,8 @@ public class Transaction {
     public final String tableSpace;
     public final Map<String, List<LockHandle>> locks;
     public final Map<String, List<Record>> changedRecords;
-    public final Map<String, List<Bytes>> newRecords;
+    public final Map<String, List<Record>> newRecords;
+    public final Map<String, List<Bytes>> deletedRecords;
     public final Map<String, Table> newTables;
 
     public Transaction(long transactionId, String tableSpace) {
@@ -49,15 +50,8 @@ public class Transaction {
         this.locks = new HashMap<>();
         this.changedRecords = new HashMap<>();
         this.newRecords = new HashMap<>();
+        this.deletedRecords = new HashMap<>();
         this.newTables = new HashMap<>();
-    }
-
-    public List<Record> getChangedRecordsForTable(String tableName) {
-        return changedRecords.get(tableName);
-    }
-
-    public List<Bytes> getNewRecordsForTable(String tableName) {
-        return newRecords.get(tableName);
     }
 
     public Map<String, Table> getNewTables() {
@@ -90,28 +84,13 @@ public class Transaction {
         newTables.put(table.name, table);
     }
 
-    public void registerChangedOnTable(String tableName, Record record) {
-        List<Record> ll = changedRecords.get(tableName);
-        if (ll == null) {
-            ll = new ArrayList<>();
-            changedRecords.put(tableName, ll);
-        }
-        for (Record r : ll) {
-            if (r.key.equals(record.key)) {
-                // already tracked original value before the start of the transaction
-                return;
-            }
-        }
-        ll.add(record);
-    }
-
-    public void registerInsertOnTable(String tableName, Bytes key) {
-        List<Bytes> ll = newRecords.get(tableName);
+    public void registerInsertOnTable(String tableName, Bytes key, Bytes value) {
+        List<Record> ll = newRecords.get(tableName);
         if (ll == null) {
             ll = new ArrayList<>();
             newRecords.put(tableName, ll);
         }
-        ll.add(key);
+        ll.add(new Record(key, value));
     }
 
     public void releaseLocksOnTable(String tableName, LocalLockManager lockManager) {
@@ -134,6 +113,83 @@ public class Transaction {
                 }
             }
         }
+    }
+
+    /**
+     *
+     * @param tableName
+     * @param key
+     * @param value if null this is a DELETE
+     */
+    public void registerRecoredUpdate(String tableName, Bytes key, Bytes value) {
+        List<Record> ll = changedRecords.get(tableName);
+        if (ll == null) {
+            ll = new ArrayList<>();
+            changedRecords.put(tableName, ll);
+        }
+
+        for (int i = 0; i < ll.size(); i++) {
+            Record r = ll.get(i);
+            if (r.key.equals(key)) {
+                if (value == null) {
+                    // DELETE
+                    ll.remove(i);
+                    return;
+                } else {
+                    // MULTIPLE UPDATE ON SAME KEY
+                    ll.set(i, new Record(key, value));
+                    return;
+                }
+            }
+        }
+        if (value != null) {
+            // FIRST UPDATE OF A KEY IN CURRENT TRANSACTION
+            // record was not found in current transaction buffer
+            ll.add(new Record(key, value));
+        }
+    }
+
+    public void registerDeleteOnTable(String tableName, Bytes key) {
+        Transaction.this.registerRecoredUpdate(tableName, key, null);
+
+        List<Bytes> ll = deletedRecords.get(tableName);
+        if (ll == null) {
+            ll = new ArrayList<>();
+            deletedRecords.put(tableName, ll);
+        }
+        for (int i = 0; i < ll.size(); i++) {
+            Bytes r = ll.get(i);
+            if (r.equals(key)) {
+                //already tracked the delete
+                break;
+            }
+        }
+        ll.add(key);
+
+    }
+
+    public boolean recordDeleted(String tableName, Bytes key) {
+        List<Bytes> deleted = deletedRecords.get(tableName);
+        return deleted != null && deleted.contains(key);
+
+    }
+
+    public Record recordInserted(String tableName, Bytes key) {
+        List<Record> inserted = newRecords.get(tableName);
+        if (inserted == null) {
+            return null;
+        }
+        return inserted.stream().filter(r -> r.key.equals(key)).findAny().orElse(null);
+
+    }
+
+    public Record recordUpdated(String tableName, Bytes key) {
+        List<Record> updated = changedRecords.get(tableName);
+        if (updated == null) {
+            return null;
+        }
+        return updated.stream().filter(r -> r.key.equals(key)).findAny().orElse(null);
+
     }
 
 }
