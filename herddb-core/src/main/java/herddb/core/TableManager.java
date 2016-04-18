@@ -32,7 +32,6 @@ import herddb.model.Predicate;
 import herddb.model.RecordFunction;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
-import herddb.model.ScanResultSink;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
@@ -42,6 +41,8 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
@@ -50,8 +51,10 @@ import herddb.utils.LockHandle;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -580,8 +583,7 @@ public class TableManager {
             for (Bytes key : buffer.keySet()) {
                 Long pageId = keyToPage.get(key);
                 if (dirtyPages.contains(pageId)
-                        || pageId == NO_PAGE // using the '==' because we really use the reference
-                        ) {
+                        || Objects.equals(pageId, NO_PAGE)) {
                     recordsOnDirtyPages.add(key);
                 }
             }
@@ -619,39 +621,79 @@ public class TableManager {
         }
     }
 
-    long scan(ScanStatement statement, ScanResultSink sink) throws StatementExecutionException, InvocationTargetException {
-        Predicate predicate = statement.getPredicate();
+    private class SimpleDataScanner extends DataScanner {
 
-        try {
-            sink.begin(table);
-            long count = 0;
-            for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
-                Bytes key = entry.getKey();
-                Long pageId = entry.getValue();
-                Record record;
-                if (pageId == NO_PAGE) {
-                    record = buffer.get(key);
-                } else {
-                    // TODO: read page and not keep it in memory
-                    ensurePageLoaded(pageId);
-                    record = buffer.get(key);
-                }
-                if (predicate == null || predicate.evaluate(record)) {
-                    count++;
-                    boolean goOn = sink.accept(record);
-                    if (!goOn) {
-                        break;
-                    }
-                }
-            }
-            sink.finished();
-            return count;
-        } catch (DataStorageManagerException error) {
-            throw new StatementExecutionException(error);
-        } catch (Exception error) {
-            // generic sink
-            throw new InvocationTargetException(error);
+        final Iterator<Map.Entry<Bytes, Long>> keys;
+        final Predicate predicate;
+        Record next;
+        boolean finished;
+
+        public SimpleDataScanner(Table table, Iterator<Map.Entry<Bytes, Long>> keys, Predicate predicate) {
+            super(table);
+            this.keys = keys;
+            this.predicate = predicate;
         }
+
+        @Override
+        public void close() throws DataScannerException {
+            finished = true;
+        }
+
+        @Override
+        public boolean hasNext() throws DataScannerException {
+            if (finished) {
+                return false;
+            }
+            return ensureNext();
+        }
+
+        private boolean ensureNext() throws DataScannerException {
+            if (next != null) {
+                return true;
+            }
+            try {
+                while (true) {
+                    if (!keys.hasNext()) {
+                        finished = true;
+                        return false;
+                    }
+                    Map.Entry<Bytes, Long> entry = keys.next();
+                    Bytes key = entry.getKey();
+                    Long pageId = entry.getValue();
+                    Record record;
+                    if (Objects.equals(pageId, NO_PAGE)) {
+                        record = buffer.get(key);
+                    } else {
+                        // TODO: read page and not keep it in memory
+                        ensurePageLoaded(pageId);
+                        record = buffer.get(key);
+                    }
+                    if (predicate == null || predicate.evaluate(record)) {
+                        next = record;
+                        return true;
+                    }
+                    // RECORD does not match, iterate again
+                }
+            } catch (DataStorageManagerException | StatementExecutionException err) {
+                throw new DataScannerException(err);
+            }
+        }
+
+        @Override
+        public Record next() throws DataScannerException {
+            if (finished) {
+                throw new DataScannerException("Scanner is exhausted");
+            }
+            Record _next = next;
+            next = null;
+            return _next;
+        }
+
+    }
+
+    DataScanner scan(ScanStatement statement) throws StatementExecutionException {
+        Predicate predicate = statement.getPredicate();
+        return new SimpleDataScanner(table, keyToPage.entrySet().iterator(), predicate);
     }
 
 }

@@ -30,7 +30,7 @@ import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
 import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
-import herddb.model.ScanResultSink;
+import herddb.model.DataScanner;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
@@ -200,9 +200,9 @@ public class TableSpaceManager {
 
     }
 
-    long scan(ScanStatement statement, ScanResultSink sink) throws StatementExecutionException, InvocationTargetException {
+    DataScanner scan(ScanStatement statement) throws StatementExecutionException {
         if (statement.getTransactionId() > 0) {
-            throw new StatementExecutionException("transactions are not supported on scan");
+            throw new StatementExecutionException("transactions are not yet supported on scan");
         }
         String table = statement.getTable();
         TableManager manager;
@@ -215,7 +215,7 @@ public class TableSpaceManager {
         if (manager == null) {
             throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
         }
-        return manager.scan(statement, sink);
+        return manager.scan(statement);
     }
 
     private class FollowerThread implements Runnable {

@@ -20,20 +20,30 @@
 package herddb.client;
 
 import herddb.client.impl.ClientSideScannerPeer;
+import static herddb.core.TableManager.NO_PAGE;
+import herddb.model.DataScannerException;
+import herddb.model.Predicate;
+import herddb.model.Record;
+import herddb.model.StatementExecutionException;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
-import herddb.network.SendResultCallback;
 import herddb.network.netty.NettyConnector;
+import herddb.storage.DataStorageManagerException;
+import herddb.utils.Bytes;
+import static io.netty.buffer.Unpooled.buffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import static jdk.nashorn.internal.objects.NativeObject.keys;
 
 /**
  * A real connection to a server
@@ -63,24 +73,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     @Override
     public void messageReceived(Message message) {
         LOGGER.log(Level.SEVERE, "{0} - received {1}", new Object[]{nodeId, message.toString()});
-        if (message.type == Message.TYPE_RESULTSET_CHUNK) {
-            String scannerId = (String) message.parameters.get("scannerId");
-            Long totalCountAtEnd = (Long) message.parameters.get("totalCountAtEnd");
-            if (totalCountAtEnd == null) {
-                totalCountAtEnd = -1L;
-            }
-            ClientSideScannerPeer scanner = (ClientSideScannerPeer) scanners.get(scannerId);
-            if (scanner == null || scanner.isClosed()) {
-                LOGGER.log(Level.SEVERE, "scanner {0} is closed", scannerId);
-                scanners.remove(scannerId);
-            } else {
-                List<Map<String, Object>> records = (List<Map<String, Object>>) message.parameters.get("records");                
-                scanner.accept(records, totalCountAtEnd);
-                if (scanner.isClosed()) {
-                    scanners.remove(scannerId);
-                }
-            }
-        }
     }
 
     @Override
@@ -201,7 +193,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    void executeScanAsync(String query, List<Object> params, ScanRecordConsumer consumer) throws HDBException {
+    ScanResultSet executeScan(String query, List<Object> params) throws HDBException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -209,16 +201,106 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
         try {
             String scannerId = UUID.randomUUID().toString();
-            ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, consumer, _channel);
-            scanners.put(scannerId, scanner);
             Message message = Message.OPEN_SCANNER(clientId, query, scannerId, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
             }
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId);
+            ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, impl);
+            scanners.put(scannerId, scanner);
+            return impl;
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
+    }
+
+    private class ScanResultSetImpl extends ScanResultSet {
+
+        private final String scannerId;
+
+        private ScanResultSetImpl(String scannerId) {
+            this.scannerId = scannerId;
+        }
+
+        final List<Map<String, Object>> fetchBuffer = new ArrayList<>();
+        Map<String, Object> next;
+        boolean finished;
+        boolean noMoreData;
+        int bufferPosition;
+
+        @Override
+        public void close() {
+            finished = true;
+        }
+
+        @Override
+        public boolean hasNext() throws HDBException {
+            LOGGER.log(Level.SEVERE, "hasNext");
+            if (finished) {
+                return false;
+            }
+            return ensureNext();
+        }
+
+        private void fillBuffer() throws HDBException {
+            LOGGER.log(Level.SEVERE, "fillBuffer");
+            fetchBuffer.clear();
+            ensureOpen();
+            Channel _channel = channel;
+            if (_channel == null) {
+                throw new HDBException("not connected to node " + nodeId);
+            }
+            try {
+                Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(clientId, scannerId, 10), 10000);
+                LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
+                if (result.type == Message.TYPE_ERROR) {
+                    throw new HDBException("server side scanner error: " + result.parameters);
+                }
+                if (result.type != Message.TYPE_RESULTSET_CHUNK) {
+                    finished = true;
+                    throw new HDBException("protocol error: " + result);
+                }
+                List<Map<String, Object>> records = (List<Map<String, Object>>) result.parameters.get("records");
+                if (records.isEmpty()) {
+                    noMoreData = true;
+                }
+                fetchBuffer.addAll(records);
+                bufferPosition = 0;
+            } catch (InterruptedException | TimeoutException err) {
+                throw new HDBException(err);
+            }
+        }
+
+        private boolean ensureNext() throws HDBException {
+            LOGGER.log(Level.SEVERE, "ensureNext " + next);
+            if (next != null) {
+                return true;
+            }
+
+            LOGGER.log(Level.SEVERE, "ensureNext...position " + bufferPosition);
+            if (bufferPosition == fetchBuffer.size()) {
+                fillBuffer();
+                if (noMoreData) {
+                    finished = true;
+                    return false;
+                }
+            }
+            next = fetchBuffer.get(bufferPosition++);
+            return true;
+        }
+
+        @Override
+        public Map<String, Object> next() throws HDBException {
+            LOGGER.log(Level.SEVERE, "next");
+            if (finished) {
+                throw new HDBException("Scanner is exhausted");
+            }
+            Map<String, Object> _next = next;
+            next = null;
+            return _next;
+        }
+
     }
 
 }

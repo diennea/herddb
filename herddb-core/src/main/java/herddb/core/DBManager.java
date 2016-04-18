@@ -28,9 +28,9 @@ import herddb.model.DDLException;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
-import herddb.model.ScanResultSink;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
@@ -181,7 +181,7 @@ public class DBManager implements AutoCloseable {
         } else if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
             stopTableSpace(tableSpaceName);
         }
-        
+
         if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
             List<NodeMetadata> nodes = metadataStorageManager.listNodes();
             LOGGER.log(Level.SEVERE, "Tablespace {0} is underreplicated expectedReplicaCount={1}, replicas={2}, nodes={3}", new Object[]{tableSpaceName, tableSpace.expectedReplicaCount, tableSpace.replicas, nodes});
@@ -256,7 +256,7 @@ public class DBManager implements AutoCloseable {
         return (GetResult) executeStatement(statement);
     }
 
-    public long scan(ScanStatement statement, ScanResultSink sink) throws StatementExecutionException, InvocationTargetException {
+    public DataScanner scan(ScanStatement statement) throws StatementExecutionException {
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
@@ -271,7 +271,7 @@ public class DBManager implements AutoCloseable {
         if (manager == null) {
             throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
         }
-        return manager.scan(statement, sink);
+        return manager.scan(statement);
     }
 
     /**
