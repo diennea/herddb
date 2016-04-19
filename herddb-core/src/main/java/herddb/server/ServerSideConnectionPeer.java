@@ -72,7 +72,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void messageReceived(Message message) {
-        LOGGER.log(Level.SEVERE, "messageReceived "+message);
+        LOGGER.log(Level.SEVERE, "messageReceived " + message);
         Channel _channel = channel;
         switch (message.type) {
             case Message.TYPE_EXECUTE_STATEMENT: {
@@ -115,6 +115,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             case Message.TYPE_OPENSCANNER: {
                 String query = (String) message.parameters.get("query");
                 String scannerId = (String) message.parameters.get("scannerId");
+                int fetchSize = (Integer) message.parameters.get("fetchSize");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     Statement statement = server.getManager().getTranslator().translate(query, parameters, true);
@@ -122,12 +123,19 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         ScanStatement scan = (ScanStatement) statement;
                         DataScanner dataScanner = server.getManager().scan(scan);
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
-                        this.channel.sendReplyMessage(message, Message.ACK(null));
+                        List<Record> records = dataScanner.consume(fetchSize);
+                        Table table = scanner.getScanner().getTable();
+                        List<Map<String, Object>> converted = new ArrayList<>();
+                        for (Record r : records) {
+                            converted.add(r.toBean(table));
+                        }
+                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId+" query "+query);
+                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, converted));
                         scanners.put(scannerId, scanner);
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
                     }
-                } catch (StatementExecutionException err) {
+                } catch (StatementExecutionException | DataScannerException err) {
                     scanners.remove(scannerId);
                     _channel.sendReplyMessage(message, Message.ERROR(null, err));
                 }

@@ -20,30 +20,20 @@
 package herddb.client;
 
 import herddb.client.impl.ClientSideScannerPeer;
-import static herddb.core.TableManager.NO_PAGE;
-import herddb.model.DataScannerException;
-import herddb.model.Predicate;
-import herddb.model.Record;
-import herddb.model.StatementExecutionException;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.netty.NettyConnector;
-import herddb.storage.DataStorageManagerException;
-import herddb.utils.Bytes;
-import static io.netty.buffer.Unpooled.buffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import static jdk.nashorn.internal.objects.NativeObject.keys;
 
 /**
  * A real connection to a server
@@ -61,6 +51,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final ReentrantLock connectionLock = new ReentrantLock(true);
     private Channel channel;
     private Map<String, ClientSideScannerPeer> scanners = new ConcurrentHashMap<>();
+    private final int fetchSize = 10;
 
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) {
         this.connection = connection;
@@ -201,12 +192,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
         try {
             String scannerId = UUID.randomUUID().toString();
-            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, params);
+            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, params, fetchSize);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
             }
-            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId);
+            List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
+            LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, initialFetchBuffer);
             ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, impl);
             scanners.put(scannerId, scanner);
             return impl;
@@ -219,8 +212,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
         private final String scannerId;
 
-        private ScanResultSetImpl(String scannerId) {
+        private ScanResultSetImpl(String scannerId, List<Map<String, Object>> fetchBuffer) {
             this.scannerId = scannerId;
+            this.fetchBuffer.addAll(fetchBuffer);
+            if (fetchBuffer.isEmpty()) {
+                // empty result set
+                finished = true;
+                noMoreData = true;
+            }
         }
 
         final List<Map<String, Object>> fetchBuffer = new ArrayList<>();
@@ -252,7 +251,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 throw new HDBException("not connected to node " + nodeId);
             }
             try {
-                Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(clientId, scannerId, 10), 10000);
+                Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(clientId, scannerId, fetchSize), 10000);
                 LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
                 if (result.type == Message.TYPE_ERROR) {
                     throw new HDBException("server side scanner error: " + result.parameters);
