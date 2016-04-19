@@ -40,6 +40,7 @@ public class HDBConnection implements AutoCloseable {
     private final long id = IDGENERATOR.incrementAndGet();
     private final HDBClient client;
     private final ReentrantLock routesLock = new ReentrantLock(true);
+    private volatile boolean closed;
 
     public HDBConnection(HDBClient client) {
         this.client = client;
@@ -55,6 +56,7 @@ public class HDBConnection implements AutoCloseable {
 
     @Override
     public void close() {
+        closed = true;
         List<RoutedClientSideConnection> routesAtClose = new ArrayList<>(routes.values());
         for (RoutedClientSideConnection route : routesAtClose) {
             route.close();
@@ -111,11 +113,18 @@ public class HDBConnection implements AutoCloseable {
     }
 
     private RoutedClientSideConnection getRouteToTableSpace(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
+        if (closed) {
+            throw new HDBException("connection is closed");
+        }
         String leaderId = client.getClientSideMetadataProvider().getTableSpaceLeader(tableSpace);
         if (leaderId == null) {
             throw new HDBException("no such tablespace " + tableSpace);
         }
         return getRouteToServer(leaderId);
+    }
+
+    public boolean isClosed() {
+        return closed;
     }
 
 }
