@@ -22,6 +22,7 @@ package herddb.server;
 import herddb.client.ClientSideMetadataProvider;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.network.ServerHostData;
+import herddb.server.Server;
 
 /**
  * Loopback for tests
