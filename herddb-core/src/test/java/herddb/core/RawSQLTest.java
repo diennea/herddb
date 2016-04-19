@@ -23,6 +23,7 @@ import herddb.codec.RecordSerializer;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.TransactionResult;
 import herddb.model.commands.BeginTransactionStatement;
@@ -33,6 +34,7 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import java.util.Arrays;
@@ -174,6 +176,20 @@ public class RawSQLTest {
                 assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
             }
             {
+                ScanStatement scan = (ScanStatement) manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true);
+                try (DataScanner scan1 = manager.scan(scan);) {
+                    assertEquals(1, scan1.consume().size());
+                }
+
+            }
+            {
+                ScanStatement scan = (ScanStatement) manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 ='mykey2' and s1 is not null", Collections.emptyList(), true);
+                try (DataScanner scan1 = manager.scan(scan);) {
+                    assertEquals(1, scan1.consume().size());
+                }
+
+            }
+            {
                 UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=2138,s1='bar' where k1 = 'mykey2' and s1 is not null", Collections.emptyList());
                 assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
             }
@@ -181,6 +197,7 @@ public class RawSQLTest {
                 UpdateStatement st_update = (UpdateStatement) manager.getTranslator().translate("UPDATE tblspace1.tsql set n1=2138,s1='bar' where k1 = 'mykey2' and s1 is null", Collections.emptyList());
                 assertEquals(0, manager.executeUpdate(st_update).getUpdateCount());
             }
+
             {
                 DeleteStatement st_update = (DeleteStatement) manager.getTranslator().translate("DELETE FROM  tblspace1.tsql where k1 = 'mykey2' and s1 is not null", Collections.emptyList());
                 assertEquals(1, manager.executeUpdate(st_update).getUpdateCount());
@@ -189,19 +206,20 @@ public class RawSQLTest {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey2"), null));
                 assertFalse(result.found());
             }
+
             {
                 BeginTransactionStatement st_begin_transaction = (BeginTransactionStatement) manager.getTranslator().translate("EXECUTE BEGINTRANSACTION 'tblspace1'", Collections.emptyList());
                 TransactionResult result = (TransactionResult) manager.executeStatement(st_begin_transaction);
                 long tx = result.getTransactionId();
-                CommitTransactionStatement st_commit_transaction = (CommitTransactionStatement) manager.getTranslator().translate("EXECUTE COMMITTRANSACTION 'tblspace1',"+tx, Collections.emptyList());
-                manager.executeStatement(st_commit_transaction);                
+                CommitTransactionStatement st_commit_transaction = (CommitTransactionStatement) manager.getTranslator().translate("EXECUTE COMMITTRANSACTION 'tblspace1'," + tx, Collections.emptyList());
+                manager.executeStatement(st_commit_transaction);
             }
             {
                 BeginTransactionStatement st_begin_transaction = (BeginTransactionStatement) manager.getTranslator().translate("EXECUTE BEGINTRANSACTION 'tblspace1'", Collections.emptyList());
                 TransactionResult result = (TransactionResult) manager.executeStatement(st_begin_transaction);
                 long tx = result.getTransactionId();
-                RollbackTransactionStatement st_rollback_transaction = (RollbackTransactionStatement) manager.getTranslator().translate("EXECUTE ROLLBACKTRANSACTION 'tblspace1',"+tx, Collections.emptyList());
-                manager.executeStatement(st_rollback_transaction);                
+                RollbackTransactionStatement st_rollback_transaction = (RollbackTransactionStatement) manager.getTranslator().translate("EXECUTE ROLLBACKTRANSACTION 'tblspace1'," + tx, Collections.emptyList());
+                manager.executeStatement(st_rollback_transaction);
             }
         }
 

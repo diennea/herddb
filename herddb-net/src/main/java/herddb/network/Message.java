@@ -67,12 +67,13 @@ public final class Message {
         return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
     }
 
-    public static Message OPEN_SCANNER(String clientId, String query, String scannerId, List<Object> params) {
+    public static Message OPEN_SCANNER(String clientId, String query, String scannerId, List<Object> params, int fetchSize) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("scannerId", scannerId);
         data.put("query", query);
+        data.put("fetchSize", fetchSize);
         data.put("params", params);
         return new Message(clientId, TYPE_OPENSCANNER, data);
     }

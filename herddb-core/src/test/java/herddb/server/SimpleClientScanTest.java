@@ -53,11 +53,17 @@ public class SimpleClientScanTest {
                         "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList());
                 Assert.assertEquals(1, resultCreateTable);
 
-                for (int i = 0; i < 100; i++) {
+                for (int i = 0; i < 99; i++) {
                     Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)));
                 }
 
-                assertEquals(100, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList()).consume().size());
+                assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList()).consume().size());
+
+                // empty result set                
+                assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", Collections.emptyList()).consume().size());
+
+                // single fetch result test
+                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'", Collections.emptyList()).consume().size());
 
             }
         }

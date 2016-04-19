@@ -367,7 +367,7 @@ public class SQLTranslator {
             }
         }
         if (scan) {
-            Predicate where = selectBody.getWhere() != null ? buildPredicate(selectBody.getWhere(), table, parameters, 0) : null;
+            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), parameters, 0) : null;
             try {
                 return new ScanStatement(tableSpace, tableName, where);
             } catch (IllegalArgumentException err) {
