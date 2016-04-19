@@ -50,6 +50,7 @@ import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
@@ -122,19 +123,27 @@ public class SQLTranslator {
             int type;
             switch (cf.getColDataType().getDataType()) {
                 case "string":
+                case "varchar":
+                case "nvarchar":
+                case "nvarchar2":
                     type = ColumnTypes.STRING;
                     break;
                 case "long":
+                case "bigint":
                     type = ColumnTypes.LONG;
                     break;
                 case "int":
                 case "integer":
+                case "smallint":
                     type = ColumnTypes.INTEGER;
                     break;
                 case "bytea":
+                case "blob":
                     type = ColumnTypes.BYTEARRAY;
                     break;
                 case "timestamp":
+                case "timestamptz":
+                case "datetime":
                     type = ColumnTypes.TIMESTAMP;
                     break;
                 default:
@@ -277,7 +286,9 @@ public class SQLTranslator {
     }
 
     private int countJdbcParametersUsedByExpression(Expression e) {
-        if (e instanceof Column) {
+        if (e instanceof net.sf.jsqlparser.schema.Column
+                || e instanceof StringValue
+                || e instanceof LongValue) {
             return 0;
         }
         if (e instanceof BinaryExpression) {
@@ -286,6 +297,9 @@ public class SQLTranslator {
         }
         if (e instanceof JdbcParameter) {
             return 1;
+        }
+        if (e instanceof Parenthesis) {
+            return countJdbcParametersUsedByExpression(((Parenthesis) e).getExpression());
         }
         throw new UnsupportedOperationException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }

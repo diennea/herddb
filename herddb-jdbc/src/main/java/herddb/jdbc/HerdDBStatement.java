@@ -21,6 +21,7 @@ package herddb.jdbc;
 
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBException;
+import herddb.client.ScanResultSet;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -42,7 +43,12 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        try {
+            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList());
+            return new HerdDBResultSet(scanResult);
+        } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
+            throw new SQLException(ex);
+        }
     }
 
     @Override
@@ -111,7 +117,9 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        executeUpdate(sql);
+        // TODO: better return code
+        return false;
     }
 
     @Override
