@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.model.commands.ScanStatement;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,18 +31,24 @@ import java.util.List;
 public abstract class DataScanner implements AutoCloseable {
 
     protected final Table table;
+    protected final ScanStatement scan;
 
-    public DataScanner(Table table) {
+    public DataScanner(Table table, ScanStatement scan) {
         this.table = table;
+        this.scan = scan;
     }
 
     public Table getTable() {
         return table;
     }
 
+    public ScanStatement getScan() {
+        return scan;
+    }
+
     public abstract boolean hasNext() throws DataScannerException;
 
-    public abstract Record next() throws DataScannerException;
+    public abstract Tuple next() throws DataScannerException;
 
     @Override
     public void close() throws DataScannerException {
@@ -52,16 +59,16 @@ public abstract class DataScanner implements AutoCloseable {
      *
      * @return
      */
-    public List<Record> consume() throws DataScannerException {
-        List<Record> records = new ArrayList<>();
+    public List<Tuple> consume() throws DataScannerException {
+        List<Tuple> records = new ArrayList<>();
         while (hasNext()) {
             records.add(next());
         }
         return records;
     }
 
-    public List<Record> consume(int fetchSize) throws DataScannerException {
-        List<Record> records = new ArrayList<>();
+    public List<Tuple> consume(int fetchSize) throws DataScannerException {
+        List<Tuple> records = new ArrayList<>();
         while (fetchSize-- > 0 && hasNext()) {
             records.add(next());
         }

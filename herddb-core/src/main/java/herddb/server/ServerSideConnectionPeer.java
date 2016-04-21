@@ -31,6 +31,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TransactionResult;
+import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
@@ -123,13 +124,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         ScanStatement scan = (ScanStatement) statement;
                         DataScanner dataScanner = server.getManager().scan(scan);
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
-                        List<Record> records = dataScanner.consume(fetchSize);
-                        Table table = scanner.getScanner().getTable();
+                        List<Tuple> records = dataScanner.consume(fetchSize);
                         List<Map<String, Object>> converted = new ArrayList<>();
-                        for (Record r : records) {
-                            converted.add(r.toBean(table));
+                        for (Tuple r : records) {
+                            converted.add(r.toMap());
                         }
-                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId+" query "+query);
+                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
                         this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, converted));
                         scanners.put(scannerId, scanner);
                     } else {
@@ -149,11 +149,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 ServerSideScannerPeer scanner = scanners.get(scannerId);
                 if (scanner != null) {
                     try {
-                        List<Record> records = scanner.getScanner().consume(fetchSize);
-                        Table table = scanner.getScanner().getTable();
+                        DataScanner dataScanner = scanner.getScanner();
+                        List<Tuple> records = dataScanner.consume(fetchSize);
                         List<Map<String, Object>> converted = new ArrayList<>();
-                        for (Record r : records) {
-                            converted.add(r.toBean(table));
+                        for (Tuple r : records) {
+                            converted.add(r.toMap());
                         }
                         LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
                         _channel.sendReplyMessage(message,

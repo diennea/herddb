@@ -43,12 +43,12 @@ import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.Tuple;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -625,13 +625,13 @@ public class TableManager {
 
         final Iterator<Map.Entry<Bytes, Long>> keys;
         final Predicate predicate;
-        Record next;
+        Tuple next;
         boolean finished;
 
-        public SimpleDataScanner(Table table, Iterator<Map.Entry<Bytes, Long>> keys, Predicate predicate) {
-            super(table);
+        public SimpleDataScanner(Table table, Iterator<Map.Entry<Bytes, Long>> keys, ScanStatement statement) {
+            super(table, statement);
             this.keys = keys;
-            this.predicate = predicate;
+            this.predicate = statement.getPredicate();
         }
 
         @Override
@@ -669,7 +669,7 @@ public class TableManager {
                         record = buffer.get(key);
                     }
                     if (predicate == null || predicate.evaluate(record)) {
-                        next = record;
+                        next = scan.getProjection().map(new Tuple(record.toBean(table)));
                         return true;
                     }
                     // RECORD does not match, iterate again
@@ -680,11 +680,11 @@ public class TableManager {
         }
 
         @Override
-        public Record next() throws DataScannerException {
+        public Tuple next() throws DataScannerException {
             if (finished) {
                 throw new DataScannerException("Scanner is exhausted");
             }
-            Record _next = next;
+            Tuple _next = next;
             next = null;
             return _next;
         }
@@ -692,8 +692,7 @@ public class TableManager {
     }
 
     DataScanner scan(ScanStatement statement) throws StatementExecutionException {
-        Predicate predicate = statement.getPredicate();
-        return new SimpleDataScanner(table, keyToPage.entrySet().iterator(), predicate);
+        return new SimpleDataScanner(table, keyToPage.entrySet().iterator(), statement);
     }
 
 }

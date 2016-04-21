@@ -20,8 +20,9 @@
 package herddb.model.commands;
 
 import herddb.model.Predicate;
+import herddb.model.Projection;
+import herddb.model.Table;
 import herddb.model.TableAwareStatement;
-import herddb.utils.Bytes;
 
 /**
  * Lookup a bunch record with a condition
@@ -31,14 +32,24 @@ import herddb.utils.Bytes;
 public class ScanStatement extends TableAwareStatement {
 
     private final Predicate predicate;
+    private final Projection projection;
 
-    public ScanStatement(String tableSpace, String table, Predicate predicate) {
+    public ScanStatement(String tableSpace, Table table, Predicate predicate) {
+        this(tableSpace, table.name, Projection.IDENTITY(table.columns), predicate);
+    }
+
+    public ScanStatement(String tableSpace, String table, final Projection projection, Predicate predicate) {
         super(table, tableSpace);
         this.predicate = predicate;
+        this.projection = projection;
     }
 
     public Predicate getPredicate() {
         return predicate;
+    }
+
+    public Projection getProjection() {
+        return projection;
     }
 
 }

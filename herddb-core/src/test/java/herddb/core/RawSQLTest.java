@@ -26,6 +26,7 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.TransactionResult;
+import herddb.model.Tuple;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -39,6 +40,7 @@ import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
@@ -182,6 +184,44 @@ public class RawSQLTest {
                 }
 
             }
+            {
+                ScanStatement scan = (ScanStatement) manager.getTranslator().translate("SELECT k1 FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true);
+                try (DataScanner scan1 = manager.scan(scan);) {
+                    List<Tuple> records = scan1.consume();
+                    assertEquals(1, records.size());
+                    assertEquals(1, records.get(0).fieldNames.length);
+                    assertEquals(1, records.get(0).values.length);
+                    assertEquals("k1", records.get(0).fieldNames[0]);
+                    assertEquals("mykey2", records.get(0).values[0]);
+                }
+            }
+            {
+                ScanStatement scan = (ScanStatement) manager.getTranslator().translate("SELECT k1 theKey FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true);
+                try (DataScanner scan1 = manager.scan(scan);) {
+                    List<Tuple> records = scan1.consume();
+                    assertEquals(1, records.size());
+                    assertEquals(1, records.get(0).fieldNames.length);
+                    assertEquals(1, records.get(0).values.length);
+                    assertEquals("theKey", records.get(0).fieldNames[0]);
+                    assertEquals("mykey2", records.get(0).values[0]);
+                }
+            }
+            {
+                ScanStatement scan = (ScanStatement) manager.getTranslator().translate("SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true);
+                try (DataScanner scan1 = manager.scan(scan);) {
+                    List<Tuple> records = scan1.consume();
+                    assertEquals(1, records.size());
+                    assertEquals(3, records.get(0).fieldNames.length);
+                    assertEquals(3, records.get(0).values.length);
+                    assertEquals("theKey", records.get(0).fieldNames[0]);
+                    assertEquals("mykey2", records.get(0).values[0]);
+                    assertEquals("theStringConstant", records.get(0).fieldNames[1]);
+                    assertEquals("one", records.get(0).values[1]);
+                    assertEquals("LongConstant", records.get(0).fieldNames[2]);
+                    assertEquals(Long.valueOf(3), records.get(0).values[2]);
+                }
+            }
+
             {
                 ScanStatement scan = (ScanStatement) manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 ='mykey2' and s1 is not null", Collections.emptyList(), true);
                 try (DataScanner scan1 = manager.scan(scan);) {

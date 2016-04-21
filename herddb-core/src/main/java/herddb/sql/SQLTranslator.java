@@ -26,6 +26,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Predicate;
+import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
@@ -372,18 +373,24 @@ public class SQLTranslator {
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
-        Table table = tableManager.getTable();
-        Map<String, Object> record = new HashMap<>();
-
+        Table table = tableManager.getTable();                
+        boolean allColumns = false;
         for (SelectItem c : selectBody.getSelectItems()) {
-            if (!(c instanceof AllColumns)) {
-                throw new StatementExecutionException("unsupported select " + c.getClass() + " " + c);
+            if (c instanceof AllColumns) {
+                allColumns = true;
+                break;
             }
+        }
+        Projection projection;
+        if (allColumns) {
+            projection = Projection.IDENTITY(table.columns);
+        } else {
+            projection = new SQLProjection(selectBody.getSelectItems());
         }
         if (scan) {
             Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), parameters, 0) : null;
             try {
-                return new ScanStatement(tableSpace, tableName, where);
+                return new ScanStatement(tableSpace, tableName, projection, where);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }

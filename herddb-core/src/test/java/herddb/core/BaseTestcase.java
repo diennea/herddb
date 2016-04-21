@@ -88,6 +88,7 @@ public class BaseTestcase {
                 .tablespace(tableSpace)
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
+                .column("number", ColumnTypes.INTEGER)
                 .primaryKey("id")
                 .build();
 
