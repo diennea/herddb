@@ -17,24 +17,24 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.sql;
+
+import herddb.model.Statement;
 
 /**
- * A Constant value for the record
+ * Result of SQL transaction, it is made of two parts, a cachable part (the
+ * Statement) and a context, non cachable, part
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class TranslatedQuery {
 
-    private final byte[] value;
+    public final Statement statement;
+    public final SQLStatementEvaluationContext context;
 
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
-    }
-
-    @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
-        return value;
+    public TranslatedQuery(Statement statement, SQLStatementEvaluationContext context) {
+        this.statement = statement;
+        this.context = context;
     }
 
 }

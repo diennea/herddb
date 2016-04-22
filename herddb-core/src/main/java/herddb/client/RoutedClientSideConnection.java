@@ -26,6 +26,7 @@ import herddb.network.Message;
 import herddb.network.netty.NettyConnector;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -138,7 +139,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE BEGINTRANSACTION ?", 0, Arrays.asList(tableSpace));
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE BEGINTRANSACTION '"+tableSpace+"'", 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
@@ -157,7 +158,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE COMMITTRANSACTION ?,?", 0, Arrays.asList(tableSpace, tx));
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE COMMITTRANSACTION '"+tableSpace+"',"+tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
@@ -174,7 +175,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION ?,?", 0, Arrays.asList(tableSpace, tx));
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION '"+tableSpace+"',"+tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");

@@ -17,24 +17,29 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.sql;
+
+import herddb.model.StatementEvaluationContext;
+import java.util.List;
 
 /**
- * A Constant value for the record
+ * Instance of StatementEvaluationContext for SQL/JDBC
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class SQLStatementEvaluationContext extends StatementEvaluationContext {
 
-    private final byte[] value;
+    public final String query;
+    public final List<Object> jdbcParameters;
 
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
+    public SQLStatementEvaluationContext(String query, List<Object> jdbcParameters) {
+        this.query = query;
+        this.jdbcParameters = jdbcParameters;
     }
 
     @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
-        return value;
+    public String toString() {
+        return "SQLStatementEvaluationContext{" + "query=" + query + ", jdbcParameters=" + jdbcParameters + '}';
     }
 
 }

@@ -19,7 +19,9 @@
  */
 package herddb.model.commands;
 
+import herddb.model.ConstValueRecordFunction;
 import herddb.model.Predicate;
+import herddb.model.RecordFunction;
 import herddb.model.TableAwareStatement;
 import herddb.utils.Bytes;
 
@@ -30,16 +32,22 @@ import herddb.utils.Bytes;
  */
 public class GetStatement extends TableAwareStatement {
 
-    private final Bytes key;
+    private final RecordFunction key;
     private final Predicate predicate;
 
     public GetStatement(String tableSpace, String table, Bytes key, Predicate predicate) {
+        super(table, tableSpace);
+        this.key = new ConstValueRecordFunction(key.data);
+        this.predicate = predicate;
+    }
+
+    public GetStatement(String tableSpace, String table, RecordFunction key, Predicate predicate) {
         super(table, tableSpace);
         this.key = key;
         this.predicate = predicate;
     }
 
-    public Bytes getKey() {
+    public RecordFunction getKey() {
         return key;
     }
 

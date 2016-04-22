@@ -24,6 +24,7 @@ import herddb.model.DataScanner;
 import herddb.model.Predicate;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.ScanStatement;
@@ -56,7 +57,7 @@ public class ScanTest extends BaseTestcase {
         {
             ScanStatement scan = new ScanStatement(tableSpace, table, new Predicate() {
                 @Override
-                public boolean evaluate(Record record) throws StatementExecutionException {
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
                     int value = (Integer) record.toBean(table).get("number");
                     return value >= 50;
                 }
@@ -74,7 +75,7 @@ public class ScanTest extends BaseTestcase {
         {
             ScanStatement scan = new ScanStatement(tableSpace, table, new Predicate() {
                 @Override
-                public boolean evaluate(Record record) throws StatementExecutionException {
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
                     int value = (Integer) record.toBean(table).get("number");
                     return value < 50;
                 }

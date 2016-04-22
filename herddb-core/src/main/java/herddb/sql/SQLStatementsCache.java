@@ -17,24 +17,40 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.sql;
+
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import herddb.model.Statement;
 
 /**
- * A Constant value for the record
+ * LRU Cache of statements
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class SQLStatementsCache {
 
-    private final byte[] value;
+    private final Cache<String, Statement> cache;
 
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
+    public SQLStatementsCache() {
+        this.cache = CacheBuilder
+                .newBuilder()
+                .initialCapacity(100)
+                .maximumSize(100)
+                .build();
+
     }
 
-    @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
-        return value;
+    public Statement get(String sql) {
+        return this.cache.getIfPresent(sql);
+    }
+
+    public void put(String sql, Statement statement) {
+        this.cache.put(sql, statement);
+    }
+
+    public void clear() {
+        this.cache.invalidateAll();
     }
 
 }

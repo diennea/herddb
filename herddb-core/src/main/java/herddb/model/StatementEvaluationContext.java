@@ -20,21 +20,9 @@
 package herddb.model;
 
 /**
- * A Constant value for the record
- *
+ * Context for each statement evaluation. Statements are immutable and cachable objects, and cannot retain state
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
-
-    private final byte[] value;
-
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
-    }
-
-    @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
-        return value;
-    }
-
+public class StatementEvaluationContext {
+    
 }

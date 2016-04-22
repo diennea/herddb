@@ -26,6 +26,6 @@ package herddb.model;
  */
 public abstract class RecordFunction {
 
-    public abstract byte[] computeNewValue(Record previous);
+    public abstract byte[] computeNewValue(Record previous, StatementEvaluationContext context);
 
 }

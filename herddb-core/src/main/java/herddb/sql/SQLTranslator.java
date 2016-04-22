@@ -26,6 +26,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Predicate;
+import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.Statement;
@@ -42,6 +43,8 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +68,7 @@ import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.update.Update;
 
@@ -76,37 +80,51 @@ import net.sf.jsqlparser.statement.update.Update;
 public class SQLTranslator {
 
     private final DBManager manager;
+    private final SQLStatementsCache cache;
+
+    public void clearCache() {
+        cache.clear();
+    }
 
     public SQLTranslator(DBManager manager) {
         this.manager = manager;
+        this.cache = new SQLStatementsCache();
     }
 
-    public Statement translate(String query, List<Object> parameters) throws StatementExecutionException {
-        return translate(query, parameters, false);
+    public TranslatedQuery translate(String query, List<Object> parameters) throws StatementExecutionException {
+        return translate(query, parameters, false, false);
     }
 
-    public Statement translate(String query, List<Object> parameters, boolean scan) throws StatementExecutionException {
+    public TranslatedQuery translate(String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
+        String cacheKey = "scan:" + scan + ",query:" + query;
+        if (allowCache) {
+            Statement cached = cache.get(cacheKey);
+            if (cached != null) {
+                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
+            }
+        }
         try {
+            Statement result;
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
-                return buildCreateTableStatement((CreateTable) stmt);
+                result = buildCreateTableStatement((CreateTable) stmt);
+            } else if (stmt instanceof Insert) {
+                result = buildInsertStatement((Insert) stmt);
+            } else if (stmt instanceof Delete) {
+                result = buildDeleteStatement((Delete) stmt, parameters);
+            } else if (stmt instanceof Update) {
+                result = buildUpdateStatement((Update) stmt, parameters);
+            } else if (stmt instanceof Select) {
+                result = buildSelectStatement((Select) stmt, scan);
+            } else if (stmt instanceof Execute) {
+                result = buildExecuteStatement((Execute) stmt, parameters);
+            } else {
+                throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
             }
-            if (stmt instanceof Insert) {
-                return buildInsertStatement((Insert) stmt, parameters);
+            if (allowCache) {
+                cache.put(cacheKey, result);
             }
-            if (stmt instanceof Delete) {
-                return buildDeleteStatement((Delete) stmt, parameters);
-            }
-            if (stmt instanceof Update) {
-                return buildUpdateStatement((Update) stmt, parameters);
-            }
-            if (stmt instanceof Select) {
-                return buildSelectStatement((Select) stmt, scan, parameters);
-            }
-            if (stmt instanceof Execute) {
-                return buildExecuteStatement((Execute) stmt, parameters);
-            }
-            throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
+            return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
         } catch (JSQLParserException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
@@ -164,7 +182,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildInsertStatement(Insert s, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildInsertStatement(Insert s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName();
         if (tableSpace == null) {
@@ -179,23 +197,39 @@ public class SQLTranslator {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
         Table table = tableManager.getTable();
-        Map<String, Object> record = new HashMap<>();
+
+        net.sf.jsqlparser.schema.Column keyColumn = null;
+        Expression keyValueExpression = null;
+        List<Expression> valuesExpressions = new ArrayList<>();
+        List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
+
         int index = 0;
-        AtomicInteger jdbcParameterPos = new AtomicInteger();
+        int countJdbcParametersBeforeKey = 0;        
+        int countJdbcParameters = 0;
+        ExpressionList list = (ExpressionList) s.getItemsList();
         for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
             Column column = table.getColumn(c.getColumnName());
             if (column == null) {
                 throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
             }
-            ExpressionList list = (ExpressionList) s.getItemsList();
-            Expression expression = list.getExpressions().get(index);
-            Object _value = resolveValue(expression, parameters, jdbcParameterPos);
-            record.put(column.name, _value);
-            index++;
+            Expression expression = list.getExpressions().get(index++);
+            if (table.primaryKeyColumn.equals(column.name)) {
+                keyColumn = c;
+                keyValueExpression = expression;
+                countJdbcParametersBeforeKey = countJdbcParameters;
+            }
+            valuesColumns.add(c);
+            valuesExpressions.add(expression);            
+            countJdbcParameters += countJdbcParametersUsedByExpression(expression);
         }
+        if (keyValueExpression == null) {
+            throw new StatementExecutionException("you must set a value for the primary key");
+        }
+        RecordFunction keyfunction = new SQLRecordKeyFunction(table, keyValueExpression, countJdbcParametersBeforeKey);
+        RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
 
         try {
-            return new InsertStatement(tableSpace, tableName, RecordSerializer.toRecord(record, table));
+            return new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
@@ -218,14 +252,16 @@ public class SQLTranslator {
         }
         Table table = tableManager.getTable();
 
-        Bytes key = findPrimaryKeyEqualsTo(s.getWhere(), table, parameters, new AtomicInteger());
+        Expression key = findPrimaryKeyEqualsTo(s.getWhere(), table, new AtomicInteger());
         if (key == null) {
             // DELETE FROM TABLE WHERE KEY=? AND ....
             throw new StatementExecutionException("unsupported where " + s.getWhere());
         }
-        Predicate where = buildPredicate(s.getWhere(), table, parameters, 0);
+        RecordFunction keyFunction = new SQLRecordKeyFunction(table, key, 0);
+
+        Predicate where = buildPredicate(s.getWhere(), table, 0);
         try {
-            return new DeleteStatement(tableSpace, tableName, key, where);
+            return new DeleteStatement(tableSpace, tableName, keyFunction, where);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
@@ -249,40 +285,37 @@ public class SQLTranslator {
         Table table = tableManager.getTable();
         Map<String, Object> record = new HashMap<>();
 
-        int index = 0;
         for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
             Column column = table.getColumn(c.getColumnName());
             if (column == null) {
                 throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
             }
         }
-        RecordFunction function = buildRecordFunction(s.getColumns(), s.getExpressions(), parameters, table);
+
+        RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
         int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
-        Bytes key = findPrimaryKeyEqualsTo(s.getWhere(), table, parameters, new AtomicInteger(setClauseParamters));
+        Expression key = findPrimaryKeyEqualsTo(s.getWhere(), table, new AtomicInteger(setClauseParamters));
         if (key == null) {
             // UPDATE TABLE SET XXX WHERE KEY=? AND ....
             throw new StatementExecutionException("unsupported where " + s.getWhere());
         }
 
-        Predicate where = buildPredicate(s.getWhere(), table, parameters, setClauseParamters);
+        RecordFunction keyFunction = new SQLRecordKeyFunction(table, key, setClauseParamters);
+        Predicate where = buildPredicate(s.getWhere(), table, setClauseParamters);
 
         try {
-            return new UpdateStatement(tableSpace, tableName, key, function, where);
+            return new UpdateStatement(tableSpace, tableName, keyFunction, function, where);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
     }
 
-    private RecordFunction buildRecordFunction(List<net.sf.jsqlparser.schema.Column> columns, List<Expression> expressions, List<Object> parameters, Table table) {
-        return new SQLRecordFunction(table, columns, expressions, parameters);
-    }
-
-    private Predicate buildPredicate(Expression where, Table table, List<Object> parameters, int parameterPos) {
+    private Predicate buildPredicate(Expression where, Table table, int parameterPos) {
         if (where instanceof EqualsTo) {
             // surely this is the only predicate on the PK, we can skip it
             return null;
         }
-        return new SQLRecordPredicate(table, where, parameters, parameterPos);
+        return new SQLRecordPredicate(table, where, parameterPos);
 
     }
 
@@ -305,21 +338,21 @@ public class SQLTranslator {
         throw new UnsupportedOperationException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
-    private Bytes findPrimaryKeyEqualsTo(Expression where, Table table, List<Object> parameters, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression findPrimaryKeyEqualsTo(Expression where, Table table, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
-            Bytes keyOnLeft = validatePrimaryKeyEqualsToExpression(and.getLeftExpression(), table, parameters, jdbcParameterPos);
+            Expression keyOnLeft = validatePrimaryKeyEqualsToExpression(and.getLeftExpression(), table, jdbcParameterPos);
             if (keyOnLeft != null) {
                 return keyOnLeft;
             }
             int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
 
-            Bytes keyOnRight = validatePrimaryKeyEqualsToExpression(and.getRightExpression(), table, parameters, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
+            Expression keyOnRight = validatePrimaryKeyEqualsToExpression(and.getRightExpression(), table, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
             if (keyOnRight != null) {
                 return keyOnRight;
             }
         } else if (where instanceof EqualsTo) {
-            Bytes keyDirect = validatePrimaryKeyEqualsToExpression(where, table, parameters, jdbcParameterPos);
+            Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, table, jdbcParameterPos);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -328,9 +361,9 @@ public class SQLTranslator {
         return null;
     }
 
-    private Object resolveValue(Expression expression, List<Object> parameters, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Object resolveValue(Expression expression) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
-            return parameters.get(jdbcParameterPos.getAndIncrement());
+            throw new StatementExecutionException("jdbcparameter expression not usable in this query");
         } else if (expression instanceof StringValue) {
             return ((StringValue) expression).getValue();
         } else if (expression instanceof LongValue) {
@@ -340,24 +373,23 @@ public class SQLTranslator {
         }
     }
 
-    private Bytes validatePrimaryKeyEqualsToExpression(Expression testExpression, Table table1, List<Object> parameters, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
-        Bytes result = null;
+    private Expression validatePrimaryKeyEqualsToExpression(Expression testExpression, Table table1, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+        Expression result = null;
         if (testExpression instanceof EqualsTo) {
             EqualsTo e = (EqualsTo) testExpression;
             if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
                 net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
                 if (column.getColumnName().equals(table1.primaryKeyColumn)) {
-                    Object value = resolveValue(e.getRightExpression(), parameters, jdbcParameterPos);
-                    result = new Bytes(RecordSerializer.serialize(value, table1.getColumn(table1.primaryKeyColumn).type));
+                    return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findPrimaryKeyEqualsTo((AndExpression) e.getLeftExpression(), table1, parameters, jdbcParameterPos);
+                result = findPrimaryKeyEqualsTo((AndExpression) e.getLeftExpression(), table1, jdbcParameterPos);
             }
         }
         return result;
     }
 
-    private Statement buildSelectStatement(Select s, boolean scan, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildSelectStatement(Select s, boolean scan) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
@@ -373,12 +405,17 @@ public class SQLTranslator {
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
-        Table table = tableManager.getTable();                
+        int countJdbcParameters = 0;
+        Table table = tableManager.getTable();
         boolean allColumns = false;
         for (SelectItem c : selectBody.getSelectItems()) {
+
             if (c instanceof AllColumns) {
                 allColumns = true;
                 break;
+            } else if (c instanceof SelectExpressionItem) {
+                SelectExpressionItem se = (SelectExpressionItem) c;
+                countJdbcParameters += countJdbcParametersUsedByExpression(se.getExpression());
             }
         }
         Projection projection;
@@ -388,7 +425,19 @@ public class SQLTranslator {
             projection = new SQLProjection(selectBody.getSelectItems());
         }
         if (scan) {
-            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), parameters, 0) : null;
+
+            Predicate where = null;
+            if (selectBody.getWhere() != null && selectBody.getWhere() instanceof EqualsTo) {
+                Expression key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, new AtomicInteger());
+                if (key != null) {
+                    // optimize PrimaryKeyIndexSeek case
+                    RecordFunction keyFunction = new SQLRecordKeyFunction(table, key, countJdbcParameters);
+                    where = new PrimaryKeyIndexSeekPredicate(keyFunction);
+                }
+            }
+            if (where == null) {
+                where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), 0) : null;
+            }
             try {
                 return new ScanStatement(tableSpace, tableName, projection, where);
             } catch (IllegalArgumentException err) {
@@ -396,18 +445,19 @@ public class SQLTranslator {
             }
         } else {
             if (selectBody.getWhere() == null) {
-                throw new StatementExecutionException("unsupported SELECT without WHERE");
+                throw new StatementExecutionException("unsupported GET without WHERE");
             }
             // SELECT * FROM WHERE KEY=? AND ....
-            Bytes key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, parameters, new AtomicInteger());
+            Expression key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, new AtomicInteger());
             if (key == null) {
                 throw new StatementExecutionException("unsupported where " + selectBody.getWhere() + " " + selectBody.getWhere().getClass());
             }
+            RecordFunction keyFunction = new SQLRecordKeyFunction(table, key, countJdbcParameters);
 
-            Predicate where = buildPredicate(selectBody.getWhere(), table, parameters, 0);
+            Predicate where = buildPredicate(selectBody.getWhere(), table, 0);
 
             try {
-                return new GetStatement(tableSpace, tableName, key, where);
+                return new GetStatement(tableSpace, tableName, keyFunction, where);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
@@ -420,7 +470,7 @@ public class SQLTranslator {
                 if (execute.getExprList().getExpressions().size() != 1) {
                     throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName");
                 }
-                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), parameters, new AtomicInteger());
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
                 if (tableSpaceName == null) {
                     throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName");
                 }
@@ -431,11 +481,11 @@ public class SQLTranslator {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
                 AtomicInteger pos = new AtomicInteger();
-                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), parameters, pos);
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
                 if (tableSpaceName == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
-                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), parameters, pos);
+                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1));
                 if (transactionId == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
@@ -451,11 +501,11 @@ public class SQLTranslator {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
                 AtomicInteger pos = new AtomicInteger();
-                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), parameters, pos);
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
                 if (tableSpaceName == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
-                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), parameters, pos);
+                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1));
                 if (transactionId == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }

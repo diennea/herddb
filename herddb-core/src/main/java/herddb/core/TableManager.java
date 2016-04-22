@@ -43,6 +43,8 @@ import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.PrimaryKeyIndexSeekPredicate;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.Tuple;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -142,24 +144,24 @@ public class TableManager {
         LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}", new Object[]{keyToPage.size(), table.name});
     }
 
-    StatementExecutionResult executeStatement(Statement statement, Transaction transaction) throws StatementExecutionException {
+    StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
         pagesLock.readLock().lock();
         try {
             if (statement instanceof UpdateStatement) {
                 UpdateStatement update = (UpdateStatement) statement;
-                return executeUpdate(update, transaction);
+                return executeUpdate(update, transaction, context);
             }
             if (statement instanceof InsertStatement) {
                 InsertStatement insert = (InsertStatement) statement;
-                return executeInsert(insert, transaction);
+                return executeInsert(insert, transaction, context);
             }
             if (statement instanceof GetStatement) {
                 GetStatement get = (GetStatement) statement;
-                return executeGet(get, transaction);
+                return executeGet(get, transaction, context);
             }
             if (statement instanceof DeleteStatement) {
                 DeleteStatement delete = (DeleteStatement) statement;
-                return executeDelete(delete, transaction);
+                return executeDelete(delete, transaction, context);
             }
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException("internal data error", err);
@@ -210,15 +212,16 @@ public class TableManager {
         }
     }
 
-    private StatementExecutionResult executeInsert(InsertStatement insert, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
+    private StatementExecutionResult executeInsert(InsertStatement insert, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
         /*
             an insert can succeed only if the row is valid and the "keys" structure  does not contain the requested key
             the insert will add the row in the 'buffer' without assigning a page to it
             locks: the insert uses global 'insert' lock on the table
             the insert will update the 'maxKey' for auto_increment primary keys
          */
-        Record record = insert.getRecord();
-        Bytes key = record.key;
+        Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context));
+        byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context);
+        
         LockHandle lock = lockForWrite(key, transaction);
         try {
             if (transaction != null) {
@@ -231,8 +234,8 @@ public class TableManager {
             }
             if (keyToPage.containsKey(key)) {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
-            }
-            LogEntry entry = LogEntryFactory.insert(table, record.key.data, record.value.data, transaction);
+            }            
+            LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
             log.log(entry);
             apply(entry);
             return new DMLStatementExecutionResult(1, key);
@@ -245,7 +248,7 @@ public class TableManager {
         }
     }
 
-    private StatementExecutionResult executeUpdate(UpdateStatement update, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
+    private StatementExecutionResult executeUpdate(UpdateStatement update, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
         /*
               an update can succeed only if the row is valid, the key is contains in the "keys" structure
               the update will simply override the value of the row, assigning a null page to the row
@@ -255,7 +258,7 @@ public class TableManager {
         RecordFunction function = update.getFunction();
 
         Predicate predicate = update.getPredicate();
-        Bytes key = update.getKey();
+        Bytes key = new Bytes(update.getKey().computeNewValue(null, context));
         LockHandle lock = lockForWrite(key, transaction);
         try {
             byte[] newValue;
@@ -271,11 +274,11 @@ public class TableManager {
                     actual = transaction.recordInserted(table.name, key);
                 }
                 if (actual != null) {
-                    if (predicate != null && !predicate.evaluate(actual)) {
+                    if (predicate != null && !predicate.evaluate(actual, context)) {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(0, key);
                     }
-                    newValue = function.computeNewValue(actual);
+                    newValue = function.computeNewValue(actual, context);
                 } else {
                     // update on a untouched record by this transaction
                     Long pageId = keyToPage.get(key);
@@ -288,11 +291,11 @@ public class TableManager {
                         ensurePageLoaded(pageId);
                         actual = buffer.get(key);
                     }
-                    if (predicate != null && !predicate.evaluate(actual)) {
+                    if (predicate != null && !predicate.evaluate(actual, context)) {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(0, key);
                     }
-                    newValue = function.computeNewValue(actual);
+                    newValue = function.computeNewValue(actual, context);
                 }
             } else {
                 Long pageId = keyToPage.get(key);
@@ -305,11 +308,11 @@ public class TableManager {
                     ensurePageLoaded(pageId);
                     actual = buffer.get(key);
                 }
-                if (predicate != null && !predicate.evaluate(actual)) {
+                if (predicate != null && !predicate.evaluate(actual, context)) {
                     // record does not match predicate
                     return new DMLStatementExecutionResult(0, key);
                 }
-                newValue = function.computeNewValue(actual);
+                newValue = function.computeNewValue(actual, context);
             }
             if (newValue == null) {
                 throw new NullPointerException("new value cannot be null");
@@ -329,14 +332,14 @@ public class TableManager {
         }
     }
 
-    private StatementExecutionResult executeDelete(DeleteStatement delete, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
+    private StatementExecutionResult executeDelete(DeleteStatement delete, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
         /*
                   a delete can succeed only if the key is contains in the 'keys" structure
                   a delete will remove the key from each of the structures
                   locks: the delete uses a lock on the the key
                   the delete can have a 'where' predicate which is to be evaluated against the decoded row, the delete  will be executed only if the predicate returns boolean 'true' value  (CAS operation)
          */
-        Bytes key = delete.getKey();
+        Bytes key = new Bytes(delete.getKeyFunction().computeNewValue(null, context));
         LockHandle lock = lockForWrite(key, transaction);
         try {
             if (transaction != null) {
@@ -352,7 +355,7 @@ public class TableManager {
                     actual = transaction.recordInserted(table.name, key);
                 }
                 if (actual != null) {
-                    if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
+                    if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(0, key);
                     }
@@ -369,7 +372,7 @@ public class TableManager {
                         ensurePageLoaded(pageId);
                         actual = buffer.get(key);
                     }
-                    if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
+                    if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(0, key);
                     }
@@ -386,7 +389,7 @@ public class TableManager {
                     ensurePageLoaded(pageId);
                     actual = buffer.get(key);
                 }
-                if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual)) {
+                if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
                     // record does not match predicate
                     return new DMLStatementExecutionResult(0, key);
                 }
@@ -495,8 +498,8 @@ public class TableManager {
         // TODO
     }
 
-    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction) throws StatementExecutionException, DataStorageManagerException {
-        Bytes key = get.getKey();
+    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
+        Bytes key = new Bytes(get.getKey().computeNewValue(null, context));
         Predicate predicate = get.getPredicate();
         LockHandle lock = lockForRead(key, transaction);
         try {
@@ -506,14 +509,14 @@ public class TableManager {
                 }
                 Record loadedInTransaction = transaction.recordUpdated(table.name, key);
                 if (loadedInTransaction != null) {
-                    if (predicate != null && !predicate.evaluate(loadedInTransaction)) {
+                    if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
                         return GetResult.NOT_FOUND;
                     }
                     return new GetResult(loadedInTransaction, table);
                 }
                 loadedInTransaction = transaction.recordInserted(table.name, key);
                 if (loadedInTransaction != null) {
-                    if (predicate != null && !predicate.evaluate(loadedInTransaction)) {
+                    if (predicate != null && !predicate.evaluate(loadedInTransaction, context)) {
                         return GetResult.NOT_FOUND;
                     }
                     return new GetResult(loadedInTransaction, table);
@@ -522,7 +525,7 @@ public class TableManager {
             // fastest path first, check if the record is loaded in memory
             Record loaded = buffer.get(key);
             if (loaded != null) {
-                if (predicate != null && !predicate.evaluate(loaded)) {
+                if (predicate != null && !predicate.evaluate(loaded, context)) {
                     return GetResult.NOT_FOUND;
                 }
                 return new GetResult(loaded, table);
@@ -537,7 +540,7 @@ public class TableManager {
             if (loaded == null) {
                 throw new StatementExecutionException("corrupted data, missing record " + key);
             }
-            if (predicate != null && !predicate.evaluate(loaded)) {
+            if (predicate != null && !predicate.evaluate(loaded, context)) {
                 return GetResult.NOT_FOUND;
             }
             return new GetResult(loaded, table);
@@ -621,17 +624,24 @@ public class TableManager {
         }
     }
 
+    private static class RecordSet {
+
+        private List<Record> records = new ArrayList<>();
+    }
+
     private class SimpleDataScanner extends DataScanner {
 
-        final Iterator<Map.Entry<Bytes, Long>> keys;
+        final RecordSet keys;
         final Predicate predicate;
+        final Iterator<Record> iterator;
         Tuple next;
         boolean finished;
 
-        public SimpleDataScanner(Table table, Iterator<Map.Entry<Bytes, Long>> keys, ScanStatement statement) {
+        public SimpleDataScanner(Table table, RecordSet keys, ScanStatement statement) {
             super(table, statement);
             this.keys = keys;
             this.predicate = statement.getPredicate();
+            this.iterator = keys.records.iterator();
         }
 
         @Override
@@ -653,28 +663,16 @@ public class TableManager {
             }
             try {
                 while (true) {
-                    if (!keys.hasNext()) {
+                    if (!iterator.hasNext()) {
                         finished = true;
                         return false;
                     }
-                    Map.Entry<Bytes, Long> entry = keys.next();
-                    Bytes key = entry.getKey();
-                    Long pageId = entry.getValue();
-                    Record record;
-                    if (Objects.equals(pageId, NO_PAGE)) {
-                        record = buffer.get(key);
-                    } else {
-                        // TODO: read page and not keep it in memory
-                        ensurePageLoaded(pageId);
-                        record = buffer.get(key);
-                    }
-                    if (predicate == null || predicate.evaluate(record)) {
-                        next = scan.getProjection().map(new Tuple(record.toBean(table)));
-                        return true;
-                    }
+                    Record record = iterator.next();
+                    next = scan.getProjection().map(new Tuple(record.toBean(table)));
+                    return true;
                     // RECORD does not match, iterate again
                 }
-            } catch (DataStorageManagerException | StatementExecutionException err) {
+            } catch (StatementExecutionException err) {
                 throw new DataScannerException(err);
             }
         }
@@ -691,8 +689,50 @@ public class TableManager {
 
     }
 
-    DataScanner scan(ScanStatement statement) throws StatementExecutionException {
-        return new SimpleDataScanner(table, keyToPage.entrySet().iterator(), statement);
+    DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
+        // TODO, support transactions
+        Transaction transaction = null;
+        Predicate predicate = statement.getPredicate();
+
+        RecordSet recordSet = new RecordSet();
+        // TODO: swap on disk the resultset
+        try {
+            if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
+                PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
+                GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
+                if (getResult.found()) {
+                    recordSet.records.add(getResult.getRecord());
+                }
+            } else {
+                // TODO: swap on disk the resultset
+                for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
+                    Bytes key = entry.getKey();
+                    LockHandle lock = lockForRead(key, transaction);
+                    try {
+                        Long pageId = entry.getValue();
+                        if (pageId != null) { // record disappeared during the scan
+                            Record record;
+                            if (Objects.equals(pageId, NO_PAGE)) {
+                                record = buffer.get(key);
+                            } else {
+                                ensurePageLoaded(pageId);
+                                record = buffer.get(key);
+                            }
+                            if (predicate == null || predicate.evaluate(record, context)) {
+                                recordSet.records.add(record);
+                            }
+                        }
+                    } finally {
+                        if (transaction == null) {
+                            locksManager.releaseReadLockForKey(key, lock);
+                        }
+                    }
+                }
+            }
+            return new SimpleDataScanner(table, recordSet, statement);
+        } catch (DataStorageManagerException err) {
+            throw new StatementExecutionException(err);
+        }
     }
 
 }
