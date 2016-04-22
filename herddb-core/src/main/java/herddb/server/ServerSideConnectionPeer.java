@@ -37,6 +37,7 @@ import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.ServerSideConnection;
+import herddb.sql.TranslatedQuery;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -78,14 +79,16 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         switch (message.type) {
             case Message.TYPE_EXECUTE_STATEMENT: {
                 Long tx = (Long) message.parameters.get("tx");
+                long txId = tx != null ? tx : 0;
                 String query = (String) message.parameters.get("query");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    Statement statement = server.getManager().getTranslator().translate(query, parameters);
-                    if (tx != null && tx > 0) {
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, false, txId <= 0);
+                    Statement statement = translatedQuery.statement;
+                    if (txId > 0) {
                         statement.setTransactionId(tx);
                     }
-                    StatementExecutionResult result = server.getManager().executeStatement(statement);
+                    StatementExecutionResult result = server.getManager().executeStatement(statement, translatedQuery.context);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), null));
@@ -114,15 +117,21 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             break;
             case Message.TYPE_OPENSCANNER: {
+                Long tx = (Long) message.parameters.get("tx");
+                long txId = tx != null ? tx : 0;
                 String query = (String) message.parameters.get("query");
                 String scannerId = (String) message.parameters.get("scannerId");
                 int fetchSize = (Integer) message.parameters.get("fetchSize");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    Statement statement = server.getManager().getTranslator().translate(query, parameters, true);
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, true, txId <= 0);
+                    Statement statement = translatedQuery.statement;
+                    if (txId > 0) {
+                        statement.setTransactionId(tx);
+                    }
                     if (statement instanceof ScanStatement) {
                         ScanStatement scan = (ScanStatement) statement;
-                        DataScanner dataScanner = server.getManager().scan(scan);
+                        DataScanner dataScanner = server.getManager().scan(scan, translatedQuery.context);
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
                         List<Tuple> records = dataScanner.consume(fetchSize);
                         List<Map<String, Object>> converted = new ArrayList<>();

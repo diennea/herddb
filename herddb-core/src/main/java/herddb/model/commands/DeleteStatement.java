@@ -19,8 +19,10 @@
  */
 package herddb.model.commands;
 
+import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.Predicate;
+import herddb.model.RecordFunction;
 import herddb.utils.Bytes;
 
 /**
@@ -31,17 +33,23 @@ import herddb.utils.Bytes;
  */
 public class DeleteStatement extends DMLStatement {
 
-    private final Bytes key;
+    private final RecordFunction keyFunction;
     private final Predicate predicate;
 
     public DeleteStatement(String tableSpace, String table, Bytes key, Predicate predicate) {
         super(table, tableSpace);
-        this.key = key;
+        this.keyFunction = new ConstValueRecordFunction(key.data);
         this.predicate = predicate;
     }
 
-    public Bytes getKey() {
-        return key;
+    public DeleteStatement(String tableSpace, String table, RecordFunction keyFunction, Predicate predicate) {
+        super(table, tableSpace);
+        this.keyFunction = keyFunction;
+        this.predicate = predicate;
+    }
+
+    public RecordFunction getKeyFunction() {
+        return keyFunction;
     }
 
     public Predicate getPredicate() {

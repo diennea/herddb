@@ -26,5 +26,5 @@ package herddb.model;
  */
 public abstract class Predicate {
 
-    public abstract boolean evaluate(Record record) throws StatementExecutionException;
+    public abstract boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException;
 }

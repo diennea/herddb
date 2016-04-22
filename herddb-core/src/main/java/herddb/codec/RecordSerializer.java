@@ -83,8 +83,8 @@ public final class RecordSerializer {
             case ColumnTypes.STRING:
                 return Bytes.from_string(v.toString()).data;
             case ColumnTypes.TIMESTAMP:
-                if (!(v instanceof java.sql.Timestamp)){
-                    throw new IllegalArgumentException("bad value type for column " + type+": required java.sql.Timestamp, but was " + v.getClass());
+                if (!(v instanceof java.sql.Timestamp)) {
+                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass());
                 }
                 return Bytes.from_timestamp((java.sql.Timestamp) v).data;
             default:
@@ -128,19 +128,21 @@ public final class RecordSerializer {
             Map<String, Object> res = new HashMap<>();
             res.put(table.primaryKeyColumn, deserialize(record.key.data, table.getColumn(table.primaryKeyColumn).type));
 
-            ByteArrayInputStream s = new ByteArrayInputStream(record.value.data);
-            DataInputStream din = new DataInputStream(s);
-            while (true) {
-                String name;
-                try {
-                    name = din.readUTF();
-                } catch (EOFException ok) {
-                    break;
+            if (record.value != null) {
+                ByteArrayInputStream s = new ByteArrayInputStream(record.value.data);
+                DataInputStream din = new DataInputStream(s);
+                while (true) {
+                    String name;
+                    try {
+                        name = din.readUTF();
+                    } catch (EOFException ok) {
+                        break;
+                    }
+                    int len = din.readInt();
+                    byte[] v = new byte[len];
+                    din.readFully(v);
+                    res.put(name, deserialize(v, table.getColumn(name).type));
                 }
-                int len = din.readInt();
-                byte[] v = new byte[len];
-                din.readFully(v);
-                res.put(name, deserialize(v, table.getColumn(name).type));
             }
             return res;
         } catch (IOException err) {

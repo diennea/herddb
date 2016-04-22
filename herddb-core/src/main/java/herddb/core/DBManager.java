@@ -25,6 +25,7 @@ import herddb.log.LogNotAvailableException;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
+import herddb.model.DDLStatement;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
@@ -33,6 +34,7 @@ import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpaceDoesNotExistException;
@@ -40,10 +42,10 @@ import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.sql.SQLStatementEvaluationContext;
 import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -212,37 +214,47 @@ public class DBManager implements AutoCloseable {
     }
 
     public StatementExecutionResult executeStatement(Statement statement) throws StatementExecutionException {
+        return executeStatement(statement, new StatementEvaluationContext());
+    }
+
+    public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context) throws StatementExecutionException {
         LOGGER.log(Level.FINEST, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
         }
-
-        if (statement instanceof CreateTableSpaceStatement) {
-            if (statement.getTransactionId() > 0) {
-                throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
-            }
-            return createTableSpace((CreateTableSpaceStatement) statement);
-        }
-
-        if (statement instanceof AlterTableSpaceStatement) {
-            if (statement.getTransactionId() > 0) {
-                throw new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction");
-            }
-            return alterTableSpace((AlterTableSpaceStatement) statement);
-        }
-
-        TableSpaceManager manager;
-        generalLock.readLock().lock();
         try {
-            manager = tablesSpaces.get(tableSpace);
+            if (statement instanceof CreateTableSpaceStatement) {
+                if (statement.getTransactionId() > 0) {
+                    throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
+                }
+                return createTableSpace((CreateTableSpaceStatement) statement);
+            }
+
+            if (statement instanceof AlterTableSpaceStatement) {
+                if (statement.getTransactionId() > 0) {
+                    throw new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction");
+                }
+                return alterTableSpace((AlterTableSpaceStatement) statement);
+            }
+
+            TableSpaceManager manager;
+            generalLock.readLock().lock();
+            try {
+                manager = tablesSpaces.get(tableSpace);
+            } finally {
+                generalLock.readLock().unlock();
+            }
+            if (manager == null) {
+                throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
+            }
+            return manager.executeStatement(statement, context);
         } finally {
-            generalLock.readLock().unlock();
+            if (statement instanceof DDLStatement) {
+                translator.clearCache();
+            }
+
         }
-        if (manager == null) {
-            throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
-        }
-        return manager.executeStatement(statement);
     }
 
     /**
@@ -253,10 +265,18 @@ public class DBManager implements AutoCloseable {
      * @throws StatementExecutionException
      */
     public GetResult get(GetStatement statement) throws StatementExecutionException {
-        return (GetResult) executeStatement(statement);
+        return (GetResult) executeStatement(statement, new StatementEvaluationContext());
+    }
+    
+    public GetResult get(GetStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
+        return (GetResult) executeStatement(statement, context);
     }
 
     public DataScanner scan(ScanStatement statement) throws StatementExecutionException {
+        return scan(statement, new StatementEvaluationContext());
+    }
+
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
@@ -271,7 +291,7 @@ public class DBManager implements AutoCloseable {
         if (manager == null) {
             throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
         }
-        return manager.scan(statement);
+        return manager.scan(statement, context);
     }
 
     /**
@@ -283,7 +303,11 @@ public class DBManager implements AutoCloseable {
      * @throws herddb.model.StatementExecutionException
      */
     public DMLStatementExecutionResult executeUpdate(DMLStatement statement) throws StatementExecutionException {
-        return (DMLStatementExecutionResult) executeStatement(statement);
+        return (DMLStatementExecutionResult) executeStatement(statement, new StatementEvaluationContext());
+    }
+    
+    public DMLStatementExecutionResult executeUpdate(DMLStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
+        return (DMLStatementExecutionResult) executeStatement(statement, context);
     }
 
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {

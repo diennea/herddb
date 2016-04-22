@@ -32,6 +32,7 @@ import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.Statement;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
@@ -200,7 +201,7 @@ public class TableSpaceManager {
 
     }
 
-    DataScanner scan(ScanStatement statement) throws StatementExecutionException {
+    DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         if (statement.getTransactionId() > 0) {
             throw new StatementExecutionException("transactions are not yet supported on scan");
         }
@@ -215,7 +216,7 @@ public class TableSpaceManager {
         if (manager == null) {
             throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
         }
-        return manager.scan(statement);
+        return manager.scan(statement, context);
     }
 
     private class FollowerThread implements Runnable {
@@ -281,7 +282,7 @@ public class TableSpaceManager {
 
     private ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
-    StatementExecutionResult executeStatement(Statement statement) throws StatementExecutionException {
+    StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context) throws StatementExecutionException {
         Transaction transaction = transactions.get(statement.getTransactionId());
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
@@ -315,7 +316,7 @@ public class TableSpaceManager {
             if (manager == null) {
                 throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
             }
-            return manager.executeStatement(statement, transaction);
+            return manager.executeStatement(statement, transaction, context);
         }
 
         throw new StatementExecutionException("unsupported statement " + statement);

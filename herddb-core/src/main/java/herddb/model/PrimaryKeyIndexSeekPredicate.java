@@ -19,22 +19,25 @@
  */
 package herddb.model;
 
+import herddb.utils.Bytes;
+
 /**
- * A Constant value for the record
+ * A Special Predicate which goes directly to the key of an index
  *
  * @author enrico.olivelli
  */
-public class ConstValueRecordFunction extends RecordFunction {
+public class PrimaryKeyIndexSeekPredicate extends Predicate {
 
-    private final byte[] value;
+    public final RecordFunction key;
 
-    public ConstValueRecordFunction(byte[] value) {
-        this.value = value;
+    public PrimaryKeyIndexSeekPredicate(RecordFunction key) {
+        this.key = key;
     }
 
     @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
-        return value;
+    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+        Bytes keyValue = new Bytes(key.computeNewValue(record, context));
+        return record.key.equals(keyValue);
     }
 
 }

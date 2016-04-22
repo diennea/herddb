@@ -38,39 +38,34 @@ import net.sf.jsqlparser.schema.Column;
  *
  * @author enrico.olivelli
  */
-public class SQLRecordFunction extends RecordFunction {
+public class SQLRecordKeyFunction extends RecordFunction {
 
-    private final Table table;
-    private final List<Column> columns;
-    private final List<Expression> expressions;
+    private final Expression expression;
+    private final herddb.model.Column column;
     private final int jdbcParametersStartPos;
 
-    public SQLRecordFunction(Table table, List<Column> columns, List<Expression> expressions, int jdbcParametersStartPos) {
-        this.table = table;
-        this.columns = columns;
-        this.expressions = expressions;
+    public SQLRecordKeyFunction(Table table, Expression expression, int jdbcParametersStartPos) {
         this.jdbcParametersStartPos = jdbcParametersStartPos;
+        this.column = table.getColumn(table.primaryKeyColumn);
+        this.expression = expression;
     }
 
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
-        SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
-        Map<String, Object> bean = previous != null ? RecordSerializer.toBean(previous, table) : new HashMap<>();        
+        SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;        
+
         int paramIndex = jdbcParametersStartPos;
-        for (int i = 0; i < columns.size(); i++) {
-            Expression e = expressions.get(i);
-            if (e instanceof JdbcParameter) {
-                Object param = statementEvaluationContext.jdbcParameters.get(paramIndex++);
-                bean.put(columns.get(i).getColumnName(), param);
-            } else if (e instanceof LongValue) {
-                bean.put(columns.get(i).getColumnName(), ((LongValue) e).getValue());
-            } else if (e instanceof StringValue) {
-                bean.put(columns.get(i).getColumnName(), ((StringValue) e).getValue());
-            } else {
-                throw new RuntimeException("unsupported type " + e.getClass() + " " + e);
-            }
+        Object value;
+        if (expression instanceof JdbcParameter) {
+            value = statementEvaluationContext.jdbcParameters.get(paramIndex++);
+        } else if (expression instanceof LongValue) {
+            value = ((LongValue) expression).getValue();
+        } else if (expression instanceof StringValue) {
+            value = ((StringValue) expression).getValue();
+        } else {
+            throw new RuntimeException("unsupported type " + expression.getClass() + " " + expression);
         }
-        return RecordSerializer.toRecord(bean, table).value.data;
+        return RecordSerializer.serialize(value, column.type);
     }
 
 }

@@ -23,6 +23,7 @@ import herddb.codec.RecordSerializer;
 import herddb.model.Column;
 import herddb.model.Predicate;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import java.util.List;
@@ -48,20 +49,31 @@ public class SQLRecordPredicate extends Predicate {
 
     private final Table table;
     private final Expression where;
-    private final List<Object> parameters;
-    private int parameterPos;
+    private final int firstParameterPos;
 
-    public SQLRecordPredicate(Table table, Expression where, List<Object> parameters, int parameterPos) {
+    private class EvaluationState {
+
+        int parameterPos;
+        List<Object> parameters;
+
+        public EvaluationState(int parameterPos, List<Object> parameters) {
+            this.parameterPos = parameterPos;
+            this.parameters = parameters;
+        }
+    }
+
+    public SQLRecordPredicate(Table table, Expression where, int parameterPos) {
         this.table = table;
         this.where = where;
-        this.parameters = parameters;
-        this.parameterPos = parameterPos;
+        this.firstParameterPos = parameterPos;
     }
 
     @Override
-    public boolean evaluate(Record record) throws StatementExecutionException {
+    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+        SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = RecordSerializer.toBean(record, table);
-        return toBoolean(evaluateExpression(where, bean));
+        EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters);
+        return toBoolean(evaluateExpression(where, bean, state));
     }
 
     private static boolean toBoolean(Object result) {
@@ -81,36 +93,36 @@ public class SQLRecordPredicate extends Predicate {
         return result;
     }
 
-    private Object evaluateExpression(Expression expression, Map<String, Object> bean) throws StatementExecutionException {
+    private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
-            return parameters.get(parameterPos++);
+            return state.parameters.get(state.parameterPos++);
         }
         if (expression instanceof EqualsTo) {
             EqualsTo e = (EqualsTo) expression;
-            Object left = evaluateExpression(e.getLeftExpression(), bean);
-            Object right = evaluateExpression(e.getRightExpression(), bean);
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), Objects.equals(left, right));
         }
         if (expression instanceof NotEqualsTo) {
             NotEqualsTo e = (NotEqualsTo) expression;
-            Object left = evaluateExpression(e.getLeftExpression(), bean);
-            Object right = evaluateExpression(e.getRightExpression(), bean);
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), !Objects.equals(left, right));
         }
         if (expression instanceof AndExpression) {
             AndExpression a = (AndExpression) expression;
 
-            if (!toBoolean(evaluateExpression(a.getLeftExpression(), bean))) {
+            if (!toBoolean(evaluateExpression(a.getLeftExpression(), bean, state))) {
                 return !a.isNot();
             }
-            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean)));
+            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
         }
         if (expression instanceof OrExpression) {
             OrExpression a = (OrExpression) expression;
-            if (toBoolean(evaluateExpression(a.getLeftExpression(), bean))) {
+            if (toBoolean(evaluateExpression(a.getLeftExpression(), bean, state))) {
                 return !a.isNot();
             }
-            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean)));
+            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
         }
         if (expression instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
@@ -121,7 +133,7 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof Parenthesis) {
             Parenthesis p = (Parenthesis) expression;
-            return handleNot(p.isNot(), evaluateExpression(p.getExpression(), bean));
+            return handleNot(p.isNot(), evaluateExpression(p.getExpression(), bean, state));
         }
         if (expression instanceof StringValue) {
             return ((StringValue) expression).getValue();
@@ -131,7 +143,7 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof IsNullExpression) {
             IsNullExpression e = (IsNullExpression) expression;
-            Object value = evaluateExpression(e.getLeftExpression(), bean);
+            Object value = evaluateExpression(e.getLeftExpression(), bean, state);
             boolean result = value == null;
             return handleNot(e.isNot(), result);
         }

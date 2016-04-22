@@ -21,6 +21,7 @@ package herddb.model.predicates;
 
 import herddb.model.Predicate;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.Bytes;
 
@@ -38,7 +39,7 @@ public class RawValueEquals extends Predicate {
     }
 
     @Override
-    public boolean evaluate(Record record) throws StatementExecutionException {
+    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         return record.value.equals(value);
     }
 

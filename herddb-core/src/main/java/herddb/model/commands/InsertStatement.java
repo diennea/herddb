@@ -19,8 +19,11 @@
  */
 package herddb.model.commands;
 
+import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.Record;
+import herddb.model.RecordFunction;
+import herddb.utils.Bytes;
 
 /**
  * Insert a new record
@@ -29,15 +32,27 @@ import herddb.model.Record;
  */
 public class InsertStatement extends DMLStatement {
 
-    private final Record record;
+    private final RecordFunction keyFunction;
+    private final RecordFunction valuesFunction;
 
     public InsertStatement(String tableSpace, String table, Record record) {
         super(table, tableSpace);
-        this.record = record;
+        this.keyFunction = new ConstValueRecordFunction(record.key.data);
+        this.valuesFunction = new ConstValueRecordFunction(record.value.data);
     }
 
-    public Record getRecord() {
-        return record;
+    public InsertStatement(String tableSpace, String table, RecordFunction keyFunction, RecordFunction function) {
+        super(table, tableSpace);
+        this.keyFunction = keyFunction;
+        this.valuesFunction = function;
+    }
+
+    public RecordFunction getKeyFunction() {
+        return keyFunction;
+    }
+
+    public RecordFunction getValuesFunction() {
+        return valuesFunction;
     }
 
 }

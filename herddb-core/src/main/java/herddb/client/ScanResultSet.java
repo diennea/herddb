@@ -41,8 +41,7 @@ public abstract class ScanResultSet implements AutoCloseable {
     public List< Map<String, Object>> consume() throws HDBException {
         List<Map<String, Object>> result = new ArrayList<>();
         while (hasNext()) {
-            Map<String, Object> record = next();
-            System.out.println("GOT " + record);
+            Map<String, Object> record = next();            
             result.add(record);
         }
         return result;

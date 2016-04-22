@@ -34,14 +34,14 @@ import herddb.utils.Bytes;
 public class UpdateStatement extends DMLStatement {
 
     private final RecordFunction function;
-    private final Bytes key;
+    private final RecordFunction key;
     private final Predicate predicate;
 
     public UpdateStatement(String tableSpace, String table, Record record, Predicate predicate) {
-        this(tableSpace, table, record.key, new ConstValueRecordFunction(record.value.data), predicate);
+        this(tableSpace, table, new ConstValueRecordFunction(record.key.data), new ConstValueRecordFunction(record.value.data), predicate);
     }
 
-    public UpdateStatement(String tableSpace, String table, Bytes key, RecordFunction function, Predicate predicate) {
+    public UpdateStatement(String tableSpace, String table, RecordFunction key, RecordFunction function, Predicate predicate) {
         super(table, tableSpace);
         this.function = function;
         this.predicate = predicate;
@@ -52,7 +52,7 @@ public class UpdateStatement extends DMLStatement {
         return function;
     }
 
-    public Bytes getKey() {
+    public RecordFunction getKey() {
         return key;
     }
 
