@@ -22,6 +22,7 @@ package herddb.model;
 import herddb.model.commands.ScanStatement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * Live scanner of data
@@ -50,6 +51,18 @@ public abstract class DataScanner implements AutoCloseable {
 
     public abstract Tuple next() throws DataScannerException;
 
+    /**
+     * Consumers all the records in memory
+     *
+     * @param consumer
+     * @throws herddb.model.DataScannerException
+     */
+    public void forEach(Consumer<Tuple> consumer) throws DataScannerException {
+        while (hasNext()) {
+            consumer.accept(next());
+        }
+    }
+
     @Override
     public void close() throws DataScannerException {
     }
@@ -61,9 +74,7 @@ public abstract class DataScanner implements AutoCloseable {
      */
     public List<Tuple> consume() throws DataScannerException {
         List<Tuple> records = new ArrayList<>();
-        while (hasNext()) {
-            records.add(next());
-        }
+        forEach(records::add);
         return records;
     }
 

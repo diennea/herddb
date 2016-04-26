@@ -96,6 +96,16 @@ public final class RecordSerializer {
     private RecordSerializer() {
     }
 
+    public static Record makeRecord(Table table, Object... values) {
+        Map<String, Object> record = new HashMap<>();
+        for (int i = 0; i < values.length; i++) {
+            Object name = values[i++];
+            Object value = values[i];
+            record.put((String) name, value);
+        }
+        return toRecord(record, table);
+    }
+
     public static Record toRecord(Map<String, Object> record, Table table) {
         // TODO: better serialization
         ByteArrayOutputStream value = new ByteArrayOutputStream();

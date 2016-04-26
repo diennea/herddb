@@ -32,7 +32,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * In memory StorageManager, for tests
@@ -40,6 +41,8 @@ import java.util.stream.Collectors;
  * @author enrico.olivelli
  */
 public class MemoryDataStorageManager extends DataStorageManager {
+
+    private static final Logger LOGGER = Logger.getLogger(MemoryDataStorageManager.class.getName());
 
     public static final class Page {
 
@@ -58,6 +61,14 @@ public class MemoryDataStorageManager extends DataStorageManager {
         public LogSequenceNumber getSequenceNumber() {
             return sequenceNumber;
         }
+
+        @Override
+        public String toString() {
+            return "Page{" + "records=" + records.size() + ", sequenceNumber=" + sequenceNumber + '}';
+        }
+        
+        
+        
 
     }
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
@@ -83,6 +94,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public List<Record> loadPage(String tableName, Long pageId) {
         Page page = pages.get(tableName + "_" + pageId);
+        LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         return page != null ? page.records : null;
     }
 
@@ -94,8 +106,9 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public Long writePage(String tableName, LogSequenceNumber sequenceNumber, List<Record> newPage) {
         long pageId = newPageId.incrementAndGet();
-        Page page = new Page(newPage, sequenceNumber);
+        Page page = new Page(new ArrayList<>(newPage), sequenceNumber);
         pages.put(tableName + "_" + pageId, page);
+        LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
         return pageId;
     }
 
