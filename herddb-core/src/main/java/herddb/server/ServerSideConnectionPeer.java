@@ -132,6 +132,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (statement instanceof ScanStatement) {
                         ScanStatement scan = (ScanStatement) statement;
                         DataScanner dataScanner = server.getManager().scan(scan, translatedQuery.context);
+                        if (translatedQuery.plan.mainAggregator != null) {
+                            dataScanner = translatedQuery.plan.mainAggregator.aggregate(dataScanner);
+                        }
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
                         List<Tuple> records = dataScanner.consume(fetchSize);
                         List<Map<String, Object>> converted = new ArrayList<>();

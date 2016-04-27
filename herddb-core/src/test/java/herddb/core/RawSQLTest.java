@@ -53,12 +53,12 @@ import static org.junit.Assert.assertTrue;
 public class RawSQLTest {
 
     private DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters);
+        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
         return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context);
     }
 
     private StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters);
+        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
         return manager.executePlan(translated.plan, translated.context);
     }
 
@@ -176,7 +176,7 @@ public class RawSQLTest {
                     assertEquals("mykey", result.get(0).get(0));
                     assertEquals("mykey2", result.get(1).get(0));
                     assertEquals("mykey5", result.get(2).get(0));
-                    assertEquals("mykey3", result.get(3).get(0));                    
+                    assertEquals("mykey3", result.get(3).get(0));
                     assertEquals("mykey4", result.get(4).get(0)); // NULLS LAST
                 }
             }
@@ -279,7 +279,7 @@ public class RawSQLTest {
             }
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"));
+                TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), false, true);
                 GetStatement st_get = (GetStatement) translate1.plan.mainStatement;
                 GetResult result = manager.get(st_get, translate1.context);
                 assertTrue(result.found());
@@ -290,7 +290,7 @@ public class RawSQLTest {
             }
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 999));
+                TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 999), false, true);
                 GetStatement st_get_with_condition = (GetStatement) translate1.plan.mainStatement;
                 GetResult result = manager.get(st_get_with_condition, translate1.context);
                 assertTrue(result.found());
@@ -301,7 +301,7 @@ public class RawSQLTest {
             }
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 9992));
+                TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 9992), false, true);
                 GetStatement st_get_with_wrong_condition = (GetStatement) translate1.plan.mainStatement;
                 GetResult result = manager.get(st_get_with_wrong_condition, translate1.context);
                 assertFalse(result.found());

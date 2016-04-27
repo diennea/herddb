@@ -90,10 +90,6 @@ public class SQLTranslator {
         this.cache = new PlansCache();
     }
 
-    public TranslatedQuery translate(String query, List<Object> parameters) throws StatementExecutionException {
-        return translate(query, parameters, false, false);
-    }
-
     public TranslatedQuery translate(String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
         String cacheKey = "scan:" + scan + ",query:" + query;
         if (allowCache) {
@@ -103,28 +99,27 @@ public class SQLTranslator {
             }
         }
         try {
-            Statement result;
+            ExecutionPlan result;
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
-                result = buildCreateTableStatement((CreateTable) stmt);
+                result = ExecutionPlan.simple(buildCreateTableStatement((CreateTable) stmt));
             } else if (stmt instanceof Insert) {
-                result = buildInsertStatement((Insert) stmt);
+                result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
             } else if (stmt instanceof Delete) {
-                result = buildDeleteStatement((Delete) stmt);
+                result = ExecutionPlan.simple(buildDeleteStatement((Delete) stmt));
             } else if (stmt instanceof Update) {
-                result = buildUpdateStatement((Update) stmt);
+                result = ExecutionPlan.simple(buildUpdateStatement((Update) stmt));
             } else if (stmt instanceof Select) {
                 result = buildSelectStatement((Select) stmt, scan);
             } else if (stmt instanceof Execute) {
-                result = buildExecuteStatement((Execute) stmt);
+                result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
             } else {
                 throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
             }
-            ExecutionPlan plan = ExecutionPlan.simple(result);
             if (allowCache) {
-                cache.put(cacheKey, plan);
+                cache.put(cacheKey, result);
             }
-            return new TranslatedQuery(plan, new SQLStatementEvaluationContext(query, parameters));
+            return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
         } catch (JSQLParserException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
@@ -389,7 +384,7 @@ public class SQLTranslator {
         return result;
     }
 
-    private Statement buildSelectStatement(Select s, boolean scan) throws StatementExecutionException {
+    private ExecutionPlan buildSelectStatement(Select s, boolean scan) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
@@ -425,7 +420,6 @@ public class SQLTranslator {
             projection = new SQLProjection(selectBody.getSelectItems());
         }
         if (scan) {
-
             Predicate where = null;
             if (selectBody.getWhere() != null && selectBody.getWhere() instanceof EqualsTo) {
                 Expression key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, new AtomicInteger());
@@ -443,7 +437,8 @@ public class SQLTranslator {
                 comparator = new SQLTupleComparator(selectBody.getOrderByElements());
             }
             try {
-                return new ScanStatement(tableSpace, tableName, projection, where, comparator);
+                ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparator);
+                return ExecutionPlan.simple(statement);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
@@ -461,7 +456,7 @@ public class SQLTranslator {
             Predicate where = buildPredicate(selectBody.getWhere(), table, 0);
 
             try {
-                return new GetStatement(tableSpace, tableName, keyFunction, where);
+                return ExecutionPlan.simple(new GetStatement(tableSpace, tableName, keyFunction, where));
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }

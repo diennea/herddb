@@ -20,26 +20,17 @@
 package herddb.model;
 
 /**
- * Data access execution plan.
+ * Aggregates data
  *
  * @author enrico.olivelli
  */
-public class ExecutionPlan {
+public interface Aggregator {
 
-    public Statement mainStatement;
-    public Aggregator mainAggregator;
-
-    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator) {
-        this.mainStatement = mainStatement;
-        this.mainAggregator = mainAggregator;
-    }
-
-    public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null);
-    }
-
-    public static ExecutionPlan make(Statement statement, Aggregator aggregator) {
-        return new ExecutionPlan(statement, aggregator);
-    }
-
+    /**
+     * Aggregates data coming from another DataScanner
+     *
+     * @param scanner
+     * @return
+     */
+    public DataScanner aggregate(DataScanner scanner);
 }
