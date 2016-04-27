@@ -17,24 +17,15 @@
  under the License.
 
  */
-package herddb.sql;
+package herddb.model;
 
-import herddb.model.ExecutionPlan;
+import java.util.Comparator;
 
 /**
- * Result of SQL transaction, it is made of two parts, a cachable part (the
- * Statement) and a context, non cachable, part
+ * "Order by" clauses inplementaions
  *
  * @author enrico.olivelli
  */
-public class TranslatedQuery {
-
-    public final ExecutionPlan plan;
-    public final SQLStatementEvaluationContext context;
-
-    public TranslatedQuery(ExecutionPlan plan, SQLStatementEvaluationContext context) {
-        this.plan = plan;
-        this.context = context;
-    }
+public interface TupleComparator extends Comparator<Tuple> {
 
 }

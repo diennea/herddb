@@ -47,6 +47,7 @@ import herddb.model.DataScannerException;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Tuple;
+import herddb.model.TupleComparator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
@@ -694,22 +695,29 @@ public class TableManager {
 
     private static class RecordSet {
 
-        private List<Record> records = new ArrayList<>();
+        private List<Tuple> records = new ArrayList<>();
+
+        private void sort(TupleComparator comparator) {
+            if (comparator != null) {
+                records.sort(comparator);
+            }
+        }
     }
 
     private class SimpleDataScanner extends DataScanner {
 
         final RecordSet keys;
         final Predicate predicate;
-        final Iterator<Record> iterator;
+        final Iterator<Tuple> iterator;
         Tuple next;
         boolean finished;
 
         public SimpleDataScanner(Table table, RecordSet keys, ScanStatement statement) {
             super(table, statement);
             this.keys = keys;
+            this.keys.sort(statement.getComparator());
             this.predicate = statement.getPredicate();
-            this.iterator = keys.records.iterator();
+            this.iterator = this.keys.records.iterator();
         }
 
         @Override
@@ -735,8 +743,8 @@ public class TableManager {
                         finished = true;
                         return false;
                     }
-                    Record record = iterator.next();
-                    Tuple tuple = new Tuple(record.toBean(table));
+
+                    Tuple tuple = iterator.next();
                     next = scan.getProjection().map(tuple);
                     return true;
                     // RECORD does not match, iterate again
@@ -770,7 +778,7 @@ public class TableManager {
                 PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
                 GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
                 if (getResult.found()) {
-                    recordSet.records.add(getResult.getRecord());
+                    recordSet.records.add(new Tuple(getResult.getRecord().toBean(table)));
                 }
             } else {
                 pagesLock.readLock().lock();
@@ -793,7 +801,7 @@ public class TableManager {
                                     throw new RuntimeException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId);
                                 }
                                 if (predicate == null || predicate.evaluate(record, context)) {
-                                    recordSet.records.add(record);
+                                    recordSet.records.add(new Tuple(record.toBean(table)));
                                 }
                             }
                         } finally {

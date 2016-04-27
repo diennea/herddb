@@ -19,22 +19,38 @@
  */
 package herddb.sql;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import herddb.model.ExecutionPlan;
 
 /**
- * Result of SQL transaction, it is made of two parts, a cachable part (the
- * Statement) and a context, non cachable, part
+ * LRU Cache of Execution plans
  *
  * @author enrico.olivelli
  */
-public class TranslatedQuery {
+public class PlansCache {
 
-    public final ExecutionPlan plan;
-    public final SQLStatementEvaluationContext context;
+    private final Cache<String, ExecutionPlan> cache;
 
-    public TranslatedQuery(ExecutionPlan plan, SQLStatementEvaluationContext context) {
-        this.plan = plan;
-        this.context = context;
+    public PlansCache() {
+        this.cache = CacheBuilder
+                .newBuilder()
+                .initialCapacity(100)
+                .maximumSize(100)
+                .build();
+
+    }
+
+    public ExecutionPlan get(String sql) {
+        return this.cache.getIfPresent(sql);
+    }
+
+    public void put(String sql, ExecutionPlan statement) {
+        this.cache.put(sql, statement);
+    }
+
+    public void clear() {
+        this.cache.invalidateAll();
     }
 
 }

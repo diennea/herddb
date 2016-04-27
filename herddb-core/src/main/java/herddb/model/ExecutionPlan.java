@@ -17,40 +17,23 @@
  under the License.
 
  */
-package herddb.sql;
-
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import herddb.model.Statement;
+package herddb.model;
 
 /**
- * LRU Cache of statements
+ * Data access execution plan.
  *
  * @author enrico.olivelli
  */
-public class SQLStatementsCache {
+public class ExecutionPlan {
 
-    private final Cache<String, Statement> cache;
+    public Statement mainStatement;
 
-    public SQLStatementsCache() {
-        this.cache = CacheBuilder
-                .newBuilder()
-                .initialCapacity(100)
-                .maximumSize(100)
-                .build();
-
+    private ExecutionPlan(Statement mainStatement) {
+        this.mainStatement = mainStatement;
     }
 
-    public Statement get(String sql) {
-        return this.cache.getIfPresent(sql);
-    }
-
-    public void put(String sql, Statement statement) {
-        this.cache.put(sql, statement);
-    }
-
-    public void clear() {
-        this.cache.invalidateAll();
+    public static ExecutionPlan simple(Statement statement) {
+        return new ExecutionPlan(statement);
     }
 
 }

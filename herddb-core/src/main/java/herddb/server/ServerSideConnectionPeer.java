@@ -84,7 +84,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, false, txId <= 0);
-                    Statement statement = translatedQuery.statement;
+                    Statement statement = translatedQuery.plan.mainStatement;
                     if (txId > 0) {
                         statement.setTransactionId(tx);
                     }
@@ -125,7 +125,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, true, txId <= 0);
-                    Statement statement = translatedQuery.statement;
+                    Statement statement = translatedQuery.plan.mainStatement;
                     if (txId > 0) {
                         statement.setTransactionId(tx);
                     }

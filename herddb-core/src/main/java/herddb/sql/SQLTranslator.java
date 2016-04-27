@@ -19,12 +19,12 @@
  */
 package herddb.sql;
 
-import herddb.codec.RecordSerializer;
 import herddb.core.DBManager;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.Projection;
@@ -33,6 +33,7 @@ import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.TupleComparator;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
@@ -42,9 +43,7 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
-import herddb.utils.Bytes;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,7 +79,7 @@ import net.sf.jsqlparser.statement.update.Update;
 public class SQLTranslator {
 
     private final DBManager manager;
-    private final SQLStatementsCache cache;
+    private final PlansCache cache;
 
     public void clearCache() {
         cache.clear();
@@ -88,7 +87,7 @@ public class SQLTranslator {
 
     public SQLTranslator(DBManager manager) {
         this.manager = manager;
-        this.cache = new SQLStatementsCache();
+        this.cache = new PlansCache();
     }
 
     public TranslatedQuery translate(String query, List<Object> parameters) throws StatementExecutionException {
@@ -98,7 +97,7 @@ public class SQLTranslator {
     public TranslatedQuery translate(String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
         String cacheKey = "scan:" + scan + ",query:" + query;
         if (allowCache) {
-            Statement cached = cache.get(cacheKey);
+            ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
@@ -111,20 +110,21 @@ public class SQLTranslator {
             } else if (stmt instanceof Insert) {
                 result = buildInsertStatement((Insert) stmt);
             } else if (stmt instanceof Delete) {
-                result = buildDeleteStatement((Delete) stmt, parameters);
+                result = buildDeleteStatement((Delete) stmt);
             } else if (stmt instanceof Update) {
-                result = buildUpdateStatement((Update) stmt, parameters);
+                result = buildUpdateStatement((Update) stmt);
             } else if (stmt instanceof Select) {
                 result = buildSelectStatement((Select) stmt, scan);
             } else if (stmt instanceof Execute) {
-                result = buildExecuteStatement((Execute) stmt, parameters);
+                result = buildExecuteStatement((Execute) stmt);
             } else {
                 throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
             }
+            ExecutionPlan plan = ExecutionPlan.simple(result);
             if (allowCache) {
-                cache.put(cacheKey, result);
+                cache.put(cacheKey, plan);
             }
-            return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
+            return new TranslatedQuery(plan, new SQLStatementEvaluationContext(query, parameters));
         } catch (JSQLParserException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
@@ -204,7 +204,7 @@ public class SQLTranslator {
         List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
 
         int index = 0;
-        int countJdbcParametersBeforeKey = 0;        
+        int countJdbcParametersBeforeKey = 0;
         int countJdbcParameters = 0;
         ExpressionList list = (ExpressionList) s.getItemsList();
         for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
@@ -219,7 +219,7 @@ public class SQLTranslator {
                 countJdbcParametersBeforeKey = countJdbcParameters;
             }
             valuesColumns.add(c);
-            valuesExpressions.add(expression);            
+            valuesExpressions.add(expression);
             countJdbcParameters += countJdbcParametersUsedByExpression(expression);
         }
         if (keyValueExpression == null) {
@@ -235,7 +235,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildDeleteStatement(Delete s, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildDeleteStatement(Delete s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName();
@@ -267,7 +267,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildUpdateStatement(Update s, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildUpdateStatement(Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName();
@@ -438,8 +438,12 @@ public class SQLTranslator {
             if (where == null) {
                 where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), 0) : null;
             }
+            TupleComparator comparator = null;
+            if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
+                comparator = new SQLTupleComparator(selectBody.getOrderByElements());
+            }
             try {
-                return new ScanStatement(tableSpace, tableName, projection, where);
+                return new ScanStatement(tableSpace, tableName, projection, where, comparator);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
@@ -464,7 +468,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildExecuteStatement(Execute execute, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildExecuteStatement(Execute execute) throws StatementExecutionException {
         switch (execute.getName()) {
             case "BEGINTRANSACTION": {
                 if (execute.getExprList().getExpressions().size() != 1) {

@@ -30,6 +30,7 @@ import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
@@ -267,7 +268,7 @@ public class DBManager implements AutoCloseable {
     public GetResult get(GetStatement statement) throws StatementExecutionException {
         return (GetResult) executeStatement(statement, new StatementEvaluationContext());
     }
-    
+
     public GetResult get(GetStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         return (GetResult) executeStatement(statement, context);
     }
@@ -305,9 +306,21 @@ public class DBManager implements AutoCloseable {
     public DMLStatementExecutionResult executeUpdate(DMLStatement statement) throws StatementExecutionException {
         return (DMLStatementExecutionResult) executeStatement(statement, new StatementEvaluationContext());
     }
-    
+
     public DMLStatementExecutionResult executeUpdate(DMLStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         return (DMLStatementExecutionResult) executeStatement(statement, context);
+    }
+
+    /**
+     * Executes a Plan
+     *
+     * @param plan
+     * @param context
+     * @return
+     * @throws StatementExecutionException
+     */
+    public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
+        return executeStatement(plan.mainStatement, context);
     }
 
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {
