@@ -30,8 +30,10 @@ import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
+import herddb.model.ScanResult;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
@@ -42,7 +44,6 @@ import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.sql.SQLStatementEvaluationContext;
 import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -267,13 +268,27 @@ public class DBManager implements AutoCloseable {
     public GetResult get(GetStatement statement) throws StatementExecutionException {
         return (GetResult) executeStatement(statement, new StatementEvaluationContext());
     }
-    
+
     public GetResult get(GetStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         return (GetResult) executeStatement(statement, context);
     }
 
     public DataScanner scan(ScanStatement statement) throws StatementExecutionException {
         return scan(statement, new StatementEvaluationContext());
+    }
+
+    public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
+        if (plan.mainStatement instanceof ScanStatement) {
+            DataScanner result = scan((ScanStatement) plan.mainStatement, context);
+            if (plan.mainAggregator != null) {
+                return new ScanResult(plan.mainAggregator.aggregate(result));
+            } else {
+                return new ScanResult(result);
+            }
+        } else {
+            return executeStatement(plan.mainStatement, context);
+        }
+
     }
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
@@ -305,7 +320,7 @@ public class DBManager implements AutoCloseable {
     public DMLStatementExecutionResult executeUpdate(DMLStatement statement) throws StatementExecutionException {
         return (DMLStatementExecutionResult) executeStatement(statement, new StatementEvaluationContext());
     }
-    
+
     public DMLStatementExecutionResult executeUpdate(DMLStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         return (DMLStatementExecutionResult) executeStatement(statement, context);
     }

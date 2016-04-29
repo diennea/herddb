@@ -59,15 +59,20 @@ public class Tuple {
         }
     }
 
+    public int size() {
+        return values.length;
+    }
+
     public Map<String, Object> toMap() {
         if (map != null) {
             return map;
         }
-        map = new HashMap<>();
+        HashMap _map = new HashMap<>();
         for (int i = 0; i < fieldNames.length; i++) {
-            map.put(fieldNames[i], values[i]);
+            _map.put(fieldNames[i], values[i]);
         }
-        return map;
+        this.map = _map;
+        return _map;
     }
 
     @Override
@@ -75,5 +80,11 @@ public class Tuple {
         return "Tuple{" + "values=" + Arrays.toString(values) + ", fieldNames=" + Arrays.toString(fieldNames) + '}';
     }
 
-    
+    public Object get(int i) {
+        return values[i];
+    }
+
+    public Object get(String name) {
+        return toMap().get(name);
+    }
 }

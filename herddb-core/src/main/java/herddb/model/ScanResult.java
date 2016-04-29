@@ -17,24 +17,24 @@
  under the License.
 
  */
-package herddb.sql;
-
-import herddb.model.ExecutionPlan;
+package herddb.model;
 
 /**
- * Result of SQL transaction, it is made of two parts, a cachable part (the
- * Statement) and a context, non cachable, part
+ * Result of a Scan as StatementExecutionResult
  *
  * @author enrico.olivelli
  */
-public class TranslatedQuery {
+public class ScanResult extends StatementExecutionResult implements AutoCloseable {
 
-    public final ExecutionPlan plan;
-    public final SQLStatementEvaluationContext context;
+    public final DataScanner dataScanner;
 
-    public TranslatedQuery(ExecutionPlan plan, SQLStatementEvaluationContext context) {
-        this.plan = plan;
-        this.context = context;
+    public ScanResult(DataScanner dataScanner) {
+        this.dataScanner = dataScanner;
+    }
+
+    @Override
+    public void close() throws Exception {
+        dataScanner.close();
     }
 
 }

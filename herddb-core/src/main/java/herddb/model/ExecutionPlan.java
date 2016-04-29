@@ -17,24 +17,29 @@
  under the License.
 
  */
-package herddb.sql;
-
-import herddb.model.ExecutionPlan;
+package herddb.model;
 
 /**
- * Result of SQL transaction, it is made of two parts, a cachable part (the
- * Statement) and a context, non cachable, part
+ * Data access execution plan.
  *
  * @author enrico.olivelli
  */
-public class TranslatedQuery {
+public class ExecutionPlan {
 
-    public final ExecutionPlan plan;
-    public final SQLStatementEvaluationContext context;
+    public Statement mainStatement;
+    public Aggregator mainAggregator;
 
-    public TranslatedQuery(ExecutionPlan plan, SQLStatementEvaluationContext context) {
-        this.plan = plan;
-        this.context = context;
+    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator) {
+        this.mainStatement = mainStatement;
+        this.mainAggregator = mainAggregator;
+    }
+
+    public static ExecutionPlan simple(Statement statement) {
+        return new ExecutionPlan(statement, null);
+    }
+
+    public static ExecutionPlan make(Statement statement, Aggregator aggregator) {
+        return new ExecutionPlan(statement, aggregator);
     }
 
 }

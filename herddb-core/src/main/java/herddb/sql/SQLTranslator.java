@@ -19,12 +19,13 @@
  */
 package herddb.sql;
 
-import herddb.codec.RecordSerializer;
 import herddb.core.DBManager;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
+import herddb.model.Aggregator;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.Projection;
@@ -33,6 +34,7 @@ import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.TupleComparator;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
@@ -42,9 +44,7 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
-import herddb.utils.Bytes;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.Parenthesis;
@@ -80,7 +81,7 @@ import net.sf.jsqlparser.statement.update.Update;
 public class SQLTranslator {
 
     private final DBManager manager;
-    private final SQLStatementsCache cache;
+    private final PlansCache cache;
 
     public void clearCache() {
         cache.clear();
@@ -88,36 +89,32 @@ public class SQLTranslator {
 
     public SQLTranslator(DBManager manager) {
         this.manager = manager;
-        this.cache = new SQLStatementsCache();
-    }
-
-    public TranslatedQuery translate(String query, List<Object> parameters) throws StatementExecutionException {
-        return translate(query, parameters, false, false);
+        this.cache = new PlansCache();
     }
 
     public TranslatedQuery translate(String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
         String cacheKey = "scan:" + scan + ",query:" + query;
         if (allowCache) {
-            Statement cached = cache.get(cacheKey);
+            ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
         try {
-            Statement result;
+            ExecutionPlan result;
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
-                result = buildCreateTableStatement((CreateTable) stmt);
+                result = ExecutionPlan.simple(buildCreateTableStatement((CreateTable) stmt));
             } else if (stmt instanceof Insert) {
-                result = buildInsertStatement((Insert) stmt);
+                result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
             } else if (stmt instanceof Delete) {
-                result = buildDeleteStatement((Delete) stmt, parameters);
+                result = ExecutionPlan.simple(buildDeleteStatement((Delete) stmt));
             } else if (stmt instanceof Update) {
-                result = buildUpdateStatement((Update) stmt, parameters);
+                result = ExecutionPlan.simple(buildUpdateStatement((Update) stmt));
             } else if (stmt instanceof Select) {
                 result = buildSelectStatement((Select) stmt, scan);
             } else if (stmt instanceof Execute) {
-                result = buildExecuteStatement((Execute) stmt, parameters);
+                result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
             } else {
                 throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
             }
@@ -204,7 +201,7 @@ public class SQLTranslator {
         List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
 
         int index = 0;
-        int countJdbcParametersBeforeKey = 0;        
+        int countJdbcParametersBeforeKey = 0;
         int countJdbcParameters = 0;
         ExpressionList list = (ExpressionList) s.getItemsList();
         for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
@@ -219,7 +216,7 @@ public class SQLTranslator {
                 countJdbcParametersBeforeKey = countJdbcParameters;
             }
             valuesColumns.add(c);
-            valuesExpressions.add(expression);            
+            valuesExpressions.add(expression);
             countJdbcParameters += countJdbcParametersUsedByExpression(expression);
         }
         if (keyValueExpression == null) {
@@ -235,7 +232,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildDeleteStatement(Delete s, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildDeleteStatement(Delete s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName();
@@ -267,7 +264,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildUpdateStatement(Update s, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildUpdateStatement(Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName();
@@ -335,6 +332,16 @@ public class SQLTranslator {
         if (e instanceof Parenthesis) {
             return countJdbcParametersUsedByExpression(((Parenthesis) e).getExpression());
         }
+        if (e instanceof Function) {
+            int count = 0;
+            Function f = (Function) e;
+            if (f.getParameters() != null && f.getParameters().getExpressions() != null) {
+                for (Expression ex : f.getParameters().getExpressions()) {
+                    count += countJdbcParametersUsedByExpression(ex);
+                }
+            }
+            return count;
+        }
         throw new UnsupportedOperationException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
@@ -389,7 +396,7 @@ public class SQLTranslator {
         return result;
     }
 
-    private Statement buildSelectStatement(Select s, boolean scan) throws StatementExecutionException {
+    private ExecutionPlan buildSelectStatement(Select s, boolean scan) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
@@ -408,6 +415,7 @@ public class SQLTranslator {
         int countJdbcParameters = 0;
         Table table = tableManager.getTable();
         boolean allColumns = false;
+        boolean containsAggregateFunctions = false;
         for (SelectItem c : selectBody.getSelectItems()) {
 
             if (c instanceof AllColumns) {
@@ -416,6 +424,9 @@ public class SQLTranslator {
             } else if (c instanceof SelectExpressionItem) {
                 SelectExpressionItem se = (SelectExpressionItem) c;
                 countJdbcParameters += countJdbcParametersUsedByExpression(se.getExpression());
+                if (isAggregateFunction(se.getExpression())) {
+                    containsAggregateFunctions = true;
+                }
             }
         }
         Projection projection;
@@ -425,7 +436,6 @@ public class SQLTranslator {
             projection = new SQLProjection(selectBody.getSelectItems());
         }
         if (scan) {
-
             Predicate where = null;
             if (selectBody.getWhere() != null && selectBody.getWhere() instanceof EqualsTo) {
                 Expression key = findPrimaryKeyEqualsTo(selectBody.getWhere(), table, new AtomicInteger());
@@ -438,8 +448,17 @@ public class SQLTranslator {
             if (where == null) {
                 where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), 0) : null;
             }
+            TupleComparator comparator = null;
+            if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
+                comparator = new SQLTupleComparator(selectBody.getOrderByElements());
+            }
+            Aggregator aggregator = null;
+            if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
+                aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences());
+            }
             try {
-                return new ScanStatement(tableSpace, tableName, projection, where);
+                ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparator);
+                return ExecutionPlan.make(statement, aggregator);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
@@ -457,14 +476,14 @@ public class SQLTranslator {
             Predicate where = buildPredicate(selectBody.getWhere(), table, 0);
 
             try {
-                return new GetStatement(tableSpace, tableName, keyFunction, where);
+                return ExecutionPlan.simple(new GetStatement(tableSpace, tableName, keyFunction, where));
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
         }
     }
 
-    private Statement buildExecuteStatement(Execute execute, List<Object> parameters) throws StatementExecutionException {
+    private Statement buildExecuteStatement(Execute execute) throws StatementExecutionException {
         switch (execute.getName()) {
             case "BEGINTRANSACTION": {
                 if (execute.getExprList().getExpressions().size() != 1) {
@@ -518,5 +537,26 @@ public class SQLTranslator {
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
+    }
+
+    private boolean isAggregateFunction(Expression expression) throws StatementExecutionException {
+        if (!(expression instanceof Function)) {
+            return false;
+        }
+        Function function = (Function) expression;
+        String name = function.getName().toLowerCase();
+        switch (name) {
+            case "count":
+            case "min":
+            case "max":
+                return true;
+            case "upper":
+            case "lower":
+                // TODO: handle scalar functions
+                return false;
+            default:
+                throw new StatementExecutionException("unsupported function " + name);
+        }
+
     }
 }

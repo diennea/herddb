@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
@@ -70,7 +71,11 @@ public class SQLProjection implements Projection {
                         fieldName = c.getColumnName();
                     }
                 } else if (exp instanceof StringValue) {
+
                 } else if (exp instanceof LongValue) {
+
+                } else if (exp instanceof Function) {
+
                 } else {
                     throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
                 }
@@ -93,7 +98,6 @@ public class SQLProjection implements Projection {
         for (SelectItem item : selectItems) {
             pos++;
             String fieldName = null;
-            Object value;
 
             if (item instanceof SelectExpressionItem) {
                 SelectExpressionItem si = (SelectExpressionItem) item;
@@ -107,14 +111,10 @@ public class SQLProjection implements Projection {
                     if (fieldName == null) {
                         fieldName = c.getColumnName();
                     }
-                    value = record.get(c.getColumnName());
-                } else if (exp instanceof StringValue) {
-                    value = ((StringValue) exp).getValue();
-                } else if (exp instanceof LongValue) {
-                    value = ((LongValue) exp).getValue();
-                } else {
-                    throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+
                 }
+                Object value;
+                value = computeValue(exp, record);
                 if (fieldName == null) {
                     fieldName = "item" + pos;
                 }
@@ -128,6 +128,51 @@ public class SQLProjection implements Projection {
                 fieldNames,
                 values.toArray()
         );
+    }
+
+    private Object computeValue(Expression exp, Map<String, Object> record) throws StatementExecutionException {
+        Object value;
+        if (exp instanceof net.sf.jsqlparser.schema.Column) {
+            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
+            value = record.get(c.getColumnName());
+        } else if (exp instanceof StringValue) {
+            value = ((StringValue) exp).getValue();
+        } else if (exp instanceof LongValue) {
+            value = ((LongValue) exp).getValue();
+        } else if (exp instanceof Function) {
+            Function f = (Function) exp;
+            value = computeFunction(f, record);
+        } else {
+            throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+        }
+        return value;
+    }
+
+    private Object computeFunction(Function f, Map<String, Object> record) throws StatementExecutionException {
+        String name = f.getName().toLowerCase();
+        switch (name) {
+            case "count":
+            case "min":
+            case "max":
+                // AGGREGATED FUNCTION
+                return null;
+            case "lower": {
+                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
+                if (computed == null) {
+                    return null;
+                }
+                return computed.toString().toLowerCase();
+            }
+            case "upper": {
+                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
+                if (computed == null) {
+                    return null;
+                }
+                return computed.toString().toUpperCase();
+            }
+            default:
+                throw new StatementExecutionException("unhandled function " + name);
+        }
     }
 
 }

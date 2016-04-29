@@ -47,6 +47,7 @@ import herddb.model.DataScannerException;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Tuple;
+import herddb.model.TupleComparator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
@@ -692,85 +693,19 @@ public class TableManager {
         }
     }
 
-    private static class RecordSet {
-
-        private List<Record> records = new ArrayList<>();
-    }
-
-    private class SimpleDataScanner extends DataScanner {
-
-        final RecordSet keys;
-        final Predicate predicate;
-        final Iterator<Record> iterator;
-        Tuple next;
-        boolean finished;
-
-        public SimpleDataScanner(Table table, RecordSet keys, ScanStatement statement) {
-            super(table, statement);
-            this.keys = keys;
-            this.predicate = statement.getPredicate();
-            this.iterator = keys.records.iterator();
-        }
-
-        @Override
-        public void close() throws DataScannerException {
-            finished = true;
-        }
-
-        @Override
-        public boolean hasNext() throws DataScannerException {
-            if (finished) {
-                return false;
-            }
-            return ensureNext();
-        }
-
-        private boolean ensureNext() throws DataScannerException {
-            if (next != null) {
-                return true;
-            }
-            try {
-                while (true) {
-                    if (!iterator.hasNext()) {
-                        finished = true;
-                        return false;
-                    }
-                    Record record = iterator.next();
-                    Tuple tuple = new Tuple(record.toBean(table));
-                    next = scan.getProjection().map(tuple);
-                    return true;
-                    // RECORD does not match, iterate again
-                }
-            } catch (StatementExecutionException err) {
-                throw new DataScannerException(err);
-            }
-        }
-
-        @Override
-        public Tuple next() throws DataScannerException {
-            if (finished) {
-                throw new DataScannerException("Scanner is exhausted");
-            }
-            Tuple _next = next;
-            next = null;
-            return _next;
-        }
-
-    }
-
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         // TODO, support transactions
         Transaction transaction = null;
         Predicate predicate = statement.getPredicate();
 
-        RecordSet recordSet = new RecordSet();
+        MaterializedRecordSet recordSet = new MaterializedRecordSet();
         // TODO: swap on disk the resultset
         try {
             if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
                 PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
                 GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
                 if (getResult.found()) {
-                    recordSet.records.add(getResult.getRecord());
+                    recordSet.records.add(new Tuple(getResult.getRecord().toBean(table)));
                 }
             } else {
                 pagesLock.readLock().lock();
@@ -793,7 +728,7 @@ public class TableManager {
                                     throw new RuntimeException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId);
                                 }
                                 if (predicate == null || predicate.evaluate(record, context)) {
-                                    recordSet.records.add(record);
+                                    recordSet.records.add(new Tuple(record.toBean(table)));
                                 }
                             }
                         } finally {
@@ -806,7 +741,12 @@ public class TableManager {
                     pagesLock.readLock().unlock();
                 }
             }
-            return new SimpleDataScanner(table, recordSet, statement);
+            
+            recordSet.sort(statement.getComparator());
+                        
+            recordSet = recordSet.select(statement.getProjection());
+            
+            return new SimpleDataScanner(recordSet);
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         }

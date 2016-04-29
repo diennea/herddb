@@ -23,6 +23,7 @@ import herddb.model.Predicate;
 import herddb.model.Projection;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
+import herddb.model.TupleComparator;
 
 /**
  * Lookup a bunch record with a condition
@@ -33,15 +34,21 @@ public class ScanStatement extends TableAwareStatement {
 
     private final Predicate predicate;
     private final Projection projection;
+    private final TupleComparator comparator;
 
     public ScanStatement(String tableSpace, Table table, Predicate predicate) {
-        this(tableSpace, table.name, Projection.IDENTITY(table.columns), predicate);
+        this(tableSpace, table.name, Projection.IDENTITY(table.columns), predicate, null);
     }
 
-    public ScanStatement(String tableSpace, String table, final Projection projection, Predicate predicate) {
+    public ScanStatement(final String tableSpace, final String table, final Projection projection, final Predicate predicate, final TupleComparator comparator) {
         super(table, tableSpace);
         this.predicate = predicate;
         this.projection = projection;
+        this.comparator = comparator;
+    }
+
+    public TupleComparator getComparator() {
+        return comparator;
     }
 
     public Predicate getPredicate() {
