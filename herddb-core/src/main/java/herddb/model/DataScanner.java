@@ -31,20 +31,7 @@ import java.util.function.Consumer;
  */
 public abstract class DataScanner implements AutoCloseable {
 
-    protected final Table table;
-    protected final ScanStatement scan;
-
-    public DataScanner(Table table, ScanStatement scan) {
-        this.table = table;
-        this.scan = scan;
-    }
-
-    public Table getTable() {
-        return table;
-    }
-
-    public ScanStatement getScan() {
-        return scan;
+    public DataScanner() {
     }
 
     public abstract boolean hasNext() throws DataScannerException;

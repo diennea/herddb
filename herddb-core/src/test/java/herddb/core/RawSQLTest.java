@@ -27,6 +27,7 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
+import herddb.model.ScanResult;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionResult;
@@ -60,6 +61,11 @@ public class RawSQLTest {
     private StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
         return manager.executePlan(translated.plan, translated.context);
+    }
+
+    private DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
+        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
+        return ((ScanResult) manager.executePlan(translated.plan, translated.context)).dataScanner;
     }
 
     @Test
@@ -109,6 +115,78 @@ public class RawSQLTest {
             }
             {
                 assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(n1,k1,s1) values(?,?,?)", Arrays.asList(Integer.valueOf(1234), "mykey3", "string2")).getUpdateCount());
+            }
+        }
+    }
+
+    @Test
+    public void simpleCountTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(2))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(4), result.get(0).get(0));
+                    assertEquals(Long.valueOf(4), result.get(0).get("cc"));
+                }
+            }
+            {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*)  FROM tblspace1.tsql", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(4), result.get(0).get(0));
+                    assertEquals(Long.valueOf(4), result.get(0).get("COUNT(*)"));
+                }
+            }
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql WHERE k1='mykey3'", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(1), result.get(0).get(0));
+                    assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void scalarFunctionTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1))).getUpdateCount());            
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT lower(k1) as low, upper(k1) as up, k1 FROM tblspace1.tsql", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals("mykey", result.get(0).get(0));
+                    assertEquals("MYKEY", result.get(0).get(1));
+                    assertEquals("mykey", result.get(0).get(2));
+                    
+                }
             }
         }
     }
@@ -361,6 +439,7 @@ public class RawSQLTest {
                 try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
+                    System.out.println("records:" + records);
                     assertEquals(1, records.get(0).fieldNames.length);
                     assertEquals(1, records.get(0).values.length);
                     assertEquals("k1", records.get(0).fieldNames[0]);

@@ -22,6 +22,7 @@ package herddb.sql;
 import herddb.core.DBManager;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
+import herddb.model.Aggregator;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.ExecutionPlan;
@@ -51,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.Parenthesis;
@@ -330,6 +332,16 @@ public class SQLTranslator {
         if (e instanceof Parenthesis) {
             return countJdbcParametersUsedByExpression(((Parenthesis) e).getExpression());
         }
+        if (e instanceof Function) {
+            int count = 0;
+            Function f = (Function) e;
+            if (f.getParameters() != null && f.getParameters().getExpressions() != null) {
+                for (Expression ex : f.getParameters().getExpressions()) {
+                    count += countJdbcParametersUsedByExpression(ex);
+                }
+            }
+            return count;
+        }
         throw new UnsupportedOperationException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
@@ -403,6 +415,7 @@ public class SQLTranslator {
         int countJdbcParameters = 0;
         Table table = tableManager.getTable();
         boolean allColumns = false;
+        boolean containsAggregateFunctions = false;
         for (SelectItem c : selectBody.getSelectItems()) {
 
             if (c instanceof AllColumns) {
@@ -411,6 +424,9 @@ public class SQLTranslator {
             } else if (c instanceof SelectExpressionItem) {
                 SelectExpressionItem se = (SelectExpressionItem) c;
                 countJdbcParameters += countJdbcParametersUsedByExpression(se.getExpression());
+                if (isAggregateFunction(se.getExpression())) {
+                    containsAggregateFunctions = true;
+                }
             }
         }
         Projection projection;
@@ -436,9 +452,13 @@ public class SQLTranslator {
             if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
                 comparator = new SQLTupleComparator(selectBody.getOrderByElements());
             }
+            Aggregator aggregator = null;
+            if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
+                aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences());
+            }
             try {
                 ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparator);
-                return ExecutionPlan.simple(statement);
+                return ExecutionPlan.make(statement, aggregator);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
@@ -517,5 +537,26 @@ public class SQLTranslator {
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
+    }
+
+    private boolean isAggregateFunction(Expression expression) throws StatementExecutionException {
+        if (!(expression instanceof Function)) {
+            return false;
+        }
+        Function function = (Function) expression;
+        String name = function.getName().toLowerCase();
+        switch (name) {
+            case "count":
+            case "min":
+            case "max":
+                return true;
+            case "upper":
+            case "lower":
+                // TODO: handle scalar functions
+                return false;
+            default:
+                throw new StatementExecutionException("unsupported function " + name);
+        }
+
     }
 }

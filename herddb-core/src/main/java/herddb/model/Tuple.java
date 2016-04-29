@@ -59,6 +59,10 @@ public class Tuple {
         }
     }
 
+    public int size() {
+        return values.length;
+    }
+
     public Map<String, Object> toMap() {
         if (map != null) {
             return map;

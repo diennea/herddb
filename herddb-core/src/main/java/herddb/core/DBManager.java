@@ -33,6 +33,7 @@ import herddb.model.DataScanner;
 import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
 import herddb.model.NodeMetadata;
+import herddb.model.ScanResult;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
@@ -43,7 +44,6 @@ import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.sql.SQLStatementEvaluationContext;
 import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -277,6 +277,20 @@ public class DBManager implements AutoCloseable {
         return scan(statement, new StatementEvaluationContext());
     }
 
+    public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
+        if (plan.mainStatement instanceof ScanStatement) {
+            DataScanner result = scan((ScanStatement) plan.mainStatement, context);
+            if (plan.mainAggregator != null) {
+                return new ScanResult(plan.mainAggregator.aggregate(result));
+            } else {
+                return new ScanResult(result);
+            }
+        } else {
+            return executeStatement(plan.mainStatement, context);
+        }
+
+    }
+
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
@@ -309,18 +323,6 @@ public class DBManager implements AutoCloseable {
 
     public DMLStatementExecutionResult executeUpdate(DMLStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         return (DMLStatementExecutionResult) executeStatement(statement, context);
-    }
-
-    /**
-     * Executes a Plan
-     *
-     * @param plan
-     * @param context
-     * @return
-     * @throws StatementExecutionException
-     */
-    public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
-        return executeStatement(plan.mainStatement, context);
     }
 
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {

@@ -693,85 +693,12 @@ public class TableManager {
         }
     }
 
-    private static class RecordSet {
-
-        private List<Tuple> records = new ArrayList<>();
-
-        private void sort(TupleComparator comparator) {
-            if (comparator != null) {
-                records.sort(comparator);
-            }
-        }
-    }
-
-    private class SimpleDataScanner extends DataScanner {
-
-        final RecordSet keys;
-        final Predicate predicate;
-        final Iterator<Tuple> iterator;
-        Tuple next;
-        boolean finished;
-
-        public SimpleDataScanner(Table table, RecordSet keys, ScanStatement statement) {
-            super(table, statement);
-            this.keys = keys;
-            this.keys.sort(statement.getComparator());
-            this.predicate = statement.getPredicate();
-            this.iterator = this.keys.records.iterator();
-        }
-
-        @Override
-        public void close() throws DataScannerException {
-            finished = true;
-        }
-
-        @Override
-        public boolean hasNext() throws DataScannerException {
-            if (finished) {
-                return false;
-            }
-            return ensureNext();
-        }
-
-        private boolean ensureNext() throws DataScannerException {
-            if (next != null) {
-                return true;
-            }
-            try {
-                while (true) {
-                    if (!iterator.hasNext()) {
-                        finished = true;
-                        return false;
-                    }
-
-                    Tuple tuple = iterator.next();
-                    next = scan.getProjection().map(tuple);
-                    return true;
-                    // RECORD does not match, iterate again
-                }
-            } catch (StatementExecutionException err) {
-                throw new DataScannerException(err);
-            }
-        }
-
-        @Override
-        public Tuple next() throws DataScannerException {
-            if (finished) {
-                throw new DataScannerException("Scanner is exhausted");
-            }
-            Tuple _next = next;
-            next = null;
-            return _next;
-        }
-
-    }
-
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
         // TODO, support transactions
         Transaction transaction = null;
         Predicate predicate = statement.getPredicate();
 
-        RecordSet recordSet = new RecordSet();
+        MaterializedRecordSet recordSet = new MaterializedRecordSet();
         // TODO: swap on disk the resultset
         try {
             if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
@@ -814,7 +741,12 @@ public class TableManager {
                     pagesLock.readLock().unlock();
                 }
             }
-            return new SimpleDataScanner(table, recordSet, statement);
+            
+            recordSet.sort(statement.getComparator());
+                        
+            recordSet = recordSet.select(statement.getProjection());
+            
+            return new SimpleDataScanner(recordSet);
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         }
