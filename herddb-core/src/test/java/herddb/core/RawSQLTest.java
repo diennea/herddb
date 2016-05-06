@@ -41,10 +41,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.junit.Assert;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Tests on table creation
@@ -161,6 +163,35 @@ public class RawSQLTest {
                     assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
                 }
             }
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    Assert.fail();
+                } catch (StatementExecutionException error) {
+                    assertEquals("field k1 MUST appear in GROUP BY clause", error.getMessage());
+                }
+            }
+            {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(4, result.size());
+                    for (Tuple t : result) {
+                        assertEquals(Long.valueOf(1), t.get("COUNT(*)"));
+                        switch (t.get("k1") + "") {
+                            case "mykey":
+                            case "mykey2":
+                            case "mykey3":
+                            case "mykey4":
+                                break;
+                            default:
+                                fail();
+                        }
+                    }
+
+                }
+            }
+
         }
     }
 
@@ -175,7 +206,7 @@ public class RawSQLTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
 
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1))).getUpdateCount());            
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1))).getUpdateCount());
 
             {
 
@@ -185,7 +216,7 @@ public class RawSQLTest {
                     assertEquals("mykey", result.get(0).get(0));
                     assertEquals("MYKEY", result.get(0).get(1));
                     assertEquals("mykey", result.get(0).get(2));
-                    
+
                 }
             }
         }

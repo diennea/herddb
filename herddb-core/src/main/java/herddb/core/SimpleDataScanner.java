@@ -19,12 +19,10 @@
  */
 package herddb.core;
 
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
-import herddb.model.StatementExecutionException;
-import herddb.model.Table;
 import herddb.model.Tuple;
-import herddb.model.commands.ScanStatement;
 import java.util.Iterator;
 
 /**
@@ -40,7 +38,8 @@ public class SimpleDataScanner extends DataScanner {
     private boolean finished;
 
     public SimpleDataScanner(MaterializedRecordSet keys) {
-        this.keys = keys;        
+        super(keys.columns);
+        this.keys = keys;
         this.iterator = this.keys.records.iterator();
     }
 

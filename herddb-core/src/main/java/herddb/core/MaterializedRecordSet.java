@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.model.Column;
 import herddb.model.Projection;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
@@ -34,13 +35,16 @@ import java.util.List;
 public class MaterializedRecordSet {
 
     final public List<Tuple> records;
+    final Column[] columns;
 
-    public MaterializedRecordSet() {
+    public MaterializedRecordSet(Column[] columns) {
         records = new ArrayList<>();
+        this.columns = columns;
     }
 
-    public MaterializedRecordSet(int size) {
+    public MaterializedRecordSet(int size, Column[] columns) {
         records = new ArrayList<>(size);
+        this.columns = columns;
     }
 
     void sort(TupleComparator comparator) {
@@ -50,7 +54,7 @@ public class MaterializedRecordSet {
     }
 
     public MaterializedRecordSet select(Projection projection) throws StatementExecutionException {
-        MaterializedRecordSet result = new MaterializedRecordSet(records.size());
+        MaterializedRecordSet result = new MaterializedRecordSet(records.size(), projection.getColumns());
         for (Tuple record : records) {
             result.records.add(projection.map(record));
         }
