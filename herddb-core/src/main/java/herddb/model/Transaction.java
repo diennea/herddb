@@ -23,6 +23,7 @@ import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -190,6 +191,15 @@ public class Transaction {
         }
         return updated.stream().filter(r -> r.key.equals(key)).findAny().orElse(null);
 
+    }
+
+    public Iterable<Record> getNewRecordsForTable(String tableName) {
+        List<Record> inserted = newRecords.get(tableName);
+        if (inserted == null) {
+            return Collections.emptyList();
+        } else {
+            return inserted;
+        }
     }
 
 }
