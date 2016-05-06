@@ -53,7 +53,7 @@ public class HerdDBConnection implements java.sql.Connection {
     private final HDBClient client;
     private final HDBConnection connection;
     private long transactionId;
-    private boolean autocommit;
+    private boolean autocommit = true;
     private String tableSpace;
 
     public HerdDBConnection(HDBClient client) {
@@ -98,7 +98,7 @@ public class HerdDBConnection implements java.sql.Connection {
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         ensureTransaction();
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return new HerdDBPreparedStatement(this, sql);
     }
 
     @Override
