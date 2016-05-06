@@ -23,6 +23,7 @@ import herddb.codec.RecordSerializer;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import java.util.HashMap;
 import java.util.List;
@@ -53,21 +54,25 @@ public class SQLRecordFunction extends RecordFunction {
     }
 
     @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
-        Map<String, Object> bean = previous != null ? RecordSerializer.toBean(previous, table) : new HashMap<>();        
+        Map<String, Object> bean = previous != null ? RecordSerializer.toBean(previous, table) : new HashMap<>();
         int paramIndex = jdbcParametersStartPos;
         for (int i = 0; i < columns.size(); i++) {
             Expression e = expressions.get(i);
             if (e instanceof JdbcParameter) {
-                Object param = statementEvaluationContext.jdbcParameters.get(paramIndex++);
-                bean.put(columns.get(i).getColumnName(), param);
+                try {
+                    Object param = statementEvaluationContext.jdbcParameters.get(paramIndex++);
+                    bean.put(columns.get(i).getColumnName(), param);
+                } catch (IndexOutOfBoundsException missingParam) {
+                    throw new StatementExecutionException("missing JDBC parameter");
+                }
             } else if (e instanceof LongValue) {
                 bean.put(columns.get(i).getColumnName(), ((LongValue) e).getValue());
             } else if (e instanceof StringValue) {
                 bean.put(columns.get(i).getColumnName(), ((StringValue) e).getValue());
             } else {
-                throw new RuntimeException("unsupported type " + e.getClass() + " " + e);
+                throw new StatementExecutionException("unsupported type " + e.getClass() + " " + e);
             }
         }
         return RecordSerializer.toRecord(bean, table).value.data;
