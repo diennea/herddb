@@ -25,6 +25,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.Aggregator;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
@@ -122,7 +123,7 @@ public class SQLTranslator {
                 cache.put(cacheKey, result);
             }
             return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
-        } catch (JSQLParserException err) {
+        } catch (JSQLParserException | DataScannerException err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
 
@@ -396,7 +397,7 @@ public class SQLTranslator {
         return result;
     }
 
-    private ExecutionPlan buildSelectStatement(Select s, boolean scan) throws StatementExecutionException {
+    private ExecutionPlan buildSelectStatement(Select s, boolean scan) throws StatementExecutionException, DataScannerException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
@@ -433,7 +434,7 @@ public class SQLTranslator {
         if (allColumns) {
             projection = Projection.IDENTITY(table.columns);
         } else {
-            projection = new SQLProjection(selectBody.getSelectItems());
+            projection = new SQLProjection(table, selectBody.getSelectItems());
         }
         if (scan) {
             Predicate where = null;

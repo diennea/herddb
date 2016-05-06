@@ -19,6 +19,8 @@
  */
 package herddb.sql;
 
+import herddb.model.Column;
+import herddb.model.ColumnTypes;
 import herddb.model.Projection;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -42,22 +44,18 @@ import net.sf.jsqlparser.statement.select.SelectItem;
 public class SQLProjection implements Projection {
 
     private final List<SelectItem> selectItems;
+    private final Column[] columns;
     private final String[] fieldNames;
 
-    @Override
-    public String[] getFieldNames() {
-        return fieldNames;
-    }
-
-    public SQLProjection(List<SelectItem> selectItems) throws StatementExecutionException {
+    public SQLProjection(Table table, List<SelectItem> selectItems) throws StatementExecutionException {
         this.selectItems = selectItems;
-        List<String> _fieldNames = new ArrayList<>();
+        List<Column> _columns = new ArrayList<>();
         int pos = 0;
         for (SelectItem item : selectItems) {
             pos++;
             String fieldName = null;
             Object value;
-
+            int columType;
             if (item instanceof SelectExpressionItem) {
                 SelectExpressionItem si = (SelectExpressionItem) item;
                 Alias alias = si.getAlias();
@@ -70,24 +68,43 @@ public class SQLProjection implements Projection {
                     if (fieldName == null) {
                         fieldName = c.getColumnName();
                     }
+                    Column column = table.getColumn(c.getColumnName());
+                    columType = column.type;
                 } else if (exp instanceof StringValue) {
-
+                    columType = ColumnTypes.STRING;
                 } else if (exp instanceof LongValue) {
-
+                    columType = ColumnTypes.LONG;
                 } else if (exp instanceof Function) {
+                    Function f = (Function) exp;
+                    switch (f.getName().toLowerCase()) {
+                        case "count":
+                            columType = ColumnTypes.LONG;
+                            break;
+                        case "lower":
+                        case "upper":
+                            columType = ColumnTypes.STRING;
+                            break;
+                        default:
+                            throw new StatementExecutionException("unhandled select function: " + exp);
 
+                    }
                 } else {
                     throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
                 }
                 if (fieldName == null) {
                     fieldName = "item" + pos;
                 }
-                _fieldNames.add(fieldName);
+                _columns.add(Column.column(fieldName, columType));
             } else {
                 throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
             }
         }
-        this.fieldNames = _fieldNames.toArray(new String[_fieldNames.size()]);
+        this.columns = _columns.toArray(new Column[_columns.size()]);
+        this.fieldNames = new String[columns.length];
+        int i = 0;
+        for (Column c : columns) {
+            this.fieldNames[i++] = c.name;
+        }
     }
 
     @Override
@@ -96,30 +113,12 @@ public class SQLProjection implements Projection {
         List<Object> values = new ArrayList<>(selectItems.size());
         int pos = 0;
         for (SelectItem item : selectItems) {
-            pos++;
-            String fieldName = null;
-
             if (item instanceof SelectExpressionItem) {
                 SelectExpressionItem si = (SelectExpressionItem) item;
-                Alias alias = si.getAlias();
-                if (alias != null && alias.getName() != null) {
-                    fieldName = alias.getName();
-                }
                 Expression exp = si.getExpression();
-                if (exp instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
-                    if (fieldName == null) {
-                        fieldName = c.getColumnName();
-                    }
-
-                }
                 Object value;
                 value = computeValue(exp, record);
-                if (fieldName == null) {
-                    fieldName = "item" + pos;
-                }
                 values.add(value);
-
             } else {
                 throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
             }
@@ -173,6 +172,11 @@ public class SQLProjection implements Projection {
             default:
                 throw new StatementExecutionException("unhandled function " + name);
         }
+    }
+
+    @Override
+    public Column[] getColumns() {
+        return columns;
     }
 
 }

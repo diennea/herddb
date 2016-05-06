@@ -698,7 +698,7 @@ public class TableManager {
         Transaction transaction = null;
         Predicate predicate = statement.getPredicate();
 
-        MaterializedRecordSet recordSet = new MaterializedRecordSet();
+        MaterializedRecordSet recordSet = new MaterializedRecordSet(table.columns);
         // TODO: swap on disk the resultset
         try {
             if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
@@ -741,11 +741,11 @@ public class TableManager {
                     pagesLock.readLock().unlock();
                 }
             }
-            
+
             recordSet.sort(statement.getComparator());
-                        
+
             recordSet = recordSet.select(statement.getProjection());
-            
+
             return new SimpleDataScanner(recordSet);
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);

@@ -19,7 +19,6 @@
  */
 package herddb.model;
 
-import herddb.model.commands.ScanStatement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -31,7 +30,14 @@ import java.util.function.Consumer;
  */
 public abstract class DataScanner implements AutoCloseable {
 
-    public DataScanner() {
+    private Column[] schema;
+
+    public DataScanner(Column[] schema) {
+        this.schema = schema;
+    }
+
+    public Column[] getSchema() {
+        return schema;
     }
 
     public abstract boolean hasNext() throws DataScannerException;

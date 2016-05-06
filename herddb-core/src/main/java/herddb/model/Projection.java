@@ -19,8 +19,6 @@
  */
 package herddb.model;
 
-import java.util.function.Function;
-
 /**
  * Function which mapsthe result of a scan to a Tuple
  *
@@ -29,14 +27,10 @@ import java.util.function.Function;
 public interface Projection {
 
     public static Projection IDENTITY(Column[] columns) {
-        final String[] fieldNames = new String[columns.length];
-        for (int i = 0; i < columns.length; i++) {
-            fieldNames[i] = columns[i].name;
-        }
         return new Projection() {
             @Override
-            public String[] getFieldNames() {
-                return fieldNames;
+            public Column[] getColumns() {
+                return columns;
             }
 
             @Override
@@ -46,7 +40,7 @@ public interface Projection {
         };
     }
 
-    public String[] getFieldNames();
+    public Column[] getColumns();
 
     public abstract Tuple map(Tuple tuple) throws StatementExecutionException;
 }
