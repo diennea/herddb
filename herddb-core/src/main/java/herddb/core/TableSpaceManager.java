@@ -202,8 +202,9 @@ public class TableSpaceManager {
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
-        if (statement.getTransactionId() > 0) {
-            throw new StatementExecutionException("transactions are not yet supported on scan");
+        Transaction transaction = transactions.get(statement.getTransactionId());
+        if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
+            throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
         String table = statement.getTable();
         TableManager manager;
@@ -216,7 +217,7 @@ public class TableSpaceManager {
         if (manager == null) {
             throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
         }
-        return manager.scan(statement, context);
+        return manager.scan(statement, context, transaction);
     }
 
     private class FollowerThread implements Runnable {

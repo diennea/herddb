@@ -26,6 +26,8 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.model.TransactionResult;
+import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.utils.Bytes;
@@ -91,5 +93,60 @@ public class ScanTest extends BaseTestcase {
             List<?> result = scanner.consume();
             assertEquals(80, result.size());
         }
+    }
+
+    @Test
+    public void testTransaction() throws Exception {
+
+        for (int i = 0; i < 5; i++) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", "key_" + i);
+            data.put("number", i);
+            Record record = RecordSerializer.toRecord(data, table);
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+
+        BeginTransactionStatement begin = new BeginTransactionStatement(tableSpace);
+        long tx = ((TransactionResult) manager.executeStatement(begin)).getTransactionId();
+
+        for (int i = 5; i < 10; i++) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("id", "key_" + i);
+            data.put("number", i);
+            Record record = RecordSerializer.toRecord(data, table);
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record).setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+
+        {
+            ScanStatement scan = new ScanStatement(tableSpace, table, new Predicate() {
+                @Override
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                    return true;
+                }
+            }).setTransactionId(tx);
+            DataScanner scanner = manager.scan(scan);
+            List<?> result = scanner.consume();
+            assertEquals(10, result.size());
+        }
+
+        for (int i = 0; i < 10; i++) {
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key_" + i), null).setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+
+        {
+            ScanStatement scan = new ScanStatement(tableSpace, table, new Predicate() {
+                @Override
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                    return true;
+                }
+            }).setTransactionId(tx);
+            DataScanner scanner = manager.scan(scan);
+            List<?> result = scanner.consume();
+            assertEquals(0, result.size());
+        }
+
     }
 }

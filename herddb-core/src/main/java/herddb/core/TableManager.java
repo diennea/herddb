@@ -693,9 +693,8 @@ public class TableManager {
         }
     }
 
-    DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
-        // TODO, support transactions
-        Transaction transaction = null;
+    DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+        // TODO, support transactions        
         Predicate predicate = statement.getPredicate();
 
         MaterializedRecordSet recordSet = new MaterializedRecordSet(table.columns);
@@ -715,6 +714,20 @@ public class TableManager {
                         Bytes key = entry.getKey();
                         LockHandle lock = lockForRead(key, transaction);
                         try {
+                            if (transaction != null) {
+                                if (transaction.recordDeleted(table.name, key)) {
+                                    // skip this record. inside current transaction it has been deleted
+                                    continue;
+                                }
+                                Record record = transaction.recordUpdated(table.name, key);
+                                if (record != null) {
+                                    // use current transaction version of the record
+                                    if (predicate == null || predicate.evaluate(record, context)) {
+                                        recordSet.records.add(new Tuple(record.toBean(table)));
+                                    }
+                                    continue;
+                                }
+                            }
                             Long pageId = entry.getValue();
                             if (pageId != null) { // record disappeared during the scan
                                 Record record;
@@ -734,6 +747,14 @@ public class TableManager {
                         } finally {
                             if (transaction == null) {
                                 locksManager.releaseReadLockForKey(key, lock);
+                            }
+                        }
+                    }
+                    if (transaction != null) {
+                        for (Record record : transaction.getNewRecordsForTable(table.name)) {
+                            if (!transaction.recordDeleted(table.name, record.key)
+                                    && (predicate == null || predicate.evaluate(record, context))) {
+                                recordSet.records.add(new Tuple(record.toBean(table)));
                             }
                         }
                     }
