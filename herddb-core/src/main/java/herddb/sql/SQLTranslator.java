@@ -143,6 +143,7 @@ public class SQLTranslator {
                 case "varchar":
                 case "nvarchar":
                 case "nvarchar2":
+                case "nclob":
                     type = ColumnTypes.STRING;
                     break;
                 case "long":
@@ -151,6 +152,7 @@ public class SQLTranslator {
                     break;
                 case "int":
                 case "integer":
+                case "tinyint":
                 case "smallint":
                     type = ColumnTypes.INTEGER;
                     break;
