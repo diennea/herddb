@@ -31,6 +31,7 @@ import herddb.model.Predicate;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.Projection;
 import herddb.model.RecordFunction;
+import herddb.model.ScanLimits;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -68,10 +69,12 @@ import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
+import net.sf.jsqlparser.statement.select.Limit;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.update.Update;
 
 /**
@@ -106,18 +109,28 @@ public class SQLTranslator {
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
                 result = ExecutionPlan.simple(buildCreateTableStatement((CreateTable) stmt));
-            } else if (stmt instanceof Insert) {
-                result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
-            } else if (stmt instanceof Delete) {
-                result = ExecutionPlan.simple(buildDeleteStatement((Delete) stmt));
-            } else if (stmt instanceof Update) {
-                result = ExecutionPlan.simple(buildUpdateStatement((Update) stmt));
-            } else if (stmt instanceof Select) {
-                result = buildSelectStatement((Select) stmt, scan);
-            } else if (stmt instanceof Execute) {
-                result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
             } else {
-                throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
+                if (stmt instanceof Insert) {
+                    result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
+                } else {
+                    if (stmt instanceof Delete) {
+                        result = ExecutionPlan.simple(buildDeleteStatement((Delete) stmt));
+                    } else {
+                        if (stmt instanceof Update) {
+                            result = ExecutionPlan.simple(buildUpdateStatement((Update) stmt));
+                        } else {
+                            if (stmt instanceof Select) {
+                                result = buildSelectStatement((Select) stmt, scan);
+                            } else {
+                                if (stmt instanceof Execute) {
+                                    result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
+                                } else {
+                                    throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
+                                }
+                            }
+                        }
+                    }
+                }
             }
             if (allowCache) {
                 cache.put(cacheKey, result);
@@ -361,10 +374,12 @@ public class SQLTranslator {
             if (keyOnRight != null) {
                 return keyOnRight;
             }
-        } else if (where instanceof EqualsTo) {
-            Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, table, jdbcParameterPos);
-            if (keyDirect != null) {
-                return keyDirect;
+        } else {
+            if (where instanceof EqualsTo) {
+                Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, table, jdbcParameterPos);
+                if (keyDirect != null) {
+                    return keyDirect;
+                }
             }
         }
 
@@ -374,12 +389,16 @@ public class SQLTranslator {
     private Object resolveValue(Expression expression) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
-        } else if (expression instanceof StringValue) {
-            return ((StringValue) expression).getValue();
-        } else if (expression instanceof LongValue) {
-            return ((LongValue) expression).getValue();
         } else {
-            throw new StatementExecutionException("unsupported value type " + expression.getClass());
+            if (expression instanceof StringValue) {
+                return ((StringValue) expression).getValue();
+            } else {
+                if (expression instanceof LongValue) {
+                    return ((LongValue) expression).getValue();
+                } else {
+                    throw new StatementExecutionException("unsupported value type " + expression.getClass());
+                }
+            }
         }
     }
 
@@ -392,8 +411,10 @@ public class SQLTranslator {
                 if (column.getColumnName().equals(table1.primaryKeyColumn)) {
                     return e.getRightExpression();
                 }
-            } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findPrimaryKeyEqualsTo((AndExpression) e.getLeftExpression(), table1, jdbcParameterPos);
+            } else {
+                if (e.getLeftExpression() instanceof AndExpression) {
+                    result = findPrimaryKeyEqualsTo((AndExpression) e.getLeftExpression(), table1, jdbcParameterPos);
+                }
             }
         }
         return result;
@@ -424,11 +445,13 @@ public class SQLTranslator {
             if (c instanceof AllColumns) {
                 allColumns = true;
                 break;
-            } else if (c instanceof SelectExpressionItem) {
-                SelectExpressionItem se = (SelectExpressionItem) c;
-                countJdbcParameters += countJdbcParametersUsedByExpression(se.getExpression());
-                if (isAggregateFunction(se.getExpression())) {
-                    containsAggregateFunctions = true;
+            } else {
+                if (c instanceof SelectExpressionItem) {
+                    SelectExpressionItem se = (SelectExpressionItem) c;
+                    countJdbcParameters += countJdbcParametersUsedByExpression(se.getExpression());
+                    if (isAggregateFunction(se.getExpression())) {
+                        containsAggregateFunctions = true;
+                    }
                 }
             }
         }
@@ -451,17 +474,54 @@ public class SQLTranslator {
             if (where == null) {
                 where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), 0) : null;
             }
-            TupleComparator comparator = null;
-            if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
-                comparator = new SQLTupleComparator(selectBody.getOrderByElements());
-            }
+
             Aggregator aggregator = null;
+            ScanLimits limitsOnScan = null;
+            ScanLimits limitsOnPlan = null;
             if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
                 aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences());
             }
+
+            TupleComparator comparatorOnScan = null;
+            TupleComparator comparatorOnPlan = null;
+            if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
+                if (aggregator != null) {
+                    comparatorOnPlan = new SQLTupleComparator(selectBody.getOrderByElements());;
+                } else {
+                    comparatorOnScan = new SQLTupleComparator(selectBody.getOrderByElements());
+                }
+            }
+
+            Limit limit = selectBody.getLimit();
+            Top top = selectBody.getTop();
+            if (limit != null && top != null) {
+                throw new StatementExecutionException("LIMIT and TOP cannot be used on the same query");
+            }
+            if (limit != null) {
+                if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter() || limit.isRowCountJdbcParameter()) {
+                    throw new StatementExecutionException("Invalid LIMIT clause");
+                }
+                if (aggregator != null) {
+                    limitsOnPlan = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
+                } else {
+                    limitsOnScan = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
+                }
+            } else {
+                if (top != null) {
+                    if (top.isPercentage() || top.isRowCountJdbcParameter()) {
+                        throw new StatementExecutionException("Invalid TOP clause");
+                    }
+                    if (aggregator != null) {
+                        limitsOnPlan = new ScanLimits((int) top.getRowCount(), 0);
+                    } else {
+                        limitsOnScan = new ScanLimits((int) top.getRowCount(), 0);
+                    }
+                }
+            }
+
             try {
-                ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparator);
-                return ExecutionPlan.make(statement, aggregator);
+                ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparatorOnScan, limitsOnScan);
+                return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }

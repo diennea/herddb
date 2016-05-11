@@ -55,24 +55,21 @@ public class SQLAggregator implements Aggregator {
         this.groupByColumnReferences = groupByColumnReferences != null ? groupByColumnReferences : Collections.emptyList();
         for (SelectItem e : selectItems) {
             for (SelectItem item : selectItems) {
-                boolean done = false;
-                System.out.println("looking for "+item);
+                boolean done = false;                
                 if (item instanceof SelectExpressionItem) {
                     SelectExpressionItem sei = (SelectExpressionItem) item;
                     Expression expression = sei.getExpression();
                     if (expression instanceof Function) {
                         Function f = (Function) expression;
                         if (f.isAllColumns() && f.getName().equalsIgnoreCase("count")) {
-                            done = true;
-                            System.out.println("looking for "+item+" OK!");
+                            done = true;                            
                         }
                     } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
                         net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
                         for (Expression ex : this.groupByColumnReferences) {
                             if (ex instanceof net.sf.jsqlparser.schema.Column) {
                                 net.sf.jsqlparser.schema.Column cex = (net.sf.jsqlparser.schema.Column) ex;
-                                if (cex.getColumnName().equals(c.getColumnName())) {
-                                    System.out.println("looking for "+item+" OK!");
+                                if (cex.getColumnName().equals(c.getColumnName())) {                                    
                                     done = true;
                                     break;
                                 }
