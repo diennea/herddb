@@ -35,7 +35,8 @@ import java.util.Collections;
  */
 public class HerdDBStatement implements java.sql.Statement {
 
-    private final HerdDBConnection parent;
+    protected final HerdDBConnection parent;
+    protected int maxRows;
 
     public HerdDBStatement(HerdDBConnection parent) {
         this.parent = parent;
@@ -44,7 +45,7 @@ public class HerdDBStatement implements java.sql.Statement {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         try {
-            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList());
+            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList(), maxRows);
             return new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
             throw new SQLException(ex);
@@ -72,12 +73,12 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public int getMaxRows() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return this.maxRows;
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        this.maxRows = max;
     }
 
     @Override
