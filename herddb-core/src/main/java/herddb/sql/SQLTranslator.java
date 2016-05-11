@@ -46,12 +46,11 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.sql.functions.BuiltinFunctions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
@@ -314,7 +313,7 @@ public class SQLTranslator {
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
-        Table table = tableManager.getTable();        
+        Table table = tableManager.getTable();
         for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
             Column column = table.getColumn(c.getColumnName());
             if (column == null) {
@@ -653,18 +652,12 @@ public class SQLTranslator {
         }
         Function function = (Function) expression;
         String name = function.getName().toLowerCase();
-        switch (name) {
-            case "count":
-            case "min":
-            case "max":
-                return true;
-            case "upper":
-            case "lower":
-                // TODO: handle scalar functions
-                return false;
-            default:
-                throw new StatementExecutionException("unsupported function " + name);
+        if (BuiltinFunctions.isAggregateFunction(function.getName())) {
+            return true;
         }
-
+        if (BuiltinFunctions.isScalarFunction(function.getName())) {
+            return false;
+        }
+        throw new StatementExecutionException("unsupported function " + name);
     }
 }

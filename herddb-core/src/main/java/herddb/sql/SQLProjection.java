@@ -25,6 +25,7 @@ import herddb.model.Projection;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import herddb.sql.functions.BuiltinFunctions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
 
@@ -82,18 +84,7 @@ public class SQLProjection implements Projection {
                         } else {
                             if (exp instanceof Function) {
                                 Function f = (Function) exp;
-                                switch (f.getName().toLowerCase()) {
-                                    case "count":
-                                        columType = ColumnTypes.LONG;
-                                        break;
-                                    case "lower":
-                                    case "upper":
-                                        columType = ColumnTypes.STRING;
-                                        break;
-                                    default:
-                                        throw new StatementExecutionException("unhandled select function: " + exp);
-
-                                }
+                                columType = BuiltinFunctions.typeOfFunction(f.getName());
                             } else {
                                 throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
                             }
@@ -126,7 +117,7 @@ public class SQLProjection implements Projection {
                 SelectExpressionItem si = (SelectExpressionItem) item;
                 Expression exp = si.getExpression();
                 Object value;
-                value = computeValue(exp, record);
+                value = BuiltinFunctions.computeValue(exp, record);
                 values.add(value);
             } else {
                 throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
@@ -136,57 +127,6 @@ public class SQLProjection implements Projection {
                 fieldNames,
                 values.toArray()
         );
-    }
-
-    private Object computeValue(Expression exp, Map<String, Object> record) throws StatementExecutionException {
-        Object value;
-        if (exp instanceof net.sf.jsqlparser.schema.Column) {
-            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
-            value = record.get(c.getColumnName());
-        } else {
-            if (exp instanceof StringValue) {
-                value = ((StringValue) exp).getValue();
-            } else {
-                if (exp instanceof LongValue) {
-                    value = ((LongValue) exp).getValue();
-                } else {
-                    if (exp instanceof Function) {
-                        Function f = (Function) exp;
-                        value = computeFunction(f, record);
-                    } else {
-                        throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
-                    }
-                }
-            }
-        }
-        return value;
-    }
-
-    private Object computeFunction(Function f, Map<String, Object> record) throws StatementExecutionException {
-        String name = f.getName().toLowerCase();
-        switch (name) {
-            case "count":
-            case "min":
-            case "max":
-                // AGGREGATED FUNCTION
-                return null;
-            case "lower": {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
-                if (computed == null) {
-                    return null;
-                }
-                return computed.toString().toLowerCase();
-            }
-            case "upper": {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
-                if (computed == null) {
-                    return null;
-                }
-                return computed.toString().toUpperCase();
-            }
-            default:
-                throw new StatementExecutionException("unhandled function " + name);
-        }
     }
 
     @Override

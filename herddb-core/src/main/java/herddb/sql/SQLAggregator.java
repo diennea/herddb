@@ -28,6 +28,7 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
+import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.util.Collections;
@@ -53,23 +54,24 @@ public class SQLAggregator implements Aggregator {
     public SQLAggregator(List<SelectItem> selectItems, List<Expression> groupByColumnReferences) throws StatementExecutionException {
         this.selectItems = selectItems;
         this.groupByColumnReferences = groupByColumnReferences != null ? groupByColumnReferences : Collections.emptyList();
-        for (SelectItem e : selectItems) {
-            for (SelectItem item : selectItems) {
-                boolean done = false;                
-                if (item instanceof SelectExpressionItem) {
-                    SelectExpressionItem sei = (SelectExpressionItem) item;
-                    Expression expression = sei.getExpression();
-                    if (expression instanceof Function) {
-                        Function f = (Function) expression;
-                        if (f.isAllColumns() && f.getName().equalsIgnoreCase("count")) {
-                            done = true;                            
-                        }
-                    } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
+
+        for (SelectItem item : selectItems) {
+            boolean done = false;
+            if (item instanceof SelectExpressionItem) {
+                SelectExpressionItem sei = (SelectExpressionItem) item;
+                Expression expression = sei.getExpression();
+                if (expression instanceof Function) {
+                    Function f = (Function) expression;
+                    if (BuiltinFunctions.isAggregateFunction(f.getName())) {
+                        done = true;
+                    }
+                } else {
+                    if (expression instanceof net.sf.jsqlparser.schema.Column) {
                         net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
                         for (Expression ex : this.groupByColumnReferences) {
                             if (ex instanceof net.sf.jsqlparser.schema.Column) {
                                 net.sf.jsqlparser.schema.Column cex = (net.sf.jsqlparser.schema.Column) ex;
-                                if (cex.getColumnName().equals(c.getColumnName())) {                                    
+                                if (cex.getColumnName().equals(c.getColumnName())) {
                                     done = true;
                                     break;
                                 }
@@ -77,9 +79,9 @@ public class SQLAggregator implements Aggregator {
                         }
                     }
                 }
-                if (!done) {
-                    throw new StatementExecutionException("field " + item + " MUST appear in GROUP BY clause");
-                }
+            }
+            if (!done) {
+                throw new StatementExecutionException("field " + item + " MUST appear in GROUP BY clause");
             }
         }
 
@@ -121,14 +123,20 @@ public class SQLAggregator implements Aggregator {
                     Object value = tuple.get(c.getColumnName());
                     if (value == null) {
                         key.append("NULL");
-                    } else if (value instanceof Number) {
-                        key.append(value.toString());
-                    } else if (value instanceof CharSequence) {
-                        key.append(value.toString());
-                    } else if (value instanceof java.util.Date) {
-                        key.append(((java.util.Date) value).getTime());
                     } else {
-                        throw new DataScannerException("cannot group values of type " + value.getClass());
+                        if (value instanceof Number) {
+                            key.append(value.toString());
+                        } else {
+                            if (value instanceof CharSequence) {
+                                key.append(value.toString());
+                            } else {
+                                if (value instanceof java.util.Date) {
+                                    key.append(((java.util.Date) value).getTime());
+                                } else {
+                                    throw new DataScannerException("cannot group values of type " + value.getClass());
+                                }
+                            }
+                        }
                     }
                     key.append(",");
                 } else {
@@ -225,7 +233,7 @@ public class SQLAggregator implements Aggregator {
                 Expression expression = sei.getExpression();
                 if (expression instanceof Function) {
                     Function f = (Function) expression;
-                    if (f.isAllColumns() && f.getName().equalsIgnoreCase("count")) {
+                    if (f.isAllColumns() && f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
                         String fieldName = f.toString();
                         if (sei.getAlias() != null && sei.getAlias().getName() != null) {
                             fieldName = sei.getAlias().getName();
@@ -236,23 +244,25 @@ public class SQLAggregator implements Aggregator {
                         columns[i] = Column.column(fieldName, ColumnTypes.LONG);
                         done = true;
                     }
-                } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-                    String name = c.getColumnName();
-                    boolean found = false;
-                    for (Column co : wrapped.getSchema()) {
-                        if (co.name.equals(name)) {
-                            columns[i] = co;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        throw new StatementExecutionException("cannot find column " + name + " is upstream scanner");
-                    }
-                    done = true;
                 } else {
-                    throw new StatementExecutionException("unhandled aggregate query selectable item:" + expression);
+                    if (expression instanceof net.sf.jsqlparser.schema.Column) {
+                        net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
+                        String name = c.getColumnName();
+                        boolean found = false;
+                        for (Column co : wrapped.getSchema()) {
+                            if (co.name.equals(name)) {
+                                columns[i] = co;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            throw new StatementExecutionException("cannot find column " + name + " is upstream scanner");
+                        }
+                        done = true;
+                    } else {
+                        throw new StatementExecutionException("unhandled aggregate query selectable item:" + expression);
+                    }
                 }
             }
             i++;
@@ -275,7 +285,7 @@ public class SQLAggregator implements Aggregator {
                 Expression expression = sei.getExpression();
                 if (expression instanceof Function) {
                     Function f = (Function) expression;
-                    if (f.isAllColumns() && f.getName().equalsIgnoreCase("count")) {
+                    if (f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
                         String fieldName = f.toString();
                         if (sei.getAlias() != null && sei.getAlias().getName() != null) {
                             fieldName = sei.getAlias().getName();
@@ -283,15 +293,17 @@ public class SQLAggregator implements Aggregator {
                         columns[i] = new CountColumnCalculator(fieldName);
                         done = true;
                     }
-                } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-                    String fieldName = c.getColumnName();
-                    if (sei.getAlias() != null && sei.getAlias().getName() != null) {
-                        fieldName = sei.getAlias().getName();
-                    }
-                    columns[i] = new ColumnValue(fieldName);
-                    done = true;
+                } else {
+                    if (expression instanceof net.sf.jsqlparser.schema.Column) {
+                        net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
+                        String fieldName = c.getColumnName();
+                        if (sei.getAlias() != null && sei.getAlias().getName() != null) {
+                            fieldName = sei.getAlias().getName();
+                        }
+                        columns[i] = new ColumnValue(fieldName);
+                        done = true;
 
+                    }
                 }
             }
             i++;
@@ -356,8 +368,10 @@ public class SQLAggregator implements Aggregator {
             Object _value = tuple.get(fieldName);
             if (value == null) {
                 value = _value;
-            } else if (!Objects.equals(value, _value)) {
-                throw new IllegalStateException("groupby failed: " + value + " <> " + _value);
+            } else {
+                if (!Objects.equals(value, _value)) {
+                    throw new IllegalStateException("groupby failed: " + value + " <> " + _value);
+                }
             }
         }
 
