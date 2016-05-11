@@ -25,6 +25,7 @@ import static herddb.model.Column.column;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -55,14 +56,14 @@ public class SQLRecordKeyFunction extends RecordFunction {
         int i = 0;
         for (String cexp : expressionToColumn) {
             Column pkcolumn = table.getColumn(cexp);
-            this.columns[i] = pkcolumn;            
-            this.expressions.add(expressions.get(i));            
+            this.columns[i] = pkcolumn;
+            this.expressions.add(expressions.get(i));
             i++;
         }
     }
 
     @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
 
         int paramIndex = jdbcParametersStartPos;
@@ -80,13 +81,17 @@ public class SQLRecordKeyFunction extends RecordFunction {
                     if (expression instanceof StringValue) {
                         value = ((StringValue) expression).getValue();
                     } else {
-                        throw new RuntimeException("unsupported type " + expression.getClass() + " " + expression);
+                        throw new StatementExecutionException("unsupported type " + expression.getClass() + " " + expression);
                     }
                 }
             }
             pk.put(c.name, value);
         }
-        return RecordSerializer.serializePrimaryKey(pk, table).data;
+        try {
+            return RecordSerializer.serializePrimaryKey(pk, table).data;
+        } catch (Exception err) {
+            throw new StatementExecutionException("error while converting primary key " + pk + ": " + err, err);
+        }
     }
 
 }

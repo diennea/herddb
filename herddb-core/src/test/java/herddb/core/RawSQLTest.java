@@ -765,11 +765,20 @@ public class RawSQLTest {
                 assertEquals(3, scan1.consume().size());
             }
 
-//            assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql where k1 =? and n1=?", Arrays.asList(Integer.valueOf(1236), "mykey")).getUpdateCount());
-//            
-//            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
-//                assertEquals(1, scan1.consume().size());
-//            }
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1 =? and n1=?", Arrays.asList("newvalue", "mykey", Integer.valueOf(1236))).getUpdateCount());
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1,s1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
+                List<Tuple> rows = scan1.consume();
+                assertEquals(1, rows.size());
+                assertEquals("newvalue", rows.get(0).get("s1"));
+
+            }
+
+            assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql where k1 =? and n1=?", Arrays.asList("mykey", Integer.valueOf(1236))).getUpdateCount());
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
+                assertEquals(0, scan1.consume().size());
+            }
         }
     }
 }
