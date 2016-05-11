@@ -67,18 +67,22 @@ public final class RecordSerializer {
             case ColumnTypes.INTEGER:
                 if (v instanceof Integer) {
                     return Bytes.from_int((Integer) v).data;
-                } else if (v instanceof Number) {
-                    return Bytes.from_int(((Number) v).intValue()).data;
                 } else {
-                    return Bytes.from_int(Integer.parseInt(v.toString())).data;
+                    if (v instanceof Number) {
+                        return Bytes.from_int(((Number) v).intValue()).data;
+                    } else {
+                        return Bytes.from_int(Integer.parseInt(v.toString())).data;
+                    }
                 }
             case ColumnTypes.LONG:
                 if (v instanceof Long) {
                     return Bytes.from_long((Long) v).data;
-                } else if (v instanceof Number) {
-                    return Bytes.from_long(((Number) v).longValue()).data;
                 } else {
-                    return Bytes.from_long(Long.parseLong(v.toString())).data;
+                    if (v instanceof Number) {
+                        return Bytes.from_long(((Number) v).longValue()).data;
+                    } else {
+                        return Bytes.from_long(Long.parseLong(v.toString())).data;
+                    }
                 }
             case ColumnTypes.STRING:
                 return Bytes.from_string(v.toString()).data;
@@ -106,37 +110,77 @@ public final class RecordSerializer {
         return toRecord(record, table);
     }
 
-    public static Record toRecord(Map<String, Object> record, Table table) {
-        // TODO: better serialization
+    public static Bytes serializePrimaryKey(Map<String, Object> record, Table table) {
+        ByteArrayOutputStream key = new ByteArrayOutputStream();
+        if (table.primaryKey.length == 1) {
+            String pkColumn = table.primaryKey[0];
+            Column c = table.getColumn(pkColumn);
+            Object v = record.get(c.name);
+            if (v == null) {
+                throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
+            }
+            byte[] fieldValue = serialize(v, c.type);
+            return new Bytes(fieldValue);
+        } else {
+            try (DataOutputStream doo_key = new DataOutputStream(key);) {
+                for (String pkColumn : table.primaryKey) {
+                    Column c = table.getColumn(pkColumn);
+                    Object v = record.get(c.name);
+                    if (v == null) {
+                        throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
+                    }
+                    byte[] fieldValue = serialize(v, c.type);
+                    doo_key.writeInt(fieldValue.length);
+                    doo_key.write(fieldValue);
+                }
+            } catch (IOException err) {
+                throw new RuntimeException(err);
+            }
+            return new Bytes(key.toByteArray());
+        }
+    }
+
+    public static Bytes serializeValue(Map<String, Object> record, Table table) {
         ByteArrayOutputStream value = new ByteArrayOutputStream();
-        Bytes key = null;
+
         try (DataOutputStream doo = new DataOutputStream(value);) {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);;
-                byte[] fieldValue = serialize(v, c.type);
-                if (fieldValue != null) {
-                    if (table.primaryKeyColumn.equals(c.name)) {
-                        key = new Bytes(fieldValue);
-                    } else {
-                        doo.writeUTF(c.name);
-                        doo.writeInt(fieldValue.length);
-                        doo.write(fieldValue);
-                    }
+                if (v != null && !table.isPrimaryKeyColumn(c.name)) {
+                    byte[] fieldValue = serialize(v, c.type);
+                    doo.writeUTF(c.name);
+                    doo.writeInt(fieldValue.length);
+                    doo.write(fieldValue);
                 }
             }
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
-        if (key == null) {
-            throw new IllegalArgumentException("key field " + table.primaryKeyColumn + " cannot be null");
-        }
-        return new Record(key, new Bytes(value.toByteArray()));
+
+        return new Bytes(value.toByteArray());
+    }
+
+    public static Record toRecord(Map<String, Object> record, Table table) {
+        return new Record(serializePrimaryKey(record, table), serializeValue(record, table));
     }
 
     public static Map<String, Object> toBean(Record record, Table table) {
         try {
             Map<String, Object> res = new HashMap<>();
-            res.put(table.primaryKeyColumn, deserialize(record.key.data, table.getColumn(table.primaryKeyColumn).type));
+            if (table.primaryKey.length == 1) {
+                String primaryKeyColumn = table.primaryKey[0];
+                res.put(primaryKeyColumn, deserialize(record.key.data, table.getColumn(primaryKeyColumn).type));
+            } else {
+                try (ByteArrayInputStream key_in = new ByteArrayInputStream(record.key.data);
+                        DataInputStream din = new DataInputStream(key_in)) {
+                    for (String primaryKeyColumn : table.primaryKey) {
+                        int data_len = din.readInt();
+                        byte[] value = new byte[data_len];
+                        din.readFully(value);
+                        res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
+                    }
+                }
+            }
 
             if (record.value != null) {
                 ByteArrayInputStream s = new ByteArrayInputStream(record.value.data);

@@ -68,6 +68,18 @@ public class BaseTestcase {
         return new MemoryMetadataStorageManager();
     }
 
+    protected Table createTable() {
+        return Table
+                .builder()
+                .name(tableName)
+                .tablespace(tableSpace)
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .column("number", ColumnTypes.INTEGER)
+                .primaryKey("id")
+                .build();
+    }
+
     @Before
     public void setup() throws Exception {
         beforeSetup();
@@ -81,16 +93,7 @@ public class BaseTestcase {
         manager.executeStatement(st1);
         assertTrue(manager.waitForTablespace(tableSpace, 10000));
         tableName = "t1";
-        table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name(tableName)
-                .tablespace(tableSpace)
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .column("number", ColumnTypes.INTEGER)
-                .primaryKey("id")
-                .build();
+        table = createTable();
 
         CreateTableStatement st2 = new CreateTableStatement(table);
         manager.executeStatement(st2);

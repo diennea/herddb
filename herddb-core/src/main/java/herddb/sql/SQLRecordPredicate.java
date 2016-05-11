@@ -93,6 +93,16 @@ public class SQLRecordPredicate extends Predicate {
         return result;
     }
 
+    private boolean objectEquals(Object a, Object b) {
+        if (Objects.equals(a, b)) {
+            return true;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).doubleValue() == ((Number) b).doubleValue();
+        }
+        return false;
+    }
+
     private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             return state.parameters.get(state.parameterPos++);
@@ -101,13 +111,13 @@ public class SQLRecordPredicate extends Predicate {
             EqualsTo e = (EqualsTo) expression;
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
-            return handleNot(e.isNot(), Objects.equals(left, right));
+            return handleNot(e.isNot(), objectEquals(left, right));
         }
         if (expression instanceof NotEqualsTo) {
             NotEqualsTo e = (NotEqualsTo) expression;
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
-            return handleNot(e.isNot(), !Objects.equals(left, right));
+            return handleNot(e.isNot(), !objectEquals(left, right));
         }
         if (expression instanceof AndExpression) {
             AndExpression a = (AndExpression) expression;
