@@ -277,9 +277,11 @@ public class TableManager {
             if (transaction != null) {
                 if (transaction.recordDeleted(table.name, key)) {
                     // OK, INSERT on a DELETED record inside this transaction
-                } else if (transaction.recordInserted(table.name, key) != null) {
-                    // ERROR, INSERT on a INSERTED record inside this transaction
-                    throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
+                } else {
+                    if (transaction.recordInserted(table.name, key) != null) {
+                        // ERROR, INSERT on a INSERTED record inside this transaction
+                        throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
+                    }
                 }
             }
             if (keyToPage.containsKey(key)) {
@@ -764,6 +766,9 @@ public class TableManager {
             }
 
             recordSet.sort(statement.getComparator());
+
+            // TODO: if no sort is present the limits can be applying during the scan and perform an early exit
+            recordSet.applyLimits(statement.getLimits());
 
             recordSet = recordSet.select(statement.getProjection());
 

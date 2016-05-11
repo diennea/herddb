@@ -69,27 +69,36 @@ public class SQLProjection implements Projection {
                         fieldName = c.getColumnName();
                     }
                     Column column = table.getColumn(c.getColumnName());
-                    columType = column.type;
-                } else if (exp instanceof StringValue) {
-                    columType = ColumnTypes.STRING;
-                } else if (exp instanceof LongValue) {
-                    columType = ColumnTypes.LONG;
-                } else if (exp instanceof Function) {
-                    Function f = (Function) exp;
-                    switch (f.getName().toLowerCase()) {
-                        case "count":
-                            columType = ColumnTypes.LONG;
-                            break;
-                        case "lower":
-                        case "upper":
-                            columType = ColumnTypes.STRING;
-                            break;
-                        default:
-                            throw new StatementExecutionException("unhandled select function: " + exp);
-
+                    if (column == null) {
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName());
                     }
+                    columType = column.type;
                 } else {
-                    throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+                    if (exp instanceof StringValue) {
+                        columType = ColumnTypes.STRING;
+                    } else {
+                        if (exp instanceof LongValue) {
+                            columType = ColumnTypes.LONG;
+                        } else {
+                            if (exp instanceof Function) {
+                                Function f = (Function) exp;
+                                switch (f.getName().toLowerCase()) {
+                                    case "count":
+                                        columType = ColumnTypes.LONG;
+                                        break;
+                                    case "lower":
+                                    case "upper":
+                                        columType = ColumnTypes.STRING;
+                                        break;
+                                    default:
+                                        throw new StatementExecutionException("unhandled select function: " + exp);
+
+                                }
+                            } else {
+                                throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+                            }
+                        }
+                    }
                 }
                 if (fieldName == null) {
                     fieldName = "item" + pos;
@@ -134,15 +143,21 @@ public class SQLProjection implements Projection {
         if (exp instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
             value = record.get(c.getColumnName());
-        } else if (exp instanceof StringValue) {
-            value = ((StringValue) exp).getValue();
-        } else if (exp instanceof LongValue) {
-            value = ((LongValue) exp).getValue();
-        } else if (exp instanceof Function) {
-            Function f = (Function) exp;
-            value = computeFunction(f, record);
         } else {
-            throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+            if (exp instanceof StringValue) {
+                value = ((StringValue) exp).getValue();
+            } else {
+                if (exp instanceof LongValue) {
+                    value = ((LongValue) exp).getValue();
+                } else {
+                    if (exp instanceof Function) {
+                        Function f = (Function) exp;
+                        value = computeFunction(f, record);
+                    } else {
+                        throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+                    }
+                }
+            }
         }
         return value;
     }

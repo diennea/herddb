@@ -21,6 +21,7 @@ package herddb.core;
 
 import herddb.model.Column;
 import herddb.model.Projection;
+import herddb.model.ScanLimits;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
@@ -34,7 +35,7 @@ import java.util.List;
  */
 public class MaterializedRecordSet {
 
-    final public List<Tuple> records;
+    public List<Tuple> records;
     final Column[] columns;
 
     public MaterializedRecordSet(Column[] columns) {
@@ -59,6 +60,28 @@ public class MaterializedRecordSet {
             result.records.add(projection.map(record));
         }
         return result;
+    }
+
+    void applyLimits(ScanLimits limits) {
+        if (limits == null) {
+            return;
+        }
+        if (limits.getOffset() > 0) {
+            int maxlen = records.size();
+            if (limits.getOffset() >= maxlen) {
+                records.clear();
+                return;
+            }
+            int samplesize = maxlen - limits.getOffset();
+            records = records.subList(limits.getOffset(), limits.getOffset() + samplesize);
+        }
+        if (limits.getMaxRows() > 0) {
+            int maxlen = records.size();
+            if (maxlen < limits.getMaxRows()) {
+                return;
+            }
+            records = records.subList(0, limits.getMaxRows());
+        }
     }
 
 }

@@ -30,8 +30,10 @@ import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
+import herddb.model.LimitedDataScanner;
 import herddb.model.NodeMetadata;
 import herddb.model.ScanResult;
 import herddb.model.TableSpace;
@@ -181,8 +183,10 @@ public class DBManager implements AutoCloseable {
             TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this);
             tablesSpaces.put(tableSpaceName, manager);
             manager.start();
-        } else if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
-            stopTableSpace(tableSpaceName);
+        } else {
+            if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
+                stopTableSpace(tableSpaceName);
+            }
         }
 
         if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
@@ -280,10 +284,31 @@ public class DBManager implements AutoCloseable {
     public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
         if (plan.mainStatement instanceof ScanStatement) {
             DataScanner result = scan((ScanStatement) plan.mainStatement, context);
+            ScanResult scanResult;
             if (plan.mainAggregator != null) {
-                return new ScanResult(plan.mainAggregator.aggregate(result));
+                scanResult = new ScanResult(plan.mainAggregator.aggregate(result));
             } else {
-                return new ScanResult(result);
+                scanResult = new ScanResult(result);
+            }
+            if (plan.comparator != null) {
+                // SORT is to by applied before limits                
+                MaterializedRecordSet sortedSet = new MaterializedRecordSet(scanResult.dataScanner.getSchema());
+                try {
+                    scanResult.dataScanner.forEach(sortedSet.records::add);
+                    sortedSet.sort(plan.comparator);
+                    scanResult = new ScanResult(new SimpleDataScanner(sortedSet));
+                } catch (DataScannerException err) {
+                    throw new StatementExecutionException(err);
+                }
+            }
+            if (plan.limits != null) {
+                try {
+                    return new ScanResult(new LimitedDataScanner(scanResult.dataScanner, plan.limits));
+                } catch (DataScannerException limitError) {
+                    throw new StatementExecutionException(limitError);
+                }
+            } else {
+                return scanResult;
             }
         } else {
             return executeStatement(plan.mainStatement, context);

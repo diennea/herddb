@@ -45,6 +45,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -117,6 +118,167 @@ public class RawSQLTest {
             }
             {
                 assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(n1,k1,s1) values(?,?,?)", Arrays.asList(Integer.valueOf(1234), "mykey3", "string2")).getUpdateCount());
+            }
+        }
+    }
+
+    @Test
+    public void limitsTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(2))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
+
+            // scan performed at "scan time"
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals("mykey", result.get(0).get("k1"));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT TOP 1 * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals("mykey", result.get(0).get("k1"));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,1", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals("mykey2", result.get(0).get("k1"));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,2", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(2, result.size());
+                assertEquals("mykey2", result.get(0).get("k1"));
+                assertEquals("mykey3", result.get(1).get("k1"));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(4, result.size());
+                assertEquals("mykey", result.get(0).get("k1"));
+                assertEquals("mykey2", result.get(1).get("k1"));
+                assertEquals("mykey3", result.get(2).get("k1"));
+                assertEquals("mykey4", result.get(3).get("k1"));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10,10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(0, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 4,10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(0, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 3,10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals("mykey4", result.get(0).get("k1"));
+            }
+        }
+    }
+
+    @Test
+    public void limitsAggregatesTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(2))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(2))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
+
+            // scan performed after aggregation
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(4, result.size());
+                assertEquals("mykey4", result.get(0).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                assertEquals("mykey3", result.get(1).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(1).get("COUNT(*)"));
+                assertEquals("mykey2", result.get(2).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(2).get("COUNT(*)"));
+                assertEquals("mykey", result.get(3).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(3).get("COUNT(*)"));
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals("mykey3", result.get(0).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as alias,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,2", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(2, result.size());
+                assertEquals("mykey3", result.get(0).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(0).get("alias"));
+                assertEquals("mykey2", result.get(1).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(1).get("alias"));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(4, result.size());
+                assertEquals("mykey4", result.get(0).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                assertEquals("mykey3", result.get(1).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(1).get("COUNT(*)"));
+                assertEquals("mykey2", result.get(2).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(2).get("COUNT(*)"));
+                assertEquals("mykey", result.get(3).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(3).get("COUNT(*)"));
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10,10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(0, result.size());
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 4,10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(0, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 3,10", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(1, result.size());
+                assertEquals("mykey", result.get(0).get("k1"));
+                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(3, result.size());
+                assertNull(result.get(0).get("n1"));
+                assertEquals(Long.valueOf(1), result.get(0).get("cc"));
+
+                assertEquals(Integer.valueOf(1), result.get(1).get("n1"));
+                assertEquals(Long.valueOf(1), result.get(1).get("cc"));
+
+                assertEquals(Integer.valueOf(2), result.get(2).get("n1"));
+                assertEquals(Long.valueOf(2), result.get(2).get("cc"));
+            }
+            
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql WHERE n1 is not null GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(2, result.size());
+                
+                assertEquals(Integer.valueOf(1), result.get(0).get("n1"));
+                assertEquals(Long.valueOf(1), result.get(0).get("cc"));
+
+                assertEquals(Integer.valueOf(2), result.get(1).get("n1"));
+                assertEquals(Long.valueOf(2), result.get(1).get("cc"));
             }
         }
     }

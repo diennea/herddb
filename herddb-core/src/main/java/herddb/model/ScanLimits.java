@@ -20,30 +20,31 @@
 package herddb.model;
 
 /**
- * Data access execution plan.
+ * Limits on the scan, see the SQL LIMIT CLAUSE
  *
  * @author enrico.olivelli
  */
-public class ExecutionPlan {
+public class ScanLimits {
 
-    public Statement mainStatement;
-    public Aggregator mainAggregator;
-    public ScanLimits limits;
-    public TupleComparator comparator;
+    private final int maxRows;
+    private final int offset;
 
-    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator, ScanLimits limits, TupleComparator comparator) {
-        this.mainStatement = mainStatement;
-        this.mainAggregator = mainAggregator;
-        this.limits = limits;
-        this.comparator = comparator;
+    public ScanLimits(int maxRows, int offset) {
+        this.maxRows = maxRows;
+        this.offset = offset;
     }
 
-    public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null);
+    public int getMaxRows() {
+        return maxRows;
     }
 
-    public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator);
+    public int getOffset() {
+        return offset;
+    }
+
+    @Override
+    public String toString() {
+        return "ScanLimits{" + "maxRows=" + maxRows + ", offset=" + offset + '}';
     }
 
 }

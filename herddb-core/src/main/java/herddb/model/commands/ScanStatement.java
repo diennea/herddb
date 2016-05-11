@@ -21,6 +21,7 @@ package herddb.model.commands;
 
 import herddb.model.Predicate;
 import herddb.model.Projection;
+import herddb.model.ScanLimits;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
 import herddb.model.TupleComparator;
@@ -35,16 +36,22 @@ public class ScanStatement extends TableAwareStatement {
     private final Predicate predicate;
     private final Projection projection;
     private final TupleComparator comparator;
+    private final ScanLimits limits;
 
     public ScanStatement(String tableSpace, Table table, Predicate predicate) {
-        this(tableSpace, table.name, Projection.IDENTITY(table.columns), predicate, null);
+        this(tableSpace, table.name, Projection.IDENTITY(table.columns), predicate, null, null);
     }
 
-    public ScanStatement(final String tableSpace, final String table, final Projection projection, final Predicate predicate, final TupleComparator comparator) {
+    public ScanStatement(final String tableSpace, final String table, final Projection projection, final Predicate predicate, final TupleComparator comparator, final ScanLimits limits) {
         super(table, tableSpace);
         this.predicate = predicate;
         this.projection = projection;
         this.comparator = comparator;
+        this.limits = limits;
+    }
+
+    public ScanLimits getLimits() {
+        return limits;
     }
 
     public TupleComparator getComparator() {
