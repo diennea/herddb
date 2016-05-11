@@ -139,7 +139,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE BEGINTRANSACTION '"+tableSpace+"'", 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE BEGINTRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
@@ -158,7 +158,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE COMMITTRANSACTION '"+tableSpace+"',"+tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE COMMITTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
@@ -175,7 +175,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION '"+tableSpace+"',"+tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
@@ -185,7 +185,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    ScanResultSet executeScan(String query, List<Object> params) throws HDBException {
+    ScanResultSet executeScan(String query, List<Object> params, int maxRows) throws HDBException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -193,7 +193,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
         try {
             String scannerId = UUID.randomUUID().toString();
-            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, params, fetchSize);
+            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, params, fetchSize, maxRows);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");

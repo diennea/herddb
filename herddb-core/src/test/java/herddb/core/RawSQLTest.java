@@ -25,6 +25,7 @@ import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.ScanResult;
@@ -269,11 +270,11 @@ public class RawSQLTest {
                 assertEquals(Integer.valueOf(2), result.get(2).get("n1"));
                 assertEquals(Long.valueOf(2), result.get(2).get("cc"));
             }
-            
+
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql WHERE n1 is not null GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(2, result.size());
-                
+
                 assertEquals(Integer.valueOf(1), result.get(0).get("n1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("cc"));
 
@@ -704,5 +705,80 @@ public class RawSQLTest {
             }
         }
 
+    }
+
+    @Test
+    public void multipleColumnPrimaryKeyTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string,"
+                    + "n1 int,"
+                    + "s1 string, "
+                    + "primary key (k1,n1)"
+                    + ")", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList());) {
+                assertEquals(1, scan1.consume().size());
+            }
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
+            try (DataScanner scan1 = scan(manager, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList());) {
+                assertEquals(2, scan1.consume().size());
+            }
+            try {
+                assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
+                fail();
+            } catch (DuplicatePrimaryKeyException err) {
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1", Collections.emptyList());) {
+                List<Tuple> rows = scan1.consume();
+                assertEquals(2, rows.size());
+                assertEquals(1234, rows.get(0).get("n1"));
+                assertEquals(1235, rows.get(1).get("n1"));
+
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1234", Collections.emptyList());) {
+                assertEquals(1, scan1.consume().size());
+            }
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(n1,k1) values(?,?)", Arrays.asList(Integer.valueOf(1236), "mykey")).getUpdateCount());
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1 desc", Collections.emptyList());) {
+                List<Tuple> rows = scan1.consume();
+                assertEquals(3, rows.size());
+                assertEquals(1236, rows.get(0).get("n1"));
+                assertEquals(1235, rows.get(1).get("n1"));
+                assertEquals(1234, rows.get(2).get("n1"));
+
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1234", Collections.emptyList());) {
+                assertEquals(1, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList());) {
+                assertEquals(3, scan1.consume().size());
+            }
+
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1 =? and n1=?", Arrays.asList("newvalue", "mykey", Integer.valueOf(1236))).getUpdateCount());
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1,s1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
+                List<Tuple> rows = scan1.consume();
+                assertEquals(1, rows.size());
+                assertEquals("newvalue", rows.get(0).get("s1"));
+
+            }
+
+            assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql where k1 =? and n1=?", Arrays.asList("mykey", Integer.valueOf(1236))).getUpdateCount());
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1,n1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
+                assertEquals(0, scan1.consume().size());
+            }
+        }
     }
 }

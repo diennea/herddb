@@ -27,6 +27,7 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.GetResult;
 import herddb.model.Record;
+import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
@@ -129,7 +130,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 long txId = tx != null ? tx : 0;
                 String query = (String) message.parameters.get("query");
                 String scannerId = (String) message.parameters.get("scannerId");
-                int fetchSize = (Integer) message.parameters.get("fetchSize");
+                int fetchSize = 10;
+                if (message.parameters.containsKey("fetchSize")) {
+                    fetchSize = (Integer) message.parameters.get("fetchSize");
+                }
+                int maxRows = 0;
+                if (message.parameters.containsKey("maxRows")) {
+                    maxRows = (Integer) message.parameters.get("maxRows");
+                }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, true, txId <= 0);
@@ -140,6 +148,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             statement.setTransactionId(tx);
                         }
                         ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
+                        if (maxRows > 0) {
+                            scanResult = new ScanResult(new LimitedDataScanner(scanResult.dataScanner, new ScanLimits(maxRows, 0)));
+                        }
                         DataScanner dataScanner = scanResult.dataScanner;
 
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
