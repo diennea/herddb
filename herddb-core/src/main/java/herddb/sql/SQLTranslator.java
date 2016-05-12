@@ -147,7 +147,7 @@ public class SQLTranslator {
 
     private Statement buildCreateTableStatement(CreateTable s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName();
+        String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -225,7 +225,7 @@ public class SQLTranslator {
 
     private Statement buildInsertStatement(Insert s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName();
+        String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -302,7 +302,7 @@ public class SQLTranslator {
     private Statement buildDeleteStatement(Delete s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
+        String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -333,7 +333,7 @@ public class SQLTranslator {
     private Statement buildUpdateStatement(Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
+        String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -502,7 +502,7 @@ public class SQLTranslator {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
+        String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }

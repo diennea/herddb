@@ -21,6 +21,7 @@ package herddb.jdbc;
 
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
+import herddb.client.ScanResultSetMetadata;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -55,9 +56,11 @@ public class HerdDBResultSet implements ResultSet {
     private final ScanResultSet scanResult;
     private Map<String, Object> actualValue;
     private Object lastValue;
+    private ScanResultSetMetadata metadata;
 
     HerdDBResultSet(ScanResultSet scanResult) {
         this.scanResult = scanResult;
+        this.metadata = scanResult.getMetadata();
     }
 
     @Override
@@ -86,54 +89,62 @@ public class HerdDBResultSet implements ResultSet {
         return lastValue == null;
     }
 
+    private String resolveColumnNameByIndex(int columnIndex) throws SQLException {
+        try {
+            return metadata.getColumnNames().get(columnIndex - 1);
+        } catch (IndexOutOfBoundsException err) {
+            throw new SQLException("invalid index " + columnIndex + ", max value is " + metadata.getColumnNames().size());
+        }
+    }
+
     @Override
     public String getString(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getString(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getBoolean(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getByte(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getShort(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getInt(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getLong(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getFloat(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getDouble(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getBigDecimal(resolveColumnNameByIndex(columnIndex), scale);
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getBytes(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
@@ -148,7 +159,7 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getTimestamp(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
@@ -183,9 +194,19 @@ public class HerdDBResultSet implements ResultSet {
         }
     }
 
+    private boolean wasNull;
+
     @Override
     public boolean getBoolean(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        ensureNextCalled();
+        lastValue = actualValue.get(columnLabel);
+        if (lastValue != null) {
+            wasNull = false;
+            return Boolean.parseBoolean(lastValue.toString());
+        } else {
+            wasNull = true;
+            return false;
+        }
     }
 
     @Override
@@ -203,8 +224,10 @@ public class HerdDBResultSet implements ResultSet {
         ensureNextCalled();
         lastValue = actualValue.get(columnLabel);
         if (lastValue != null) {
+            wasNull = false;
             return Integer.parseInt(lastValue.toString());
         } else {
+            wasNull = true;
             return 0;
         }
     }
@@ -214,8 +237,10 @@ public class HerdDBResultSet implements ResultSet {
         ensureNextCalled();
         lastValue = actualValue.get(columnLabel);
         if (lastValue != null) {
+            wasNull = false;
             return Long.parseLong(lastValue.toString());
         } else {
+            wasNull = true;
             return 0;
         }
     }
@@ -252,7 +277,15 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        ensureNextCalled();
+        lastValue = actualValue.get(columnLabel);
+        if (lastValue != null) {
+            wasNull = false;
+            return new java.sql.Timestamp(Long.parseLong(lastValue.toString()));
+        } else {
+            wasNull = true;
+            return null;
+        }
     }
 
     @Override
@@ -292,17 +325,32 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getObject(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        ensureNextCalled();
+        lastValue = actualValue.get(columnLabel);
+        if (lastValue != null) {
+            wasNull = false;
+            return lastValue.toString();
+        } else {
+            wasNull = true;
+            return null;
+        }
     }
 
     @Override
     public int findColumn(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        int index = 0;
+        for (String c : metadata.getColumnNames()) {
+            if (c.equalsIgnoreCase(columnLabel)) {
+                return index + 1;
+            }
+            index++;
+        }
+        throw new SQLException("no such column "+columnLabel+", only "+metadata.getColumnNames());
     }
 
     @Override
@@ -662,7 +710,7 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getObject(columnIndex);
     }
 
     @Override
@@ -687,7 +735,7 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getObject(columnLabel);
     }
 
     @Override
@@ -1032,12 +1080,12 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getObject(resolveColumnNameByIndex(columnIndex), type);
     }
 
     @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return (T) getObject(columnLabel);
     }
 
     @Override

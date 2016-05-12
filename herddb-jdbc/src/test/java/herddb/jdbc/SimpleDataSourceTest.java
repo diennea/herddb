@@ -114,6 +114,9 @@ public class SimpleDataSourceTest {
                             ResultSet rs = ps.executeQuery()) {
                         assertTrue(rs.next());
                         assertEquals(10, rs.getLong("COUNT(*)"));
+                        assertEquals(10, rs.getLong(1));
+                        assertEquals(String.valueOf(10), rs.getObject(1));
+                        assertEquals(String.valueOf(10), rs.getObject("COUNT(*)"));
                     }
                 }
             }

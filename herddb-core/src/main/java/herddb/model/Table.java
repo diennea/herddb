@@ -54,7 +54,7 @@ public class Table {
         this.tablespace = tablespace;
         this.columnsByName = new HashMap<>();
         for (Column c : columns) {
-            columnsByName.put(c.name, c);
+            columnsByName.put(c.name.toLowerCase(), c);
         }
         this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));
     }
@@ -112,7 +112,7 @@ public class Table {
     }
 
     public Column getColumn(String cname) {
-        return columnsByName.get(cname);
+        return columnsByName.get(cname.toLowerCase());
     }
 
     public static class Builder {
@@ -165,8 +165,12 @@ public class Table {
                 if (pk == null) {
                     throw new IllegalArgumentException("column " + pkColumn + " is not defined in table");
                 }
-                if (pk.type != ColumnTypes.STRING && pk.type != ColumnTypes.LONG && pk.type != ColumnTypes.INTEGER) {
-                    throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer");
+                if (pk.type != ColumnTypes.STRING 
+                        && pk.type != ColumnTypes.LONG 
+                        && pk.type != ColumnTypes.INTEGER
+                        && pk.type != ColumnTypes.TIMESTAMP
+                        ) {
+                    throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer or timestamp");
                 }
             }
 

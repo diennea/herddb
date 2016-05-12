@@ -81,10 +81,11 @@ public final class Message {
         return new Message(clientId, TYPE_OPENSCANNER, data);
     }
 
-    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<Map<String, Object>> records) {
+    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<String> columns, List<Map<String, Object>> records) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
+        data.put("columns", columns);
         data.put("scannerId", scannerId);
         data.put("records", records);
         return new Message(clientId, TYPE_RESULTSET_CHUNK, data);

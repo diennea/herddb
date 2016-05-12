@@ -19,33 +19,28 @@
  */
 package herddb.client;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
- * Receives records from a Scan
+ * Metadta about a ResultSet
  *
  * @author enrico.olivelli
  */
-public abstract class ScanResultSet implements AutoCloseable {
+public class ScanResultSetMetadata {
 
-    public abstract ScanResultSetMetadata getMetadata();
+    private List<String> columnNames;
+
+    public ScanResultSetMetadata(List<String> columnNames) {
+        this.columnNames = columnNames;
+    }
     
-    public abstract boolean hasNext() throws HDBException;
 
-    public abstract Map<String, Object> next() throws HDBException;
-
-    @Override
-    public void close() {
+    public List<String> getColumnNames() {
+        return columnNames;
     }
 
-    public List< Map<String, Object>> consume() throws HDBException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        while (hasNext()) {
-            Map<String, Object> record = next();            
-            result.add(record);
-        }
-        return result;
+    public void setColumnNames(List<String> columnNames) {
+        this.columnNames = columnNames;
     }
+
 }

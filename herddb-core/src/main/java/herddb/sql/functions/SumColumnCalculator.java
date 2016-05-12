@@ -35,46 +35,13 @@ import net.sf.jsqlparser.schema.Column;
  *
  * @author enrico.olivelli
  */
-public class SumColumnCalculator implements AggregatedColumnCalculator {
+public class SumColumnCalculator extends AbstractSingleExpressionArgumentColumnCalculator {
 
     public SumColumnCalculator(String fieldName, Expression expression) throws StatementExecutionException {
-        this.fieldName = fieldName;
-        this.expression = expression;
-        if (expression instanceof Column) {
-            Column c = (Column) expression;
-            String name = c.getColumnName();
-            valueExtractor = (Tuple t) -> {
-                Object value = t.get(name);
-                if (value == null) {
-                    return null;
-                }
-                if (value instanceof Long) {
-                    return (Long) value;
-                } else if (value instanceof Number) {
-                    return ((Number) value).longValue();
-                } else {
-                    return Long.parseLong(value.toString());
-                }
-            };
-        } else if (this.expression instanceof LongValue) {
-            Long fixed = ((LongValue) expression).getValue();
-            valueExtractor = (Tuple t) -> fixed;
-        } else if (this.expression instanceof StringValue) {
-            try {
-                Long fixed = Long.parseLong(((StringValue) expression).getValue());
-                valueExtractor = (Tuple t) -> fixed;
-            } catch (NumberFormatException err) {
-                throw new StatementExecutionException("cannot SUM expressions of type " + expression);
-            }
-        } else {
-            throw new StatementExecutionException("cannot SUM expressions of type " + expression);
-        }
+        super(fieldName, expression);
     }
 
     long result;
-    final Expression expression;
-    final String fieldName;
-    final Function<Tuple, Long> valueExtractor;
 
     @Override
     public String getFieldName() {

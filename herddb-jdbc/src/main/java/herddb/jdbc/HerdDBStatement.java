@@ -37,6 +37,8 @@ public class HerdDBStatement implements java.sql.Statement {
 
     protected final HerdDBConnection parent;
     protected int maxRows;
+    protected ResultSet lastResultSet;
+    protected long lastUpdateCount;
 
     public HerdDBStatement(HerdDBConnection parent) {
         this.parent = parent;
@@ -46,7 +48,7 @@ public class HerdDBStatement implements java.sql.Statement {
     public ResultSet executeQuery(String sql) throws SQLException {
         try {
             ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList(), maxRows);
-            return new HerdDBResultSet(scanResult);
+            return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
             throw new SQLException(ex);
         }
@@ -125,12 +127,12 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public ResultSet getResultSet() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return lastResultSet;
     }
 
     @Override
     public int getUpdateCount() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return (int) lastUpdateCount;
     }
 
     @Override

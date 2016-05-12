@@ -1,3 +1,4 @@
+
 /*
  Licensed to Diennea S.r.l. under one
  or more contributor license agreements. See the NOTICE file
@@ -50,6 +51,7 @@ public class MessageUtils {
     private static final byte OPCODE_NULL_VALUE = 11;
     private static final byte OPCODE_LIST_VALUE = 12;
     private static final byte OPCODE_BYTEARRAY_VALUE = 13;
+    private static final byte OPCODE_TIMESTAMP_VALUE = 14;
 
     private static void writeUTF8String(ByteBuf buf, String s) {
         byte[] asarray = s.getBytes(StandardCharsets.UTF_8);
@@ -93,6 +95,9 @@ public class MessageUtils {
         } else if (o instanceof String) {
             encoded.writeByte(OPCODE_STRING_VALUE);
             writeUTF8String(encoded, (String) o);
+        } else if (o instanceof java.sql.Timestamp) {
+            encoded.writeByte(OPCODE_TIMESTAMP_VALUE);
+            encoded.writeLong(((java.sql.Timestamp) o).getTime());
         } else if (o instanceof Integer) {
             encoded.writeByte(OPCODE_INT_VALUE);
             encoded.writeInt((Integer) o);
@@ -177,6 +182,8 @@ public class MessageUtils {
             }
             case OPCODE_LONG_VALUE:
                 return encoded.readLong();
+            case OPCODE_TIMESTAMP_VALUE:
+                return new java.sql.Timestamp(encoded.readLong());
             default:
                 throw new RuntimeException("invalid opcode: " + _opcode);
         }

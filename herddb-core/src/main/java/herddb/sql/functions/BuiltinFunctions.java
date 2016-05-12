@@ -41,6 +41,8 @@ public class BuiltinFunctions {
     // aggregate
     public static final String COUNT = "count";
     public static final String SUM = "sum";
+    public static final String MIN = "min";
+    public static final String MAX = "max";
     // scalar
     public static final String LOWER = "lower";
     public static final String UPPER = "upper";
@@ -54,6 +56,12 @@ public class BuiltinFunctions {
         if (f.getName().equalsIgnoreCase(BuiltinFunctions.SUM) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
             return Column.column(fieldName, ColumnTypes.LONG);
         }
+        if (f.getName().equalsIgnoreCase(BuiltinFunctions.MIN) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
+            return Column.column(fieldName, ColumnTypes.LONG);
+        }
+        if (f.getName().equalsIgnoreCase(BuiltinFunctions.MAX) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
+            return Column.column(fieldName, ColumnTypes.LONG);
+        }
         return null;
     }
 
@@ -64,6 +72,10 @@ public class BuiltinFunctions {
                 return new CountColumnCalculator(fieldName);
             case SUM:
                 return new SumColumnCalculator(fieldName, f.getParameters().getExpressions().get(0));
+            case MIN:
+                return new MinColumnCalculator(fieldName, f.getParameters().getExpressions().get(0));
+            case MAX:
+                return new MaxColumnCalculator(fieldName, f.getParameters().getExpressions().get(0));
             default:
                 return null;
         }
@@ -84,6 +96,8 @@ public class BuiltinFunctions {
         switch (name) {
             case COUNT:
             case SUM:
+            case MIN:
+            case MAX:
                 return true;
             default:
                 return false;
@@ -94,6 +108,8 @@ public class BuiltinFunctions {
         switch (name.toLowerCase()) {
             case BuiltinFunctions.COUNT:
             case BuiltinFunctions.SUM:
+            case BuiltinFunctions.MIN:
+            case BuiltinFunctions.MAX:
                 return ColumnTypes.LONG;
 
             case BuiltinFunctions.LOWER:
@@ -128,6 +144,8 @@ public class BuiltinFunctions {
         switch (name) {
             case BuiltinFunctions.COUNT:
             case BuiltinFunctions.SUM:
+            case BuiltinFunctions.MIN:
+            case BuiltinFunctions.MAX:
                 // AGGREGATED FUNCTION
                 return null;
             case BuiltinFunctions.LOWER: {

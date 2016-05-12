@@ -21,6 +21,8 @@ package herddb.client.impl;
 
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
+import herddb.client.ScanResultSetMetadata;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -29,6 +31,11 @@ import java.util.Map;
  * @author enrico.olivelli
  */
 public class EmptyScanResultSet extends ScanResultSet {
+
+    @Override
+    public ScanResultSetMetadata getMetadata() {
+        return new ScanResultSetMetadata(Collections.emptyList());
+    }
 
     @Override
     public boolean hasNext() throws HDBException {
