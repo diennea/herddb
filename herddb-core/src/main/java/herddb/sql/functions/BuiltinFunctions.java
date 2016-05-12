@@ -19,13 +19,17 @@
  */
 package herddb.sql.functions;
 
+import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
+import herddb.sql.AggregatedColumnCalculator;
+import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 
 /**
  * SQL aggregate functions
@@ -33,13 +37,37 @@ import net.sf.jsqlparser.expression.StringValue;
  * @author enrico.olivelli
  */
 public class BuiltinFunctions {
+
     // aggregate
     public static final String COUNT = "count";
+    public static final String SUM = "sum";
     // scalar
     public static final String LOWER = "lower";
     public static final String UPPER = "upper";
     // special
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
+
+    public static Column toAggregatedOutputColumn(String fieldName, Function f) {
+        if (f.isAllColumns() && f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
+            return Column.column(fieldName, ColumnTypes.LONG);
+        }
+        if (f.getName().equalsIgnoreCase(BuiltinFunctions.SUM) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
+            return Column.column(fieldName, ColumnTypes.LONG);
+        }
+        return null;
+    }
+
+    public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName) throws StatementExecutionException {
+        String fuctionName = f.getName().toLowerCase();
+        switch (fuctionName) {
+            case COUNT:
+                return new CountColumnCalculator(fieldName);
+            case SUM:
+                return new SumColumnCalculator(fieldName, f.getParameters().getExpressions().get(0));
+            default:
+                return null;
+        }
+    }
 
     public static boolean isScalarFunction(String name) {
         switch (name.toLowerCase()) {
@@ -55,6 +83,7 @@ public class BuiltinFunctions {
         name = name.toLowerCase();
         switch (name) {
             case COUNT:
+            case SUM:
                 return true;
             default:
                 return false;
@@ -64,6 +93,7 @@ public class BuiltinFunctions {
     public static int typeOfFunction(String name) throws StatementExecutionException {
         switch (name.toLowerCase()) {
             case BuiltinFunctions.COUNT:
+            case BuiltinFunctions.SUM:
                 return ColumnTypes.LONG;
 
             case BuiltinFunctions.LOWER:
@@ -74,27 +104,21 @@ public class BuiltinFunctions {
 
         }
     }
-    
+
     public static Object computeValue(Expression exp, Map<String, Object> record) throws StatementExecutionException {
         Object value;
         if (exp instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
             value = record.get(c.getColumnName());
+        } else if (exp instanceof StringValue) {
+            value = ((StringValue) exp).getValue();
+        } else if (exp instanceof LongValue) {
+            value = ((LongValue) exp).getValue();
+        } else if (exp instanceof Function) {
+            Function f = (Function) exp;
+            value = computeFunction(f, record);
         } else {
-            if (exp instanceof StringValue) {
-                value = ((StringValue) exp).getValue();
-            } else {
-                if (exp instanceof LongValue) {
-                    value = ((LongValue) exp).getValue();
-                } else {
-                    if (exp instanceof Function) {
-                        Function f = (Function) exp;
-                        value = computeFunction(f, record);
-                    } else {
-                        throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
-                    }
-                }
-            }
+            throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
         }
         return value;
     }
@@ -103,6 +127,7 @@ public class BuiltinFunctions {
         String name = f.getName().toLowerCase();
         switch (name) {
             case BuiltinFunctions.COUNT:
+            case BuiltinFunctions.SUM:
                 // AGGREGATED FUNCTION
                 return null;
             case BuiltinFunctions.LOWER: {
@@ -123,4 +148,5 @@ public class BuiltinFunctions {
                 throw new StatementExecutionException("unhandled function " + name);
         }
     }
+
 }

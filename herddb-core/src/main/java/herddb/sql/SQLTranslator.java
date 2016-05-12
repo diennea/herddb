@@ -151,9 +151,12 @@ public class SQLTranslator {
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
+        boolean foundPk = false;
+        List<String> allColumnNames = new ArrayList<>();
         Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
         for (ColumnDefinition cf : s.getColumnDefinitions()) {
             int type;
+            allColumnNames.add(cf.getColumnName());
             switch (cf.getColDataType().getDataType().toLowerCase()) {
                 case "string":
                 case "varchar":
@@ -191,6 +194,7 @@ public class SQLTranslator {
             if (cf.getColumnSpecStrings() != null) {
                 List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
                 if (columnSpecs.contains("PRIMARY")) {
+                    foundPk = true;
                     tablebuilder.primaryKey(cf.getColumnName());
                 }
             }
@@ -199,12 +203,16 @@ public class SQLTranslator {
         if (s.getIndexes() != null) {
             for (Index index : s.getIndexes()) {
                 if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
-                    index.getColumnsNames().forEach(n -> {
+                    for (String n : index.getColumnsNames()) {
                         tablebuilder.primaryKey(n);
+                        foundPk = true;
                     }
-                    );
                 }
             }
+        }
+        if (!foundPk) {
+            // HEAP TABLE
+            allColumnNames.forEach(tablebuilder::primaryKey);
         }
 
         try {
