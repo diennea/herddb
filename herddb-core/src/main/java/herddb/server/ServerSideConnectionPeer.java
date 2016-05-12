@@ -21,18 +21,17 @@ package herddb.server;
 
 import herddb.model.LimitedDataScanner;
 import herddb.codec.RecordSerializer;
+import herddb.model.Column;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.GetResult;
-import herddb.model.Record;
 import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
-import herddb.model.Table;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
@@ -91,34 +90,31 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (txId > 0) {
                         statement.setTransactionId(tx);
                     }
-                    StatementExecutionResult result = server.getManager().executeStatement(statement, translatedQuery.context);
+                    if (translatedQuery.plan.mutator != null) {
+                        translatedQuery.plan.mutator.setTransactionId(tx);
+                    }
+                    StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), null));
-                    } else {
-                        if (result instanceof GetResult) {
-                            GetResult get = (GetResult) result;
-                            if (!get.found()) {
-                                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null));
-                            } else {
-                                Map<String, Object> record = RecordSerializer.toBean(get.getRecord(), get.getTable());
-                                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record));
-                            }
+                    } else if (result instanceof GetResult) {
+                        GetResult get = (GetResult) result;
+                        if (!get.found()) {
+                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null));
                         } else {
-                            if (result instanceof TransactionResult) {
-                                TransactionResult txresult = (TransactionResult) result;
-                                Map<String, Object> data = new HashMap<>();
-                                data.put("tx", txresult.getTransactionId());
-                                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data));
-                            } else {
-                                if (result instanceof DDLStatementExecutionResult) {
-                                    DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
-                                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, null));
-                                } else {
-                                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
-                                }
-                            }
+                            Map<String, Object> record = RecordSerializer.toBean(get.getRecord(), get.getTable());
+                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record));
                         }
+                    } else if (result instanceof TransactionResult) {
+                        TransactionResult txresult = (TransactionResult) result;
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("tx", txresult.getTransactionId());
+                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data));
+                    } else if (result instanceof DDLStatementExecutionResult) {
+                        DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
+                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, null));
+                    } else {
+                        _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
                     }
                 } catch (StatementExecutionException err) {
                     _channel.sendReplyMessage(message, Message.ERROR(null, err));
@@ -154,13 +150,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         DataScanner dataScanner = scanResult.dataScanner;
 
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
+                        List<String> columns = new ArrayList<>();
+                        for (Column c : dataScanner.getSchema()) {
+                            columns.add(c.name);
+                        }
                         List<Tuple> records = dataScanner.consume(fetchSize);
                         List<Map<String, Object>> converted = new ArrayList<>();
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
                         LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
-                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, converted));
+                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
                         scanners.put(scannerId, scanner);
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
@@ -181,13 +181,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     try {
                         DataScanner dataScanner = scanner.getScanner();
                         List<Tuple> records = dataScanner.consume(fetchSize);
+                        List<String> columns = new ArrayList<>();
+                        for (Column c : dataScanner.getSchema()) {
+                            columns.add(c.name);
+                        }
                         List<Map<String, Object>> converted = new ArrayList<>();
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
                         LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
                         _channel.sendReplyMessage(message,
-                                Message.RESULTSET_CHUNK(null, scannerId, converted));
+                                Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
                     } catch (DataScannerException error) {
                         _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
                     }

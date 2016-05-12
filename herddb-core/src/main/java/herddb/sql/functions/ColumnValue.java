@@ -17,35 +17,45 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.sql.functions;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import herddb.model.Tuple;
+import herddb.sql.AggregatedColumnCalculator;
+import java.util.Objects;
 
 /**
- * Receives records from a Scan
  *
  * @author enrico.olivelli
  */
-public abstract class ScanResultSet implements AutoCloseable {
+public class ColumnValue implements AggregatedColumnCalculator {
 
-    public abstract ScanResultSetMetadata getMetadata();
-    
-    public abstract boolean hasNext() throws HDBException;
+    Object value;
+    String fieldName;
 
-    public abstract Map<String, Object> next() throws HDBException;
+    public ColumnValue(String fieldName) {
+        this.fieldName = fieldName;
+    }
 
     @Override
-    public void close() {
+    public String getFieldName() {
+        return fieldName;
     }
 
-    public List< Map<String, Object>> consume() throws HDBException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        while (hasNext()) {
-            Map<String, Object> record = next();            
-            result.add(record);
+    @Override
+    public void consume(Tuple tuple) {
+        Object _value = tuple.get(fieldName);
+        if (value == null) {
+            value = _value;
+        } else {
+            if (!Objects.equals(value, _value)) {
+                throw new IllegalStateException("groupby failed: " + value + " <> " + _value);
+            }
         }
-        return result;
     }
+
+    @Override
+    public Object getValue() {
+        return value;
+    }
+
 }

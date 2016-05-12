@@ -42,6 +42,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
@@ -183,10 +184,8 @@ public class DBManager implements AutoCloseable {
             TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this);
             tablesSpaces.put(tableSpaceName, manager);
             manager.start();
-        } else {
-            if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
-                stopTableSpace(tableSpaceName);
-            }
+        } else if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
+            stopTableSpace(tableSpaceName);
         }
 
         if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
@@ -284,36 +283,68 @@ public class DBManager implements AutoCloseable {
     public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
         if (plan.mainStatement instanceof ScanStatement) {
             DataScanner result = scan((ScanStatement) plan.mainStatement, context);
-            ScanResult scanResult;
-            if (plan.mainAggregator != null) {
-                scanResult = new ScanResult(plan.mainAggregator.aggregate(result));
+
+            if (plan.mutator != null) {
+                return executeMutatorPlan(result, plan, context);
             } else {
-                scanResult = new ScanResult(result);
-            }
-            if (plan.comparator != null) {
-                // SORT is to by applied before limits                
-                MaterializedRecordSet sortedSet = new MaterializedRecordSet(scanResult.dataScanner.getSchema());
-                try {
-                    scanResult.dataScanner.forEach(sortedSet.records::add);
-                    sortedSet.sort(plan.comparator);
-                    scanResult = new ScanResult(new SimpleDataScanner(sortedSet));
-                } catch (DataScannerException err) {
-                    throw new StatementExecutionException(err);
-                }
-            }
-            if (plan.limits != null) {
-                try {
-                    return new ScanResult(new LimitedDataScanner(scanResult.dataScanner, plan.limits));
-                } catch (DataScannerException limitError) {
-                    throw new StatementExecutionException(limitError);
-                }
-            } else {
-                return scanResult;
+                return executeDataScannerPlan(plan, result);
             }
         } else {
             return executeStatement(plan.mainStatement, context);
         }
 
+    }
+
+    private StatementExecutionResult executeDataScannerPlan(ExecutionPlan plan, DataScanner result) throws StatementExecutionException {
+        ScanResult scanResult;
+        if (plan.mainAggregator != null) {
+            scanResult = new ScanResult(plan.mainAggregator.aggregate(result));
+        } else {
+            scanResult = new ScanResult(result);
+        }
+        if (plan.comparator != null) {
+            // SORT is to by applied before limits
+            MaterializedRecordSet sortedSet = new MaterializedRecordSet(scanResult.dataScanner.getSchema());
+            try {
+                scanResult.dataScanner.forEach(sortedSet.records::add);
+                sortedSet.sort(plan.comparator);
+                scanResult = new ScanResult(new SimpleDataScanner(sortedSet));
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
+            }
+        }
+        if (plan.limits != null) {
+            try {
+                return new ScanResult(new LimitedDataScanner(scanResult.dataScanner, plan.limits));
+            } catch (DataScannerException limitError) {
+                throw new StatementExecutionException(limitError);
+            }
+        } else {
+            return scanResult;
+        }
+    }
+
+    private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
+        try {
+            int updateCount = 0;
+            try {
+                while (result.hasNext()) {
+                    Tuple next = result.next();
+                    context.setCurrentTuple(next);
+                    try {
+                        DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context);
+                        updateCount += executeUpdate.getUpdateCount();
+                    } finally {
+                        context.setCurrentTuple(null);
+                    }
+                }
+                return new DMLStatementExecutionResult(updateCount);
+            } finally {
+                result.close();
+            }
+        } catch (DataScannerException ex) {
+            throw new StatementExecutionException(ex);
+        }
     }
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {

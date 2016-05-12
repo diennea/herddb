@@ -17,35 +17,34 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.client.impl;
 
-import java.util.ArrayList;
-import java.util.List;
+import herddb.client.HDBException;
+import herddb.client.ScanResultSet;
+import herddb.client.ScanResultSetMetadata;
+import java.util.Collections;
 import java.util.Map;
 
 /**
- * Receives records from a Scan
+ * Empty result set
  *
  * @author enrico.olivelli
  */
-public abstract class ScanResultSet implements AutoCloseable {
-
-    public abstract ScanResultSetMetadata getMetadata();
-    
-    public abstract boolean hasNext() throws HDBException;
-
-    public abstract Map<String, Object> next() throws HDBException;
+public class EmptyScanResultSet extends ScanResultSet {
 
     @Override
-    public void close() {
+    public ScanResultSetMetadata getMetadata() {
+        return new ScanResultSetMetadata(Collections.emptyList());
     }
 
-    public List< Map<String, Object>> consume() throws HDBException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        while (hasNext()) {
-            Map<String, Object> record = next();            
-            result.add(record);
-        }
-        return result;
+    @Override
+    public boolean hasNext() throws HDBException {
+        return false;
     }
+
+    @Override
+    public Map<String, Object> next() throws HDBException {
+        throw new UnsupportedOperationException("Not supported"); //To change body of generated methods, choose Tools | Templates.
+    }
+
 }

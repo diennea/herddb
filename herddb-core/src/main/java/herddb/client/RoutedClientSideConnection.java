@@ -25,7 +25,6 @@ import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.netty.NettyConnector;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -199,8 +198,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 throw new HDBException(reply + "");
             }
             List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
+            List<String> columnNames = (List<String>) reply.parameters.get("columns");
             LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
-            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, initialFetchBuffer);
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer);
             ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, impl);
             scanners.put(scannerId, scanner);
             return impl;
@@ -212,15 +212,22 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private class ScanResultSetImpl extends ScanResultSet {
 
         private final String scannerId;
+        private final ScanResultSetMetadata metadata;
 
-        private ScanResultSetImpl(String scannerId, List<Map<String, Object>> fetchBuffer) {
+        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer) {
             this.scannerId = scannerId;
+            this.metadata = new ScanResultSetMetadata(columns);
             this.fetchBuffer.addAll(fetchBuffer);
             if (fetchBuffer.isEmpty()) {
                 // empty result set
                 finished = true;
                 noMoreData = true;
             }
+        }
+
+        @Override
+        public ScanResultSetMetadata getMetadata() {
+            return metadata;
         }
 
         final List<Map<String, Object>> fetchBuffer = new ArrayList<>();

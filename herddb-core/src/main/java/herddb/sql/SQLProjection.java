@@ -25,6 +25,7 @@ import herddb.model.Projection;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import herddb.sql.functions.BuiltinFunctions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,22 +44,34 @@ import net.sf.jsqlparser.statement.select.SelectItem;
  */
 public class SQLProjection implements Projection {
 
-    private final List<SelectItem> selectItems;
     private final Column[] columns;
+    private final List<OutputColumn> output;
     private final String[] fieldNames;
 
+    private static final class OutputColumn {
+
+        final Column column;
+        final Expression expression;
+
+        public OutputColumn(Column column, Expression expression) {
+            this.column = column;
+            this.expression = expression;
+        }
+
+    }
+
     public SQLProjection(Table table, List<SelectItem> selectItems) throws StatementExecutionException {
-        this.selectItems = selectItems;
-        List<Column> _columns = new ArrayList<>();
+        List<OutputColumn> raw_output = new ArrayList<>();
         int pos = 0;
         for (SelectItem item : selectItems) {
             pos++;
-            String fieldName = null;
-            Object value;
-            int columType;
             if (item instanceof SelectExpressionItem) {
+
                 SelectExpressionItem si = (SelectExpressionItem) item;
                 Alias alias = si.getAlias();
+
+                int columType;
+                String fieldName = null;
                 if (alias != null && alias.getName() != null) {
                     fieldName = alias.getName();
                 }
@@ -73,120 +86,81 @@ public class SQLProjection implements Projection {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName());
                     }
                     columType = column.type;
+                } else if (exp instanceof StringValue) {
+                    columType = ColumnTypes.STRING;
+                } else if (exp instanceof LongValue) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof Function) {
+                    Function f = (Function) exp;
+                    columType = BuiltinFunctions.typeOfFunction(f.getName());
                 } else {
-                    if (exp instanceof StringValue) {
-                        columType = ColumnTypes.STRING;
-                    } else {
-                        if (exp instanceof LongValue) {
-                            columType = ColumnTypes.LONG;
-                        } else {
-                            if (exp instanceof Function) {
-                                Function f = (Function) exp;
-                                switch (f.getName().toLowerCase()) {
-                                    case "count":
-                                        columType = ColumnTypes.LONG;
-                                        break;
-                                    case "lower":
-                                    case "upper":
-                                        columType = ColumnTypes.STRING;
-                                        break;
-                                    default:
-                                        throw new StatementExecutionException("unhandled select function: " + exp);
-
-                                }
-                            } else {
-                                throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
-                            }
-                        }
-                    }
+                    throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
                 }
                 if (fieldName == null) {
                     fieldName = "item" + pos;
                 }
-                _columns.add(Column.column(fieldName, columType));
+                Column col = Column.column(fieldName, columType);
+                OutputColumn outputColumn = new OutputColumn(col, exp);
+                raw_output.add(outputColumn);
             } else {
                 throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
             }
         }
-        this.columns = _columns.toArray(new Column[_columns.size()]);
-        this.fieldNames = new String[columns.length];
-        int i = 0;
-        for (Column c : columns) {
-            this.fieldNames[i++] = c.name;
+        List<OutputColumn> complete_output = new ArrayList<>(raw_output);
+        for (OutputColumn col : raw_output) {
+            if (col.expression instanceof Function) {
+                addExpressionsForFunctionArguments((Function) col.expression, complete_output, table);
+            }
+        }
+        this.output = complete_output;
+        this.columns = new Column[output.size()];
+        this.fieldNames = new String[output.size()];
+        for (int i = 0; i < output.size(); i++) {
+            Column c = output.get(i).column;
+            this.columns[i] = c;
+            this.fieldNames[i] = c.name;
+        }
+    }
+
+    private static void addExpressionsForFunctionArguments(Function f, List<OutputColumn> output, Table table) throws StatementExecutionException {
+        if (f.getParameters() != null && f.getParameters().getExpressions() != null) {
+            for (Expression e : f.getParameters().getExpressions()) {
+                if (e instanceof net.sf.jsqlparser.schema.Column) {
+                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e;
+                    String columnName = c.getColumnName();
+                    boolean found = false;
+                    for (OutputColumn outputColumn : output) {
+                        if (columnName.equalsIgnoreCase(outputColumn.column.name)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        Column column = table.getColumn(c.getColumnName());
+                        if (column == null) {
+                            throw new StatementExecutionException("invalid column name " + c.getColumnName());
+                        }
+                        output.add(new OutputColumn(Column.column(columnName, column.type), c));
+                    }
+                }
+            }
         }
     }
 
     @Override
     public Tuple map(Tuple tuple) throws StatementExecutionException {
         Map<String, Object> record = tuple.toMap();
-        List<Object> values = new ArrayList<>(selectItems.size());
+        List<Object> values = new ArrayList<>(output.size());
         int pos = 0;
-        for (SelectItem item : selectItems) {
-            if (item instanceof SelectExpressionItem) {
-                SelectExpressionItem si = (SelectExpressionItem) item;
-                Expression exp = si.getExpression();
-                Object value;
-                value = computeValue(exp, record);
-                values.add(value);
-            } else {
-                throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
-            }
+        for (OutputColumn col : output) {
+            Object value;
+            value = BuiltinFunctions.computeValue(col.expression, record);
+            values.add(value);
         }
         return new Tuple(
                 fieldNames,
                 values.toArray()
         );
-    }
-
-    private Object computeValue(Expression exp, Map<String, Object> record) throws StatementExecutionException {
-        Object value;
-        if (exp instanceof net.sf.jsqlparser.schema.Column) {
-            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
-            value = record.get(c.getColumnName());
-        } else {
-            if (exp instanceof StringValue) {
-                value = ((StringValue) exp).getValue();
-            } else {
-                if (exp instanceof LongValue) {
-                    value = ((LongValue) exp).getValue();
-                } else {
-                    if (exp instanceof Function) {
-                        Function f = (Function) exp;
-                        value = computeFunction(f, record);
-                    } else {
-                        throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
-                    }
-                }
-            }
-        }
-        return value;
-    }
-
-    private Object computeFunction(Function f, Map<String, Object> record) throws StatementExecutionException {
-        String name = f.getName().toLowerCase();
-        switch (name) {
-            case "count":
-            case "min":
-            case "max":
-                // AGGREGATED FUNCTION
-                return null;
-            case "lower": {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
-                if (computed == null) {
-                    return null;
-                }
-                return computed.toString().toLowerCase();
-            }
-            case "upper": {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
-                if (computed == null) {
-                    return null;
-                }
-                return computed.toString().toUpperCase();
-            }
-            default:
-                throw new StatementExecutionException("unhandled function " + name);
-        }
     }
 
     @Override

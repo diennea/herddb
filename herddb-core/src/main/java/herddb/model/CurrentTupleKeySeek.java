@@ -17,35 +17,35 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import herddb.codec.RecordSerializer;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Receives records from a Scan
+ * Primary Key index seek on the "current tuple", used for multi row DMS
+ * statements
  *
  * @author enrico.olivelli
  */
-public abstract class ScanResultSet implements AutoCloseable {
+public class CurrentTupleKeySeek extends RecordFunction {
 
-    public abstract ScanResultSetMetadata getMetadata();
-    
-    public abstract boolean hasNext() throws HDBException;
+    private final Table table;
 
-    public abstract Map<String, Object> next() throws HDBException;
+    public CurrentTupleKeySeek(Table table) {
+        this.table = table;
+    }
 
     @Override
-    public void close() {
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
+        Tuple tuple = context.getCurrentTuple();
+        Map<String, Object> pk = new HashMap<>();
+        for (String column : table.primaryKey) {
+            pk.put(column, tuple.get(column));
+        }
+        return RecordSerializer.serializePrimaryKey(pk, table).data;
+
     }
 
-    public List< Map<String, Object>> consume() throws HDBException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        while (hasNext()) {
-            Map<String, Object> record = next();            
-            result.add(record);
-        }
-        return result;
-    }
 }

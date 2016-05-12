@@ -17,35 +17,22 @@
  under the License.
 
  */
-package herddb.client;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+package herddb.model;
 
 /**
- * Receives records from a Scan
+ * Calculates the new primary key value
  *
  * @author enrico.olivelli
  */
-public abstract class ScanResultSet implements AutoCloseable {
+public class AutoIncrementPrimaryKeyRecordFunction extends RecordFunction {
 
-    public abstract ScanResultSetMetadata getMetadata();
-    
-    public abstract boolean hasNext() throws HDBException;
+    public AutoIncrementPrimaryKeyRecordFunction() {
 
-    public abstract Map<String, Object> next() throws HDBException;
+    }
 
     @Override
-    public void close() {
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) {
+        return tableContext.computeNewPrimaryKeyValue();
     }
 
-    public List< Map<String, Object>> consume() throws HDBException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        while (hasNext()) {
-            Map<String, Object> record = next();            
-            result.add(record);
-        }
-        return result;
-    }
 }

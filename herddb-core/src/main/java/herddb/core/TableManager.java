@@ -26,6 +26,7 @@ import herddb.log.LogEntryFactory;
 import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.model.ColumnTypes;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
@@ -43,11 +44,10 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
-import herddb.model.DataScannerException;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.TableContext;
 import herddb.model.Tuple;
-import herddb.model.TupleComparator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
@@ -55,7 +55,6 @@ import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +62,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -125,6 +125,13 @@ public class TableManager {
     private final ReentrantReadWriteLock pagesLock = new ReentrantReadWriteLock(true);
 
     /**
+     * auto_increment support
+     */
+    private final AtomicLong newPrimaryKeyValue = new AtomicLong();
+
+    private final TableContext tableContext;
+
+    /**
      * Definition of the table
      */
     private Table table;
@@ -137,6 +144,62 @@ public class TableManager {
         this.tableSpaceManager = tableSpaceManager;
         this.log = log;
         this.dataStorageManager = dataStorageManager;
+
+        this.tableContext = buildTableContext();
+    }
+
+    private TableContext buildTableContext() {
+        TableContext tableContext;
+        if (!table.auto_increment) {
+            tableContext = new TableContext() {
+                @Override
+                public byte[] computeNewPrimaryKeyValue() {
+                    throw new UnsupportedOperationException("no auto_increment function on this table");
+                }
+
+                @Override
+                public Table getTable() {
+                    return table;
+                }
+            };
+        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+            tableContext = new TableContext() {
+                @Override
+                public byte[] computeNewPrimaryKeyValue() {
+                    return Bytes.from_int((int) newPrimaryKeyValue.incrementAndGet()).data;
+                }
+
+                @Override
+                public Table getTable() {
+                    return table;
+                }
+            };
+        } else if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.LONG) {
+            tableContext = new TableContext() {
+                @Override
+                public byte[] computeNewPrimaryKeyValue() {
+                    return Bytes.from_long((int) newPrimaryKeyValue.incrementAndGet()).data;
+                }
+
+                @Override
+                public Table getTable() {
+                    return table;
+                }
+            };
+        } else {
+            tableContext = new TableContext() {
+                @Override
+                public byte[] computeNewPrimaryKeyValue() {
+                    throw new UnsupportedOperationException("no auto_increment function on this table");
+                }
+
+                @Override
+                public Table getTable() {
+                    return table;
+                }
+            };
+        }
+        return tableContext;
     }
 
     public Table getTable() {
@@ -269,19 +332,17 @@ public class TableManager {
             locks: the insert uses global 'insert' lock on the table
             the insert will update the 'maxKey' for auto_increment primary keys
          */
-        Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context));
-        byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context);
+        Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
+        byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
 
         LockHandle lock = lockForWrite(key, transaction);
         try {
             if (transaction != null) {
                 if (transaction.recordDeleted(table.name, key)) {
                     // OK, INSERT on a DELETED record inside this transaction
-                } else {
-                    if (transaction.recordInserted(table.name, key) != null) {
-                        // ERROR, INSERT on a INSERTED record inside this transaction
-                        throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
-                    }
+                } else if (transaction.recordInserted(table.name, key) != null) {
+                    // ERROR, INSERT on a INSERTED record inside this transaction
+                    throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
                 }
             }
             if (keyToPage.containsKey(key)) {
@@ -310,7 +371,7 @@ public class TableManager {
         RecordFunction function = update.getFunction();
 
         Predicate predicate = update.getPredicate();
-        Bytes key = new Bytes(update.getKey().computeNewValue(null, context));
+        Bytes key = new Bytes(update.getKey().computeNewValue(null, context, tableContext));
         LockHandle lock = lockForWrite(key, transaction);
         try {
             byte[] newValue;
@@ -330,7 +391,7 @@ public class TableManager {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(0, key);
                     }
-                    newValue = function.computeNewValue(actual, context);
+                    newValue = function.computeNewValue(actual, context, tableContext);
                 } else {
                     // update on a untouched record by this transaction
                     Long pageId = keyToPage.get(key);
@@ -347,7 +408,7 @@ public class TableManager {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(0, key);
                     }
-                    newValue = function.computeNewValue(actual, context);
+                    newValue = function.computeNewValue(actual, context, tableContext);
                 }
             } else {
                 Long pageId = keyToPage.get(key);
@@ -364,7 +425,7 @@ public class TableManager {
                     // record does not match predicate
                     return new DMLStatementExecutionResult(0, key);
                 }
-                newValue = function.computeNewValue(actual, context);
+                newValue = function.computeNewValue(actual, context, tableContext);
             }
             if (newValue == null) {
                 throw new NullPointerException("new value cannot be null");
@@ -391,7 +452,7 @@ public class TableManager {
                   locks: the delete uses a lock on the the key
                   the delete can have a 'where' predicate which is to be evaluated against the decoded row, the delete  will be executed only if the predicate returns boolean 'true' value  (CAS operation)
          */
-        Bytes key = new Bytes(delete.getKeyFunction().computeNewValue(null, context));
+        Bytes key = new Bytes(delete.getKeyFunction().computeNewValue(null, context, tableContext));
         LockHandle lock = lockForWrite(key, transaction);
         try {
             if (transaction != null) {
@@ -561,7 +622,7 @@ public class TableManager {
     }
 
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
-        Bytes key = new Bytes(get.getKey().computeNewValue(null, context));
+        Bytes key = new Bytes(get.getKey().computeNewValue(null, context, tableContext));
         Predicate predicate = get.getPredicate();
         LockHandle lock = lockForRead(key, transaction);
         try {

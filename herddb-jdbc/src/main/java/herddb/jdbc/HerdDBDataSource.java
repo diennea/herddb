@@ -33,9 +33,23 @@ import java.util.logging.Logger;
  */
 public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
-    private final HDBClient client;
+    protected HDBClient client;
+
+    protected HerdDBDataSource() {
+    }
 
     public HerdDBDataSource(HDBClient client) {
+        this.client = client;
+    }
+
+    protected void init() throws SQLException {
+    }
+
+    public HDBClient getClient() {
+        return client;
+    }
+
+    public void setClient(HDBClient client) {
         this.client = client;
     }
 
@@ -46,17 +60,20 @@ public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
+        init();
         return new HerdDBConnection(client);
     }
 
+    private PrintWriter logWriter;
+
     @Override
     public PrintWriter getLogWriter() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return logWriter;
     }
 
     @Override
     public void setLogWriter(PrintWriter out) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        this.logWriter = out;
     }
 
     @Override
@@ -71,7 +88,7 @@ public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException();
     }
 
     @Override

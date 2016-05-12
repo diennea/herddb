@@ -36,7 +36,7 @@ public class PrimaryKeyIndexSeekPredicate extends Predicate {
 
     @Override
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-        Bytes keyValue = new Bytes(key.computeNewValue(record, context));
+        Bytes keyValue = new Bytes(key.computeNewValue(record, context, null));
         return record.key.equals(keyValue);
     }
 

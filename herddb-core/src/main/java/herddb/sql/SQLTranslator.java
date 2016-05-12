@@ -19,10 +19,12 @@
  */
 package herddb.sql;
 
+import herddb.model.CurrentTupleKeySeek;
 import herddb.core.DBManager;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
 import herddb.model.Aggregator;
+import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScannerException;
@@ -46,13 +48,13 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.sql.functions.BuiltinFunctions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
@@ -112,28 +114,18 @@ public class SQLTranslator {
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
                 result = ExecutionPlan.simple(buildCreateTableStatement((CreateTable) stmt));
+            } else if (stmt instanceof Insert) {
+                result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
+            } else if (stmt instanceof Delete) {
+                result = buildDeleteStatement((Delete) stmt);
+            } else if (stmt instanceof Update) {
+                result = buildUpdateStatement((Update) stmt);
+            } else if (stmt instanceof Select) {
+                result = buildSelectStatement((Select) stmt, scan);
+            } else if (stmt instanceof Execute) {
+                result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
             } else {
-                if (stmt instanceof Insert) {
-                    result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
-                } else {
-                    if (stmt instanceof Delete) {
-                        result = ExecutionPlan.simple(buildDeleteStatement((Delete) stmt));
-                    } else {
-                        if (stmt instanceof Update) {
-                            result = ExecutionPlan.simple(buildUpdateStatement((Update) stmt));
-                        } else {
-                            if (stmt instanceof Select) {
-                                result = buildSelectStatement((Select) stmt, scan);
-                            } else {
-                                if (stmt instanceof Execute) {
-                                    result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
-                                } else {
-                                    throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
-                                }
-                            }
-                        }
-                    }
-                }
+                throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
             }
             if (allowCache) {
                 cache.put(cacheKey, result);
@@ -147,19 +139,23 @@ public class SQLTranslator {
 
     private Statement buildCreateTableStatement(CreateTable s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName();
+        String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
+        boolean foundPk = false;
+        List<String> allColumnNames = new ArrayList<>();
         Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
         for (ColumnDefinition cf : s.getColumnDefinitions()) {
             int type;
-            switch (cf.getColDataType().getDataType()) {
+            allColumnNames.add(cf.getColumnName());
+            switch (cf.getColDataType().getDataType().toLowerCase()) {
                 case "string":
                 case "varchar":
                 case "nvarchar":
                 case "nvarchar2":
                 case "nclob":
+                case "clob":
                     type = ColumnTypes.STRING;
                     break;
                 case "long":
@@ -174,6 +170,7 @@ public class SQLTranslator {
                     break;
                 case "bytea":
                 case "blob":
+                case "image":
                     type = ColumnTypes.BYTEARRAY;
                     break;
                 case "timestamp":
@@ -185,20 +182,30 @@ public class SQLTranslator {
                     throw new StatementExecutionException("bad type " + cf.getColDataType().getDataType());
             }
             tablebuilder.column(cf.getColumnName(), type);
-            if (cf.getColumnSpecStrings() != null && cf.getColumnSpecStrings().contains("primary")) {
-                tablebuilder.primaryKey(cf.getColumnName());
+
+            if (cf.getColumnSpecStrings() != null) {
+                List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
+                if (columnSpecs.contains("PRIMARY")) {
+                    foundPk = true;
+                    boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
+                    tablebuilder.primaryKey(cf.getColumnName(), auto_increment);
+                }
             }
         }
 
         if (s.getIndexes() != null) {
             for (Index index : s.getIndexes()) {
                 if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
-                    index.getColumnsNames().forEach(n -> {
+                    for (String n : index.getColumnsNames()) {
                         tablebuilder.primaryKey(n);
+                        foundPk = true;
                     }
-                    );
                 }
             }
+        }
+        if (!foundPk) {
+            // HEAP TABLE
+            allColumnNames.forEach(tablebuilder::primaryKey);
         }
 
         try {
@@ -211,7 +218,7 @@ public class SQLTranslator {
 
     private Statement buildInsertStatement(Insert s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName();
+        String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -235,30 +242,53 @@ public class SQLTranslator {
         int countJdbcParametersBeforeKey = -1;
         int countJdbcParameters = 0;
         ExpressionList list = (ExpressionList) s.getItemsList();
-        for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
-            Column column = table.getColumn(c.getColumnName());
-            if (column == null) {
-                throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
-            }
-            Expression expression = list.getExpressions().get(index++);
-            if (table.isPrimaryKeyColumn(column.name)) {
-                keyExpressionToColumn.add(column.name);
-                keyValueExpression.add(expression);
-                if (countJdbcParametersBeforeKey < 0) {
-                    countJdbcParametersBeforeKey = countJdbcParameters;
+        if (s.getColumns() != null) {
+            for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
+                Column column = table.getColumn(c.getColumnName());
+                if (column == null) {
+                    throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
                 }
+                Expression expression = list.getExpressions().get(index++);
+                if (table.isPrimaryKeyColumn(column.name)) {
+                    keyExpressionToColumn.add(column.name);
+                    keyValueExpression.add(expression);
+                    if (countJdbcParametersBeforeKey < 0) {
+                        countJdbcParametersBeforeKey = countJdbcParameters;
+                    }
+                }
+                valuesColumns.add(c);
+                valuesExpressions.add(expression);
+                countJdbcParameters += countJdbcParametersUsedByExpression(expression);
             }
-            valuesColumns.add(c);
-            valuesExpressions.add(expression);
-            countJdbcParameters += countJdbcParametersUsedByExpression(expression);
+        } else {
+            for (Column column : table.columns) {
+
+                Expression expression = list.getExpressions().get(index++);
+                if (table.isPrimaryKeyColumn(column.name)) {
+                    keyExpressionToColumn.add(column.name);
+                    keyValueExpression.add(expression);
+                    if (countJdbcParametersBeforeKey < 0) {
+                        countJdbcParametersBeforeKey = countJdbcParameters;
+                    }
+                }
+                valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
+                valuesExpressions.add(expression);
+                countJdbcParameters += countJdbcParametersUsedByExpression(expression);
+            }
         }
         if (countJdbcParametersBeforeKey < 0) {
             countJdbcParametersBeforeKey = 0;
         }
-        if (keyValueExpression.size() != table.primaryKey.length) {
-            throw new StatementExecutionException("you must set a value for the primary key");
+
+        RecordFunction keyfunction;
+        if (keyValueExpression.isEmpty() && table.auto_increment) {
+            keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+        } else {
+            if (keyValueExpression.size() != table.primaryKey.length) {
+                throw new StatementExecutionException("you must set a value for the primary key");
+            }
+            keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression, countJdbcParametersBeforeKey);
         }
-        RecordFunction keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression, countJdbcParametersBeforeKey);
         RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
 
         try {
@@ -268,10 +298,10 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildDeleteStatement(Delete s) throws StatementExecutionException {
+    private ExecutionPlan buildDeleteStatement(Delete s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
+        String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -286,23 +316,29 @@ public class SQLTranslator {
         Table table = tableManager.getTable();
 
         SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, new AtomicInteger());
-        if (keyFunction == null) {
-            // DELETE FROM TABLE WHERE KEY=? AND ....
-            throw new StatementExecutionException("unsupported where " + s.getWhere());
-        }
+        if (keyFunction != null) {
 
-        Predicate where = buildPredicate(s.getWhere(), table, 0);
-        try {
-            return new DeleteStatement(tableSpace, tableName, keyFunction, where);
-        } catch (IllegalArgumentException err) {
-            throw new StatementExecutionException(err);
+            Predicate where = buildPredicate(s.getWhere(), table, 0);
+            try {
+                return ExecutionPlan.simple(new DeleteStatement(tableSpace, tableName, keyFunction, where));
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
+        } else {
+
+            // Perform a scan and then update each row
+            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, s.getWhere(), 0) : null;
+            ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), where);
+            return ExecutionPlan.make(scan, null, null, null, st);
+
         }
     }
 
-    private Statement buildUpdateStatement(Update s) throws StatementExecutionException {
+    private ExecutionPlan buildUpdateStatement(Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
+        String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -314,7 +350,7 @@ public class SQLTranslator {
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
-        Table table = tableManager.getTable();        
+        Table table = tableManager.getTable();
         for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
             Column column = table.getColumn(c.getColumnName());
             if (column == null) {
@@ -325,22 +361,28 @@ public class SQLTranslator {
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
         int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
         RecordFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, new AtomicInteger(setClauseParamters));
-        if (keyFunction == null) {
-            // UPDATE TABLE SET XXX WHERE KEY=? AND ....
-            throw new StatementExecutionException("unsupported where " + s.getWhere());
+
+        if (keyFunction != null) {
+            // UPDATE BY PRIMARY KEY            
+            try {
+                Predicate where = buildPredicate(s.getWhere(), table, setClauseParamters);
+                UpdateStatement st = new UpdateStatement(tableSpace, tableName, keyFunction, function, where);
+                return ExecutionPlan.simple(st);
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
+        } else {
+            // Perform a scan and then update each row
+            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, s.getWhere(), setClauseParamters) : null;
+            ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
+            UpdateStatement st = new UpdateStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), function, where);
+            return ExecutionPlan.make(scan, null, null, null, st);
         }
 
-        Predicate where = buildPredicate(s.getWhere(), table, setClauseParamters);
-
-        try {
-            return new UpdateStatement(tableSpace, tableName, keyFunction, function, where);
-        } catch (IllegalArgumentException err) {
-            throw new StatementExecutionException(err);
-        }
     }
 
     private Predicate buildPredicate(Expression where, Table table, int parameterPos) {
-        if (where instanceof EqualsTo) {
+        if (where instanceof EqualsTo || where == null) {
             // surely this is the only predicate on the PK, we can skip it
             return null;
         }
@@ -390,12 +432,10 @@ public class SQLTranslator {
             if (keyOnRight != null) {
                 return keyOnRight;
             }
-        } else {
-            if (where instanceof EqualsTo) {
-                Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, columnName, table, jdbcParameterPos);
-                if (keyDirect != null) {
-                    return keyDirect;
-                }
+        } else if (where instanceof EqualsTo) {
+            Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, columnName, table, jdbcParameterPos);
+            if (keyDirect != null) {
+                return keyDirect;
             }
         }
 
@@ -426,16 +466,12 @@ public class SQLTranslator {
     private Object resolveValue(Expression expression) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
+        } else if (expression instanceof StringValue) {
+            return ((StringValue) expression).getValue();
+        } else if (expression instanceof LongValue) {
+            return ((LongValue) expression).getValue();
         } else {
-            if (expression instanceof StringValue) {
-                return ((StringValue) expression).getValue();
-            } else {
-                if (expression instanceof LongValue) {
-                    return ((LongValue) expression).getValue();
-                } else {
-                    throw new StatementExecutionException("unsupported value type " + expression.getClass());
-                }
-            }
+            throw new StatementExecutionException("unsupported value type " + expression.getClass());
         }
     }
 
@@ -448,19 +484,15 @@ public class SQLTranslator {
                 if (columnName.equals(column.getColumnName())) {
                     return e.getRightExpression();
                 }
-            } else {
-                if (e.getLeftExpression() instanceof AndExpression) {
-                    result = findColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, jdbcParameterPos);
-                    if (result != null) {
-                        return result;
-                    }
-                } else {
-                    if (e.getRightExpression() instanceof AndExpression) {
-                        result = findColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, jdbcParameterPos);
-                        if (result != null) {
-                            return result;
-                        }
-                    }
+            } else if (e.getLeftExpression() instanceof AndExpression) {
+                result = findColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, jdbcParameterPos);
+                if (result != null) {
+                    return result;
+                }
+            } else if (e.getRightExpression() instanceof AndExpression) {
+                result = findColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, jdbcParameterPos);
+                if (result != null) {
+                    return result;
                 }
             }
         }
@@ -471,7 +503,7 @@ public class SQLTranslator {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName();
+        String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -483,7 +515,7 @@ public class SQLTranslator {
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
-        int countJdbcParameters = 0;
+
         Table table = tableManager.getTable();
         boolean allColumns = false;
         boolean containsAggregateFunctions = false;
@@ -492,13 +524,10 @@ public class SQLTranslator {
             if (c instanceof AllColumns) {
                 allColumns = true;
                 break;
-            } else {
-                if (c instanceof SelectExpressionItem) {
-                    SelectExpressionItem se = (SelectExpressionItem) c;
-                    countJdbcParameters += countJdbcParametersUsedByExpression(se.getExpression());
-                    if (isAggregateFunction(se.getExpression())) {
-                        containsAggregateFunctions = true;
-                    }
+            } else if (c instanceof SelectExpressionItem) {
+                SelectExpressionItem se = (SelectExpressionItem) c;
+                if (isAggregateFunction(se.getExpression())) {
+                    containsAggregateFunctions = true;
                 }
             }
         }
@@ -552,22 +581,20 @@ public class SQLTranslator {
                 } else {
                     limitsOnScan = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
                 }
-            } else {
-                if (top != null) {
-                    if (top.isPercentage() || top.isRowCountJdbcParameter()) {
-                        throw new StatementExecutionException("Invalid TOP clause");
-                    }
-                    if (aggregator != null) {
-                        limitsOnPlan = new ScanLimits((int) top.getRowCount(), 0);
-                    } else {
-                        limitsOnScan = new ScanLimits((int) top.getRowCount(), 0);
-                    }
+            } else if (top != null) {
+                if (top.isPercentage() || top.isRowCountJdbcParameter()) {
+                    throw new StatementExecutionException("Invalid TOP clause");
+                }
+                if (aggregator != null) {
+                    limitsOnPlan = new ScanLimits((int) top.getRowCount(), 0);
+                } else {
+                    limitsOnScan = new ScanLimits((int) top.getRowCount(), 0);
                 }
             }
 
             try {
                 ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparatorOnScan, limitsOnScan);
-                return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan);
+                return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan, null);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
@@ -653,18 +680,12 @@ public class SQLTranslator {
         }
         Function function = (Function) expression;
         String name = function.getName().toLowerCase();
-        switch (name) {
-            case "count":
-            case "min":
-            case "max":
-                return true;
-            case "upper":
-            case "lower":
-                // TODO: handle scalar functions
-                return false;
-            default:
-                throw new StatementExecutionException("unsupported function " + name);
+        if (BuiltinFunctions.isAggregateFunction(function.getName())) {
+            return true;
         }
-
+        if (BuiltinFunctions.isScalarFunction(function.getName())) {
+            return false;
+        }
+        throw new StatementExecutionException("unsupported function " + name);
     }
 }

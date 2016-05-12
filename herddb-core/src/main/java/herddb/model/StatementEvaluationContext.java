@@ -20,9 +20,21 @@
 package herddb.model;
 
 /**
- * Context for each statement evaluation. Statements are immutable and cachable objects, and cannot retain state
+ * Context for each statement evaluation. Statements are immutable and cachable
+ * objects, and cannot retain state
+ *
  * @author enrico.olivelli
  */
 public class StatementEvaluationContext {
-    
+
+    private Tuple currentTuple;
+
+    public Tuple getCurrentTuple() {
+        return currentTuple;
+    }
+
+    public void setCurrentTuple(Tuple currentTuple) {
+        this.currentTuple = currentTuple;
+    }
+
 }

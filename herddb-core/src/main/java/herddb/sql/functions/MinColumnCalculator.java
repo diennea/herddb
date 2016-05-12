@@ -17,35 +17,42 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.sql.functions;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import herddb.model.StatementExecutionException;
+import herddb.model.Tuple;
+import net.sf.jsqlparser.expression.Expression;
 
 /**
- * Receives records from a Scan
+ * SQL MAX
  *
  * @author enrico.olivelli
  */
-public abstract class ScanResultSet implements AutoCloseable {
+public class MinColumnCalculator extends AbstractSingleExpressionArgumentColumnCalculator {
 
-    public abstract ScanResultSetMetadata getMetadata();
-    
-    public abstract boolean hasNext() throws HDBException;
-
-    public abstract Map<String, Object> next() throws HDBException;
-
-    @Override
-    public void close() {
+    public MinColumnCalculator(String fieldName, Expression expression) throws StatementExecutionException {
+        super(fieldName, expression);
     }
 
-    public List< Map<String, Object>> consume() throws HDBException {
-        List<Map<String, Object>> result = new ArrayList<>();
-        while (hasNext()) {
-            Map<String, Object> record = next();            
-            result.add(record);
+    Long result;
+
+    @Override
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    @Override
+    public void consume(Tuple tuple) {
+        Long value = valueExtractor.apply(tuple);
+        if (value != null) {
+            if (result == null || result > value) {
+                result = value;
+            }
         }
+    }
+
+    @Override
+    public Object getValue() {
         return result;
     }
 }

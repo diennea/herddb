@@ -101,6 +101,43 @@ public class RawSQLTest {
     }
 
     @Test
+    public void insertTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql values(?,?,?)", Arrays.asList("mykey2", Integer.valueOf(1234), "value")).getUpdateCount());
+
+            assertEquals(2, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume().size());
+
+        }
+    }
+
+    @Test
+    public void updateTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), "value1")).getUpdateCount());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='value1'", Collections.emptyList()).consume().size());
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=k1  where k1=?", Arrays.asList("mykey")).getUpdateCount());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where s1='mykey'", Collections.emptyList()).consume().size());
+        }
+    }
+
+    @Test
     public void insertJdbcParametersTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
@@ -352,6 +389,178 @@ public class RawSQLTest {
                         }
                     }
 
+                }
+            }
+
+        }
+    }
+
+    @Test
+    public void simpleSumTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1), "a")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey2", Integer.valueOf(2), "a")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey3", Integer.valueOf(5), "b")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc FROM tblspace1.tsql", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(8), result.get(0).get(0));
+                    assertEquals(Long.valueOf(8), result.get(0).get("cc"));
+                }
+            }
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1),s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(3, result.size());
+                    assertEquals(Long.valueOf(3), result.get(0).get(0));
+                    assertEquals(Long.valueOf(3), result.get(0).get("SUM(n1)"));
+                    assertEquals("a", result.get(0).get(1));
+                    assertEquals("a", result.get(0).get("s1"));
+
+                    assertEquals(Long.valueOf(5), result.get(1).get(0));
+                    assertEquals(Long.valueOf(5), result.get(1).get("SUM(n1)"));
+                    assertEquals("b", result.get(1).get(1));
+                    assertEquals("b", result.get(1).get("s1"));
+
+                    assertEquals(Long.valueOf(0), result.get(2).get(0));
+                    assertEquals(Long.valueOf(0), result.get(2).get("SUM(n1)"));
+                    assertEquals(null, result.get(2).get(1));
+                    assertEquals(null, result.get(2).get("s1"));
+                }
+            }
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(3, result.size());
+                    assertEquals(Long.valueOf(3), result.get(0).get(0));
+                    assertEquals(Long.valueOf(3), result.get(0).get("asum"));
+                    assertEquals("a", result.get(0).get(1));
+                    assertEquals("a", result.get(0).get("s1"));
+
+                    assertEquals(Long.valueOf(5), result.get(1).get(0));
+                    assertEquals(Long.valueOf(5), result.get(1).get("asum"));
+                    assertEquals("b", result.get(1).get(1));
+                    assertEquals("b", result.get(1).get("s1"));
+
+                    assertEquals(Long.valueOf(0), result.get(2).get(0));
+                    assertEquals(Long.valueOf(0), result.get(2).get("asum"));
+                    assertEquals(null, result.get(2).get(1));
+                    assertEquals(null, result.get(2).get("s1"));
+                }
+            }
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY asum", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(3, result.size());
+
+                    assertEquals(Long.valueOf(0), result.get(0).get(0));
+                    assertEquals(Long.valueOf(0), result.get(0).get("asum"));
+                    assertEquals(null, result.get(0).get(1));
+                    assertEquals(null, result.get(0).get("s1"));
+
+                    assertEquals(Long.valueOf(3), result.get(1).get(0));
+                    assertEquals(Long.valueOf(3), result.get(1).get("asum"));
+                    assertEquals("a", result.get(1).get(1));
+                    assertEquals("a", result.get(1).get("s1"));
+
+                    assertEquals(Long.valueOf(5), result.get(2).get(0));
+                    assertEquals(Long.valueOf(5), result.get(2).get("asum"));
+                    assertEquals("b", result.get(2).get(1));
+                    assertEquals("b", result.get(2).get("s1"));
+
+                }
+            }
+
+            {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(1) FROM tblspace1.tsql", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(4), result.get(0).get(0));
+                    assertEquals(Long.valueOf(4), result.get(0).get("SUM(1)"));
+                }
+            }
+
+        }
+    }
+
+    @Test
+    public void simpleMinMaxTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1), "a")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey2", Integer.valueOf(2), "a")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey3", Integer.valueOf(5), "b")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(1), result.get(0).get(0));
+                    assertEquals(Long.valueOf(1), result.get(0).get("mi"));
+
+                    assertEquals(Long.valueOf(5), result.get(0).get(1));
+                    assertEquals(Long.valueOf(5), result.get(0).get("ma"));
+                }
+            }
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='mykey4'", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertNull(result.get(0).get(0));
+                    assertNull(result.get(0).get("mi"));
+
+                    assertNull(result.get(0).get(1));
+                    assertNull(result.get(0).get("ma"));
+                }
+            }
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results'", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertNull(result.get(0).get(0));
+                    assertNull(result.get(0).get("mi"));
+
+                    assertNull(result.get(0).get(1));
+                    assertNull(result.get(0).get("ma"));
+                }
+            }
+
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results' GROUP BY k1", Collections.emptyList());) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(0, result.size());
                 }
             }
 

@@ -30,20 +30,22 @@ public class ExecutionPlan {
     public Aggregator mainAggregator;
     public ScanLimits limits;
     public TupleComparator comparator;
+    public DMLStatement mutator;
 
-    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator, ScanLimits limits, TupleComparator comparator) {
+    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator, ScanLimits limits, TupleComparator comparator, DMLStatement mutator) {
         this.mainStatement = mainStatement;
         this.mainAggregator = mainAggregator;
         this.limits = limits;
         this.comparator = comparator;
+        this.mutator = mutator;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null);
+        return new ExecutionPlan(statement, null, null, null, null);
     }
 
-    public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator);
+    public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator, DMLStatement mutator) {
+        return new ExecutionPlan(statement, aggregator, limits, comparator, mutator);
     }
 
 }

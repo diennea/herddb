@@ -45,16 +45,18 @@ public class Table {
     public final Column[] columns;
     public final Map<String, Column> columnsByName;
     public final String[] primaryKey;
+    public final boolean auto_increment;
     private final Set<String> primaryKeyColumns;
 
-    private Table(String name, Column[] columns, String[] primaryKey, String tablespace) {
+    private Table(String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment) {
         this.name = name;
         this.columns = columns;
         this.primaryKey = primaryKey;
         this.tablespace = tablespace;
         this.columnsByName = new HashMap<>();
+        this.auto_increment = auto_increment;
         for (Column c : columns) {
-            columnsByName.put(c.name, c);
+            columnsByName.put(c.name.toLowerCase(), c);
         }
         this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));
     }
@@ -73,6 +75,7 @@ public class Table {
             DataInputStream dii = new DataInputStream(ii);
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
+            boolean auto_increment = dii.readByte() > 0;
             byte pkcols = dii.readByte();
             String[] primaryKey = new String[pkcols];
             for (int i = 0; i < pkcols; i++) {
@@ -85,7 +88,7 @@ public class Table {
                 int type = dii.readInt();
                 columns[i] = Column.column(cname, type);
             }
-            return new Table(name, columns, primaryKey, tablespace);
+            return new Table(name, columns, primaryKey, tablespace, auto_increment);
         } catch (IOException err) {
             throw new IllegalArgumentException(err);
         }
@@ -96,6 +99,7 @@ public class Table {
         try (DataOutputStream doo = new DataOutputStream(oo);) {
             doo.writeUTF(tablespace);
             doo.writeUTF(name);
+            doo.writeByte(auto_increment ? 1 : 0);
             doo.writeByte(primaryKey.length);
             for (String primaryKeyColumn : primaryKey) {
                 doo.writeUTF(primaryKeyColumn);
@@ -112,7 +116,7 @@ public class Table {
     }
 
     public Column getColumn(String cname) {
-        return columnsByName.get(cname);
+        return columnsByName.get(cname.toLowerCase());
     }
 
     public static class Builder {
@@ -121,6 +125,7 @@ public class Table {
         private String name;
         private List<String> primaryKey = new ArrayList<>();
         private String tablespace = TableSpace.DEFAULT;
+        private boolean auto_increment;
 
         private Builder() {
         }
@@ -136,8 +141,18 @@ public class Table {
         }
 
         public Builder primaryKey(String pk) {
+            return primaryKey(pk, false);
+        }
+
+        public Builder primaryKey(String pk, boolean auto_increment) {
             if (pk == null || pk.isEmpty()) {
                 throw new IllegalArgumentException();
+            }
+            if (this.auto_increment && auto_increment) {
+                throw new IllegalArgumentException("auto_increment can be used only on one column");
+            }
+            if (auto_increment) {
+                this.auto_increment = true;
             }
             if (!this.primaryKey.contains(pk)) {
                 this.primaryKey.add(pk);
@@ -165,12 +180,15 @@ public class Table {
                 if (pk == null) {
                     throw new IllegalArgumentException("column " + pkColumn + " is not defined in table");
                 }
-                if (pk.type != ColumnTypes.STRING && pk.type != ColumnTypes.LONG && pk.type != ColumnTypes.INTEGER) {
-                    throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer");
+                if (pk.type != ColumnTypes.STRING
+                        && pk.type != ColumnTypes.LONG
+                        && pk.type != ColumnTypes.INTEGER
+                        && pk.type != ColumnTypes.TIMESTAMP) {
+                    throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer or timestamp");
                 }
             }
 
-            return new Table(name, columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]), tablespace);
+            return new Table(name, columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]), tablespace, auto_increment);
         }
 
     }

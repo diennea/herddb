@@ -19,22 +19,21 @@
  */
 package herddb.sql;
 
+import herddb.sql.functions.ColumnValue;
 import herddb.core.MaterializedRecordSet;
 import herddb.core.SimpleDataScanner;
 import herddb.model.Aggregator;
 import herddb.model.Column;
-import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
+import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.Bytes;
-import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
@@ -53,23 +52,24 @@ public class SQLAggregator implements Aggregator {
     public SQLAggregator(List<SelectItem> selectItems, List<Expression> groupByColumnReferences) throws StatementExecutionException {
         this.selectItems = selectItems;
         this.groupByColumnReferences = groupByColumnReferences != null ? groupByColumnReferences : Collections.emptyList();
-        for (SelectItem e : selectItems) {
-            for (SelectItem item : selectItems) {
-                boolean done = false;                
-                if (item instanceof SelectExpressionItem) {
-                    SelectExpressionItem sei = (SelectExpressionItem) item;
-                    Expression expression = sei.getExpression();
-                    if (expression instanceof Function) {
-                        Function f = (Function) expression;
-                        if (f.isAllColumns() && f.getName().equalsIgnoreCase("count")) {
-                            done = true;                            
-                        }
-                    } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
+
+        for (SelectItem item : selectItems) {
+            boolean done = false;
+            if (item instanceof SelectExpressionItem) {
+                SelectExpressionItem sei = (SelectExpressionItem) item;
+                Expression expression = sei.getExpression();
+                if (expression instanceof Function) {
+                    Function f = (Function) expression;
+                    if (BuiltinFunctions.isAggregateFunction(f.getName())) {
+                        done = true;
+                    }
+                } else {
+                    if (expression instanceof net.sf.jsqlparser.schema.Column) {
                         net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
                         for (Expression ex : this.groupByColumnReferences) {
                             if (ex instanceof net.sf.jsqlparser.schema.Column) {
                                 net.sf.jsqlparser.schema.Column cex = (net.sf.jsqlparser.schema.Column) ex;
-                                if (cex.getColumnName().equals(c.getColumnName())) {                                    
+                                if (cex.getColumnName().equals(c.getColumnName())) {
                                     done = true;
                                     break;
                                 }
@@ -77,9 +77,9 @@ public class SQLAggregator implements Aggregator {
                         }
                     }
                 }
-                if (!done) {
-                    throw new StatementExecutionException("field " + item + " MUST appear in GROUP BY clause");
-                }
+            }
+            if (!done) {
+                throw new StatementExecutionException("field " + item + " MUST appear in GROUP BY clause");
             }
         }
 
@@ -92,10 +92,10 @@ public class SQLAggregator implements Aggregator {
 
     private static final class Group {
 
-        ColumnCalculator[] columns;
+        AggregatedColumnCalculator[] columns;
         Bytes key;
 
-        public Group(Bytes key, ColumnCalculator[] columns) {
+        public Group(Bytes key, AggregatedColumnCalculator[] columns) {
             this.columns = columns;
             this.key = key;
         }
@@ -121,14 +121,20 @@ public class SQLAggregator implements Aggregator {
                     Object value = tuple.get(c.getColumnName());
                     if (value == null) {
                         key.append("NULL");
-                    } else if (value instanceof Number) {
-                        key.append(value.toString());
-                    } else if (value instanceof CharSequence) {
-                        key.append(value.toString());
-                    } else if (value instanceof java.util.Date) {
-                        key.append(((java.util.Date) value).getTime());
                     } else {
-                        throw new DataScannerException("cannot group values of type " + value.getClass());
+                        if (value instanceof Number) {
+                            key.append(value.toString());
+                        } else {
+                            if (value instanceof CharSequence) {
+                                key.append(value.toString());
+                            } else {
+                                if (value instanceof java.util.Date) {
+                                    key.append(((java.util.Date) value).getTime());
+                                } else {
+                                    throw new DataScannerException("cannot group values of type " + value.getClass());
+                                }
+                            }
+                        }
                     }
                     key.append(",");
                 } else {
@@ -139,58 +145,61 @@ public class SQLAggregator implements Aggregator {
         }
 
         private void compute() throws DataScannerException {
-            if (!groupByColumnReferences.isEmpty()) {
-                Map<Bytes, Group> groups = new HashMap<>();
-                while (wrapped.hasNext()) {
-                    Tuple tuple = wrapped.next();
-                    Bytes key = key(tuple);
-                    Group group = groups.get(key);
-                    if (group == null) {
-                        group = createGroup(key);
-                        groups.put(key, group);
+            try {
+                if (!groupByColumnReferences.isEmpty()) {
+                    Map<Bytes, Group> groups = new HashMap<>();
+                    while (wrapped.hasNext()) {
+                        Tuple tuple = wrapped.next();
+                        Bytes key = key(tuple);
+                        Group group = groups.get(key);
+                        if (group == null) {
+                            group = createGroup(key);
+                            groups.put(key, group);
+                        }
+                        for (AggregatedColumnCalculator cc : group.columns) {
+                            cc.consume(tuple);
+                        }
                     }
-                    for (ColumnCalculator cc : group.columns) {
-                        cc.consume(tuple);
+                    MaterializedRecordSet results = new MaterializedRecordSet(getSchema());
+                    for (Group group : groups.values()) {
+                        AggregatedColumnCalculator[] columns = group.columns;
+                        String[] fieldNames = new String[columns.length];
+                        Object[] values = new Object[columns.length];
+                        int k = 0;
+                        for (AggregatedColumnCalculator cc : columns) {
+                            fieldNames[k] = cc.getFieldName();
+                            values[k] = cc.getValue();
+                            k++;
+                        }
+                        Tuple tuple = new Tuple(fieldNames, values);
+                        results.records.add(tuple);
                     }
-                }
-                MaterializedRecordSet results = new MaterializedRecordSet(getSchema());
-                for (Group group : groups.values()) {
-                    ColumnCalculator[] columns = group.columns;
+                    aggregatedScanner = new SimpleDataScanner(results);
+                } else {
+                    Group group = createGroup(null);
+                    AggregatedColumnCalculator[] columns = group.columns;
+                    while (wrapped.hasNext()) {
+                        Tuple tuple = wrapped.next();
+                        for (AggregatedColumnCalculator cc : columns) {
+                            cc.consume(tuple);
+                        }
+                    }
+                    MaterializedRecordSet results = new MaterializedRecordSet(getSchema());
                     String[] fieldNames = new String[columns.length];
                     Object[] values = new Object[columns.length];
                     int k = 0;
-                    for (ColumnCalculator cc : columns) {
+                    for (AggregatedColumnCalculator cc : columns) {
                         fieldNames[k] = cc.getFieldName();
                         values[k] = cc.getValue();
                         k++;
                     }
                     Tuple tuple = new Tuple(fieldNames, values);
                     results.records.add(tuple);
+                    aggregatedScanner = new SimpleDataScanner(results);
                 }
-                aggregatedScanner = new SimpleDataScanner(results);
-            } else {
-                Group group = createGroup(null);
-                ColumnCalculator[] columns = group.columns;
-                while (wrapped.hasNext()) {
-                    Tuple tuple = wrapped.next();
-                    for (ColumnCalculator cc : columns) {
-                        cc.consume(tuple);
-                    }
-                }
-                MaterializedRecordSet results = new MaterializedRecordSet(getSchema());
-                String[] fieldNames = new String[columns.length];
-                Object[] values = new Object[columns.length];
-                int k = 0;
-                for (ColumnCalculator cc : columns) {
-                    fieldNames[k] = cc.getFieldName();
-                    values[k] = cc.getValue();
-                    k++;
-                }
-                Tuple tuple = new Tuple(fieldNames, values);
-                results.records.add(tuple);
-                aggregatedScanner = new SimpleDataScanner(results);
+            } catch (StatementExecutionException err) {
+                throw new DataScannerException(err);
             }
-
         }
 
         @Override
@@ -223,36 +232,40 @@ public class SQLAggregator implements Aggregator {
             if (item instanceof SelectExpressionItem) {
                 SelectExpressionItem sei = (SelectExpressionItem) item;
                 Expression expression = sei.getExpression();
+
                 if (expression instanceof Function) {
                     Function f = (Function) expression;
-                    if (f.isAllColumns() && f.getName().equalsIgnoreCase("count")) {
-                        String fieldName = f.toString();
-                        if (sei.getAlias() != null && sei.getAlias().getName() != null) {
-                            fieldName = sei.getAlias().getName();
-                        }
-                        if (fieldName == null) {
-                            fieldName = "field" + i;
-                        }
-                        columns[i] = Column.column(fieldName, ColumnTypes.LONG);
+                    String fieldName = f.toString();
+                    if (sei.getAlias() != null && sei.getAlias().getName() != null) {
+                        fieldName = sei.getAlias().getName();
+                    }
+                    if (fieldName == null) {
+                        fieldName = "field" + i;
+                    }
+                    Column aggregated = BuiltinFunctions.toAggregatedOutputColumn(fieldName, f);
+                    if (aggregated != null) {
+                        columns[i] = aggregated;
                         done = true;
                     }
-                } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-                    String name = c.getColumnName();
-                    boolean found = false;
-                    for (Column co : wrapped.getSchema()) {
-                        if (co.name.equals(name)) {
-                            columns[i] = co;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
-                        throw new StatementExecutionException("cannot find column " + name + " is upstream scanner");
-                    }
-                    done = true;
                 } else {
-                    throw new StatementExecutionException("unhandled aggregate query selectable item:" + expression);
+                    if (expression instanceof net.sf.jsqlparser.schema.Column) {
+                        net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
+                        String name = c.getColumnName();
+                        boolean found = false;
+                        for (Column co : wrapped.getSchema()) {
+                            if (co.name.equals(name)) {
+                                columns[i] = co;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            throw new StatementExecutionException("cannot find column " + name + " is upstream scanner");
+                        }
+                        done = true;
+                    } else {
+                        throw new StatementExecutionException("unhandled aggregate query selectable item:" + expression);
+                    }
                 }
             }
             i++;
@@ -263,9 +276,9 @@ public class SQLAggregator implements Aggregator {
         return columns;
     }
 
-    private Group createGroup(Bytes key) throws DataScannerException {
+    private Group createGroup(Bytes key) throws DataScannerException, StatementExecutionException {
         // NO GROUP BY, aggregating the whole dataset
-        ColumnCalculator[] columns = new ColumnCalculator[selectItems.size()];
+        AggregatedColumnCalculator[] columns = new AggregatedColumnCalculator[selectItems.size()];
         int i = 0;
         for (SelectItem item : selectItems) {
             boolean done = false;
@@ -275,23 +288,26 @@ public class SQLAggregator implements Aggregator {
                 Expression expression = sei.getExpression();
                 if (expression instanceof Function) {
                     Function f = (Function) expression;
-                    if (f.isAllColumns() && f.getName().equalsIgnoreCase("count")) {
-                        String fieldName = f.toString();
-                        if (sei.getAlias() != null && sei.getAlias().getName() != null) {
-                            fieldName = sei.getAlias().getName();
-                        }
-                        columns[i] = new CountColumnCalculator(fieldName);
-                        done = true;
-                    }
-                } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-                    String fieldName = c.getColumnName();
+                    String fieldName = f.toString();
                     if (sei.getAlias() != null && sei.getAlias().getName() != null) {
                         fieldName = sei.getAlias().getName();
                     }
-                    columns[i] = new ColumnValue(fieldName);
-                    done = true;
+                    AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(f, fieldName);
+                    if (calculator != null) {
+                        columns[i] = calculator;
+                        done = true;
+                    }
+                } else {
+                    if (expression instanceof net.sf.jsqlparser.schema.Column) {
+                        net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
+                        String fieldName = c.getColumnName();
+                        if (sei.getAlias() != null && sei.getAlias().getName() != null) {
+                            fieldName = sei.getAlias().getName();
+                        }
+                        columns[i] = new ColumnValue(fieldName);
+                        done = true;
 
+                    }
                 }
             }
             i++;
@@ -300,72 +316,6 @@ public class SQLAggregator implements Aggregator {
             }
         }
         return new Group(key, columns);
-    }
-
-    private static interface ColumnCalculator {
-
-        public Object getValue();
-
-        public String getFieldName();
-
-        public void consume(Tuple tuple);
-    }
-
-    private static class CountColumnCalculator implements ColumnCalculator {
-
-        long count;
-        String fieldName;
-
-        public CountColumnCalculator(String fieldName) {
-            this.fieldName = fieldName;
-        }
-
-        @Override
-        public String getFieldName() {
-            return fieldName;
-        }
-
-        @Override
-        public void consume(Tuple tuple) {
-            count++;
-        }
-
-        @Override
-        public Object getValue() {
-            return count;
-        }
-
-    }
-
-    private static class ColumnValue implements ColumnCalculator {
-
-        Object value;
-        String fieldName;
-
-        public ColumnValue(String fieldName) {
-            this.fieldName = fieldName;
-        }
-
-        @Override
-        public String getFieldName() {
-            return fieldName;
-        }
-
-        @Override
-        public void consume(Tuple tuple) {
-            Object _value = tuple.get(fieldName);
-            if (value == null) {
-                value = _value;
-            } else if (!Objects.equals(value, _value)) {
-                throw new IllegalStateException("groupby failed: " + value + " <> " + _value);
-            }
-        }
-
-        @Override
-        public Object getValue() {
-            return value;
-        }
-
     }
 
 }
