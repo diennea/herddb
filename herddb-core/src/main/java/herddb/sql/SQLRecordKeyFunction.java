@@ -27,6 +27,7 @@ import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.TableContext;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,7 +64,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
     }
 
     @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) throws StatementExecutionException {
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
 
         int paramIndex = jdbcParametersStartPos;
@@ -74,16 +75,12 @@ public class SQLRecordKeyFunction extends RecordFunction {
             Object value;
             if (expression instanceof JdbcParameter) {
                 value = statementEvaluationContext.jdbcParameters.get(paramIndex++);
+            } else if (expression instanceof LongValue) {
+                value = ((LongValue) expression).getValue();
+            } else if (expression instanceof StringValue) {
+                value = ((StringValue) expression).getValue();
             } else {
-                if (expression instanceof LongValue) {
-                    value = ((LongValue) expression).getValue();
-                } else {
-                    if (expression instanceof StringValue) {
-                        value = ((StringValue) expression).getValue();
-                    } else {
-                        throw new StatementExecutionException("unsupported type " + expression.getClass() + " " + expression);
-                    }
-                }
+                throw new StatementExecutionException("unsupported type " + expression.getClass() + " " + expression);
             }
             pk.put(c.name, value);
         }

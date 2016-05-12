@@ -19,25 +19,14 @@
  */
 package herddb.model;
 
-import herddb.utils.Bytes;
-
 /**
- * A Special Predicate which goes directly to the key of an index
- *
+ * Access to Table level information and functions
  * @author enrico.olivelli
  */
-public class PrimaryKeyIndexSeekPredicate extends Predicate {
+public interface TableContext {
 
-    public final RecordFunction key;
-
-    public PrimaryKeyIndexSeekPredicate(RecordFunction key) {
-        this.key = key;
-    }
-
-    @Override
-    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-        Bytes keyValue = new Bytes(key.computeNewValue(record, context, null));
-        return record.key.equals(keyValue);
-    }
-
+    public byte[] computeNewPrimaryKeyValue();
+    
+    public Table getTable();
+    
 }

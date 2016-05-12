@@ -33,7 +33,7 @@ public class ConstValueRecordFunction extends RecordFunction {
     }
 
     @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) {
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) {
         return value;
     }
 

@@ -25,6 +25,7 @@ import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.TableContext;
 import herddb.sql.functions.BuiltinFunctions;
 import java.util.HashMap;
 import java.util.List;
@@ -55,7 +56,7 @@ public class SQLRecordFunction extends RecordFunction {
     }
 
     @Override
-    public byte[] computeNewValue(Record previous, StatementEvaluationContext context) throws StatementExecutionException {
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = previous != null ? RecordSerializer.toBean(previous, table) : new HashMap<>();
         int paramIndex = jdbcParametersStartPos;

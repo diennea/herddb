@@ -19,25 +19,20 @@
  */
 package herddb.model;
 
-import herddb.utils.Bytes;
-
 /**
- * A Special Predicate which goes directly to the key of an index
+ * Calculates the new primary key value
  *
  * @author enrico.olivelli
  */
-public class PrimaryKeyIndexSeekPredicate extends Predicate {
+public class AutoIncrementPrimaryKeyRecordFunction extends RecordFunction {
 
-    public final RecordFunction key;
+    public AutoIncrementPrimaryKeyRecordFunction() {
 
-    public PrimaryKeyIndexSeekPredicate(RecordFunction key) {
-        this.key = key;
     }
 
     @Override
-    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-        Bytes keyValue = new Bytes(key.computeNewValue(record, context, null));
-        return record.key.equals(keyValue);
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) {
+        return tableContext.computeNewPrimaryKeyValue();
     }
 
 }
