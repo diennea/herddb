@@ -90,7 +90,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (txId > 0) {
                         statement.setTransactionId(tx);
                     }
-                    StatementExecutionResult result = server.getManager().executeStatement(statement, translatedQuery.context);
+                    if (translatedQuery.plan.mutator != null) {
+                        translatedQuery.plan.mutator.setTransactionId(tx);
+                    }
+                    StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), null));

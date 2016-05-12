@@ -498,15 +498,6 @@ public class RawSQLTest {
                 }
             }
 
-            {
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(1+n1) FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
-                    assertEquals(1, result.size());
-                    assertEquals(Long.valueOf(4), result.get(0).get(0));
-                    assertEquals(Long.valueOf(4), result.get(0).get("SUM(1)"));
-                }
-            }
-
         }
     }
 

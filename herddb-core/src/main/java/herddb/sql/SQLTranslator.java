@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import herddb.model.CurrentTupleKeySeek;
 import herddb.core.DBManager;
 import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
@@ -116,9 +117,9 @@ public class SQLTranslator {
             } else if (stmt instanceof Insert) {
                 result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
             } else if (stmt instanceof Delete) {
-                result = ExecutionPlan.simple(buildDeleteStatement((Delete) stmt));
+                result = buildDeleteStatement((Delete) stmt);
             } else if (stmt instanceof Update) {
-                result = ExecutionPlan.simple(buildUpdateStatement((Update) stmt));
+                result = buildUpdateStatement((Update) stmt);
             } else if (stmt instanceof Select) {
                 result = buildSelectStatement((Select) stmt, scan);
             } else if (stmt instanceof Execute) {
@@ -297,7 +298,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildDeleteStatement(Delete s) throws StatementExecutionException {
+    private ExecutionPlan buildDeleteStatement(Delete s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName().toLowerCase();
@@ -315,20 +316,26 @@ public class SQLTranslator {
         Table table = tableManager.getTable();
 
         SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, new AtomicInteger());
-        if (keyFunction == null) {
-            // DELETE FROM TABLE WHERE KEY=? AND ....
-            throw new StatementExecutionException("unsupported where " + s.getWhere());
-        }
+        if (keyFunction != null) {
 
-        Predicate where = buildPredicate(s.getWhere(), table, 0);
-        try {
-            return new DeleteStatement(tableSpace, tableName, keyFunction, where);
-        } catch (IllegalArgumentException err) {
-            throw new StatementExecutionException(err);
+            Predicate where = buildPredicate(s.getWhere(), table, 0);
+            try {
+                return ExecutionPlan.simple(new DeleteStatement(tableSpace, tableName, keyFunction, where));
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
+        } else {
+
+            // Perform a scan and then update each row
+            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, s.getWhere(), 0) : null;
+            ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), where);
+            return ExecutionPlan.make(scan, null, null, null, st);
+
         }
     }
 
-    private Statement buildUpdateStatement(Update s) throws StatementExecutionException {
+    private ExecutionPlan buildUpdateStatement(Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName().toLowerCase();
@@ -354,22 +361,28 @@ public class SQLTranslator {
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
         int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
         RecordFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, new AtomicInteger(setClauseParamters));
-        if (keyFunction == null) {
-            // UPDATE TABLE SET XXX WHERE KEY=? AND ....
-            throw new StatementExecutionException("unsupported where " + s.getWhere());
+
+        if (keyFunction != null) {
+            // UPDATE BY PRIMARY KEY            
+            try {
+                Predicate where = buildPredicate(s.getWhere(), table, setClauseParamters);
+                UpdateStatement st = new UpdateStatement(tableSpace, tableName, keyFunction, function, where);
+                return ExecutionPlan.simple(st);
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
+        } else {
+            // Perform a scan and then update each row
+            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, s.getWhere(), setClauseParamters) : null;
+            ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
+            UpdateStatement st = new UpdateStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), function, where);
+            return ExecutionPlan.make(scan, null, null, null, st);
         }
 
-        Predicate where = buildPredicate(s.getWhere(), table, setClauseParamters);
-
-        try {
-            return new UpdateStatement(tableSpace, tableName, keyFunction, function, where);
-        } catch (IllegalArgumentException err) {
-            throw new StatementExecutionException(err);
-        }
     }
 
     private Predicate buildPredicate(Expression where, Table table, int parameterPos) {
-        if (where instanceof EqualsTo) {
+        if (where instanceof EqualsTo || where == null) {
             // surely this is the only predicate on the PK, we can skip it
             return null;
         }
@@ -502,7 +515,7 @@ public class SQLTranslator {
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
-        int countJdbcParameters = 0;
+
         Table table = tableManager.getTable();
         boolean allColumns = false;
         boolean containsAggregateFunctions = false;
@@ -513,7 +526,6 @@ public class SQLTranslator {
                 break;
             } else if (c instanceof SelectExpressionItem) {
                 SelectExpressionItem se = (SelectExpressionItem) c;
-                countJdbcParameters += countJdbcParametersUsedByExpression(se.getExpression());
                 if (isAggregateFunction(se.getExpression())) {
                     containsAggregateFunctions = true;
                 }
@@ -582,7 +594,7 @@ public class SQLTranslator {
 
             try {
                 ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparatorOnScan, limitsOnScan);
-                return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan);
+                return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan, null);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }

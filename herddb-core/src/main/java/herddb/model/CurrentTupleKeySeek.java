@@ -19,22 +19,33 @@
  */
 package herddb.model;
 
+import herddb.codec.RecordSerializer;
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * Context for each statement evaluation. Statements are immutable and cachable
- * objects, and cannot retain state
+ * Primary Key index seek on the "current tuple", used for multi row DMS
+ * statements
  *
  * @author enrico.olivelli
  */
-public class StatementEvaluationContext {
+public class CurrentTupleKeySeek extends RecordFunction {
 
-    private Tuple currentTuple;
+    private final Table table;
 
-    public Tuple getCurrentTuple() {
-        return currentTuple;
+    public CurrentTupleKeySeek(Table table) {
+        this.table = table;
     }
 
-    public void setCurrentTuple(Tuple currentTuple) {
-        this.currentTuple = currentTuple;
+    @Override
+    public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
+        Tuple tuple = context.getCurrentTuple();
+        Map<String, Object> pk = new HashMap<>();
+        for (String column : table.primaryKey) {
+            pk.put(column, tuple.get(column));
+        }
+        return RecordSerializer.serializePrimaryKey(pk, table).data;
+
     }
 
 }

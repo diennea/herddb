@@ -40,6 +40,31 @@ public interface Projection {
         };
     }
 
+    public static Projection PRIMARY_KEY(Table table) {
+        final Column[] columns = new Column[table.primaryKey.length];
+
+        int i = 0;
+        for (String pk : table.primaryKey) {
+            columns[i++] = table.getColumn(pk);
+        }
+        return new Projection() {
+            @Override
+            public Column[] getColumns() {
+                return columns;
+            }
+
+            @Override
+            public Tuple map(Tuple tuple) throws StatementExecutionException {
+                Object[] values = new Object[columns.length];
+                for (int i = 0; i < values.length; i++) {
+                    Object v = tuple.get(columns[i].name);
+                    values[i++] = v;
+                }
+                return new Tuple(table.primaryKey, values);
+            }
+        };
+    }
+
     public Column[] getColumns();
 
     public abstract Tuple map(Tuple tuple) throws StatementExecutionException;

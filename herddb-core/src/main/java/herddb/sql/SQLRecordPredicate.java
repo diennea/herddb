@@ -103,7 +103,7 @@ public class SQLRecordPredicate extends Predicate {
         return false;
     }
 
-    private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {
+    private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {        
         if (expression instanceof JdbcParameter) {
             return state.parameters.get(state.parameterPos++);
         }
