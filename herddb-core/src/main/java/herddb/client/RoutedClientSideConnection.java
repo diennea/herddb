@@ -91,7 +91,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    long executeUpdate(String query, long tx, List<Object> params) throws HDBException {
+    DMLResult executeUpdate(String query, long tx, List<Object> params) throws HDBException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -103,7 +103,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
             }
-            return (Long) reply.parameters.get("updateCount");
+            long updateCount = (Long) reply.parameters.get("updateCount");
+            
+            Object key = null;
+            Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
+            if (data != null) {
+                key = data.get("key");
+            }            
+            return new DMLResult(updateCount, key);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }

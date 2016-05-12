@@ -30,6 +30,7 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.TranslatedQuery;
+import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -84,6 +85,9 @@ public class AutoIncrementTest {
                 assertTrue(rows.stream().filter(t -> t.get("n1").equals(Integer.valueOf(_i))).findAny().isPresent());
             }
 
+            DMLStatementExecutionResult result = executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa"));
+            assertEquals(1, result.getUpdateCount());
+            assertEquals(Bytes.from_int(7), result.getKey());
         }
     }
 
@@ -111,6 +115,10 @@ public class AutoIncrementTest {
                 int _i = i;
                 assertTrue(rows.stream().filter(t -> t.get("n1").equals(Long.valueOf(_i))).findAny().isPresent());
             }
+
+            DMLStatementExecutionResult result = executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa"));
+            assertEquals(1, result.getUpdateCount());
+            assertEquals(Bytes.from_long(7), result.getKey());
 
         }
     }

@@ -51,13 +51,13 @@ public class SimpleClientServerTest {
                 client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList());
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
 
                 long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test", 1, 2));
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test", 1, 2)).updateCount;
                 Assert.assertEquals(1, countInsert);
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 

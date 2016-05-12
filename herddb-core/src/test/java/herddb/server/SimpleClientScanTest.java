@@ -50,7 +50,7 @@ public class SimpleClientScanTest {
                 client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList());
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 for (int i = 0; i < 99; i++) {

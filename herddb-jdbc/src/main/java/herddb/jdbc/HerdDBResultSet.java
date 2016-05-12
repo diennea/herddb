@@ -334,7 +334,7 @@ public class HerdDBResultSet implements ResultSet {
         lastValue = actualValue.get(columnLabel);
         if (lastValue != null) {
             wasNull = false;
-            return lastValue.toString();
+            return lastValue;
         } else {
             wasNull = true;
             return null;

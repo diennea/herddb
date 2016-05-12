@@ -20,6 +20,7 @@
 package herddb.jdbc;
 
 import herddb.client.ClientSideMetadataProviderException;
+import herddb.client.DMLResult;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import java.io.InputStream;
@@ -441,10 +442,14 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
         parameters.clear();
     }
 
+    
     @Override
     public long executeLargeUpdate() throws SQLException {
         try {
-            return lastUpdateCount = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), parameters);
+            DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), parameters);
+            lastUpdateCount = result.updateCount;
+            lastKey = result.key;
+            return lastUpdateCount;
         } catch (ClientSideMetadataProviderException | HDBException err) {
             throw new SQLException(err);
         }
