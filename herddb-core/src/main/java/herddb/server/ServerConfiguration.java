@@ -31,13 +31,14 @@ public class ServerConfiguration {
 
     private final Properties properties;
 
-    public static final String PROPERTY_NODEID = "nodeId";
-    public static final String PROPERTY_BASEDIR = "baseDir";
-    public static final String PROPERTY_HOST = "host";
+    public static final String PROPERTY_NODEID = "server.nodeId";
+    public static final String PROPERTY_MEMORYONLY = "server.memoryonly";
+    public static final String PROPERTY_BASEDIR = "server.baseDir";
+    public static final String PROPERTY_HOST = "server.host";
     public static final String PROPERTY_HOST_DEFAULT = "localhost";
-    public static final String PROPERTY_PORT = "port";
+    public static final String PROPERTY_PORT = "server.port";
     public static final int PROPERTY_PORT_DEFAULT = 7000;
-    public static final String PROPERTY_SSL = "ssl";
+    public static final String PROPERTY_SSL = "server.ssl";
 
     public ServerConfiguration(Properties properties) {
         this.properties = properties;
@@ -57,7 +58,7 @@ public class ServerConfiguration {
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
-        return Boolean.getBoolean(this.properties.getProperty(key, defaultValue + ""));
+        return Boolean.parseBoolean(this.properties.getProperty(key, defaultValue + ""));
     }
 
     public long getLong(String key, long defaultValue) {

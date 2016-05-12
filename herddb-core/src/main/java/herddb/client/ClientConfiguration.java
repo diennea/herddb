@@ -31,9 +31,9 @@ public class ClientConfiguration {
 
     private final Properties properties;
 
-    public static final String PROPERTY_BASEDIR = "baseDir";
-    public static final String PROPERTY_TIMEOUT = "timeout";
-    public static final String PROPERTY_CLIENTID = "clientId";
+    public static final String PROPERTY_BASEDIR = "client.baseDir";
+    public static final String PROPERTY_TIMEOUT = "client.timeout";
+    public static final String PROPERTY_CLIENTID = "client.clientId";
     public static final long PROPERTY_TIMEOUT_DEFAULT = 1000L * 60 * 5;
     public static final String PROPERTY_CLIENTID_DEFAULT = "localhost";
 
@@ -55,7 +55,7 @@ public class ClientConfiguration {
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
-        return Boolean.getBoolean(this.properties.getProperty(key, defaultValue + ""));
+        return Boolean.parseBoolean(this.properties.getProperty(key, defaultValue + ""));
     }
 
     public long getLong(String key, long defaultValue) {

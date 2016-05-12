@@ -33,10 +33,13 @@ import net.sf.jsqlparser.expression.StringValue;
  * @author enrico.olivelli
  */
 public class BuiltinFunctions {
-
+    // aggregate
     public static final String COUNT = "count";
+    // scalar
     public static final String LOWER = "lower";
     public static final String UPPER = "upper";
+    // special
+    public static final String CURRENT_TIMESTAMP = "current_timestamp";
 
     public static boolean isScalarFunction(String name) {
         switch (name.toLowerCase()) {

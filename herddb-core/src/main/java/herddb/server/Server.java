@@ -23,7 +23,12 @@ import herddb.core.DBManager;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
+import herddb.log.CommitLogManager;
+import herddb.mem.MemoryCommitLogManager;
+import herddb.mem.MemoryDataStorageManager;
+import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataStorageManager;
+import herddb.model.TableSpace;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.network.ServerSideConnection;
@@ -52,6 +57,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final Path baseDirectory;
     private final ServerHostData serverHostData;
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
+    private final boolean memoryOnly;
 
     public DBManager getManager() {
         return manager;
@@ -63,6 +69,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         if (nodeId.isEmpty()) {
             nodeId = ManagementFactory.getRuntimeMXBean().getName();
         }
+        this.memoryOnly = configuration.getBoolean(ServerConfiguration.PROPERTY_MEMORYONLY, false);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
         this.manager = new DBManager(nodeId,
                 buildMetadataStorageManager(),
@@ -83,20 +90,38 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     private MetadataStorageManager buildMetadataStorageManager() {
-        return new FileMetadataStorageManager(baseDirectory);
+        if (memoryOnly) {
+            return new MemoryMetadataStorageManager();
+        } else {
+            return new FileMetadataStorageManager(baseDirectory);
+        }
     }
 
     private DataStorageManager buildDataStorageManager() {
-        return new FileDataStorageManager(baseDirectory);
+        if (memoryOnly) {
+            return new MemoryDataStorageManager();
+        } else {
+            return new FileDataStorageManager(baseDirectory);
+        }
     }
 
-    private FileCommitLogManager buildFileCommitLogManager() {
-        return new FileCommitLogManager(baseDirectory);
+    private CommitLogManager buildFileCommitLogManager() {
+        if (memoryOnly) {
+            return new MemoryCommitLogManager();
+        } else {
+            return new FileCommitLogManager(baseDirectory);
+        }
     }
 
     public void start() throws Exception {
         this.manager.start();
         this.networkServer.start();
+    }
+
+    public void waitForStandaloneBoot() throws Exception {
+        if (!this.manager.waitForTablespace(TableSpace.DEFAULT, 10000, true)) {
+            throw new Exception("TableSpace " + TableSpace.DEFAULT + " not started");
+        }
     }
 
     @Override

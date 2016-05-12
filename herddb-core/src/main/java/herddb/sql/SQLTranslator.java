@@ -52,6 +52,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
@@ -153,12 +154,13 @@ public class SQLTranslator {
         Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
         for (ColumnDefinition cf : s.getColumnDefinitions()) {
             int type;
-            switch (cf.getColDataType().getDataType()) {
+            switch (cf.getColDataType().getDataType().toLowerCase()) {
                 case "string":
                 case "varchar":
                 case "nvarchar":
                 case "nvarchar2":
                 case "nclob":
+                case "clob":
                     type = ColumnTypes.STRING;
                     break;
                 case "long":
@@ -173,6 +175,7 @@ public class SQLTranslator {
                     break;
                 case "bytea":
                 case "blob":
+                case "image":
                     type = ColumnTypes.BYTEARRAY;
                     break;
                 case "timestamp":
@@ -184,8 +187,12 @@ public class SQLTranslator {
                     throw new StatementExecutionException("bad type " + cf.getColDataType().getDataType());
             }
             tablebuilder.column(cf.getColumnName(), type);
-            if (cf.getColumnSpecStrings() != null && cf.getColumnSpecStrings().contains("primary")) {
-                tablebuilder.primaryKey(cf.getColumnName());
+
+            if (cf.getColumnSpecStrings() != null) {
+                List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
+                if (columnSpecs.contains("PRIMARY")) {
+                    tablebuilder.primaryKey(cf.getColumnName());
+                }
             }
         }
 
@@ -234,22 +241,39 @@ public class SQLTranslator {
         int countJdbcParametersBeforeKey = -1;
         int countJdbcParameters = 0;
         ExpressionList list = (ExpressionList) s.getItemsList();
-        for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
-            Column column = table.getColumn(c.getColumnName());
-            if (column == null) {
-                throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
-            }
-            Expression expression = list.getExpressions().get(index++);
-            if (table.isPrimaryKeyColumn(column.name)) {
-                keyExpressionToColumn.add(column.name);
-                keyValueExpression.add(expression);
-                if (countJdbcParametersBeforeKey < 0) {
-                    countJdbcParametersBeforeKey = countJdbcParameters;
+        if (s.getColumns() != null) {
+            for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
+                Column column = table.getColumn(c.getColumnName());
+                if (column == null) {
+                    throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
                 }
+                Expression expression = list.getExpressions().get(index++);
+                if (table.isPrimaryKeyColumn(column.name)) {
+                    keyExpressionToColumn.add(column.name);
+                    keyValueExpression.add(expression);
+                    if (countJdbcParametersBeforeKey < 0) {
+                        countJdbcParametersBeforeKey = countJdbcParameters;
+                    }
+                }
+                valuesColumns.add(c);
+                valuesExpressions.add(expression);
+                countJdbcParameters += countJdbcParametersUsedByExpression(expression);
             }
-            valuesColumns.add(c);
-            valuesExpressions.add(expression);
-            countJdbcParameters += countJdbcParametersUsedByExpression(expression);
+        } else {
+            for (Column column : table.columns) {
+
+                Expression expression = list.getExpressions().get(index++);
+                if (table.isPrimaryKeyColumn(column.name)) {
+                    keyExpressionToColumn.add(column.name);
+                    keyValueExpression.add(expression);
+                    if (countJdbcParametersBeforeKey < 0) {
+                        countJdbcParametersBeforeKey = countJdbcParameters;
+                    }
+                }
+                valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
+                valuesExpressions.add(expression);
+                countJdbcParameters += countJdbcParametersUsedByExpression(expression);
+            }
         }
         if (countJdbcParametersBeforeKey < 0) {
             countJdbcParametersBeforeKey = 0;
