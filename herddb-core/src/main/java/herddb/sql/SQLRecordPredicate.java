@@ -33,11 +33,16 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.Parenthesis;
+import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
+import net.sf.jsqlparser.expression.operators.relational.MinorThan;
+import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 
 /**
@@ -93,6 +98,32 @@ public class SQLRecordPredicate extends Predicate {
         return result;
     }
 
+    private boolean minorThan(Object a, Object b) throws StatementExecutionException {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return ((Comparable) a).compareTo(b) < 0;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).doubleValue() < ((Number) b).doubleValue();
+        }
+        throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
+    }
+
+    private boolean greaterThan(Object a, Object b) throws StatementExecutionException {
+        if (a == null || b == null) {
+            return false;
+        }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return ((Comparable) a).compareTo(b) > 0;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).doubleValue() > ((Number) b).doubleValue();
+        }
+        throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
+    }
+
     private boolean objectEquals(Object a, Object b) {
         if (Objects.equals(a, b)) {
             return true;
@@ -103,7 +134,7 @@ public class SQLRecordPredicate extends Predicate {
         return false;
     }
 
-    private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {        
+    private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             return state.parameters.get(state.parameterPos++);
         }
@@ -118,6 +149,30 @@ public class SQLRecordPredicate extends Predicate {
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), !objectEquals(left, right));
+        }
+        if (expression instanceof MinorThan) {
+            MinorThan e = (MinorThan) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
+            return handleNot(e.isNot(), minorThan(left, right));
+        }
+        if (expression instanceof MinorThanEquals) {
+            MinorThanEquals e = (MinorThanEquals) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
+            return handleNot(e.isNot(), objectEquals(left, right) || minorThan(left, right));
+        }
+        if (expression instanceof GreaterThan) {
+            GreaterThan e = (GreaterThan) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
+            return handleNot(e.isNot(), greaterThan(left, right));
+        }
+        if (expression instanceof GreaterThanEquals) {
+            GreaterThanEquals e = (GreaterThanEquals) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
+            return handleNot(e.isNot(), objectEquals(left, right) || greaterThan(left, right));
         }
         if (expression instanceof AndExpression) {
             AndExpression a = (AndExpression) expression;
@@ -147,6 +202,36 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof StringValue) {
             return ((StringValue) expression).getValue();
+        }
+        if (expression instanceof SignedExpression) {
+            SignedExpression s = (SignedExpression) expression;
+            Object evaluated = evaluateExpression(s.getExpression(), bean, state);
+            switch (s.getSign()) {
+                case '-':
+                    if (evaluated instanceof Integer) {
+                        return ((Integer) evaluated) * -1;
+                    }
+                    if (evaluated instanceof Long) {
+                        return ((Long) evaluated) * -1;
+                    }
+                    if (evaluated instanceof Double) {
+                        return ((Double) evaluated) * -1;
+                    }
+                    if (evaluated instanceof Float) {
+                        return ((Float) evaluated) * -1;
+                    }
+                    if (evaluated instanceof Short) {
+                        return ((Short) evaluated) * -1;
+                    }
+                    if (evaluated instanceof Byte) {
+                        return ((Byte) evaluated) * -1;
+                    }
+                    throw new StatementExecutionException("invalid signed expression, expression is " + expression);
+                case '+':
+                    return evaluated;
+                default:
+                    throw new StatementExecutionException("invalid sign '" + s.getSign() + "': expression is " + expression);
+            }
         }
         if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();

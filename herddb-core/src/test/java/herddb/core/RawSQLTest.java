@@ -568,6 +568,47 @@ public class RawSQLTest {
     }
 
     @Test
+    public void simpleComparatorTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1), "a")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey2", Integer.valueOf(2), "a")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey3", Integer.valueOf(3), "a")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey4", Integer.valueOf(-1), "a")).getUpdateCount());
+
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1", Collections.emptyList());) {
+                assertEquals(1, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1>1", Collections.emptyList());) {
+                assertEquals(2, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1>=1", Collections.emptyList());) {
+                assertEquals(3, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<1", Collections.emptyList());) {
+                assertEquals(1, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<-7", Collections.emptyList());) {
+                assertEquals(0, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<=-1", Collections.emptyList());) {
+                assertEquals(1, scan1.consume().size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1<>1", Collections.emptyList());) {
+                assertEquals(3, scan1.consume().size());
+            }
+
+        }
+    }
+
+    @Test
     public void scalarFunctionTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {

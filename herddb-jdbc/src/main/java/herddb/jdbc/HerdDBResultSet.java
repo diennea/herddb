@@ -281,6 +281,9 @@ public class HerdDBResultSet implements ResultSet {
         lastValue = actualValue.get(columnLabel);
         if (lastValue != null) {
             wasNull = false;
+            if (lastValue instanceof java.sql.Timestamp) {
+                return (java.sql.Timestamp) lastValue;
+            }
             return new java.sql.Timestamp(Long.parseLong(lastValue.toString()));
         } else {
             wasNull = true;
@@ -350,7 +353,7 @@ public class HerdDBResultSet implements ResultSet {
             }
             index++;
         }
-        throw new SQLException("no such column "+columnLabel+", only "+metadata.getColumnNames());
+        throw new SQLException("no such column " + columnLabel + ", only " + metadata.getColumnNames());
     }
 
     @Override
