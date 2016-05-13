@@ -17,24 +17,21 @@
  under the License.
 
  */
-package herddb.core.stats;
+package herddb.client;
 
 /**
- * Runtime Statistics for a TableManager
+ * Result of a DMS statement
  *
  * @author enrico.olivelli
  */
-public interface TableManagerStats {
+public class DMLResult {
 
-    public int getLoadedpages();
+    public final long updateCount;
+    public final Object key;
 
-    public int getMaxrecordsperpage();
-    
-    public int getMaxloadedpages();
+    public DMLResult(long updateCount, Object key) {
+        this.updateCount = updateCount;
+        this.key = key;
+    }
 
-    public long getTablesize();
-    
-    public int getDirtypages();
-    
-    public int getDirtyrecords();        
 }

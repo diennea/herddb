@@ -22,12 +22,14 @@ package herddb.core;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
+import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.ColumnTypes;
+import herddb.model.ConstValueRecordFunction;
+import herddb.model.DMLStatementExecutionResult;
 import herddb.model.GetResult;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
-import herddb.model.TableSpace;
 import herddb.model.TransactionResult;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
@@ -422,7 +424,6 @@ public class SimpleRecoveryTest {
 
     }
 
-   
     @Test
     public void rollbackCreateTableOnRestart() throws Exception {
 
@@ -430,7 +431,7 @@ public class SimpleRecoveryTest {
         Path logsPath = folder.newFolder("logs").toPath();
         Path metadataPath = folder.newFolder("metadata").toPath();
         Bytes key = Bytes.from_int(1234);
-        Bytes value = Bytes.from_long(8888);        
+        Bytes value = Bytes.from_long(8888);
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
@@ -496,6 +497,142 @@ public class SimpleRecoveryTest {
             } catch (TableDoesNotExistException error) {
             }
 
+        }
+
+    }
+
+    @Test
+    public void autoIncrementAfterRestart_from_snapshot() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath))) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .primaryKey("id", true)
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2);
+            manager.flush();
+
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            assertEquals(1, insertResult.getUpdateCount());
+            int newValue = insertResult.getKey().to_int();
+            assertEquals(1, newValue);
+
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            assertTrue(get.found());
+
+            long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
+            assertEquals(2, next_value);
+
+            manager.flush();
+
+        }
+
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath))) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            assertEquals(1, insertResult.getUpdateCount());
+            int newValue = insertResult.getKey().to_int();
+            assertEquals(2, newValue);
+
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            assertTrue(get.found());
+
+            long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
+            assertEquals(3, next_value);
+        }
+
+    }
+
+    @Test
+    public void autoIncrementAfterRestart_from_log() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath))) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.INTEGER)
+                    .primaryKey("id", true)
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2);
+            manager.flush();
+
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            assertEquals(1, insertResult.getUpdateCount());
+            int newValue = insertResult.getKey().to_int();
+            assertEquals(1, newValue);
+
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            assertTrue(get.found());
+
+            long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
+            assertEquals(2, next_value);
+
+        }
+
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath))) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            assertEquals(1, insertResult.getUpdateCount());
+            int newValue = insertResult.getKey().to_int();
+            assertEquals(2, newValue);
+
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            assertTrue(get.found());
+
+            long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
+            assertEquals(3, next_value);
         }
 
     }

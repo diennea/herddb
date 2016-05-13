@@ -67,22 +67,18 @@ public final class RecordSerializer {
             case ColumnTypes.INTEGER:
                 if (v instanceof Integer) {
                     return Bytes.from_int((Integer) v).data;
+                } else if (v instanceof Number) {
+                    return Bytes.from_int(((Number) v).intValue()).data;
                 } else {
-                    if (v instanceof Number) {
-                        return Bytes.from_int(((Number) v).intValue()).data;
-                    } else {
-                        return Bytes.from_int(Integer.parseInt(v.toString())).data;
-                    }
+                    return Bytes.from_int(Integer.parseInt(v.toString())).data;
                 }
             case ColumnTypes.LONG:
                 if (v instanceof Long) {
                     return Bytes.from_long((Long) v).data;
+                } else if (v instanceof Number) {
+                    return Bytes.from_long(((Number) v).longValue()).data;
                 } else {
-                    if (v instanceof Number) {
-                        return Bytes.from_long(((Number) v).longValue()).data;
-                    } else {
-                        return Bytes.from_long(Long.parseLong(v.toString())).data;
-                    }
+                    return Bytes.from_long(Long.parseLong(v.toString())).data;
                 }
             case ColumnTypes.STRING:
                 return Bytes.from_string(v.toString()).data;
@@ -140,6 +136,17 @@ public final class RecordSerializer {
         }
     }
 
+    public static Object deserializePrimaryKey(byte[] key, Table table) {
+
+        if (table.primaryKey.length == 1) {
+            return deserializeSingleColumnPrimaryKey(key, table);
+        } else {
+            Map<String, Object> result = new HashMap<>();
+            deserializeMultiColumnPrimaryKey(key, table, result);
+            return result;
+        }
+    }
+
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
         ByteArrayOutputStream value = new ByteArrayOutputStream();
 
@@ -164,22 +171,19 @@ public final class RecordSerializer {
         return new Record(serializePrimaryKey(record, table), serializeValue(record, table));
     }
 
+    private static Object deserializeSingleColumnPrimaryKey(byte[] data, Table table) {
+        String primaryKeyColumn = table.primaryKey[0];
+        return deserialize(data, table.getColumn(primaryKeyColumn).type);
+    }
+
     public static Map<String, Object> toBean(Record record, Table table) {
         try {
             Map<String, Object> res = new HashMap<>();
             if (table.primaryKey.length == 1) {
-                String primaryKeyColumn = table.primaryKey[0];
-                res.put(primaryKeyColumn, deserialize(record.key.data, table.getColumn(primaryKeyColumn).type));
+                Object key = deserializeSingleColumnPrimaryKey(record.key.data, table);
+                res.put(table.primaryKey[0], key);
             } else {
-                try (ByteArrayInputStream key_in = new ByteArrayInputStream(record.key.data);
-                        DataInputStream din = new DataInputStream(key_in)) {
-                    for (String primaryKeyColumn : table.primaryKey) {
-                        int data_len = din.readInt();
-                        byte[] value = new byte[data_len];
-                        din.readFully(value);
-                        res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
-                    }
-                }
+                deserializeMultiColumnPrimaryKey(record.key.data, table, res);
             }
 
             if (record.value != null) {
@@ -199,6 +203,20 @@ public final class RecordSerializer {
                 }
             }
             return res;
+        } catch (IOException err) {
+            throw new IllegalArgumentException("malformed record", err);
+        }
+    }
+
+    private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, Map<String, Object> res) {
+        try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
+                DataInputStream din = new DataInputStream(key_in)) {
+            for (String primaryKeyColumn : table.primaryKey) {
+                int data_len = din.readInt();
+                byte[] value = new byte[data_len];
+                din.readFully(value);
+                res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
+            }
         } catch (IOException err) {
             throw new IllegalArgumentException("malformed record", err);
         }

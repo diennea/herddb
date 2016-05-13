@@ -50,11 +50,11 @@ public class SimpleClientScanTest {
                 client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList());
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 for (int i = 0; i < 99; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)));
+                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)).updateCount);
                 }
 
                 assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0).consume().size());

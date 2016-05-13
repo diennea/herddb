@@ -25,6 +25,7 @@ import herddb.model.Table;
 import herddb.utils.Bytes;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * Physical storage of data
@@ -48,7 +49,7 @@ public abstract class DataStorageManager {
      * @param tableName
      * @param consumer
      */
-    public abstract void loadExistingKeys(String tableName, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException;
+    public abstract void restore(String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException;
 
     /**
      * Write a page on disk
@@ -59,7 +60,7 @@ public abstract class DataStorageManager {
      * @return
      * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract Long writePage(String tableName, LogSequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException;
+    public abstract Long writePage(String tableName, TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException;
 
     /**
      * Return the actual number of pages presents on disk

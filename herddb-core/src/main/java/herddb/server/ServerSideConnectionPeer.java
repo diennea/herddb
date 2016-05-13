@@ -32,6 +32,8 @@ import herddb.model.ScanResult;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
+import herddb.model.TableAwareStatement;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
@@ -96,7 +98,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
-                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), null));
+                        Map<String, Object> otherData = null;
+                        if (dml.getKey() != null) {
+                            TableAwareStatement tableStatement = (TableAwareStatement) statement;
+                            Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                            otherData = new HashMap<>();
+                            otherData.put("key", key);
+                        }
+                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData));
                     } else if (result instanceof GetResult) {
                         GetResult get = (GetResult) result;
                         if (!get.found()) {

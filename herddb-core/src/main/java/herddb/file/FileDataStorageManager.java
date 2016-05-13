@@ -24,6 +24,7 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -41,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -90,7 +92,7 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve(pageId + ".page");
     }
 
-    private Path getTableKeysMetadataFile(Path tableDirectory) {
+    private Path getTableMetadataFile(Path tableDirectory) {
         return tableDirectory.resolve("keys");
     }
 
@@ -118,26 +120,30 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void loadExistingKeys(String tableName, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException {
+    public void restore(String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableName);
         try {
             Files.createDirectories(tableDir);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getTableKeysMetadataFile(tableDir);
+        Path keys = getTableMetadataFile(tableDir);
         if (!Files.isRegularFile(keys)) {
             return;
         }
         try (InputStream input = Files.newInputStream(keys, StandardOpenOption.READ);
                 DataInputStream dataIn = new DataInputStream(input)) {
-
             while (true) {
                 int keySize = dataIn.readInt();
-                byte[] key = new byte[keySize];
-                dataIn.readFully(key);
-                long pageId = dataIn.readLong();
-                consumer.accept(new Bytes(key), pageId);
+                if (keySize == TABLE_STATUS_MARKER) {
+                    TableStatus tableStatus = TableStatus.deserialize(dataIn);
+                    tableStatusConsumer.accept(tableStatus);
+                } else {
+                    byte[] key = new byte[keySize];
+                    dataIn.readFully(key);
+                    long pageId = dataIn.readLong();
+                    consumer.accept(new Bytes(key), pageId);
+                }
             }
         } catch (EOFException err) {
             // OK
@@ -146,8 +152,10 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
+    private static final int TABLE_STATUS_MARKER = -1;
+
     @Override
-    public Long writePage(String tableName, LogSequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException {
+    public Long writePage(String tableName, TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long pageId = newPageId.incrementAndGet();
         Path tableDir = getTableDirectory(tableName);
@@ -157,7 +165,6 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         Path pageFile = getPageFile(tableDir, pageId);
-        Path keys = getTableKeysMetadataFile(tableDir);
         try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
                 DataOutputStream dataOutput = new DataOutputStream(output)) {
             dataOutput.writeInt(newPage.size());
@@ -170,9 +177,15 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+
+        Path keys = getTableMetadataFile(tableDir);
         try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
                 DataOutputStream dataOutputKeys = new DataOutputStream(outputKeys)) {
+
+            dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
+            tableStatus.serialize(dataOutputKeys);
             dataOutputKeys.writeInt(newPage.size());
+
             for (Record record : newPage) {
                 dataOutputKeys.writeInt(record.key.data.length);
                 dataOutputKeys.write(record.key.data);

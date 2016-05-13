@@ -83,7 +83,7 @@ public class HDBConnection implements AutoCloseable {
         route.commitTransaction(tableSpace, tx);
     }
 
-    public long executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+    public DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
         return route.executeUpdate(query, tx, params);
     }
