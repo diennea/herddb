@@ -69,7 +69,7 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     public String getPath() {
-        return "/dodotest";
+        return "/herdtest";
     }
 
     @Override

@@ -19,6 +19,8 @@
  */
 package herddb.server;
 
+import herddb.cluster.BookkeeperCommitLogManager;
+import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.core.DBManager;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
@@ -57,7 +59,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final Path baseDirectory;
     private final ServerHostData serverHostData;
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
-    private final boolean memoryOnly;
+    private final String mode;
+    private final MetadataStorageManager metadataStorageManager;
 
     public DBManager getManager() {
         return manager;
@@ -69,10 +72,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         if (nodeId.isEmpty()) {
             nodeId = ManagementFactory.getRuntimeMXBean().getName();
         }
-        this.memoryOnly = configuration.getBoolean(ServerConfiguration.PROPERTY_MEMORYONLY, false);
+        this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
+        this.metadataStorageManager = buildMetadataStorageManager();
         this.manager = new DBManager(nodeId,
-                buildMetadataStorageManager(),
+                metadataStorageManager,
                 buildDataStorageManager(),
                 buildFileCommitLogManager());
         this.serverHostData = new ServerHostData(
@@ -90,26 +94,43 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     private MetadataStorageManager buildMetadataStorageManager() {
-        if (memoryOnly) {
-            return new MemoryMetadataStorageManager();
-        } else {
-            return new FileMetadataStorageManager(baseDirectory);
+        switch (mode) {
+            case ServerConfiguration.PROPERTY_MODE_LOCAL:
+                return new MemoryMetadataStorageManager();
+            case ServerConfiguration.PROPERTY_MODE_STANDALONE:
+                return new FileMetadataStorageManager(baseDirectory);
+            case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+                return new ZookeeperMetadataStorageManager(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
+                        configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
+                        configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
+            default:
+                throw new RuntimeException();
         }
     }
 
     private DataStorageManager buildDataStorageManager() {
-        if (memoryOnly) {
-            return new MemoryDataStorageManager();
-        } else {
-            return new FileDataStorageManager(baseDirectory);
+        switch (mode) {
+            case ServerConfiguration.PROPERTY_MODE_LOCAL:
+                return new MemoryDataStorageManager();
+            case ServerConfiguration.PROPERTY_MODE_STANDALONE:
+            case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+                return new FileDataStorageManager(baseDirectory);
+            default:
+                throw new RuntimeException();
         }
     }
 
     private CommitLogManager buildFileCommitLogManager() {
-        if (memoryOnly) {
-            return new MemoryCommitLogManager();
-        } else {
-            return new FileCommitLogManager(baseDirectory);
+
+        switch (mode) {
+            case ServerConfiguration.PROPERTY_MODE_LOCAL:
+                return new MemoryCommitLogManager();
+            case ServerConfiguration.PROPERTY_MODE_STANDALONE:
+                return new FileCommitLogManager(baseDirectory);
+            case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+                return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);
+            default:
+                throw new RuntimeException();
         }
     }
 

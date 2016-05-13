@@ -27,18 +27,31 @@ import java.util.Properties;
  *
  * @author enrico.olivelli
  */
-public class ServerConfiguration {
+public final class ServerConfiguration {
 
     private final Properties properties;
 
     public static final String PROPERTY_NODEID = "server.nodeId";
-    public static final String PROPERTY_MEMORYONLY = "server.memoryonly";
+    public static final String PROPERTY_MODE = "server.mode";
+
+    public static final String PROPERTY_MODE_LOCAL = "local";
+    public static final String PROPERTY_MODE_STANDALONE = "standalone";
+    public static final String PROPERTY_MODE_CLUSTER = "cluster";
+
     public static final String PROPERTY_BASEDIR = "server.baseDir";
     public static final String PROPERTY_HOST = "server.host";
     public static final String PROPERTY_HOST_DEFAULT = "localhost";
     public static final String PROPERTY_PORT = "server.port";
-    public static final int PROPERTY_PORT_DEFAULT = 7000;
     public static final String PROPERTY_SSL = "server.ssl";
+
+    public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
+    public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.sessiontimeout";
+    public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
+
+    public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
+    public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
+    public static final int PROPERTY_PORT_DEFAULT = 7000;
+    public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
 
     public ServerConfiguration(Properties properties) {
         this.properties = properties;
