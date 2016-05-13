@@ -24,6 +24,7 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -66,9 +68,6 @@ public class MemoryDataStorageManager extends DataStorageManager {
         public String toString() {
             return "Page{" + "records=" + records.size() + ", sequenceNumber=" + sequenceNumber + '}';
         }
-        
-        
-        
 
     }
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
@@ -99,14 +98,14 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void loadExistingKeys(String tableName, BiConsumer<Bytes, Long> consumer) {
+    public void restore(String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) {
         // AT BOOT NO DATA IS PRESENT
     }
 
     @Override
-    public Long writePage(String tableName, LogSequenceNumber sequenceNumber, List<Record> newPage) {
+    public Long writePage(String tableName, TableStatus tableStatus, List<Record> newPage) {
         long pageId = newPageId.incrementAndGet();
-        Page page = new Page(new ArrayList<>(newPage), sequenceNumber);
+        Page page = new Page(new ArrayList<>(newPage), tableStatus.sequenceNumber);
         pages.put(tableName + "_" + pageId, page);
         LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
         return pageId;

@@ -54,7 +54,7 @@ public class SimpleClientScanTest {
                 Assert.assertEquals(1, resultCreateTable);
 
                 for (int i = 0; i < 99; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)));
+                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)).updateCount);
                 }
 
                 assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0).consume().size());

@@ -50,6 +50,7 @@ import herddb.model.TableContext;
 import herddb.model.Tuple;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
@@ -64,6 +65,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.LongBinaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -127,7 +129,7 @@ public class TableManager {
     /**
      * auto_increment support
      */
-    private final AtomicLong newPrimaryKeyValue = new AtomicLong();
+    private final AtomicLong nextPrimaryKeyValue = new AtomicLong(1);
 
     private final TableContext tableContext;
 
@@ -166,7 +168,7 @@ public class TableManager {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.from_int((int) newPrimaryKeyValue.incrementAndGet()).data;
+                    return Bytes.from_int((int) nextPrimaryKeyValue.getAndIncrement()).data;
                 }
 
                 @Override
@@ -178,7 +180,7 @@ public class TableManager {
             tableContext = new TableContext() {
                 @Override
                 public byte[] computeNewPrimaryKeyValue() {
-                    return Bytes.from_long((int) newPrimaryKeyValue.incrementAndGet()).data;
+                    return Bytes.from_long((int) nextPrimaryKeyValue.getAndIncrement()).data;
                 }
 
                 @Override
@@ -210,9 +212,13 @@ public class TableManager {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
         pagesLock.writeLock().lock();
         try {
-            dataStorageManager.loadExistingKeys(table.name, (key, pageId) -> {
-                keyToPage.put(key, pageId);
-            });
+            dataStorageManager.restore(table.name, (status) -> {
+                this.nextPrimaryKeyValue.set(Bytes.toLong(status.nextPrimaryKeyValue, 0, 8));
+                LOGGER.log(Level.SEVERE, "found status stone table={0}, logpos, {1}, nextpk={2}", new Object[]{status.tableName, status.sequenceNumber, nextPrimaryKeyValue});
+            },
+                    (key, pageId) -> {
+                        keyToPage.put(key, pageId);
+                    });
         } finally {
             pagesLock.writeLock().unlock();
         }
@@ -603,7 +609,30 @@ public class TableManager {
         dirtyRecords.incrementAndGet();
     }
 
+    private static final class MyLongBinaryOperator implements LongBinaryOperator {
+
+        @Override
+        public long applyAsLong(long left, long right) {
+            if (left <= right) {
+                return right;
+            } else {
+                return left;
+            }
+        }
+
+    }
+
     private void applyInsert(Bytes key, Bytes value) {
+        if (table.auto_increment) {
+            // the next auto_increment value MUST be greater than every other explict value            
+            long pk_logical_value;
+            if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+                pk_logical_value = key.to_int();
+            } else {
+                pk_logical_value = key.to_long();
+            }
+            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value+1, new MyLongBinaryOperator());            
+        }
         keyToPage.put(key, NO_PAGE);
         buffer.put(key, new Record(key, value));
         deletedKeys.remove(key);
@@ -703,6 +732,7 @@ public class TableManager {
     void flush() throws DataStorageManagerException {
         pagesLock.writeLock().lock();
         LogSequenceNumber sequenceNumber = log.getActualSequenceNumber();
+        TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data);
         try {
             /*
                 When the size of loaded data in the memory reaches a maximum value the rows on memory are dumped back to disk creating new pages
@@ -728,7 +758,7 @@ public class TableManager {
                 if (toKeep != null) {
                     newPage.add(toKeep);
                     if (++count == MAX_RECORDS_PER_PAGE) {
-                        createNewPage(sequenceNumber, newPage);
+                        createNewPage(tableStatus, newPage);
                         newPage.clear();
                         count = 0;
                     }
@@ -736,7 +766,7 @@ public class TableManager {
 
             }
             if (!newPage.isEmpty()) {
-                createNewPage(sequenceNumber, newPage);
+                createNewPage(tableStatus, newPage);
             }
             buffer.clear();
             loadedPages.clear();
@@ -748,9 +778,9 @@ public class TableManager {
 
     }
 
-    private void createNewPage(LogSequenceNumber sequenceNumber, List<Record> newPage) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "createNewPage at " + sequenceNumber + " with " + newPage.size() + " records");
-        Long newPageId = dataStorageManager.writePage(table.name, sequenceNumber, newPage);
+    private void createNewPage(TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "createNewPage at " + tableStatus.sequenceNumber + " with " + newPage.size() + " records");
+        Long newPageId = dataStorageManager.writePage(table.name, tableStatus, newPage);
         for (Record record : newPage) {
             keyToPage.put(record.key, newPageId);
         }
@@ -874,6 +904,10 @@ public class TableManager {
 
     public TableManagerStats getStats() {
         return stats;
+    }
+
+    public long getNextPrimaryKeyValue() {
+        return nextPrimaryKeyValue.get();
     }
 
 }

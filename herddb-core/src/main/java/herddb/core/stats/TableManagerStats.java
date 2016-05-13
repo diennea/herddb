@@ -36,5 +36,5 @@ public interface TableManagerStats {
     
     public int getDirtypages();
     
-    public int getDirtyrecords();
+    public int getDirtyrecords();        
 }
