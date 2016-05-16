@@ -47,6 +47,7 @@ public class SQLProjection implements Projection {
     private final Column[] columns;
     private final List<OutputColumn> output;
     private final String[] fieldNames;
+    private final String tableAlias;
 
     private static final class OutputColumn {
 
@@ -60,13 +61,13 @@ public class SQLProjection implements Projection {
 
     }
 
-    public SQLProjection(Table table, List<SelectItem> selectItems) throws StatementExecutionException {
+    public SQLProjection(Table table, String tableAlias, List<SelectItem> selectItems) throws StatementExecutionException {
+        this.tableAlias = tableAlias;
         List<OutputColumn> raw_output = new ArrayList<>();
         int pos = 0;
         for (SelectItem item : selectItems) {
             pos++;
             if (item instanceof SelectExpressionItem) {
-
                 SelectExpressionItem si = (SelectExpressionItem) item;
                 Alias alias = si.getAlias();
 
@@ -84,6 +85,9 @@ public class SQLProjection implements Projection {
                     Column column = table.getColumn(c.getColumnName());
                     if (column == null) {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName());
+                    }
+                    if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName()+", expecting "+tableAlias);
                     }
                     columType = column.type;
                 } else if (exp instanceof StringValue) {

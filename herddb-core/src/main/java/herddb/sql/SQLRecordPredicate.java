@@ -54,6 +54,7 @@ import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 public class SQLRecordPredicate extends Predicate {
 
     private final Table table;
+    private final String tableAlias;
     private final Expression where;
     private final int firstParameterPos;
 
@@ -68,10 +69,11 @@ public class SQLRecordPredicate extends Predicate {
         }
     }
 
-    public SQLRecordPredicate(Table table, Expression where, int parameterPos) {
+    public SQLRecordPredicate(Table table, String tableAlias, Expression where, int parameterPos) {
         this.table = table;
         this.where = where;
         this.firstParameterPos = parameterPos;
+        this.tableAlias = tableAlias;
     }
 
     @Override
@@ -211,9 +213,9 @@ public class SQLRecordPredicate extends Predicate {
             return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
         }
         if (expression instanceof net.sf.jsqlparser.schema.Column) {
-            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-            if (c.getTable() != null && (c.getTable().getName() != null || c.getTable().getAlias() != null)) {
-                throw new StatementExecutionException("unsupported fully qualified column reference" + expression);
+            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;            
+            if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
             }
             return bean.get(c.getColumnName().toLowerCase());
         }

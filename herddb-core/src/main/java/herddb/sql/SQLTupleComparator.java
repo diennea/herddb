@@ -34,8 +34,15 @@ public class SQLTupleComparator implements TupleComparator {
 
     private final List<OrderByElement> orderByElements;
 
-    SQLTupleComparator(List<OrderByElement> orderByElements) throws StatementExecutionException {
+    SQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {
         this.orderByElements = orderByElements;
+
+        for (OrderByElement element : orderByElements) {
+            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) element.getExpression();
+            if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
+            }
+        }
     }
 
     @Override
