@@ -87,9 +87,9 @@
                     <url>https://dev.majordodo.org/nexus/content/repositories/releases/</url>
                 </repository>                -->
                 <repository>
-                    <id>maven.mag-news.it</id>
+                    <id>maven.sviluppo.dna</id>
                     <name>MagNews Public Repository</name>
-                    <url>https://maven.mag-news.it/content/repositories/releases/</url>
+                    <url>http://maven.sviluppo.dna/content/repositories/releases/</url>
                 </repository>                
             </distributionManagement>
             <build>        
