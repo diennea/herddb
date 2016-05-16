@@ -20,7 +20,6 @@
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
-import herddb.model.Column;
 import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -38,8 +37,10 @@ import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
@@ -213,7 +214,7 @@ public class SQLRecordPredicate extends Predicate {
             return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
         }
         if (expression instanceof net.sf.jsqlparser.schema.Column) {
-            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;            
+            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
             if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
                 throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
             }
@@ -258,6 +259,24 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        }
+        if (expression instanceof InExpression) {
+            InExpression in = (InExpression) expression;
+            if (in.getLeftItemsList() != null) {
+                throw new StatementExecutionException("unsupported IN syntax <" + expression + ">");
+            }
+            Object value = evaluateExpression(in.getLeftExpression(), bean, state);
+            if (in.getRightItemsList() instanceof ExpressionList) {
+                ExpressionList el = (ExpressionList) in.getRightItemsList();
+                for (Expression e : el.getExpressions()) {
+                    Object other = evaluateExpression(e, bean, state);
+                    if (objectEquals(value, other)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            throw new StatementExecutionException("unsupported operand " + expression.getClass() + " with argument of type " + in.getRightItemsList());
         }
         if (expression instanceof IsNullExpression) {
             IsNullExpression e = (IsNullExpression) expression;
