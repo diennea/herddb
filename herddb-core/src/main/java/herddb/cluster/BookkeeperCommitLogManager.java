@@ -24,20 +24,71 @@ import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
 
 /**
- *
+ * CommitLog on Apache BookKeeper
  * @author enrico.olivelli
  */
 public class BookkeeperCommitLogManager extends CommitLogManager {
 
-    private ZookeeperMetadataStorageManager metadataStorageManager;
+    private final ZookeeperMetadataStorageManager metadataStorageManager;
+    private int ensemble = 1;
+    private int writeQuorumSize = 1;
+    private int ackQuorumSize = 1;
+    private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
+    private long maxLogicalLogFileSize = 1024 * 1024 * 256;
 
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager) {
         this.metadataStorageManager = metadataStorageManager;
     }
 
+    public int getEnsemble() {
+        return ensemble;
+    }
+
+    public void setEnsemble(int ensemble) {
+        this.ensemble = ensemble;
+    }
+
+    public int getWriteQuorumSize() {
+        return writeQuorumSize;
+    }
+
+    public void setWriteQuorumSize(int writeQuorumSize) {
+        this.writeQuorumSize = writeQuorumSize;
+    }
+
+    public int getAckQuorumSize() {
+        return ackQuorumSize;
+    }
+
+    public void setAckQuorumSize(int ackQuorumSize) {
+        this.ackQuorumSize = ackQuorumSize;
+    }
+
+    public long getLedgersRetentionPeriod() {
+        return ledgersRetentionPeriod;
+    }
+
+    public void setLedgersRetentionPeriod(long ledgersRetentionPeriod) {
+        this.ledgersRetentionPeriod = ledgersRetentionPeriod;
+    }
+
+    public long getMaxLogicalLogFileSize() {
+        return maxLogicalLogFileSize;
+    }
+
+    public void setMaxLogicalLogFileSize(long maxLogicalLogFileSize) {
+        this.maxLogicalLogFileSize = maxLogicalLogFileSize;
+    }
+
     @Override
     public CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException {
-        return new BookkeeperCommitLog(tableSpace, metadataStorageManager);
+        BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpace, metadataStorageManager);
+        res.setAckQuorumSize(ackQuorumSize);
+        res.setEnsemble(ensemble);
+        res.setLedgersRetentionPeriod(ledgersRetentionPeriod);
+        res.setMaxLogicalLogFileSize(maxLogicalLogFileSize);
+        res.setWriteQuorumSize(writeQuorumSize);
+        return res;
     }
 
 }

@@ -222,7 +222,7 @@ public class DBManager implements AutoCloseable {
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context) throws StatementExecutionException {
-        LOGGER.log(Level.FINEST, "executeStatement {0}", new Object[]{statement});
+        LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
@@ -421,6 +421,19 @@ public class DBManager implements AutoCloseable {
         }
         for (TableSpaceManager man : managers) {
             man.flush();
+        }
+    }
+
+    public void checkpoint() throws LogNotAvailableException {
+        List<TableSpaceManager> managers;
+        generalLock.readLock().lock();
+        try {
+            managers = new ArrayList<>(tablesSpaces.values());
+        } finally {
+            generalLock.readLock().unlock();
+        }
+        for (TableSpaceManager man : managers) {
+            man.checkpoint();
         }
     }
 

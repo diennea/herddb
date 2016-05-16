@@ -33,6 +33,7 @@ import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.schema.Column;
 
@@ -70,7 +71,9 @@ public class SQLRecordFunction extends RecordFunction {
                     throw new StatementExecutionException("missing JDBC parameter");
                 }
             } else {
-                if (e instanceof LongValue) {
+                if (e instanceof NullValue) {
+                    bean.put(columns.get(i).getColumnName(), null);
+                } else if (e instanceof LongValue) {
                     bean.put(columns.get(i).getColumnName(), ((LongValue) e).getValue());
                 } else {
                     if (e instanceof StringValue) {

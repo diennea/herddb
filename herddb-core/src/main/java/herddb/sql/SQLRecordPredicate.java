@@ -194,7 +194,7 @@ public class SQLRecordPredicate extends Predicate {
             if (c.getTable() != null && (c.getTable().getName() != null || c.getTable().getAlias() != null)) {
                 throw new StatementExecutionException("unsupported fully qualified column reference" + expression);
             }
-            return bean.get(c.getColumnName());
+            return bean.get(c.getColumnName().toLowerCase());
         }
         if (expression instanceof Parenthesis) {
             Parenthesis p = (Parenthesis) expression;

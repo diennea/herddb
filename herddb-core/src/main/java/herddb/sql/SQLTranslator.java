@@ -285,7 +285,7 @@ public class SQLTranslator {
             keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
         } else {
             if (keyValueExpression.size() != table.primaryKey.length) {
-                throw new StatementExecutionException("you must set a value for the primary key");
+                throw new StatementExecutionException("you must set a value for the primary key (expressions="+keyValueExpression.size()+")");
             }
             keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression, countJdbcParametersBeforeKey);
         }

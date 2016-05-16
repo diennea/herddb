@@ -128,7 +128,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 return new FileCommitLogManager(baseDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);
+                BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);;                
+                return bkmanager;
             default:
                 throw new RuntimeException();
         }

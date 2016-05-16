@@ -49,4 +49,10 @@ public class DMLStatementExecutionResult extends StatementExecutionResult {
     public Bytes getKey() {
         return key;
     }
+
+    @Override
+    public String toString() {
+        return "DMLStatementExecutionResult{" + "updateCount=" + updateCount + ", key=" + key + '}';
+    }
+
 }

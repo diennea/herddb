@@ -378,6 +378,10 @@ public class TableSpaceManager {
         }
     }
 
+    void checkpoint() throws LogNotAvailableException {
+        log.checkpoint();
+    }
+
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {
         long id = newTransactionId.incrementAndGet();
 
