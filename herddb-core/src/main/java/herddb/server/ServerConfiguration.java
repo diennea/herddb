@@ -47,6 +47,28 @@ public final class ServerConfiguration {
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.sessiontimeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
+    
+    public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble";
+    public static final int  PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT = 1;
+    public static final String PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE = "server.bookkeeper.writequorumsize";
+    public static final int  PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT = 1;
+    public static final String PROPERTY_BOOKKEEPER_ACKQUORUMSIZE = "server.bookkeeper.ackquorumsize";
+    public static final int  PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
+    public static final String PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD = "server.bookkeeper.logretentionperiod";
+    public static final String PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE = "server.bookkeeper.maxlogfilesize";
+    
+    
+    
+    
+     private int ensemble = 1;
+    private int writeQuorumSize = 1;
+    private int ackQuorumSize = 1;
+    private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
+    private long maxLogicalLogFileSize = 1024 * 1024 * 256;
+    
+    
+    public static final String PROPERTY_LOG_RETENTION_PERIOD = "server.log.retention.period";
+    public static final int  PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000*10*60*24*2;
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
     public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";

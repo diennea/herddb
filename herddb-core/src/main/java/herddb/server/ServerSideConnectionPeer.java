@@ -96,6 +96,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         translatedQuery.plan.mutator.setTransactionId(tx);
                     }
                     StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
+                    LOGGER.log(Level.SEVERE, "result:" + result);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         Map<String, Object> otherData = null;

@@ -17,42 +17,25 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.sql;
 
-import herddb.utils.Bytes;
+import org.junit.Test;
+import static org.junit.Assert.*;
 
 /**
- * Result of statement which mutate data
  *
  * @author enrico.olivelli
  */
-public class DMLStatementExecutionResult extends StatementExecutionResult {
+public class SQLRecordPredicateTest {
 
-    private final int updateCount;
-    private final Bytes key;
-
-    public DMLStatementExecutionResult(int updateCount) {
-        this.updateCount = updateCount;
-        this.key = null;
-
-    }
-
-    public DMLStatementExecutionResult(int updateCount, Bytes key) {
-        this.updateCount = updateCount;
-        this.key = key;
-    }
-
-    public int getUpdateCount() {
-        return updateCount;
-    }
-
-    public Bytes getKey() {
-        return key;
-    }
-
-    @Override
-    public String toString() {
-        return "DMLStatementExecutionResult{" + "updateCount=" + updateCount + ", key=" + key + '}';
+    @Test
+    public void testLike() throws Exception {
+        assertTrue(SQLRecordPredicate.like("test", "%est"));
+        assertTrue(SQLRecordPredicate.like("test", "test%"));
+        assertTrue(SQLRecordPredicate.like("test", "te_t"));
+        assertFalse(SQLRecordPredicate.like("test", "a%"));
+        assertTrue(SQLRecordPredicate.like("test", "%test%"));
+        assertTrue(SQLRecordPredicate.like("test", "%es%"));        
     }
 
 }

@@ -86,7 +86,7 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public boolean wasNull() throws SQLException {
-        return lastValue == null;
+        return wasNull;
     }
 
     private String resolveColumnNameByIndex(int columnIndex) throws SQLException {
@@ -211,12 +211,12 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public byte getByte(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return (byte) getInt(columnLabel);
     }
 
     @Override
     public short getShort(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return (short) getInt(columnLabel);
     }
 
     @Override

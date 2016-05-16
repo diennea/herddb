@@ -33,6 +33,7 @@ import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.schema.Column;
 
@@ -62,32 +63,34 @@ public class SQLRecordFunction extends RecordFunction {
         int paramIndex = jdbcParametersStartPos;
         for (int i = 0; i < columns.size(); i++) {
             Expression e = expressions.get(i);
+            String columnName = columns.get(i).getColumnName();
+            herddb.model.Column column = table.getColumn(columnName);
+            if (column == null) {
+                throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);
+            }
+            columnName = column.name;
             if (e instanceof JdbcParameter) {
                 try {
                     Object param = statementEvaluationContext.jdbcParameters.get(paramIndex++);
-                    bean.put(columns.get(i).getColumnName(), param);
+                    bean.put(columnName, param);
                 } catch (IndexOutOfBoundsException missingParam) {
                     throw new StatementExecutionException("missing JDBC parameter");
                 }
-            } else {
-                if (e instanceof LongValue) {
-                    bean.put(columns.get(i).getColumnName(), ((LongValue) e).getValue());
+            } else if (e instanceof NullValue) {
+                bean.put(columnName, null);
+            } else if (e instanceof LongValue) {
+                bean.put(columnName, ((LongValue) e).getValue());
+            } else if (e instanceof StringValue) {
+                bean.put(columnName, ((StringValue) e).getValue());
+            } else if (e instanceof Column) {
+                Column c = (Column) e;
+                if (c.getColumnName().equalsIgnoreCase(BuiltinFunctions.CURRENT_TIMESTAMP)) {
+                    bean.put(columnName, new java.sql.Timestamp(System.currentTimeMillis()));
                 } else {
-                    if (e instanceof StringValue) {
-                        bean.put(columns.get(i).getColumnName(), ((StringValue) e).getValue());
-                    } else {
-                        if (e instanceof Column) {
-                            Column c = (Column) e;
-                            if (c.getColumnName().equalsIgnoreCase(BuiltinFunctions.CURRENT_TIMESTAMP)) {
-                                bean.put(columns.get(i).getColumnName(), new java.sql.Timestamp(System.currentTimeMillis()));
-                            } else {
-                                bean.put(columns.get(i).getColumnName(), bean.get(c.getColumnName()));
-                            }
-                        } else {
-                            throw new StatementExecutionException("unsupported type " + e.getClass() + " " + e);
-                        }
-                    }
+                    bean.put(columnName, bean.get(c.getColumnName()));
                 }
+            } else {
+                throw new StatementExecutionException("unsupported type " + e.getClass() + " " + e);
             }
         }
         return RecordSerializer.toRecord(bean, table).value.data;

@@ -122,5 +122,37 @@ public class AutoIncrementTest {
 
         }
     }
+    
+    
+    @Test
+    public void testAutoIncrement_other_sintax() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (n1 int auto_increment, s1 string, primary key (n1))", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
+
+            List<Tuple> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+            assertEquals(6, rows.size());
+            for (int i = 1; i <= 6; i++) {
+                int _i = i;
+                assertTrue(rows.stream().filter(t -> t.get("n1").equals(Integer.valueOf(_i))).findAny().isPresent());
+            }
+
+            DMLStatementExecutionResult result = executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa"));
+            assertEquals(1, result.getUpdateCount());
+            assertEquals(Bytes.from_int(7), result.getKey());
+        }
+    }
 
 }

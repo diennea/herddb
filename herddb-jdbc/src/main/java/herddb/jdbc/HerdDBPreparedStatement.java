@@ -30,7 +30,6 @@ import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.Clob;
-import java.sql.Connection;
 import java.sql.Date;
 import java.sql.NClob;
 import java.sql.ParameterMetaData;
@@ -40,8 +39,6 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.RowId;
 import java.sql.SQLException;
-import java.sql.SQLType;
-import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -59,6 +56,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     private final String sql;
     private final List<Object> parameters = new ArrayList<>();
+    private final List<List<Object>> batch = new ArrayList<>();
 
     public HerdDBPreparedStatement(HerdDBConnection parent, String sql) {
         super(parent);
@@ -207,7 +205,27 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void addBatch() throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        batch.add(new ArrayList<>(parameters));
+    }
+
+    @Override
+    public int[] executeBatch() throws SQLException {
+        try {
+            int[] results = new int[batch.size()];
+            int i = 0;
+            for (List<Object> parameters : this.batch) {
+                long result = doExecuteLargeUpdate(parameters);
+                results[i++] = (int) result;
+            }
+            return results;
+        } finally {
+            batch.clear();
+        }
+    }
+
+    @Override
+    public void clearBatch() throws SQLException {
+        batch.clear();
     }
 
     @Override
@@ -442,11 +460,14 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
         parameters.clear();
     }
 
-    
     @Override
     public long executeLargeUpdate() throws SQLException {
+        return doExecuteLargeUpdate(parameters);
+    }
+
+    private long doExecuteLargeUpdate(List<Object> actualParameters) throws SQLException {
         try {
-            DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), parameters);
+            DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), actualParameters);
             lastUpdateCount = result.updateCount;
             lastKey = result.key;
             return lastUpdateCount;
