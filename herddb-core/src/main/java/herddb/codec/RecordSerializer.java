@@ -101,6 +101,7 @@ public final class RecordSerializer {
         for (int i = 0; i < values.length; i++) {
             Object name = values[i++];
             Object value = values[i];
+            name = table.getColumn((String) name).name;
             record.put((String) name, value);
         }
         return toRecord(record, table);
@@ -152,7 +153,7 @@ public final class RecordSerializer {
 
         try (DataOutputStream doo = new DataOutputStream(value);) {
             for (Column c : table.columns) {
-                Object v = record.get(c.name);;
+                Object v = record.get(c.name);
                 if (v != null && !table.isPrimaryKeyColumn(c.name)) {
                     byte[] fieldValue = serialize(v, c.type);
                     doo.writeUTF(c.name);

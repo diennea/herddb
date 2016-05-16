@@ -41,6 +41,7 @@ import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
+import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
@@ -134,6 +135,20 @@ public class SQLRecordPredicate extends Predicate {
         return false;
     }
 
+    static boolean like(Object a, Object b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        String like = b.toString()
+                .replace(".", "\\.")
+                .replace("\\*", "\\*")
+                .replace("%", ".*")
+                .replace("_", ".+");
+
+        System.out.println("pattern:" + like);
+        return a.toString().matches(like);
+    }
+
     private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             return state.parameters.get(state.parameterPos++);
@@ -173,6 +188,12 @@ public class SQLRecordPredicate extends Predicate {
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), objectEquals(left, right) || greaterThan(left, right));
+        }
+        if (expression instanceof LikeExpression) {
+            LikeExpression e = (LikeExpression) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
+            return handleNot(e.isNot(), like(left, right));
         }
         if (expression instanceof AndExpression) {
             AndExpression a = (AndExpression) expression;

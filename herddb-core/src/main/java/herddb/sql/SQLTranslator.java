@@ -52,7 +52,9 @@ import herddb.sql.functions.BuiltinFunctions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import net.sf.jsqlparser.JSQLParserException;
@@ -146,9 +148,25 @@ public class SQLTranslator {
         boolean foundPk = false;
         List<String> allColumnNames = new ArrayList<>();
         Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
+        Set<String> primaryKey = new HashSet<>();
+
+        if (s.getIndexes() != null) {
+            for (Index index : s.getIndexes()) {
+                if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
+                    for (String n : index.getColumnsNames()) {
+                        n = n.toLowerCase();
+                        tablebuilder.primaryKey(n);
+                        primaryKey.add(n);
+                        foundPk = true;
+                    }
+                }
+            }
+        }
+
         for (ColumnDefinition cf : s.getColumnDefinitions()) {
             int type;
-            allColumnNames.add(cf.getColumnName());
+            String columnName = cf.getColumnName().toLowerCase();
+            allColumnNames.add(columnName);
             switch (cf.getColDataType().getDataType().toLowerCase()) {
                 case "string":
                 case "varchar":
@@ -181,28 +199,21 @@ public class SQLTranslator {
                 default:
                     throw new StatementExecutionException("bad type " + cf.getColDataType().getDataType());
             }
-            tablebuilder.column(cf.getColumnName(), type);
+            tablebuilder.column(columnName, type);
 
             if (cf.getColumnSpecStrings() != null) {
                 List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
+                boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
                 if (columnSpecs.contains("PRIMARY")) {
                     foundPk = true;
-                    boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
-                    tablebuilder.primaryKey(cf.getColumnName(), auto_increment);
+                    tablebuilder.primaryKey(columnName, auto_increment);
+                }
+                if (auto_increment && primaryKey.contains(cf.getColumnName())) {
+                    tablebuilder.primaryKey(columnName, auto_increment);
                 }
             }
         }
 
-        if (s.getIndexes() != null) {
-            for (Index index : s.getIndexes()) {
-                if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
-                    for (String n : index.getColumnsNames()) {
-                        tablebuilder.primaryKey(n);
-                        foundPk = true;
-                    }
-                }
-            }
-        }
         if (!foundPk) {
             // HEAP TABLE
             allColumnNames.forEach(tablebuilder::primaryKey);
@@ -285,7 +296,7 @@ public class SQLTranslator {
             keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
         } else {
             if (keyValueExpression.size() != table.primaryKey.length) {
-                throw new StatementExecutionException("you must set a value for the primary key (expressions="+keyValueExpression.size()+")");
+                throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
             }
             keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression, countJdbcParametersBeforeKey);
         }
