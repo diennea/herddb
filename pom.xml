@@ -81,12 +81,16 @@
                 <module>herddb-jdbc</module>
             </modules>
             <distributionManagement>        
-                <repository>            
-                    <!-- temporary with are hosted at Majordodo house -->    
+<!--                <repository>                                
                     <id>dev.majordodo.org</id>
                     <name>Majordodo Public Repository</name>
                     <url>https://dev.majordodo.org/nexus/content/repositories/releases/</url>
-                </repository>        
+                </repository>                -->
+                <repository>
+                    <id>maven.mag-news.it</id>
+                    <name>MagNews Public Repository</name>
+                    <url>https://maven.mag-news.it/content/repositories/releases/</url>
+                </repository>                
             </distributionManagement>
             <build>        
                 <plugins>                        
@@ -119,7 +123,7 @@
             </build>
         </profile>
         <profile>
- 	    <!-- Maven Central updloads -->
+            <!-- Maven Central updloads -->
             <id>ossrh</id>
             <activation>
                 <activeByDefault>false</activeByDefault>                
