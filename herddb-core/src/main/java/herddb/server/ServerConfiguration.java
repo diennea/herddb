@@ -89,17 +89,32 @@ public final class ServerConfiguration {
     }
 
     public int getInt(String key, int defaultValue) {
-        return Integer.parseInt(this.properties.getProperty(key, defaultValue + ""));
+        final String value = this.properties.getProperty(key);
+        
+        if ( value == null || value.isEmpty() )
+            return defaultValue;
+        
+        return Integer.parseInt(value);
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
-        return Boolean.parseBoolean(this.properties.getProperty(key, defaultValue + ""));
+        final String value = this.properties.getProperty(key);
+        
+        if ( value == null || value.isEmpty() )
+            return defaultValue;
+        
+        return Boolean.parseBoolean(value);
     }
-
+    
     public long getLong(String key, long defaultValue) {
-        return Long.parseLong(this.properties.getProperty(key, defaultValue + ""));
+        final String value = this.properties.getProperty(key);
+        
+        if ( value == null || value.isEmpty() )
+            return defaultValue;
+        
+        return Long.parseLong(value);
     }
-
+    
     public String getString(String key, String defaultValue) {
         return this.properties.getProperty(key, defaultValue);
     }
