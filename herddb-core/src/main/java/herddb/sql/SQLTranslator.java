@@ -63,6 +63,7 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
@@ -410,6 +411,7 @@ public class SQLTranslator {
         }
         if (e instanceof net.sf.jsqlparser.schema.Column
                 || e instanceof StringValue
+                || e instanceof NullValue
                 || e instanceof LongValue) {
             return 0;
         }
