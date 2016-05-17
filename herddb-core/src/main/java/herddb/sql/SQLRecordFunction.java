@@ -96,4 +96,9 @@ public class SQLRecordFunction extends RecordFunction {
         return RecordSerializer.toRecord(bean, table).value.data;
     }
 
+    @Override
+    public String toString() {
+        return "SQLRecordFunction{" + "table=" + table + ", columns=" + columns + ", expressions=" + expressions + ", jdbcParametersStartPos=" + jdbcParametersStartPos + '}';
+    }
+
 }

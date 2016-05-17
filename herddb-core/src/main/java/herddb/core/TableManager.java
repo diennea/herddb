@@ -530,8 +530,7 @@ public class TableManager {
         List<Record> changedRecords = transaction.changedRecords.get(table.name);
         // transaction is still holding locks on each record, so we can change records
         if (changedRecords != null) {
-            for (Record r : changedRecords) {
-                System.out.println("onTransactionCommit " + transaction.transactionId);
+            for (Record r : changedRecords) {                
                 applyUpdate(r.key, r.value);
             }
         }
@@ -573,8 +572,7 @@ public class TableManager {
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     transaction.registerRecoredUpdate(this.table.name, key, value);
-                } else {
-                    System.out.println("onDirectUpdate");
+                } else {                    
                     applyUpdate(key, value);
                 }
                 break;
@@ -605,7 +603,7 @@ public class TableManager {
     }
 
     private void applyUpdate(Bytes key, Bytes value) {
-        Long pageId = keyToPage.put(key, NO_PAGE);
+        Long pageId = keyToPage.put(key, NO_PAGE);        
         buffer.put(key, new Record(key, value));
         dirtyPages.add(pageId);
         dirtyRecords.incrementAndGet();

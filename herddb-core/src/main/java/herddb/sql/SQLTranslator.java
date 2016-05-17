@@ -531,7 +531,7 @@ public class SQLTranslator {
                 if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
                     okAlias = false;
                 }
-                if (okAlias && columnName.equals(c.getColumnName())) {
+                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName())) {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {

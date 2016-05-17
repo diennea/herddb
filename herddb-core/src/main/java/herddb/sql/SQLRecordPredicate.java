@@ -165,7 +165,7 @@ public class SQLRecordPredicate extends Predicate {
                 .replace(".", "\\.")
                 .replace("\\*", "\\*")
                 .replace("%", ".*")
-                .replace("_", ".+");       
+                .replace("_", ".+");
         return a.toString().matches(like);
     }
 
@@ -321,6 +321,11 @@ public class SQLRecordPredicate extends Predicate {
             return handleNot(e.isNot(), result);
         }
         throw new StatementExecutionException("unsupported operand " + expression.getClass());
+    }
+
+    @Override
+    public String toString() {
+        return "SQLRecordPredicate{" + "table=" + table + ", tableAlias=" + tableAlias + ", where=" + where + ", firstParameterPos=" + firstParameterPos + '}';
     }
 
 }

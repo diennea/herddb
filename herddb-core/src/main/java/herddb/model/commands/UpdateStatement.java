@@ -60,4 +60,9 @@ public class UpdateStatement extends DMLStatement {
         return predicate;
     }
 
+    @Override
+    public String toString() {
+        return "UpdateStatement "+System.identityHashCode(this)+" {" + "function=" + function + ", key=" + key + ", predicate=" + predicate + '}';
+    }
+
 }

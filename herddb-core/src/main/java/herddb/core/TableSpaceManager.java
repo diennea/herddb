@@ -283,8 +283,7 @@ public class TableSpaceManager {
     private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
     StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        Transaction transaction = transactions.get(transactionContext.transactionId);
-        LOGGER.log(Level.SEVERE,"executeStatement tx="+transactionContext.transactionId+" "+statement+": "+transaction);
+        Transaction transaction = transactions.get(transactionContext.transactionId);                
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
