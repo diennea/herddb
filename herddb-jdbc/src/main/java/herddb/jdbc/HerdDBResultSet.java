@@ -238,6 +238,9 @@ public class HerdDBResultSet implements ResultSet {
         lastValue = actualValue.get(columnLabel);
         if (lastValue != null) {
             wasNull = false;
+            if (lastValue instanceof Long) {
+                return (Long) lastValue;
+            }
             return Long.parseLong(lastValue.toString());
         } else {
             wasNull = true;

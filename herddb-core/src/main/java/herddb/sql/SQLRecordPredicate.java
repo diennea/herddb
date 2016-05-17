@@ -165,9 +165,7 @@ public class SQLRecordPredicate extends Predicate {
                 .replace(".", "\\.")
                 .replace("\\*", "\\*")
                 .replace("%", ".*")
-                .replace("_", ".+");
-
-        System.out.println("pattern:" + like);
+                .replace("_", ".+");       
         return a.toString().matches(like);
     }
 
