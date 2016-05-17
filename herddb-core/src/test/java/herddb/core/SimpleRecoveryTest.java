@@ -28,8 +28,10 @@ import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.GetResult;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
+import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
@@ -75,7 +77,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -88,7 +90,7 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
         }
 
@@ -110,7 +112,7 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
         }
 
@@ -133,7 +135,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -146,11 +148,11 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
-            assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         try (DBManager manager = new DBManager("localhost",
@@ -161,7 +163,7 @@ public class SimpleRecoveryTest {
 
             manager.waitForTablespace("tblspace1", 10000);
             GetStatement get = new GetStatement("tblspace1", "t1", key, null);
-            GetResult result = manager.get(get);
+            GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
             assertEquals(value, result.getRecord().value);
@@ -186,7 +188,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -199,15 +201,15 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
 
-            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value)).setTransactionId(tx);
-            assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
-            manager.executeStatement(new CommitTransactionStatement("tblspace1", tx));
+            manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
 
         try (DBManager manager = new DBManager("localhost",
@@ -218,7 +220,7 @@ public class SimpleRecoveryTest {
 
             manager.waitForTablespace("tblspace1", 10000);
             GetStatement get = new GetStatement("tblspace1", "t1", key, null);
-            GetResult result = manager.get(get);
+            GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
             assertEquals(value, result.getRecord().value);
@@ -244,7 +246,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -257,16 +259,16 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
-            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value)).setTransactionId(tx);
-            assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+            InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
             // transaction is not committed, and the leader dies, key MUST not appear anymore
             InsertStatement insert2 = new InsertStatement("tblspace1", "t1", new Record(key2, value));
-            assertEquals(1, manager.executeUpdate(insert2).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(insert2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
 
         }
 
@@ -280,7 +282,7 @@ public class SimpleRecoveryTest {
 
             {
                 GetStatement get = new GetStatement("tblspace1", "t1", key2, null);
-                GetResult result = manager.get(get);
+                GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key2, result.getRecord().key);
                 assertEquals(value, result.getRecord().value);
@@ -289,7 +291,7 @@ public class SimpleRecoveryTest {
             {
                 // transaction rollback occurred
                 GetStatement get = new GetStatement("tblspace1", "t1", key, null);
-                GetResult result = manager.get(get);
+                GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
 
@@ -314,7 +316,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -327,16 +329,16 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
-            assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
 
             // transaction is not committed, and the leader dies, key appear again
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
-            DeleteStatement delete = new DeleteStatement("tblspace1", "t1", key, null).setTransactionId(tx);
-            assertEquals(1, manager.executeUpdate(delete).getUpdateCount());
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+            DeleteStatement delete = new DeleteStatement("tblspace1", "t1", key, null);
+            assertEquals(1, manager.executeUpdate(delete, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
         }
 
@@ -350,7 +352,7 @@ public class SimpleRecoveryTest {
 
             {
                 GetStatement get = new GetStatement("tblspace1", "t1", key, null);
-                GetResult result = manager.get(get);
+                GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key, result.getRecord().key);
                 assertEquals(value, result.getRecord().value);
@@ -378,7 +380,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -391,16 +393,16 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new Record(key, value));
-            assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
 
             // transaction is not committed, and the leader dies, key appear again with the old value
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
-            UpdateStatement update = new UpdateStatement("tblspace1", "t1", new Record(key, value2), null).setTransactionId(tx);
-            assertEquals(1, manager.executeUpdate(update).getUpdateCount());
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+            UpdateStatement update = new UpdateStatement("tblspace1", "t1", new Record(key, value2), null);
+            assertEquals(1, manager.executeUpdate(update, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
         }
 
@@ -414,7 +416,7 @@ public class SimpleRecoveryTest {
 
             {
                 GetStatement get = new GetStatement("tblspace1", "t1", key, null);
-                GetResult result = manager.get(get);
+                GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key, result.getRecord().key);
                 assertEquals(value, result.getRecord().value);
@@ -441,7 +443,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -454,7 +456,7 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
             Table transacted_table = Table
@@ -466,15 +468,15 @@ public class SimpleRecoveryTest {
                     .primaryKey("id")
                     .build();
 
-            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"))).getTransactionId();
-            CreateTableStatement st_create = new CreateTableStatement(transacted_table).setTransactionId(tx);
-            manager.executeStatement(st_create);
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+            CreateTableStatement st_create = new CreateTableStatement(transacted_table);
+            manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
 
-            InsertStatement insert = new InsertStatement("tblspace1", "t2", new Record(key, value)).setTransactionId(tx);
-            assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+            InsertStatement insert = new InsertStatement("tblspace1", "t2", new Record(key, value));
+            assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
-            GetStatement get = new GetStatement("tblspace1", "t2", key, null).setTransactionId(tx);
-            GetResult result = manager.get(get);
+            GetStatement get = new GetStatement("tblspace1", "t2", key, null);
+            GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
             assertEquals(value, result.getRecord().value);
@@ -492,7 +494,7 @@ public class SimpleRecoveryTest {
 
             GetStatement get = new GetStatement("tblspace1", "t2", key, null);
             try {
-                manager.get(get);
+                manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 fail();
             } catch (TableDoesNotExistException error) {
             }
@@ -516,7 +518,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -528,16 +530,16 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
-            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();
             assertEquals(1, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
@@ -556,12 +558,12 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
-            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();
             assertEquals(2, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
@@ -585,7 +587,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -597,16 +599,16 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.flush();
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
-            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();
             assertEquals(1, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
@@ -623,12 +625,12 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             InsertStatement insert = new InsertStatement("tblspace1", "t1", new AutoIncrementPrimaryKeyRecordFunction(), new ConstValueRecordFunction(new byte[0]));
-            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert);
+            DMLStatementExecutionResult insertResult = manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, insertResult.getUpdateCount());
             int newValue = insertResult.getKey().to_int();
             assertEquals(2, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null));
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();

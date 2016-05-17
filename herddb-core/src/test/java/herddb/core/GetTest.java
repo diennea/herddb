@@ -22,6 +22,8 @@ package herddb.core;
 import herddb.model.GetResult;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.TransactionContext;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.predicates.RawValueEquals;
@@ -44,30 +46,30 @@ public class GetTest extends BaseTestcase {
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_int(0));
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(result.getRecord().key, Bytes.from_string("key1"));
             assertEquals(result.getRecord().value, Bytes.from_int(0));
         }
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(0))));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(0))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(result.getRecord().key, Bytes.from_string("key1"));
             assertEquals(result.getRecord().value, Bytes.from_int(0));
         }
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(2))));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(2))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
         }
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null));
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
         }
 

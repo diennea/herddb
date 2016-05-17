@@ -25,8 +25,10 @@ import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataStorageManager;
 import herddb.model.ColumnTypes;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.storage.DataStorageManager;
@@ -90,13 +92,13 @@ public class BaseTestcase {
         manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager);
         manager.start();
         CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-        manager.executeStatement(st1);
+        manager.executeStatement(st1,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
         assertTrue(manager.waitForTablespace(tableSpace, 10000));
         tableName = "t1";
         table = createTable();
 
         CreateTableStatement st2 = new CreateTableStatement(table);
-        manager.executeStatement(st2);
+        manager.executeStatement(st2,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
     }
 
     @After

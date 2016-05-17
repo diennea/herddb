@@ -208,4 +208,9 @@ public class Transaction {
         }
     }
 
+    @Override
+    public String toString() {
+        return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + '}';
+    }
+
 }

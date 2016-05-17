@@ -19,36 +19,24 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.GetResult;
-import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.ScanResult;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
-import herddb.model.TransactionResult;
-import herddb.model.Tuple;
+import herddb.model.TransactionContext;
+import static herddb.model.TransactionContext.NO_TRANSACTION;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.model.commands.GetStatement;
-import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
-import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import org.junit.Assert;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Tests on table creation
@@ -59,17 +47,17 @@ public class DeleteTest {
 
     private DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context);
+        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, NO_TRANSACTION);
     }
 
     private StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return manager.executePlan(translated.plan, translated.context);
+        return manager.executePlan(translated.plan, translated.context, NO_TRANSACTION);
     }
 
     private DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return ((ScanResult) manager.executePlan(translated.plan, translated.context)).dataScanner;
+        return ((ScanResult) manager.executePlan(translated.plan, translated.context, NO_TRANSACTION)).dataScanner;
     }
 
     @Test
@@ -78,7 +66,7 @@ public class DeleteTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1,s1))", Collections.emptyList());

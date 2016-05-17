@@ -20,20 +20,23 @@
 package herddb.model;
 
 /**
- * A generic Statement
+ * Reference context for Transaction
  *
  * @author enrico.olivelli
  */
-public abstract class Statement {
+public class TransactionContext {
 
-    private String tableSpace;
+    public final long transactionId;
 
-    public Statement(String tableSpace) {
-        this.tableSpace = tableSpace;
+    public TransactionContext(long transactionId) {
+        this.transactionId = transactionId;
     }
 
-    public String getTableSpace() {
-        return tableSpace;
+    public final static TransactionContext NO_TRANSACTION = new TransactionContext(0);
+
+    @Override
+    public String toString() {
+        return "TransactionContext{" + "transactionId=" + transactionId + '}';
     }
 
 }

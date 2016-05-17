@@ -4,7 +4,9 @@ import herddb.codec.RecordSerializer;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
+import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -32,11 +34,10 @@ public class ColumnTimestampTest extends BaseTestcase {
                 .column("ts1", ColumnTypes.TIMESTAMP)
                 .primaryKey("id")
                 .build();
-        
 
         CreateTableStatement st2 = new CreateTableStatement(table2);
-        manager.executeStatement(st2);
-        
+        manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
         java.sql.Timestamp ts1 = new java.sql.Timestamp(System.currentTimeMillis());
         {
             Map<String, Object> bean = new HashMap<>();
@@ -44,11 +45,11 @@ public class ColumnTimestampTest extends BaseTestcase {
             bean.put("ts1", ts1);
             Record record = RecordSerializer.toRecord(bean, table2);
             InsertStatement st = new InsertStatement(tableSpace, "t2", record);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             Map<String, Object> resultbean = RecordSerializer.toBean(result.getRecord(), table2);
             assertEquals(Bytes.from_string("key1"), result.getRecord().key);
@@ -63,13 +64,13 @@ public class ColumnTimestampTest extends BaseTestcase {
             bean.put("ts1", null);
             Record record = RecordSerializer.toRecord(bean, table2);
             UpdateStatement st = new UpdateStatement(tableSpace, tableName2, record, null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
-        
+
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
-            Map<String, Object> resultbean = RecordSerializer.toBean(result.getRecord(), table2);            
+            Map<String, Object> resultbean = RecordSerializer.toBean(result.getRecord(), table2);
             assertEquals(Bytes.from_string("key1"), result.getRecord().key);
             assertEquals(1, resultbean.entrySet().size());
             assertEquals("key1", resultbean.get("id"));

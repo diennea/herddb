@@ -20,6 +20,7 @@
 package herddb.model;
 
 import herddb.core.DBManager;
+import herddb.sql.SQLStatementEvaluationContext;
 import herddb.sql.TranslatedQuery;
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,7 +44,20 @@ public class StatementEvaluationContext {
 
     private Tuple currentTuple;
     private DBManager manager;
+    private TransactionContext transactionContext;
     private final Map<String, List<Tuple>> subqueryCache = new HashMap<>();
+
+    public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
+        return new StatementEvaluationContext();
+    }
+
+    public TransactionContext getTransactionContext() {
+        return transactionContext;
+    }
+
+    public void setTransactionContext(TransactionContext transactionContext) {
+        this.transactionContext = transactionContext;
+    }
 
     public DBManager getManager() {
         return manager;
@@ -74,7 +88,7 @@ public class StatementEvaluationContext {
         }
         LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
         TranslatedQuery translated = manager.getTranslator().translate(subquery, Collections.emptyList(), true, true);
-        try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context);) {
+        try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext);) {
             List<Tuple> fullResult = result.dataScanner.consume();
             subqueryCache.put(subquery, fullResult);
             return fullResult;

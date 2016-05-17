@@ -440,7 +440,7 @@ public class TableManager {
             LogEntry entry = LogEntryFactory.update(table, key.data, newValue, transaction);
             log.log(entry);
 
-            apply(entry);            
+            apply(entry);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -531,6 +531,7 @@ public class TableManager {
         // transaction is still holding locks on each record, so we can change records
         if (changedRecords != null) {
             for (Record r : changedRecords) {
+                System.out.println("onTransactionCommit " + transaction.transactionId);
                 applyUpdate(r.key, r.value);
             }
         }
@@ -573,6 +574,7 @@ public class TableManager {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     transaction.registerRecoredUpdate(this.table.name, key, value);
                 } else {
+                    System.out.println("onDirectUpdate");
                     applyUpdate(key, value);
                 }
                 break;

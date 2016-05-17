@@ -24,7 +24,9 @@ import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
+import herddb.model.TransactionContext;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.predicates.RawValueEquals;
@@ -63,14 +65,14 @@ public class MultipleColumnPrimaryKeyTest extends BaseTestcase {
         {
             Record record = RecordSerializer.makeRecord(table, "id", "r1", "name", "k1");
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         {
             Map<String, Object> key = new HashMap<>();
             key.put("id", "r1");
             key.put("name", "k1");
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -78,7 +80,7 @@ public class MultipleColumnPrimaryKeyTest extends BaseTestcase {
             Map<String, Object> key = new HashMap<>();
             key.put("id", "r1");
             key.put("name", "k2");
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(!result.found());
         }
 
@@ -87,15 +89,15 @@ public class MultipleColumnPrimaryKeyTest extends BaseTestcase {
             key.put("id", "r1");
             key.put("name", "k1");
             {
-                GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null));
+                GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
             }
             {
                 DeleteStatement st = new DeleteStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null);
-                assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+                assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
             }
             {
-                GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null));
+                GetResult result = manager.get(new GetStatement(tableSpace, tableName, RecordSerializer.serializePrimaryKey(key, table), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
         }

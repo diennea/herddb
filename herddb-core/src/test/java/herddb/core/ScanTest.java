@@ -26,6 +26,7 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.DeleteStatement;
@@ -53,7 +54,7 @@ public class ScanTest extends BaseTestcase {
             data.put("number", i);
             Record record = RecordSerializer.toRecord(data, table);
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         {
@@ -64,14 +65,14 @@ public class ScanTest extends BaseTestcase {
                     return value >= 50;
                 }
             });
-            DataScanner scanner = manager.scan(scan);
+            DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             List<?> result = scanner.consume();
             assertEquals(50, result.size());
         }
 
         for (int i = 0; i < 20; i++) {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key_" + i), null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         {
@@ -82,14 +83,14 @@ public class ScanTest extends BaseTestcase {
                     return value < 50;
                 }
             });
-            DataScanner scanner = manager.scan(scan);
+            DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             List<?> result = scanner.consume();
             assertEquals(30, result.size());
         }
 
         {
             ScanStatement scan = new ScanStatement(tableSpace, table, null);
-            DataScanner scanner = manager.scan(scan);
+            DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             List<?> result = scanner.consume();
             assertEquals(80, result.size());
         }
@@ -104,19 +105,19 @@ public class ScanTest extends BaseTestcase {
             data.put("number", i);
             Record record = RecordSerializer.toRecord(data, table);
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         BeginTransactionStatement begin = new BeginTransactionStatement(tableSpace);
-        long tx = ((TransactionResult) manager.executeStatement(begin)).getTransactionId();
+        long tx = ((TransactionResult) manager.executeStatement(begin, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
 
         for (int i = 5; i < 10; i++) {
             Map<String, Object> data = new HashMap<>();
             data.put("id", "key_" + i);
             data.put("number", i);
             Record record = RecordSerializer.toRecord(data, table);
-            InsertStatement st = new InsertStatement(tableSpace, tableName, record).setTransactionId(tx);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record);
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
         }
 
         {
@@ -125,15 +126,15 @@ public class ScanTest extends BaseTestcase {
                 public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
                     return true;
                 }
-            }).setTransactionId(tx);
-            DataScanner scanner = manager.scan(scan);
+            });
+            DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             List<?> result = scanner.consume();
             assertEquals(10, result.size());
         }
 
         for (int i = 0; i < 10; i++) {
-            DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key_" + i), null).setTransactionId(tx);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key_" + i), null);
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
         }
 
         {
@@ -142,8 +143,8 @@ public class ScanTest extends BaseTestcase {
                 public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
                     return true;
                 }
-            }).setTransactionId(tx);
-            DataScanner scanner = manager.scan(scan);
+            });
+            DataScanner scanner = manager.scan(scan, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             List<?> result = scanner.consume();
             assertEquals(0, result.size());
         }

@@ -21,7 +21,9 @@ package herddb.core;
 
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
+import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
@@ -46,32 +48,32 @@ public class SimpleReplicationTest extends ReplicatedLogtestcase {
         final String tableSpaceName = "t2";
         try (DBManager manager1 = startDBManager("node1")) {
 
-            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1", 2));
+            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1", 2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(manager1.waitForTablespace(tableSpaceName, 10000, true));
             try (DBManager manager2 = startDBManager("node2")) {
                 assertTrue(manager2.waitForTablespace(tableSpaceName, 10000, false));
 
-                manager1.executeStatement(new CreateTableStatement(Table.builder().tablespace(tableSpaceName).name(tableName).primaryKey("key").column("key", ColumnTypes.STRING).build()));
+                manager1.executeStatement(new CreateTableStatement(Table.builder().tablespace(tableSpaceName).name(tableName).primaryKey("key").column("key", ColumnTypes.STRING).build()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(manager1.waitForTable(tableSpaceName, tableName, 10000, true));
 
-                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("one"), Bytes.from_string("two"))));
+                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("one"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 // write a second entry on the ledger, to speed up the ack from the bookie
-                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))));
+                manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-                assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null)).found());
+                assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
 
                 assertTrue(manager2.waitForTable(tableSpaceName, tableName, 10000, false));
 
                 for (int i = 0; i < 100; i++) {
-                    boolean ok = manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null)).found();
+                    boolean ok = manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found();
                     if (ok) {
                         break;
                     }
                     Thread.sleep(100);
                 }
-                assertTrue(manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null)).found());
+                assertTrue(manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
             }
         }
     }

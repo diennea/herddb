@@ -19,36 +19,23 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.GetResult;
-import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.ScanResult;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
-import herddb.model.TransactionResult;
-import herddb.model.Tuple;
+import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.model.commands.GetStatement;
-import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
-import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import org.junit.Assert;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Tests on table creation. An heap is a table without primary key, that is that
@@ -60,17 +47,17 @@ public class HeapTest {
 
     private DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context);
+        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
     }
 
     private StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return manager.executePlan(translated.plan, translated.context);
+        return manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
     }
 
     private DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return ((ScanResult) manager.executePlan(translated.plan, translated.context)).dataScanner;
+        return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
     }
 
     @Test
@@ -79,12 +66,12 @@ public class HeapTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string, n1 int,s1 string)", Collections.emptyList());
 
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234),"aa")).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), "aa")).getUpdateCount());
 
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume().size());
 

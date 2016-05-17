@@ -27,7 +27,9 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.FullTableScanPredicate;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
+import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
@@ -52,7 +54,7 @@ public class BigTableScanTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
@@ -65,11 +67,11 @@ public class BigTableScanTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
-            manager.executeStatement(st2);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             for (int i = 0; i < testSize; i++) {
                 InsertStatement insert = new InsertStatement(table.tablespace, table.name, RecordSerializer.makeRecord(table, "id", "k" + i, "name", "testname" + i));
-                assertEquals(1, manager.executeUpdate(insert).getUpdateCount());
+                assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
             }
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
@@ -78,7 +80,7 @@ public class BigTableScanTest {
 
             manager.flush();
 
-            try (DataScanner scan = manager.scan(new ScanStatement(table.tablespace, table, new FullTableScanPredicate()));) {
+            try (DataScanner scan = manager.scan(new ScanStatement(table.tablespace, table, new FullTableScanPredicate()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
                 AtomicInteger count = new AtomicInteger();
                 scan.forEach(tuple -> {
                     count.incrementAndGet();

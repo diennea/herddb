@@ -33,6 +33,8 @@ import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileDataStorageManager;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.TransactionContext;
 import herddb.storage.DataStorageManager;
 import herddb.utils.ZKTestEnv;
 import java.util.List;
@@ -91,7 +93,7 @@ public class SimpleClusterTest extends BaseTestcase {
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("0"));
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableName));
         manager.flush();
@@ -99,7 +101,7 @@ public class SimpleClusterTest extends BaseTestcase {
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableName));
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null));
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -109,7 +111,7 @@ public class SimpleClusterTest extends BaseTestcase {
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("5"));
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         // a new page must be allocated
@@ -119,12 +121,12 @@ public class SimpleClusterTest extends BaseTestcase {
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("6"));
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("7"));
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
         // only a new page must be allocated, not two more
         manager.flush();
@@ -132,8 +134,8 @@ public class SimpleClusterTest extends BaseTestcase {
 
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null));
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
         }
 
@@ -142,15 +144,15 @@ public class SimpleClusterTest extends BaseTestcase {
         assertEquals(3, dataStorageManager.getActualNumberOfPages(tableName));
 
         {
-            assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key2"), Bytes.from_string("50")))).getUpdateCount());
-            assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key3"), Bytes.from_string("60")))).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key2"), Bytes.from_string("50"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key3"), Bytes.from_string("60"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
         manager.flush();
         assertEquals(4, dataStorageManager.getActualNumberOfPages(tableName));
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key2"), null);
-            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+            assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
         // a new page, containg the key3 record is needed
         manager.flush();

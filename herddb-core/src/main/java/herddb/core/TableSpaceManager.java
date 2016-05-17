@@ -40,6 +40,7 @@ import herddb.model.TableAwareStatement;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.Transaction;
+import herddb.model.TransactionContext;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
@@ -48,12 +49,10 @@ import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -201,8 +200,8 @@ public class TableSpaceManager {
 
     }
 
-    DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
-        Transaction transaction = transactions.get(statement.getTransactionId());
+    DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
@@ -281,10 +280,11 @@ public class TableSpaceManager {
         leader = true;
     }
 
-    private ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
-    StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context) throws StatementExecutionException {
-        Transaction transaction = transactions.get(statement.getTransactionId());
+    StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        Transaction transaction = transactions.get(transactionContext.transactionId);
+        LOGGER.log(Level.SEVERE,"executeStatement tx="+transactionContext.transactionId+" "+statement+": "+transaction);
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }

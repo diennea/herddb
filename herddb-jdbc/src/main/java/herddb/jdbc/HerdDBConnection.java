@@ -148,6 +148,7 @@ public class HerdDBConnection implements java.sql.Connection {
             // no transaction actually started, nothing to commit
             return;
         }
+        new Exception("tx " + transactionId).printStackTrace(System.out);
         try {
             connection.commitTransaction(tableSpace, transactionId);
         } catch (ClientSideMetadataProviderException | HDBException err) {

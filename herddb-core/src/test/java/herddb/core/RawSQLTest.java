@@ -29,8 +29,10 @@ import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.ScanResult;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -59,17 +61,17 @@ public class RawSQLTest {
 
     private DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context);
+        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
     }
 
     private StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return manager.executePlan(translated.plan, translated.context);
+        return manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
     }
 
     private DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return ((ScanResult) manager.executePlan(translated.plan, translated.context)).dataScanner;
+        return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
     }
 
     @Test
@@ -78,7 +80,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -106,7 +108,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -125,7 +127,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -143,7 +145,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -166,7 +168,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -228,7 +230,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -327,7 +329,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -401,7 +403,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -507,7 +509,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -573,7 +575,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -614,7 +616,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -641,7 +643,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -654,7 +656,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 FROM tblspace1.tsql order by n1", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(4, result.size());
                     assertEquals("mykey", result.get(0).get(0));
@@ -666,7 +668,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 FROM tblspace1.tsql order by n1 desc", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(4, result.size());
                     assertEquals("mykey", result.get(3).get(0));
@@ -679,7 +681,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 FROM tblspace1.tsql order by n1, k1", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(5, result.size());
                     assertEquals("mykey", result.get(0).get(0));
@@ -692,7 +694,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 FROM tblspace1.tsql order by n1, k1 desc", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(5, result.size());
                     assertEquals("mykey", result.get(0).get(0));
@@ -712,7 +714,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -724,7 +726,7 @@ public class RawSQLTest {
 
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate() instanceof PrimaryKeyIndexSeekPredicate);
-                try (DataScanner scan1 = manager.scan(scan, translated.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).fieldNames.length);
@@ -741,7 +743,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey_no'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 assertTrue(scan.getPredicate() instanceof PrimaryKeyIndexSeekPredicate);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     assertTrue(scan1.consume().isEmpty());
                 }
             }
@@ -755,7 +757,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
@@ -763,7 +765,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
 
             {
-                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
@@ -792,7 +794,7 @@ public class RawSQLTest {
             }
 
             {
-                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
@@ -803,7 +805,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), false, true);
                 GetStatement st_get = (GetStatement) translate1.plan.mainStatement;
-                GetResult result = manager.get(st_get, translate1.context);
+                GetResult result = manager.get(st_get, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
@@ -814,7 +816,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 999), false, true);
                 GetStatement st_get_with_condition = (GetStatement) translate1.plan.mainStatement;
-                GetResult result = manager.get(st_get_with_condition, translate1.context);
+                GetResult result = manager.get(st_get_with_condition, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
@@ -825,7 +827,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 9992), false, true);
                 GetStatement st_get_with_wrong_condition = (GetStatement) translate1.plan.mainStatement;
-                GetResult result = manager.get(st_get_with_wrong_condition, translate1.context);
+                GetResult result = manager.get(st_get_with_wrong_condition, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
             {
@@ -837,7 +839,7 @@ public class RawSQLTest {
             }
 
             {
-                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
             {
@@ -845,7 +847,7 @@ public class RawSQLTest {
             }
 
             {
-                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
             }
 
@@ -854,7 +856,7 @@ public class RawSQLTest {
             }
 
             {
-                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null));
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
 
@@ -872,7 +874,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(1, scan1.consume().size());
                 }
 
@@ -880,7 +882,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
                     System.out.println("records:" + records);
@@ -893,7 +895,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 theKey FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(1, records.get(0).fieldNames.length);
@@ -905,7 +907,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).fieldNames.length);
@@ -922,7 +924,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate("SELECT * FROM tblspace1.tsql where k1 ='mykey2' and s1 is not null", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                try (DataScanner scan1 = manager.scan(scan, translate1.context);) {
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(1, scan1.consume().size());
                 }
 
@@ -939,7 +941,7 @@ public class RawSQLTest {
                 assertEquals(0, executeUpdate(manager, "DELETE FROM  tblspace1.tsql where k1 = 'mykey2' and s1 is not null", Collections.emptyList()).getUpdateCount());
             }
             {
-                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey2"), null));
+                GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey2"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
 
@@ -963,7 +965,7 @@ public class RawSQLTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
-            manager.executeStatement(st1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string,"

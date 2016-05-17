@@ -42,6 +42,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -217,12 +218,9 @@ public class DBManager implements AutoCloseable {
         }
     }
 
-    public StatementExecutionResult executeStatement(Statement statement) throws StatementExecutionException {
-        return executeStatement(statement, new StatementEvaluationContext());
-    }
-
-    public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context) throws StatementExecutionException {
+    public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         context.setManager(this);
+        context.setTransactionContext(transactionContext);
         LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
@@ -230,14 +228,14 @@ public class DBManager implements AutoCloseable {
         }
         try {
             if (statement instanceof CreateTableSpaceStatement) {
-                if (statement.getTransactionId() > 0) {
+                if (transactionContext.transactionId > 0) {
                     throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
                 }
                 return createTableSpace((CreateTableSpaceStatement) statement);
             }
 
             if (statement instanceof AlterTableSpaceStatement) {
-                if (statement.getTransactionId() > 0) {
+                if (transactionContext.transactionId > 0) {
                     throw new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction");
                 }
                 return alterTableSpace((AlterTableSpaceStatement) statement);
@@ -253,7 +251,7 @@ public class DBManager implements AutoCloseable {
             if (manager == null) {
                 throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
             }
-            return manager.executeStatement(statement, context);
+            return manager.executeStatement(statement, context, transactionContext);
         } finally {
             if (statement instanceof DDLStatement) {
                 translator.clearCache();
@@ -269,34 +267,26 @@ public class DBManager implements AutoCloseable {
      * @return
      * @throws StatementExecutionException
      */
-    public GetResult get(GetStatement statement) throws StatementExecutionException {
-        return (GetResult) executeStatement(statement, new StatementEvaluationContext());
+    public GetResult get(GetStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        return (GetResult) executeStatement(statement, context, transactionContext);
     }
 
-    public GetResult get(GetStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
-        return (GetResult) executeStatement(statement, context);
-    }
-
-    public DataScanner scan(ScanStatement statement) throws StatementExecutionException {
-        return scan(statement, new StatementEvaluationContext());
-    }
-
-    public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
+    public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         if (plan.mainStatement instanceof ScanStatement) {
-            DataScanner result = scan((ScanStatement) plan.mainStatement, context);
+            DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
 
             if (plan.mutator != null) {
-                return executeMutatorPlan(result, plan, context);
+                return executeMutatorPlan(result, plan, context, transactionContext);
             } else {
-                return executeDataScannerPlan(plan, result);
+                return executeDataScannerPlan(plan, result, transactionContext);
             }
         } else {
-            return executeStatement(plan.mainStatement, context);
+            return executeStatement(plan.mainStatement, context, transactionContext);
         }
 
     }
 
-    private StatementExecutionResult executeDataScannerPlan(ExecutionPlan plan, DataScanner result) throws StatementExecutionException {
+    private StatementExecutionResult executeDataScannerPlan(ExecutionPlan plan, DataScanner result, TransactionContext transactionContext) throws StatementExecutionException {
         ScanResult scanResult;
         if (plan.mainAggregator != null) {
             scanResult = new ScanResult(plan.mainAggregator.aggregate(result));
@@ -325,8 +315,7 @@ public class DBManager implements AutoCloseable {
         }
     }
 
-    private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
-        System.out.println("executeMutatorPlan " + plan.mutator+" tx="+plan.mutator.getTransactionId());
+    private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         try {
             int updateCount = 0;
             try {
@@ -335,7 +324,7 @@ public class DBManager implements AutoCloseable {
                     System.out.println("executeMutatorPlan tuple " + next.toMap());
                     context.setCurrentTuple(next);
                     try {
-                        DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context);
+                        DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context, transactionContext);
                         System.out.println("executeMutatorPlan tuple " + next.toMap() + " -> " + executeUpdate.getUpdateCount() + " key=" + executeUpdate.getKey());
                         updateCount += executeUpdate.getUpdateCount();
                     } finally {
@@ -351,8 +340,9 @@ public class DBManager implements AutoCloseable {
         }
     }
 
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         context.setManager(this);
+        context.setTransactionContext(transactionContext);
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
@@ -367,7 +357,7 @@ public class DBManager implements AutoCloseable {
         if (manager == null) {
             throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
         }
-        return manager.scan(statement, context);
+        return manager.scan(statement, context, transactionContext);
     }
 
     /**
@@ -378,12 +368,8 @@ public class DBManager implements AutoCloseable {
      * @return
      * @throws herddb.model.StatementExecutionException
      */
-    public DMLStatementExecutionResult executeUpdate(DMLStatement statement) throws StatementExecutionException {
-        return (DMLStatementExecutionResult) executeStatement(statement, new StatementEvaluationContext());
-    }
-
-    public DMLStatementExecutionResult executeUpdate(DMLStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
-        return (DMLStatementExecutionResult) executeStatement(statement, context);
+    public DMLStatementExecutionResult executeUpdate(DMLStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        return (DMLStatementExecutionResult) executeStatement(statement, context, transactionContext);
     }
 
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {

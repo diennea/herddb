@@ -34,6 +34,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
+import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
@@ -87,17 +88,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 String query = (String) message.parameters.get("query");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, false, txId <= 0);
+                    TransactionContext transactionContext = new TransactionContext(txId);
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, false, true);
                     Statement statement = translatedQuery.plan.mainStatement;
-                    if (txId > 0) {
-                        statement.setTransactionId(tx);
-                    }
-                    if (translatedQuery.plan.mutator != null) {
-                        translatedQuery.plan.mutator.setTransactionId(tx);
-                    }
-                    LOGGER.log(Level.SEVERE, "query "+query+", "+parameters+", plan: "+translatedQuery.plan);
-                    StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
-                    LOGGER.log(Level.SEVERE, "query "+query+", "+parameters+", result:" + result);
+                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
+                    StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         Map<String, Object> otherData = null;
@@ -148,14 +144,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, true, txId <= 0);
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, true, true);
                     Statement statement = translatedQuery.plan.mainStatement;
-
+                    TransactionContext transactionContext = new TransactionContext(txId);
                     if (statement instanceof ScanStatement) {
-                        if (txId > 0) {
-                            statement.setTransactionId(tx);
-                        }
-                        ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
+
+                        ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                         if (maxRows > 0) {
                             scanResult = new ScanResult(new LimitedDataScanner(scanResult.dataScanner, new ScanLimits(maxRows, 0)));
                         }
@@ -171,7 +165,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
-                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query+": data "+converted);
+                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query + ": data " + converted);
                         this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
                         scanners.put(scannerId, scanner);
                     } else {
