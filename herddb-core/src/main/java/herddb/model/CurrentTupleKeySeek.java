@@ -42,7 +42,7 @@ public class CurrentTupleKeySeek extends RecordFunction {
         Tuple tuple = context.getCurrentTuple();
         Map<String, Object> pk = new HashMap<>();
         for (String column : table.primaryKey) {
-            pk.put(column, tuple.get(column));
+            pk.put(column, tuple.get(column.toLowerCase()));
         }
         return RecordSerializer.serializePrimaryKey(pk, table).data;
 

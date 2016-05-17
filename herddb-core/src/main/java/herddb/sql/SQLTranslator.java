@@ -263,7 +263,13 @@ public class SQLTranslator {
                 if (column == null) {
                     throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
                 }
-                Expression expression = list.getExpressions().get(index++);
+                Expression expression;
+                try {
+                    expression = list.getExpressions().get(index++);
+                } catch (IndexOutOfBoundsException badQuery) {
+                    throw new StatementExecutionException("bad number of VALUES in INSERT clause");
+                }
+
                 if (table.isPrimaryKeyColumn(column.name)) {
                     keyExpressionToColumn.add(column.name);
                     keyValueExpression.add(expression);
