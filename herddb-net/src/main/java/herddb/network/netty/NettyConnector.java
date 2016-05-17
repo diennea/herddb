@@ -26,14 +26,17 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.local.LocalAddress;
+import io.netty.channel.local.LocalChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
@@ -107,15 +110,31 @@ public class NettyConnector implements AutoCloseable {
         }
         group = new NioEventLoopGroup();
 
+        Class<? extends Channel> channelType;
+
+        InetSocketAddress inet = new InetSocketAddress(host, port);
+        SocketAddress address;
+        String _host = inet.getAddress().getHostAddress();
+        
+        if (LocalServerRegistry.isLocalServer(_host, port, ssl)) {
+            channelType = LocalChannel.class;
+            address = new LocalAddress(_host + ":" + port + ":" + ssl);
+            LOGGER.log(Level.SEVERE, "connecting to local in-JVM server");
+        } else {
+            channelType = NioSocketChannel.class;
+            address = inet;
+            LOGGER.log(Level.SEVERE, "connecting to remote server " + address);
+        }
+
         Bootstrap b = new Bootstrap();
         b.group(group)
-                .channel(NioSocketChannel.class)
+                .channel(channelType)
                 .option(ChannelOption.TCP_NODELAY, true)
                 .option(ChannelOption.SO_TIMEOUT, socketTimeout)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
-                .handler(new ChannelInitializer<SocketChannel>() {
+                .handler(new ChannelInitializer<Channel>() {
                     @Override
-                    public void initChannel(SocketChannel ch) throws Exception {
+                    public void initChannel(Channel ch) throws Exception {
                         channel = new NettyChannel(host + ":" + port, ch, callbackExecutor, NettyConnector.this);
                         channel.setMessagesReceiver(receiver);
                         if (ssl) {
@@ -130,8 +149,8 @@ public class NettyConnector implements AutoCloseable {
                     }
                 });
 
-        LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2}", new Object[]{host, port, ssl});
-        ChannelFuture f = b.connect(host, port).sync();
+        LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address});
+        ChannelFuture f = b.connect(address).sync();
         socketchannel = f.channel();
         return channel;
 

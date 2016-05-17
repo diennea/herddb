@@ -26,8 +26,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.local.LocalAddress;
+import io.netty.channel.local.LocalServerChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
@@ -35,6 +36,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import java.io.File;
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -66,6 +68,24 @@ public class NettyChannelAcceptor implements AutoCloseable {
     private int workerThreads = 16;
     private int callbackThreads = 64;
     private ExecutorService callbackExecutor;
+    private boolean enableRealNetwork = true;
+    private boolean enableJVMNetwork = true;
+
+    public boolean isEnableRealNetwork() {
+        return enableRealNetwork;
+    }
+
+    public void setEnableRealNetwork(boolean enableRealNetwork) {
+        this.enableRealNetwork = enableRealNetwork;
+    }
+
+    public boolean isEnableJVMNetwork() {
+        return enableJVMNetwork;
+    }
+
+    public void setEnableJVMNetwork(boolean enableJVMNetwork) {
+        this.enableJVMNetwork = enableJVMNetwork;
+    }
 
     public int getCallbackThreads() {
         return callbackThreads;
@@ -140,6 +160,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
     }
 
     private Channel channel;
+    private Channel local_channel;
 
     public NettyChannelAcceptor(String host, int port, boolean ssl) {
         this.host = host;
@@ -183,42 +204,63 @@ public class NettyChannelAcceptor implements AutoCloseable {
         }
         bossGroup = new NioEventLoopGroup(workerThreads);
         workerGroup = new NioEventLoopGroup(workerThreads);
-        ServerBootstrap b = new ServerBootstrap();
-        b.group(bossGroup, workerGroup)
-                .channel(NioServerSocketChannel.class)
-                .childHandler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    public void initChannel(SocketChannel ch) throws Exception {
-                        NettyChannel session = new NettyChannel("unnamed", ch, callbackExecutor, null);
-                        if (acceptor != null) {
-                            acceptor.createConnection(session);
-                        }
+        InetSocketAddress address = new InetSocketAddress(host, port);
+
+        ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {
+            @Override
+            public void initChannel(io.netty.channel.Channel ch) throws Exception {
+                NettyChannel session = new NettyChannel("unnamed", ch, callbackExecutor, null);
+                if (acceptor != null) {
+                    acceptor.createConnection(session);
+                }
 
 //                        ch.pipeline().addLast(new LoggingHandler());
-                        // Add SSL handler first to encrypt and decrypt everything.
-                        if (ssl) {
-                            ch.pipeline().addLast(sslCtx.newHandler(ch.alloc()));
-                        }
+                // Add SSL handler first to encrypt and decrypt everything.
+                if (ssl) {
+                    ch.pipeline().addLast(sslCtx.newHandler(ch.alloc()));
+                }
 
-                        ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
-                        ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
+                ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
+                ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
 //
-                        ch.pipeline().addLast("messageencoder", new DataMessageEncoder());
-                        ch.pipeline().addLast("messagedecoder", new DataMessageDecoder());
-                        ch.pipeline().addLast(new InboundMessageHandler(session));
-                    }
-                })
-                .option(ChannelOption.SO_BACKLOG, 128)
-                .childOption(ChannelOption.SO_KEEPALIVE, true);
+                ch.pipeline().addLast("messageencoder", new DataMessageEncoder());
+                ch.pipeline().addLast("messagedecoder", new DataMessageDecoder());
+                ch.pipeline().addLast(new InboundMessageHandler(session));
+            }
+        };
+        if (enableRealNetwork) {
+            ServerBootstrap b = new ServerBootstrap();
+            b.group(bossGroup, workerGroup)
+                    .channel(NioServerSocketChannel.class)
+                    .childHandler(channelInitialized)
+                    .option(ChannelOption.SO_BACKLOG, 128)
+                    .childOption(ChannelOption.SO_KEEPALIVE, true);
 
-        ChannelFuture f = b.bind(host, port).sync(); // (7)
-        this.channel = f.channel();
+            ChannelFuture f = b.bind(address).sync();
+            this.channel = f.channel();
+        }
 
+        if (enableJVMNetwork) {
+            ServerBootstrap b_local = new ServerBootstrap();
+            b_local.group(bossGroup, workerGroup)
+                    .channel(LocalServerChannel.class)
+                    .childHandler(channelInitialized)
+                    .option(ChannelOption.SO_BACKLOG, 128)
+                    .childOption(ChannelOption.SO_KEEPALIVE, true);
+
+            LocalServerRegistry.registerLocalServer(address.getAddress().getHostAddress(), port, ssl);
+
+            ChannelFuture local_f = b_local.bind(new LocalAddress(address.getAddress().getHostAddress() + ":" + port + ":" + ssl)).sync();
+            this.local_channel = local_f.channel();
+        }
     }
 
     public void close() {
         if (channel != null) {
             channel.close();
+        }
+        if (local_channel != null) {
+            local_channel.close();
         }
         if (workerGroup != null) {
             workerGroup.shutdownGracefully();

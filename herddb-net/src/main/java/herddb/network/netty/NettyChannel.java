@@ -45,7 +45,7 @@ import java.util.logging.Logger;
  */
 public class NettyChannel extends Channel {
 
-    volatile SocketChannel socket;
+    volatile io.netty.channel.Channel socket;
     private static final Logger LOGGER = Logger.getLogger(NettyChannel.class.getName());
     private static final AtomicLong idGenerator = new AtomicLong();
 
@@ -62,7 +62,7 @@ public class NettyChannel extends Channel {
         return "NettyChannel{name=" + name + ", id=" + id + ", socket=" + socket + " pending " + pendingReplyMessages.size() + " msgs}";
     }
 
-    public NettyChannel(String name, SocketChannel socket, ExecutorService callbackexecutor, NettyConnector connector) {
+    public NettyChannel(String name, io.netty.channel.Channel socket, ExecutorService callbackexecutor, NettyConnector connector) {
         this.name = name;
         this.socket = socket;
         this.callbackexecutor = callbackexecutor;
@@ -101,7 +101,7 @@ public class NettyChannel extends Channel {
         if (message.getMessageId() == null) {
             message.setMessageId(UUID.randomUUID().toString());
         }
-        SocketChannel _socket = this.socket;
+        io.netty.channel.Channel _socket = this.socket;
         if (_socket == null || !_socket.isOpen()) {
             callback.messageSent(message, new Exception(this + " connection is closed"));
             return;
@@ -199,7 +199,7 @@ public class NettyChannel extends Channel {
 
     @Override
     public boolean isValid() {
-        SocketChannel _socket = socket;
+        io.netty.channel.Channel _socket = socket;
         return _socket != null && _socket.isOpen() && !ioErrors;
     }
 
