@@ -95,8 +95,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (translatedQuery.plan.mutator != null) {
                         translatedQuery.plan.mutator.setTransactionId(tx);
                     }
+                    LOGGER.log(Level.SEVERE, "query "+query+", "+parameters+", plan: "+translatedQuery.plan);
                     StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context);
-                    LOGGER.log(Level.SEVERE, "result:" + result);
+                    LOGGER.log(Level.SEVERE, "query "+query+", "+parameters+", result:" + result);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         Map<String, Object> otherData = null;
@@ -170,7 +171,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
-                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
+                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query+": data "+converted);
                         this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
                         scanners.put(scannerId, scanner);
                     } else {

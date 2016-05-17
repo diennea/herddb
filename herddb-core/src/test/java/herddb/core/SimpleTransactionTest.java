@@ -352,6 +352,29 @@ public class SimpleTransactionTest extends BaseTestcase {
     }
 
     @Test
+    public void testInsertThenDelete() throws Exception {
+
+        Bytes key = Bytes.from_string("key1");
+
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(tableSpace))).getTransactionId();
+        {
+            Record record = new Record(key, Bytes.from_int(0));
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record).setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, key, null).setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+
+        manager.executeStatement(new CommitTransactionStatement(tableSpace, tx));
+
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null));
+        assertFalse(get.found());
+
+    }
+
+    @Test
     public void testInsertInsert() throws Exception {
 
         Bytes key = Bytes.from_string("key1");

@@ -349,9 +349,10 @@ public class TableManager {
                 } else if (transaction.recordInserted(table.name, key) != null) {
                     // ERROR, INSERT on a INSERTED record inside this transaction
                     throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
+                } else if (keyToPage.containsKey(key)) {
+                    throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
                 }
-            }
-            if (keyToPage.containsKey(key)) {
+            } else if (keyToPage.containsKey(key)) {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
             }
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
@@ -439,8 +440,7 @@ public class TableManager {
             LogEntry entry = LogEntryFactory.update(table, key.data, newValue, transaction);
             log.log(entry);
 
-            apply(entry);
-
+            apply(entry);            
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -607,6 +607,7 @@ public class TableManager {
         buffer.put(key, new Record(key, value));
         dirtyPages.add(pageId);
         dirtyRecords.incrementAndGet();
+
     }
 
     private static final class MyLongBinaryOperator implements LongBinaryOperator {
@@ -631,7 +632,7 @@ public class TableManager {
             } else {
                 pk_logical_value = key.to_long();
             }
-            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value+1, new MyLongBinaryOperator());            
+            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, new MyLongBinaryOperator());
         }
         keyToPage.put(key, NO_PAGE);
         buffer.put(key, new Record(key, value));
@@ -787,7 +788,7 @@ public class TableManager {
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
-        // TODO, support transactions        
+
         Predicate predicate = statement.getPredicate();
 
         MaterializedRecordSet recordSet = new MaterializedRecordSet(table.columns);

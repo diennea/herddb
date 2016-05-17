@@ -326,14 +326,17 @@ public class DBManager implements AutoCloseable {
     }
 
     private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context) throws StatementExecutionException {
+        System.out.println("executeMutatorPlan " + plan.mutator+" tx="+plan.mutator.getTransactionId());
         try {
             int updateCount = 0;
             try {
                 while (result.hasNext()) {
                     Tuple next = result.next();
+                    System.out.println("executeMutatorPlan tuple " + next.toMap());
                     context.setCurrentTuple(next);
                     try {
                         DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context);
+                        System.out.println("executeMutatorPlan tuple " + next.toMap() + " -> " + executeUpdate.getUpdateCount() + " key=" + executeUpdate.getKey());
                         updateCount += executeUpdate.getUpdateCount();
                     } finally {
                         context.setCurrentTuple(null);

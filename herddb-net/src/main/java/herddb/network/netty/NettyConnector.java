@@ -128,8 +128,7 @@ public class NettyConnector implements AutoCloseable {
 
         Bootstrap b = new Bootstrap();
         b.group(group)
-                .channel(channelType)
-                .option(ChannelOption.TCP_NODELAY, true)
+                .channel(channelType)                
                 .option(ChannelOption.SO_TIMEOUT, socketTimeout)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
                 .handler(new ChannelInitializer<Channel>() {

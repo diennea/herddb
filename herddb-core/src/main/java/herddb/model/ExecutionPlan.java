@@ -48,4 +48,9 @@ public class ExecutionPlan {
         return new ExecutionPlan(statement, aggregator, limits, comparator, mutator);
     }
 
+    @Override
+    public String toString() {
+        return "ExecutionPlan{" + "mainStatement=" + mainStatement + ", mainAggregator=" + mainAggregator + ", limits=" + limits + ", comparator=" + comparator + ", mutator=" + mutator + '}';
+    }
+
 }

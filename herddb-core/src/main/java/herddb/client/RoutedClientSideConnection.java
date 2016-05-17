@@ -261,7 +261,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
         @Override
         public boolean hasNext() throws HDBException {
-            LOGGER.log(Level.SEVERE, "hasNext");
             if (finished) {
                 return false;
             }
@@ -269,7 +268,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
 
         private void fillBuffer() throws HDBException {
-            LOGGER.log(Level.SEVERE, "fillBuffer");
             fetchBuffer.clear();
             ensureOpen();
             Channel _channel = channel;
@@ -298,12 +296,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
 
         private boolean ensureNext() throws HDBException {
-            LOGGER.log(Level.SEVERE, "ensureNext " + next);
             if (next != null) {
                 return true;
             }
-
-            LOGGER.log(Level.SEVERE, "ensureNext...position " + bufferPosition);
             if (bufferPosition == fetchBuffer.size()) {
                 fillBuffer();
                 if (noMoreData) {
@@ -317,7 +312,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
         @Override
         public Map<String, Object> next() throws HDBException {
-            LOGGER.log(Level.SEVERE, "next");
             if (finished) {
                 throw new HDBException("Scanner is exhausted");
             }

@@ -177,7 +177,7 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void close() throws SQLException {
-        if (transactionId>0) {
+        if (transactionId > 0) {
             rollback();
         }
         connection.close();
@@ -1288,6 +1288,11 @@ public class HerdDBConnection implements java.sql.Connection {
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
         return false;
+    }
+
+    @Override
+    public String toString() {
+        return "HerdDBConnection{connection=" + connection + ", transactionId=" + transactionId + ", autocommit=" + autocommit + ", tableSpace=" + tableSpace + '}';
     }
 
 }
