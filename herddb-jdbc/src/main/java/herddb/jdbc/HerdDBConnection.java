@@ -177,6 +177,9 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void close() throws SQLException {
+        if (transactionId>0) {
+            rollback();
+        }
         connection.close();
     }
 
