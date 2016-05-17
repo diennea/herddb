@@ -58,16 +58,16 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
         this.connection = connection;
         this.nodeId = nodeId;
-        
+
         this.connector = new NettyConnector(this);
-        
-        final ServerHostData server =
-                connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
-        
-        this.connector.setHost( server.getHost() );
-        this.connector.setPort( server.getPort() );
-        this.connector.setSsl( server.isSsl() );
-        
+
+        final ServerHostData server
+                = connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
+
+        this.connector.setHost(server.getHost());
+        this.connector.setPort(server.getPort());
+        this.connector.setSsl(server.isSsl());
+
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
     }
@@ -115,12 +115,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 throw new HDBException(reply + "");
             }
             long updateCount = (Long) reply.parameters.get("updateCount");
-            
+
             Object key = null;
             Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
             if (data != null) {
                 key = data.get("key");
-            }            
+            }
             return new DMLResult(updateCount, key);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -202,7 +202,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    ScanResultSet executeScan(String query, List<Object> params, int maxRows) throws HDBException {
+    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows) throws HDBException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -210,7 +210,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
         try {
             String scannerId = UUID.randomUUID().toString();
-            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, params, fetchSize, maxRows);
+            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, tx, params, fetchSize, maxRows);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");
