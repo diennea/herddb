@@ -92,6 +92,12 @@ public class Transaction {
             newRecords.put(tableName, ll);
         }
         ll.add(new Record(key, value));
+
+        List<Bytes> deleted = deletedRecords.get(tableName);
+        if (deleted != null) {
+            deleted.remove(key);
+        }
+
     }
 
     public void releaseLocksOnTable(String tableName, LocalLockManager lockManager) {

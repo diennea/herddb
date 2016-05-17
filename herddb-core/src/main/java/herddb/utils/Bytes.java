@@ -175,7 +175,16 @@ public final class Bytes implements Comparable<Bytes> {
 
     public String toString() {
         // ONLY FOR TESTS
-        return new String(data, StandardCharsets.UTF_8);
+        return arraytohexstring(data);
+    }
+    
+     public static String arraytohexstring(byte[] bytes) {
+        StringBuilder string = new StringBuilder();
+        for (byte b : bytes) {
+            String hexString = Integer.toHexString(0x00FF & b);
+            string.append(hexString.length() == 1 ? "0" + hexString : hexString);
+        }
+        return string.toString();
     }
 
 }

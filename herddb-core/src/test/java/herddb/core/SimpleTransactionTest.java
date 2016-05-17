@@ -23,6 +23,7 @@ import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
 import herddb.model.ColumnTypes;
+import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -316,6 +317,60 @@ public class SimpleTransactionTest extends BaseTestcase {
             manager.get(new GetStatement("tblspace1", "t2", key, null));
             fail();
         } catch (TableDoesNotExistException error) {
+        }
+
+    }
+
+    @Test
+    public void testInsertDelete() throws Exception {
+
+        Bytes key = Bytes.from_string("key1");
+
+        {
+            Record record = new Record(key, Bytes.from_int(0));
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(tableSpace))).getTransactionId();
+        {
+            DeleteStatement st = new DeleteStatement(tableSpace, tableName, key, null).setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+        {
+            Record record = new Record(key, Bytes.from_int(1));
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record).setTransactionId(tx);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+
+        manager.executeStatement(new CommitTransactionStatement(tableSpace, tx));
+
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null));
+        assertTrue(get.found());
+        assertEquals(Bytes.from_int(1), get.getRecord().value);
+
+    }
+
+    @Test
+    public void testInsertInsert() throws Exception {
+
+        Bytes key = Bytes.from_string("key1");
+
+        {
+            Record record = new Record(key, Bytes.from_int(0));
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record);
+            assertEquals(1, manager.executeUpdate(st).getUpdateCount());
+        }
+
+        long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement(tableSpace))).getTransactionId();
+        {
+            Record record = new Record(key, Bytes.from_int(1));
+            InsertStatement st = new InsertStatement(tableSpace, tableName, record).setTransactionId(tx);
+            try {
+                manager.executeUpdate(st).getUpdateCount();
+                fail();
+            } catch (DuplicatePrimaryKeyException expected) {
+            }
         }
 
     }
