@@ -58,7 +58,7 @@ public interface Projection {
                 Object[] values = new Object[columns.length];
                 for (int i = 0; i < values.length; i++) {
                     Object v = tuple.get(columns[i].name);
-                    values[i++] = v;
+                    values[i] = v;
                 }
                 return new Tuple(table.primaryKey, values);
             }

@@ -44,6 +44,9 @@ public class MixedCaseIdentifiersTest {
             + "  MSG_ID bigint NOT NULL PRIMARY KEY,\n"
             + "  STATUS tinyint,  \n"
             + "  RECIPIENT string,  \n"
+            + "  SID int,  \n"
+            + "  LAST_MODIFY_TIME timestamp,  \n"
+            + "  NEXT_SEND_TIME timestamp,  \n"
             + "  LASTBOUNCECATEGORY tinyint null"
             + ")";
 
@@ -73,6 +76,29 @@ public class MixedCaseIdentifiersTest {
                     assertEquals(1, statement_update.executeUpdate());
 
                     try (ResultSet rs = create.executeQuery("SELECT M.MSG_ID FROM q1_MESSAGE M WHERE 1=1 AND (M.RECIPIENT LIKE '%@localhost%')")) {
+                        long _msg_id = -1;
+                        int record_count = 0;
+                        while (rs.next()) {
+                            _msg_id = rs.getLong(1);
+                            record_count++;
+                        }
+                        assertEquals(1, record_count);
+                        assertTrue(_msg_id > 0);
+                    }
+
+                    try (PreparedStatement ps = con.prepareStatement("UPDATE q1_MESSAGE SET STATUS= 6,SID=?,LAST_MODIFY_TIME=?,NEXT_SEND_TIME = null, LASTBOUNCECATEGORY=? WHERE MSG_ID = ?")) {
+                        ps.setInt(1, 1);
+                        ps.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis()));
+                        ps.setInt(3, 2);
+
+                        ps.setLong(4, msg_id);
+                        assertEquals(1, ps.executeUpdate());
+
+                    }
+                    
+                    
+                    
+                    try (ResultSet rs = create.executeQuery("SELECT M.MSG_ID FROM q1_MESSAGE M WHERE 1=1 AND status=6 and (M.RECIPIENT LIKE '%@localhost%')")) {
                         long _msg_id = -1;
                         int record_count = 0;
                         while (rs.next()) {

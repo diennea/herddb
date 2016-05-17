@@ -63,11 +63,14 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
+import net.sf.jsqlparser.expression.operators.relational.ItemsList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
@@ -81,6 +84,7 @@ import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
+import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.update.Update;
 
@@ -259,7 +263,13 @@ public class SQLTranslator {
                 if (column == null) {
                     throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
                 }
-                Expression expression = list.getExpressions().get(index++);
+                Expression expression;
+                try {
+                    expression = list.getExpressions().get(index++);
+                } catch (IndexOutOfBoundsException badQuery) {
+                    throw new StatementExecutionException("bad number of VALUES in INSERT clause");
+                }
+
                 if (table.isPrimaryKeyColumn(column.name)) {
                     keyExpressionToColumn.add(column.name);
                     keyValueExpression.add(expression);
@@ -401,9 +411,13 @@ public class SQLTranslator {
 
     }
 
-    private int countJdbcParametersUsedByExpression(Expression e) {
+    private int countJdbcParametersUsedByExpression(Expression e) throws StatementExecutionException {
+        if (e == null) {
+            return 0;
+        }
         if (e instanceof net.sf.jsqlparser.schema.Column
                 || e instanceof StringValue
+                || e instanceof NullValue
                 || e instanceof LongValue) {
             return 0;
         }
@@ -427,7 +441,28 @@ public class SQLTranslator {
             }
             return count;
         }
-        throw new UnsupportedOperationException("unsupported expression type " + e.getClass() + " (" + e + ")");
+        if (e instanceof InExpression) {
+            int count = 0;
+            InExpression in = (InExpression) e;
+            count += countJdbcParametersUsedByExpression(in.getLeftExpression());
+            if (in.getLeftItemsList() != null) {
+                ItemsList list = in.getRightItemsList();
+                if (list instanceof SubSelect) {
+                    throw new StatementExecutionException("unsupported IN clause " + e);
+                } else if (list instanceof ExpressionList) {
+                    ExpressionList el = (ExpressionList) list;
+                    if (el.getExpressions() != null) {
+                        for (Expression ex : el.getExpressions()) {
+                            count += countJdbcParametersUsedByExpression(ex);
+                        }
+                    }
+                } else {
+                    throw new StatementExecutionException("unsupported IN clause " + e);
+                }
+            }
+            return count;
+        }
+        throw new StatementExecutionException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
     private Expression findColumnEqualsTo(Expression where, String columnName, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
