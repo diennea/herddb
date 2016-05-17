@@ -19,11 +19,6 @@
  */
 package herddb.client;
 
-import herddb.client.impl.ClientSideScannerPeer;
-import herddb.network.Channel;
-import herddb.network.ChannelEventListener;
-import herddb.network.Message;
-import herddb.network.netty.NettyConnector;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +29,13 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import herddb.client.impl.ClientSideScannerPeer;
+import herddb.network.Channel;
+import herddb.network.ChannelEventListener;
+import herddb.network.Message;
+import herddb.network.ServerHostData;
+import herddb.network.netty.NettyConnector;
 
 /**
  * A real connection to a server
@@ -53,10 +55,19 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private Map<String, ClientSideScannerPeer> scanners = new ConcurrentHashMap<>();
     private final int fetchSize = 10;
 
-    public RoutedClientSideConnection(HDBConnection connection, String nodeId) {
+    public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
         this.connection = connection;
         this.nodeId = nodeId;
+        
         this.connector = new NettyConnector(this);
+        
+        final ServerHostData server =
+                connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
+        
+        this.connector.setHost( server.getHost() );
+        this.connector.setPort( server.getPort() );
+        this.connector.setSsl( server.isSsl() );
+        
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
     }
