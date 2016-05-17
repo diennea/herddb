@@ -215,8 +215,8 @@ public class SQLTranslator {
         }
 
         if (!foundPk) {
-            // HEAP TABLE
-            allColumnNames.forEach(tablebuilder::primaryKey);
+            tablebuilder.column("_pk", ColumnTypes.LONG);
+            tablebuilder.primaryKey("_pk", true);
         }
 
         try {

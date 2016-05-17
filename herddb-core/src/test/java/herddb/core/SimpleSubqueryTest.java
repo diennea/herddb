@@ -171,11 +171,11 @@ public class SimpleSubqueryTest {
                     + "FROM tblspace1.table1 t1 "
                     + "WHERE t1.k1 in ('mykey','mykey3')"
                     + "", Collections.emptyList()).consume().size());
-            
-//            assertEquals(1, scan(manager, "SELECT * "
-//                    + "FROM tblspace1.table1 t1 "
-//                    + "WHERE t1.k1 in (SELECT fk FROM tblspace1.table2 WHERE k2='subkey4')"
-//                    + "", Collections.emptyList()).consume().size());
+
+            assertEquals(1, scan(manager, "SELECT * "
+                    + "FROM tblspace1.table1 t1 "
+                    + "WHERE t1.k1 in (SELECT fk FROM tblspace1.table2 WHERE k2='subkey4')"
+                    + "", Collections.emptyList()).consume().size());
 
         }
     }

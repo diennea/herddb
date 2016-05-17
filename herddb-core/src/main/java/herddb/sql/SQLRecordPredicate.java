@@ -25,9 +25,12 @@ import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.Tuple;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
@@ -46,6 +49,9 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SubSelect;
 
 /**
  * Predicate expressed using SQL syntax
@@ -53,6 +59,8 @@ import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
  * @author enrico.olivelli
  */
 public class SQLRecordPredicate extends Predicate {
+
+    private static final Logger LOGGER = Logger.getLogger(SQLRecordPredicate.class.getName());
 
     private final Table table;
     private final String tableAlias;
@@ -62,11 +70,13 @@ public class SQLRecordPredicate extends Predicate {
     private class EvaluationState {
 
         int parameterPos;
-        List<Object> parameters;
+        final List<Object> parameters;
+        final SQLStatementEvaluationContext sqlContext;
 
-        public EvaluationState(int parameterPos, List<Object> parameters) {
+        public EvaluationState(int parameterPos, List<Object> parameters, SQLStatementEvaluationContext sqlContext) {
             this.parameterPos = parameterPos;
             this.parameters = parameters;
+            this.sqlContext = sqlContext;
         }
     }
 
@@ -81,7 +91,7 @@ public class SQLRecordPredicate extends Predicate {
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = RecordSerializer.toBean(record, table);
-        EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters);
+        EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters, sqlContext);
         return toBoolean(evaluateExpression(where, bean, state));
     }
 
@@ -275,6 +285,25 @@ public class SQLRecordPredicate extends Predicate {
                     }
                 }
                 return false;
+            } else if (in.getRightItemsList() instanceof SubSelect) {
+                SubSelect ss = (SubSelect) in.getRightItemsList();
+                SelectBody body = ss.getSelectBody();
+                if (body instanceof PlainSelect) {
+                    PlainSelect ps = (PlainSelect) body;
+                    List<Tuple> subQueryResult = state.sqlContext.executeSubquery(ps);
+                    for (Tuple t : subQueryResult) {
+                        if (t.fieldNames.length > 1) {
+                            throw new StatementExecutionException("subquery returned more than one column");
+                        }
+                        Object tuple_value = t.get(0);
+                        LOGGER.log(Level.SEVERE, "comparing " + value + " with subquery result " + tuple_value);
+                        if (objectEquals(value, tuple_value)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
             }
             throw new StatementExecutionException("unsupported operand " + expression.getClass() + " with argument of type " + in.getRightItemsList());
         }
