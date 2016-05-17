@@ -149,7 +149,7 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return getDate(resolveColumnNameByIndex(columnIndex));
     }
 
     @Override
@@ -267,7 +267,21 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public Date getDate(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        ensureNextCalled();
+        lastValue = actualValue.get(columnLabel);
+        if (lastValue != null) {
+            wasNull = false;
+            if (lastValue instanceof java.sql.Date) {
+                return (java.sql.Date) lastValue;
+            }
+            if (lastValue instanceof java.util.Date) {
+                return new java.sql.Date(((java.util.Date) lastValue).getTime());
+            }
+            return new java.sql.Date(Long.parseLong(lastValue.toString()));
+        } else {
+            wasNull = true;
+            return null;
+        }
     }
 
     @Override
@@ -283,6 +297,9 @@ public class HerdDBResultSet implements ResultSet {
             wasNull = false;
             if (lastValue instanceof java.sql.Timestamp) {
                 return (java.sql.Timestamp) lastValue;
+            }
+            if (lastValue instanceof java.util.Date) {
+                return new java.sql.Timestamp(((java.util.Date) lastValue).getTime());
             }
             return new java.sql.Timestamp(Long.parseLong(lastValue.toString()));
         } else {

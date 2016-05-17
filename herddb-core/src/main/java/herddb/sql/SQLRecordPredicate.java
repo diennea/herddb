@@ -122,6 +122,9 @@ public class SQLRecordPredicate extends Predicate {
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() < ((Number) b).doubleValue();
         }
+        if (a instanceof java.util.Date && b instanceof java.util.Date) {
+            return ((java.util.Date) a).getTime() < ((java.util.Date) b).getTime();
+        }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
@@ -135,6 +138,9 @@ public class SQLRecordPredicate extends Predicate {
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() > ((Number) b).doubleValue();
         }
+        if (a instanceof java.util.Date && b instanceof java.util.Date) {
+            return ((java.util.Date) a).getTime() > ((java.util.Date) b).getTime();
+        }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
@@ -144,6 +150,9 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() == ((Number) b).doubleValue();
+        }
+        if (a instanceof java.util.Date && b instanceof java.util.Date) {
+            return ((java.util.Date) a).getTime() == ((java.util.Date) b).getTime();
         }
         return false;
     }
