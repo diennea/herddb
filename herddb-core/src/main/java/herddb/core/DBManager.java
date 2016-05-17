@@ -222,6 +222,7 @@ public class DBManager implements AutoCloseable {
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context) throws StatementExecutionException {
+        context.setManager(this);
         LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
@@ -348,6 +349,7 @@ public class DBManager implements AutoCloseable {
     }
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context) throws StatementExecutionException {
+        context.setManager(this);
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);

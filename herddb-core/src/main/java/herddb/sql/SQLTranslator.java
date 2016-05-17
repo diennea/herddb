@@ -215,8 +215,8 @@ public class SQLTranslator {
         }
 
         if (!foundPk) {
-            // HEAP TABLE
-            allColumnNames.forEach(tablebuilder::primaryKey);
+            tablebuilder.column("_pk", ColumnTypes.LONG);
+            tablebuilder.primaryKey("_pk", true);
         }
 
         try {
@@ -326,10 +326,10 @@ public class SQLTranslator {
         }
         Table table = tableManager.getTable();
 
-        SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, new AtomicInteger());
+        SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger());
         if (keyFunction != null) {
 
-            Predicate where = buildPredicate(s.getWhere(), table, 0);
+            Predicate where = buildSimplePredicate(s.getWhere(), table, table.name, 0);
             try {
                 return ExecutionPlan.simple(new DeleteStatement(tableSpace, tableName, keyFunction, where));
             } catch (IllegalArgumentException err) {
@@ -338,7 +338,7 @@ public class SQLTranslator {
         } else {
 
             // Perform a scan and then update each row
-            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, s.getWhere(), 0) : null;
+            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), 0) : null;
             ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), where);
             return ExecutionPlan.make(scan, null, null, null, st);
@@ -371,12 +371,12 @@ public class SQLTranslator {
 
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
         int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
-        RecordFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, new AtomicInteger(setClauseParamters));
+        RecordFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger(setClauseParamters));
 
         if (keyFunction != null) {
             // UPDATE BY PRIMARY KEY            
             try {
-                Predicate where = buildPredicate(s.getWhere(), table, setClauseParamters);
+                Predicate where = buildSimplePredicate(s.getWhere(), table, table.name, setClauseParamters);
                 UpdateStatement st = new UpdateStatement(tableSpace, tableName, keyFunction, function, where);
                 return ExecutionPlan.simple(st);
             } catch (IllegalArgumentException err) {
@@ -384,7 +384,7 @@ public class SQLTranslator {
             }
         } else {
             // Perform a scan and then update each row
-            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, s.getWhere(), setClauseParamters) : null;
+            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), setClauseParamters) : null;
             ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), function, where);
             return ExecutionPlan.make(scan, null, null, null, st);
@@ -392,12 +392,12 @@ public class SQLTranslator {
 
     }
 
-    private Predicate buildPredicate(Expression where, Table table, int parameterPos) {
+    private Predicate buildSimplePredicate(Expression where, Table table, String tableAlias, int parameterPos) {
         if (where instanceof EqualsTo || where == null) {
             // surely this is the only predicate on the PK, we can skip it
             return null;
         }
-        return new SQLRecordPredicate(table, where, parameterPos);
+        return new SQLRecordPredicate(table, tableAlias, where, parameterPos);
 
     }
 
@@ -430,21 +430,21 @@ public class SQLTranslator {
         throw new UnsupportedOperationException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
-    private Expression findColumnEqualsTo(Expression where, String columnName, Table table, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression findColumnEqualsTo(Expression where, String columnName, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = validatePrimaryKeyEqualsToExpression(and.getLeftExpression(), columnName, table, jdbcParameterPos);
+            Expression keyOnLeft = validatePrimaryKeyEqualsToExpression(and.getLeftExpression(), columnName, table, tableAlias, jdbcParameterPos);
             if (keyOnLeft != null) {
                 return keyOnLeft;
             }
             int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
 
-            Expression keyOnRight = validatePrimaryKeyEqualsToExpression(and.getRightExpression(), columnName, table, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
+            Expression keyOnRight = validatePrimaryKeyEqualsToExpression(and.getRightExpression(), columnName, table, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
             if (keyOnRight != null) {
                 return keyOnRight;
             }
         } else if (where instanceof EqualsTo) {
-            Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, columnName, table, jdbcParameterPos);
+            Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, columnName, table, tableAlias, jdbcParameterPos);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -453,9 +453,9 @@ public class SQLTranslator {
         return null;
     }
 
-    private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         if (table.primaryKey.length == 1) {
-            Expression key = findColumnEqualsTo(where, table.primaryKey[0], table, jdbcParameterPos);
+            Expression key = findColumnEqualsTo(where, table.primaryKey[0], table, tableAlias, jdbcParameterPos);
             if (key == null) {
                 return null;
             }
@@ -464,7 +464,7 @@ public class SQLTranslator {
 
         List<Expression> expressions = new ArrayList<>();
         for (String pk : table.primaryKey) {
-            Expression condition = findColumnEqualsTo(where, pk, table, jdbcParameterPos);
+            Expression condition = findColumnEqualsTo(where, pk, table, tableAlias, jdbcParameterPos);
             if (condition == null) {
                 return null;
             }
@@ -486,22 +486,26 @@ public class SQLTranslator {
         }
     }
 
-    private Expression validatePrimaryKeyEqualsToExpression(Expression testExpression, String columnName, Table table1, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression validatePrimaryKeyEqualsToExpression(Expression testExpression, String columnName, Table table1, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         Expression result = null;
         if (testExpression instanceof EqualsTo) {
             EqualsTo e = (EqualsTo) testExpression;
             if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
-                net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
-                if (columnName.equals(column.getColumnName())) {
+                net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
+                boolean okAlias = true;
+                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                    okAlias = false;
+                }
+                if (okAlias && columnName.equals(c.getColumnName())) {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, jdbcParameterPos);
+                result = findColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, jdbcParameterPos);
+                result = findColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
@@ -515,6 +519,10 @@ public class SQLTranslator {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName().toLowerCase();
+        String tableAlias = tableName;
+        if (fromTable.getAlias() != null && fromTable.getAlias().getName() != null) {
+            tableAlias = fromTable.getAlias().getName();
+        }
         if (tableSpace == null) {
             tableSpace = TableSpace.DEFAULT;
         }
@@ -546,19 +554,19 @@ public class SQLTranslator {
         if (allColumns) {
             projection = Projection.IDENTITY(table.columns);
         } else {
-            projection = new SQLProjection(table, selectBody.getSelectItems());
+            projection = new SQLProjection(table, tableAlias, selectBody.getSelectItems());
         }
         if (scan) {
             Predicate where = null;
             if (selectBody.getWhere() != null) {
-                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, new AtomicInteger());
+                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());
                 if (keyFunction != null) {
                     // optimize PrimaryKeyIndexSeek case                    
                     where = new PrimaryKeyIndexSeekPredicate(keyFunction);
                 }
             }
             if (where == null) {
-                where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, selectBody.getWhere(), 0) : null;
+                where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;
             }
 
             Aggregator aggregator = null;
@@ -572,9 +580,9 @@ public class SQLTranslator {
             TupleComparator comparatorOnPlan = null;
             if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
                 if (aggregator != null) {
-                    comparatorOnPlan = new SQLTupleComparator(selectBody.getOrderByElements());;
+                    comparatorOnPlan = new SQLTupleComparator(tableAlias, selectBody.getOrderByElements());;
                 } else {
-                    comparatorOnScan = new SQLTupleComparator(selectBody.getOrderByElements());
+                    comparatorOnScan = new SQLTupleComparator(tableAlias, selectBody.getOrderByElements());
                 }
             }
 
@@ -614,12 +622,12 @@ public class SQLTranslator {
                 throw new StatementExecutionException("unsupported GET without WHERE");
             }
             // SELECT * FROM WHERE KEY=? AND ....
-            RecordFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, new AtomicInteger());
+            RecordFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias, new AtomicInteger());
             if (keyFunction == null) {
                 throw new StatementExecutionException("unsupported where " + selectBody.getWhere() + " " + selectBody.getWhere().getClass());
             }
 
-            Predicate where = buildPredicate(selectBody.getWhere(), table, 0);
+            Predicate where = buildSimplePredicate(selectBody.getWhere(), table, tableAlias, 0);
 
             try {
                 return ExecutionPlan.simple(new GetStatement(tableSpace, tableName, keyFunction, where));

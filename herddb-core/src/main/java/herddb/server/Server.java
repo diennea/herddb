@@ -90,7 +90,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {
-        return new NettyChannelAcceptor(serverHostData.getHost(), serverHostData.getPort(), serverHostData.isSsl());
+        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(serverHostData.getHost(), serverHostData.getPort(), serverHostData.isSsl());
+        if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
+            acceptor.setEnableRealNetwork(false);
+        }
+        return acceptor;
     }
 
     private MetadataStorageManager buildMetadataStorageManager() {
@@ -128,7 +132,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 return new FileCommitLogManager(baseDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);;                
+                BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);
+                ;
                 return bkmanager;
             default:
                 throw new RuntimeException();

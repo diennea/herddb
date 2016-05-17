@@ -20,15 +20,17 @@
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
-import herddb.model.Column;
 import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.Tuple;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
@@ -38,13 +40,18 @@ import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.SelectBody;
+import net.sf.jsqlparser.statement.select.SubSelect;
 
 /**
  * Predicate expressed using SQL syntax
@@ -53,32 +60,38 @@ import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
  */
 public class SQLRecordPredicate extends Predicate {
 
+    private static final Logger LOGGER = Logger.getLogger(SQLRecordPredicate.class.getName());
+
     private final Table table;
+    private final String tableAlias;
     private final Expression where;
     private final int firstParameterPos;
 
     private class EvaluationState {
 
         int parameterPos;
-        List<Object> parameters;
+        final List<Object> parameters;
+        final SQLStatementEvaluationContext sqlContext;
 
-        public EvaluationState(int parameterPos, List<Object> parameters) {
+        public EvaluationState(int parameterPos, List<Object> parameters, SQLStatementEvaluationContext sqlContext) {
             this.parameterPos = parameterPos;
             this.parameters = parameters;
+            this.sqlContext = sqlContext;
         }
     }
 
-    public SQLRecordPredicate(Table table, Expression where, int parameterPos) {
+    public SQLRecordPredicate(Table table, String tableAlias, Expression where, int parameterPos) {
         this.table = table;
         this.where = where;
         this.firstParameterPos = parameterPos;
+        this.tableAlias = tableAlias;
     }
 
     @Override
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = RecordSerializer.toBean(record, table);
-        EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters);
+        EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters, sqlContext);
         return toBoolean(evaluateExpression(where, bean, state));
     }
 
@@ -109,6 +122,9 @@ public class SQLRecordPredicate extends Predicate {
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() < ((Number) b).doubleValue();
         }
+        if (a instanceof java.util.Date && b instanceof java.util.Date) {
+            return ((java.util.Date) a).getTime() < ((java.util.Date) b).getTime();
+        }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
@@ -122,6 +138,9 @@ public class SQLRecordPredicate extends Predicate {
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() > ((Number) b).doubleValue();
         }
+        if (a instanceof java.util.Date && b instanceof java.util.Date) {
+            return ((java.util.Date) a).getTime() > ((java.util.Date) b).getTime();
+        }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
@@ -131,6 +150,9 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() == ((Number) b).doubleValue();
+        }
+        if (a instanceof java.util.Date && b instanceof java.util.Date) {
+            return ((java.util.Date) a).getTime() == ((java.util.Date) b).getTime();
         }
         return false;
     }
@@ -143,9 +165,7 @@ public class SQLRecordPredicate extends Predicate {
                 .replace(".", "\\.")
                 .replace("\\*", "\\*")
                 .replace("%", ".*")
-                .replace("_", ".+");
-
-        System.out.println("pattern:" + like);
+                .replace("_", ".+");       
         return a.toString().matches(like);
     }
 
@@ -212,8 +232,8 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-            if (c.getTable() != null && (c.getTable().getName() != null || c.getTable().getAlias() != null)) {
-                throw new StatementExecutionException("unsupported fully qualified column reference" + expression);
+            if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
             }
             return bean.get(c.getColumnName().toLowerCase());
         }
@@ -256,6 +276,43 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        }
+        if (expression instanceof InExpression) {
+            InExpression in = (InExpression) expression;
+            if (in.getLeftItemsList() != null) {
+                throw new StatementExecutionException("unsupported IN syntax <" + expression + ">");
+            }
+            Object value = evaluateExpression(in.getLeftExpression(), bean, state);
+            if (in.getRightItemsList() instanceof ExpressionList) {
+                ExpressionList el = (ExpressionList) in.getRightItemsList();
+                for (Expression e : el.getExpressions()) {
+                    Object other = evaluateExpression(e, bean, state);
+                    if (objectEquals(value, other)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else if (in.getRightItemsList() instanceof SubSelect) {
+                SubSelect ss = (SubSelect) in.getRightItemsList();
+                SelectBody body = ss.getSelectBody();
+                if (body instanceof PlainSelect) {
+                    PlainSelect ps = (PlainSelect) body;
+                    List<Tuple> subQueryResult = state.sqlContext.executeSubquery(ps);
+                    for (Tuple t : subQueryResult) {
+                        if (t.fieldNames.length > 1) {
+                            throw new StatementExecutionException("subquery returned more than one column");
+                        }
+                        Object tuple_value = t.get(0);
+                        LOGGER.log(Level.SEVERE, "comparing " + value + " with subquery result " + tuple_value);
+                        if (objectEquals(value, tuple_value)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+
+            }
+            throw new StatementExecutionException("unsupported operand " + expression.getClass() + " with argument of type " + in.getRightItemsList());
         }
         if (expression instanceof IsNullExpression) {
             IsNullExpression e = (IsNullExpression) expression;

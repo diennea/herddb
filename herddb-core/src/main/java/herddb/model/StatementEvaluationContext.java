@@ -19,6 +19,18 @@
  */
 package herddb.model;
 
+import herddb.core.DBManager;
+import herddb.sql.TranslatedQuery;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
+import net.sf.jsqlparser.util.deparser.SelectDeParser;
+
 /**
  * Context for each statement evaluation. Statements are immutable and cachable
  * objects, and cannot retain state
@@ -27,7 +39,19 @@ package herddb.model;
  */
 public class StatementEvaluationContext {
 
+    private static final Logger LOGGER = Logger.getLogger(StatementEvaluationContext.class.getName());
+
     private Tuple currentTuple;
+    private DBManager manager;
+    private final Map<String, List<Tuple>> subqueryCache = new HashMap<>();
+
+    public DBManager getManager() {
+        return manager;
+    }
+
+    public void setManager(DBManager manager) {
+        this.manager = manager;
+    }
 
     public Tuple getCurrentTuple() {
         return currentTuple;
@@ -35,6 +59,29 @@ public class StatementEvaluationContext {
 
     public void setCurrentTuple(Tuple currentTuple) {
         this.currentTuple = currentTuple;
+    }
+
+    public List<Tuple> executeSubquery(PlainSelect select) throws StatementExecutionException {
+        StringBuilder buffer = new StringBuilder();
+        SelectDeParser deparser = new SelectDeParser();
+        deparser.setBuffer(buffer);
+        deparser.setExpressionVisitor(new ExpressionDeParser(deparser, buffer));
+        deparser.visit(select);
+        String subquery = deparser.getBuffer().toString();
+        List<Tuple> cached = subqueryCache.get(subquery);
+        if (cached != null) {
+            return cached;
+        }
+        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
+        TranslatedQuery translated = manager.getTranslator().translate(subquery, Collections.emptyList(), true, true);
+        try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context);) {
+            List<Tuple> fullResult = result.dataScanner.consume();
+            subqueryCache.put(subquery, fullResult);
+            return fullResult;
+        } catch (DataScannerException error) {
+            throw new StatementExecutionException(error);
+        }
+
     }
 
 }

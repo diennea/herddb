@@ -125,7 +125,7 @@ public class BuiltinFunctions {
         Object value;
         if (exp instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
-            value = record.get(c.getColumnName());
+            value = record.get(c.getColumnName().toLowerCase());
         } else if (exp instanceof StringValue) {
             value = ((StringValue) exp).getValue();
         } else if (exp instanceof LongValue) {

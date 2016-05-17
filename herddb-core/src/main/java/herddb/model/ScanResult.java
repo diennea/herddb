@@ -33,7 +33,7 @@ public class ScanResult extends StatementExecutionResult implements AutoCloseabl
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() throws DataScannerException {
         dataScanner.close();
     }
 

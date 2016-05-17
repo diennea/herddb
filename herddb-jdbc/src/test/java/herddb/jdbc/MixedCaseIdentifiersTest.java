@@ -28,11 +28,11 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
-import static org.junit.Assert.assertEquals;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -41,15 +41,15 @@ import static org.junit.Assert.assertEquals;
 public class MixedCaseIdentifiersTest {
 
     final static String CREATE_TABLE = "CREATE TABLE q1_MESSAGE (\n"
-            + "  MSG_ID bigint NOT NULL PRIMARY KEY,\n"            
-            + "  STATUS tinyint,  \n"            
+            + "  MSG_ID bigint NOT NULL PRIMARY KEY,\n"
+            + "  STATUS tinyint,  \n"
+            + "  RECIPIENT string,  \n"
             + "  LASTBOUNCECATEGORY tinyint null"
-            
             + ")";
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
-    
+
     @Test
     public void testUpdate() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
@@ -59,19 +59,30 @@ public class MixedCaseIdentifiersTest {
                 try (HerdDBDataSource dataSource = new HerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement create = con.createStatement();
-                        PreparedStatement statement_insert = con.prepareStatement("INSERT INTO q1_MESSAGE(msg_id,STATUS) values(?,?)");
+                        PreparedStatement statement_insert = con.prepareStatement("INSERT INTO q1_MESSAGE(msg_id,STATUS,recipient) values(?,?,?)");
                         PreparedStatement statement_update = con.prepareStatement("UPDATE q1_MESSAGE SET STATUS = 2,lastbouncecategory=null WHERE MSG_ID = ? and (status=1 or status=5)");) {
                     create.execute(CREATE_TABLE);
 
                     long msg_id = 213;
-                    statement_insert.setLong(1,msg_id);
-                    statement_insert.setInt(2,1);
-                    assertEquals(1,statement_insert.executeUpdate());
-                    
-                    statement_update.setLong(1, msg_id);
-                    assertEquals(1,statement_update.executeUpdate());
+                    statement_insert.setLong(1, msg_id);
+                    statement_insert.setInt(2, 1);
+                    statement_insert.setString(3, "test@localhost");
+                    assertEquals(1, statement_insert.executeUpdate());
 
-                    
+                    statement_update.setLong(1, msg_id);
+                    assertEquals(1, statement_update.executeUpdate());
+
+                    try (ResultSet rs = create.executeQuery("SELECT M.MSG_ID FROM q1_MESSAGE M WHERE 1=1 AND (M.RECIPIENT LIKE '%@localhost%')")) {
+                        long _msg_id = -1;
+                        int record_count = 0;
+                        while (rs.next()) {
+                            _msg_id = rs.getLong(1);
+                            record_count++;
+                        }
+                        assertEquals(1, record_count);
+                        assertTrue(_msg_id > 0);
+                    }
+
                 }
             }
         }

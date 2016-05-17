@@ -75,8 +75,7 @@ public class SimpleDataSourceTest {
                         boolean found = false;
                         while (rs.next()) {
                             String key = rs.getString("key");
-                            String name = rs.getString("name");
-                            System.out.println("QUI " + key + " " + name);
+                            String name = rs.getString("name");                            
                             assertEquals("k1", key);
                             assertEquals("name2", name);
                             found = true;
