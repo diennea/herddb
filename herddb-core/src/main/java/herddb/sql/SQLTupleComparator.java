@@ -50,8 +50,8 @@ public class SQLTupleComparator implements TupleComparator {
         for (OrderByElement element : orderByElements) {
             net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) element.getExpression();
             String name = column.getColumnName();
-            Object value1 = o1.toMap().get(name);
-            Object value2 = o2.toMap().get(name);
+            Object value1 = o1.toMap().get(name.toLowerCase());
+            Object value2 = o2.toMap().get(name.toLowerCase());
             int result = compareValues(value1, value2);
             if (result != 0) {
                 if (element.isAsc()) {
