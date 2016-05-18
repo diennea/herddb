@@ -111,8 +111,7 @@ public class HDBConnection implements AutoCloseable {
         return route.executeScan(query, params, tx, maxRows);
     }
 
-    private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {
-        System.out.println("getRouteToServer" +nodeId+" "+this);
+    private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {        
         routesLock.lock();
         try {
             RoutedClientSideConnection route = routes.get(nodeId);
