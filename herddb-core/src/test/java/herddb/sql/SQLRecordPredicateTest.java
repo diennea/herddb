@@ -32,10 +32,11 @@ public class SQLRecordPredicateTest {
     public void testLike() throws Exception {
         assertTrue(SQLRecordPredicate.like("test", "%est"));
         assertTrue(SQLRecordPredicate.like("test", "test%"));
-        assertTrue(SQLRecordPredicate.like("test", "te_t"));
         assertFalse(SQLRecordPredicate.like("test", "a%"));
         assertTrue(SQLRecordPredicate.like("test", "%test%"));
-        assertTrue(SQLRecordPredicate.like("test", "%es%"));        
+        assertTrue(SQLRecordPredicate.like("test", "%es%"));
+        assertFalse(SQLRecordPredicate.like("tesst", "te_t"));
+        assertTrue(SQLRecordPredicate.like("test", "te_t"));
     }
 
 }
