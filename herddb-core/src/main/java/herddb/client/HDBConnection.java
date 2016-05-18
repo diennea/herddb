@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Connection on the client side
@@ -54,16 +56,29 @@ public class HDBConnection implements AutoCloseable {
 
     @Override
     public void close() {
+        LOG.log(Level.SEVERE, "{0} close ", this);
         closed = true;
-        List<RoutedClientSideConnection> routesAtClose = new ArrayList<>(routes.values());
+        List<RoutedClientSideConnection> routesAtClose;
+        routesLock.lock();
+        try {
+            routesAtClose = new ArrayList<>(routes.values());
+        } finally {
+            routesLock.unlock();
+        }
         for (RoutedClientSideConnection route : routesAtClose) {
             route.close();
         }
         client.releaseConnection(this);
     }
+    private static final Logger LOG = Logger.getLogger(HDBConnection.class.getName());
 
-    void releaseRoute(String nodeId) {
-        routes.remove(nodeId);
+    void releaseRoute(String nodeId) {        
+        routesLock.lock();
+        try {
+            routes.remove(nodeId);
+        } finally {
+            routesLock.unlock();
+        }
     }
 
     public long beginTransaction(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
@@ -97,6 +112,7 @@ public class HDBConnection implements AutoCloseable {
     }
 
     private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {
+        System.out.println("getRouteToServer" +nodeId+" "+this);
         routesLock.lock();
         try {
             RoutedClientSideConnection route = routes.get(nodeId);

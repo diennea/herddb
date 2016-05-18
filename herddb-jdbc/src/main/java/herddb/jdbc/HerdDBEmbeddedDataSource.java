@@ -48,12 +48,16 @@ public class HerdDBEmbeddedDataSource extends HerdDBDataSource {
     public HerdDBEmbeddedDataSource() {
     }
 
+    public Server getServer() {
+        return server;
+    }
+
     public Properties getProperties() {
         return properties;
     }
 
     @Override
-    protected synchronized void init() throws SQLException {                
+    protected synchronized void ensureConnection() throws SQLException {
         if (serverConfiguration == null) {
             LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB");
             serverConfiguration = new ServerConfiguration(properties);
@@ -74,7 +78,7 @@ public class HerdDBEmbeddedDataSource extends HerdDBDataSource {
             client = new HDBClient(clientConfiguration);
             client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
         }
-        super.init();
+        super.ensureConnection();
     }
 
     @Override

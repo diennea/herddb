@@ -79,7 +79,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void messageReceived(Message message) {
-        LOGGER.log(Level.SEVERE, "messageReceived " + message);
+        LOGGER.log(Level.FINEST, "messageReceived " + message);
         Channel _channel = channel;
         switch (message.type) {
             case Message.TYPE_EXECUTE_STATEMENT: {
@@ -91,9 +91,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     TransactionContext transactionContext = new TransactionContext(txId);
                     TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, false, true);
                     Statement statement = translatedQuery.plan.mainStatement;
-                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
                     StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
-                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         Map<String, Object> otherData = null;
@@ -165,7 +165,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
-                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query + ": data " + converted);
+                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
                         this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
                         scanners.put(scannerId, scanner);
                     } else {

@@ -51,7 +51,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final long timeout;
     private final String clientId;
     private final ReentrantLock connectionLock = new ReentrantLock(true);
-    private Channel channel;
+    private volatile Channel channel;
     private Map<String, ClientSideScannerPeer> scanners = new ConcurrentHashMap<>();
     private final int fetchSize = 10;
 
@@ -84,15 +84,25 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     @Override
     public void close() {
-        LOGGER.log(Level.SEVERE, "{0} - close");
+        LOGGER.log(Level.SEVERE, "{0} - close", this);
         this.connector.close();
         this.connection.releaseRoute(nodeId);
+        connectionLock.lock();
+        try {
+            if (channel != null) {
+                channel.close();
+            }
+        } finally {
+            channel = null;
+            connectionLock.unlock();
+        }
     }
 
     private void ensureOpen() throws HDBException {
         connectionLock.lock();
         try {
             if (channel == null) {
+                LOGGER.log(Level.SEVERE, "{0} - connect", this);
                 channel = connector.connect();
             }
         } catch (Exception err) {

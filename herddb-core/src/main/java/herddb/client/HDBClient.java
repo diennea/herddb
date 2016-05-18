@@ -60,7 +60,7 @@ public class HDBClient implements AutoCloseable {
         }
     }
 
-    public HDBConnection openConnection() {
+    public HDBConnection openConnection() {        
         HDBConnection con = new HDBConnection(this);
         connections.put(con.getId(), con);
         return con;

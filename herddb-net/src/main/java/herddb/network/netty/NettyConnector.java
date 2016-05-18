@@ -125,7 +125,7 @@ public class NettyConnector implements AutoCloseable {
             address = inet;
             LOGGER.log(Level.SEVERE, "connecting to remote server " + address);
         }
-
+                
         Bootstrap b = new Bootstrap();
         b.group(group)
                 .channel(channelType)                

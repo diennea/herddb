@@ -66,6 +66,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         return manager;
     }
 
+    public NettyChannelAcceptor getNetworkServer() {
+        return networkServer;
+    }
+
     public Server(ServerConfiguration configuration) {
         this.configuration = configuration;
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
@@ -177,6 +181,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     public ServerHostData getServerHostData() {
         return serverHostData;
+    }
+
+    public int getConnectionCount() {
+        return connections.size();
     }
 
 }

@@ -44,8 +44,10 @@ public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
         this.client = client;
     }
 
-    protected void init() throws SQLException {
-        this.connection = client.openConnection();
+    protected void ensureConnection() throws SQLException {
+        if (this.connection == null) {
+            this.connection = client.openConnection();
+        }
     }
 
     public HDBClient getClient() {
@@ -63,7 +65,7 @@ public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        init();
+        ensureConnection();
         return new HerdDBConnection(connection);
     }
 
