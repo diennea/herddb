@@ -66,6 +66,7 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
@@ -418,6 +419,7 @@ public class SQLTranslator {
         if (e instanceof net.sf.jsqlparser.schema.Column
                 || e instanceof StringValue
                 || e instanceof NullValue
+                || e instanceof TimestampValue
                 || e instanceof LongValue) {
             return 0;
         }
@@ -516,6 +518,8 @@ public class SQLTranslator {
             return ((StringValue) expression).getValue();
         } else if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        } else if (expression instanceof TimestampValue) {
+            return ((TimestampValue) expression).getValue();
         } else {
             throw new StatementExecutionException("unsupported value type " + expression.getClass());
         }

@@ -21,7 +21,6 @@ package herddb.sql;
 
 import herddb.codec.RecordSerializer;
 import herddb.model.Column;
-import static herddb.model.Column.column;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
@@ -36,6 +35,7 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
 
 /**
  * Record mutator using SQL
@@ -77,6 +77,8 @@ public class SQLRecordKeyFunction extends RecordFunction {
                 value = statementEvaluationContext.jdbcParameters.get(paramIndex++);
             } else if (expression instanceof LongValue) {
                 value = ((LongValue) expression).getValue();
+            } else if (expression instanceof TimestampValue) {
+                value = ((TimestampValue) expression).getValue();
             } else if (expression instanceof StringValue) {
                 value = ((StringValue) expression).getValue();
             } else {

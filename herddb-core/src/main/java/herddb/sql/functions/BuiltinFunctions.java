@@ -23,13 +23,12 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
-import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
-import net.sf.jsqlparser.statement.select.SelectExpressionItem;
+import net.sf.jsqlparser.expression.TimestampValue;
 
 /**
  * SQL aggregate functions
@@ -130,6 +129,8 @@ public class BuiltinFunctions {
             value = ((StringValue) exp).getValue();
         } else if (exp instanceof LongValue) {
             value = ((LongValue) exp).getValue();
+        } else if (exp instanceof TimestampValue) {
+            value = ((TimestampValue) exp).getValue();
         } else if (exp instanceof Function) {
             Function f = (Function) exp;
             value = computeFunction(f, record);

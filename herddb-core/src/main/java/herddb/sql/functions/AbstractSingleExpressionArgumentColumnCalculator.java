@@ -26,6 +26,7 @@ import java.util.function.Function;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.schema.Column;
 
 /**
@@ -36,7 +37,7 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
 
     final protected String fieldName;
     final protected Expression expression;
-    final protected Function<Tuple, Long> valueExtractor;
+    final protected Function<Tuple, ? extends Comparable> valueExtractor;
 
     protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, Expression expression) throws StatementExecutionException {
         this.fieldName = fieldName;
@@ -53,12 +54,17 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
                     return (Long) value;
                 } else if (value instanceof Number) {
                     return ((Number) value).longValue();
+                } else if (value instanceof java.sql.Timestamp) {
+                    return ((java.sql.Timestamp) value);
                 } else {
                     return Long.parseLong(value.toString());
                 }
             };
         } else if (this.expression instanceof LongValue) {
             Long fixed = ((LongValue) expression).getValue();
+            valueExtractor = (Tuple t) -> fixed;
+        } else if (this.expression instanceof TimestampValue) {
+            java.sql.Timestamp fixed = ((TimestampValue) expression).getValue();
             valueExtractor = (Tuple t) -> fixed;
         } else if (this.expression instanceof StringValue) {
             try {

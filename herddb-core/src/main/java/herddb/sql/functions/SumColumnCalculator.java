@@ -50,9 +50,9 @@ public class SumColumnCalculator extends AbstractSingleExpressionArgumentColumnC
 
     @Override
     public void consume(Tuple tuple) {
-        Long value = valueExtractor.apply(tuple);
+        Comparable value = valueExtractor.apply(tuple);
         if (value != null) {
-            result += value;
+            result += ((Number) value).longValue();
         }
     }
 

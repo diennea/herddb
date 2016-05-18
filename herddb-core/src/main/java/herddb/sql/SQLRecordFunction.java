@@ -35,6 +35,7 @@ import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.schema.Column;
 
 /**
@@ -80,6 +81,8 @@ public class SQLRecordFunction extends RecordFunction {
                 bean.put(columnName, null);
             } else if (e instanceof LongValue) {
                 bean.put(columnName, ((LongValue) e).getValue());
+            } else if (e instanceof TimestampValue) {
+                bean.put(columnName, ((TimestampValue) e).getValue());
             } else if (e instanceof StringValue) {
                 bean.put(columnName, ((StringValue) e).getValue());
             } else if (e instanceof Column) {

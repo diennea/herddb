@@ -34,6 +34,7 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
 
@@ -94,6 +95,8 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.STRING;
                 } else if (exp instanceof LongValue) {
                     columType = ColumnTypes.LONG;
+                } else if (exp instanceof TimestampValue) {
+                    columType = ColumnTypes.TIMESTAMP;
                 } else if (exp instanceof Function) {
                     Function f = (Function) exp;
                     columType = BuiltinFunctions.typeOfFunction(f.getName());

@@ -34,7 +34,7 @@ public class MinColumnCalculator extends AbstractSingleExpressionArgumentColumnC
         super(fieldName, expression);
     }
 
-    Long result;
+    Comparable result;
 
     @Override
     public String getFieldName() {
@@ -43,9 +43,9 @@ public class MinColumnCalculator extends AbstractSingleExpressionArgumentColumnC
 
     @Override
     public void consume(Tuple tuple) {
-        Long value = valueExtractor.apply(tuple);
+        Comparable value = valueExtractor.apply(tuple);
         if (value != null) {
-            if (result == null || result > value) {
+            if (result == null || result.compareTo(value) > 0) {
                 result = value;
             }
         }

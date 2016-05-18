@@ -37,8 +37,10 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
+import net.sf.jsqlparser.expression.operators.relational.Between;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
@@ -215,6 +217,18 @@ public class SQLRecordPredicate extends Predicate {
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), like(left, right));
         }
+        if (expression instanceof Between) {
+            Between e = (Between) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object start = evaluateExpression(e.getBetweenExpressionStart(), bean, state);
+            Object end = evaluateExpression(e.getBetweenExpressionEnd(), bean, state);
+            return handleNot(e.isNot(),
+                    (objectEquals(start, end) || minorThan(start, end)) // check impossible range
+                    && (objectEquals(left, start)
+                    || objectEquals(left, end)
+                    || (greaterThan(left, start) && minorThan(left, end))) // check value in range
+            );                        
+        }
         if (expression instanceof AndExpression) {
             AndExpression a = (AndExpression) expression;
 
@@ -276,6 +290,9 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        }
+        if (expression instanceof TimestampValue) {
+            return ((TimestampValue) expression).getValue();
         }
         if (expression instanceof InExpression) {
             InExpression in = (InExpression) expression;
