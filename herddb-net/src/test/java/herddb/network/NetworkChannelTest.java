@@ -3,6 +3,7 @@ package herddb.network;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.network.netty.NettyServerLocator;
 import java.util.Random;
+import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
@@ -65,7 +66,8 @@ public class NetworkChannelTest {
                 });) {
                     for (int i = 0; i < 100; i++) {
                         Message result = client.sendMessageWithReply(Message.ACK("clientId"), 10000);
-                        System.out.println("result:" + result);
+                        assertEquals(Message.TYPE_ACK,result.type);
+//                        System.out.println("result:" + result);
                     }
                 }
             }
