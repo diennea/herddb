@@ -62,6 +62,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final String mode;
     private final MetadataStorageManager metadataStorageManager;
 
+    public MetadataStorageManager getMetadataStorageManager() {
+        return metadataStorageManager;
+    }
+    
     public DBManager getManager() {
         return manager;
     }
@@ -137,7 +141,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 return new FileCommitLogManager(baseDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);
-                ;
+                bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
+                bkmanager.setEnsemble(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT));
+                bkmanager.setWriteQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT));
+                bkmanager.setLedgersRetentionPeriod(configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD, ServerConfiguration.PROPERTY_LOG_RETENTION_PERIOD_DEFAULT));
+                bkmanager.setMaxLogicalLogFileSize(configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE_DEFAULT));
                 return bkmanager;
             default:
                 throw new RuntimeException();

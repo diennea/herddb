@@ -19,6 +19,7 @@
  */
 package herddb.mem;
 
+import herddb.client.HDBConnection;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -76,7 +77,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     private final ConcurrentHashMap<String, List<Table>> tablesByTablespace = new ConcurrentHashMap<>();
 
     @Override
-    public int getActualNumberOfPages(String tableName) throws DataStorageManagerException {
+    public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
         int res = 0;
         for (String key : pages.keySet()) {
             if (key.startsWith(tableName + "_")) {
@@ -91,19 +92,19 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<Record> loadPage(String tableName, Long pageId) {
+    public List<Record> loadPage(String tableSpace, String tableName, Long pageId) {
         Page page = pages.get(tableName + "_" + pageId);
         LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         return page != null ? page.records : null;
     }
 
     @Override
-    public void restore(String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) {
+    public void restore(String tableSpace, String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) {
         // AT BOOT NO DATA IS PRESENT
     }
 
     @Override
-    public Long writePage(String tableName, TableStatus tableStatus, List<Record> newPage) {
+    public Long writePage(String tableSpace, String tableName, TableStatus tableStatus, List<Record> newPage) {
         long pageId = newPageId.incrementAndGet();
         Page page = new Page(new ArrayList<>(newPage), tableStatus.sequenceNumber);
         pages.put(tableName + "_" + pageId, page);
@@ -149,8 +150,22 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public LogSequenceNumber getLastcheckpointSequenceNumber() {
-        return new LogSequenceNumber(-1, -1);
+    public void writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+
+    }
+
+    @Override
+    public LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException {
+        return LogSequenceNumber.START_OF_TIME;
+    }
+
+    @Override
+    public void dropTable(String tablespace, String name) throws DataStorageManagerException {
+
+    }
+
+    @Override
+    public void downloadTable(String tableSpaceName, String table, HDBConnection con) throws DataStorageManagerException {
     }
 
 }

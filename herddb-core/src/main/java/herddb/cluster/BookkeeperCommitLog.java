@@ -20,6 +20,7 @@
 package herddb.cluster;
 
 import herddb.log.CommitLog;
+import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
@@ -376,7 +377,10 @@ public class BookkeeperCommitLog extends CommitLog {
         LOGGER.log(Level.SEVERE, "Latest snapshotSequenceNumber:" + snapshotSequenceNumber);
         if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId)) {
             // TODO: download snapshot from another remote broker
-            throw new LogNotAvailableException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + ". manual recoveryis needed (pickup a recent snapshot from a live broker please)"));
+            throw new FullRecoveryNeededException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + ". manual recoveryis needed (pickup a recent snapshot from a live broker please)"));
+        }
+        if (snapshotSequenceNumber.isStartOfTime() && !this.actualLedgersList.getActiveLedgers().isEmpty() && !this.actualLedgersList.getActiveLedgers().contains(this.actualLedgersList.getFirstLedger())) {
+            throw new FullRecoveryNeededException(new Exception("Local data is absent, and actual ledger list " + this.actualLedgersList.getActiveLedgers() + " does not contain first ledger of ever: " + this.actualLedgersList.getFirstLedger()));
         }
         try {
             for (long ledgerId : actualLedgersList.getActiveLedgers()) {
@@ -470,7 +474,7 @@ public class BookkeeperCommitLog extends CommitLog {
             if (oldLedgers.isEmpty()) {
                 return;
             }
-            LOGGER.log(Level.SEVERE, "dropping ledgers before ", new java.sql.Timestamp(min_timestamp) + ": " + oldLedgers);
+            LOGGER.log(Level.SEVERE, "currentLedgerId: " + currentLedgerId + ", dropping ledgers before ", new java.sql.Timestamp(min_timestamp) + ": " + oldLedgers);
             for (long ledgerId : oldLedgers) {
                 writeLock.lock();
                 try {

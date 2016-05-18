@@ -29,6 +29,8 @@ public final class LogSequenceNumber {
     public final long ledgerId;
     public final long offset;
 
+    public static final LogSequenceNumber START_OF_TIME = new LogSequenceNumber(-1, -1);
+
     public LogSequenceNumber(long ledgerId, long offset) {
         this.ledgerId = ledgerId;
         this.offset = offset;
@@ -76,6 +78,10 @@ public final class LogSequenceNumber {
         } else {
             return true;
         }
+    }
+
+    public boolean isStartOfTime() {
+        return (ledgerId <= 0 && offset <= 0);
     }
 
 }

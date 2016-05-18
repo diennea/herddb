@@ -212,7 +212,7 @@ public class TableManager {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
         pagesLock.writeLock().lock();
         try {
-            dataStorageManager.restore(table.name, (status) -> {
+            dataStorageManager.restore(table.tablespace, table.name, (status) -> {
                 this.nextPrimaryKeyValue.set(Bytes.toLong(status.nextPrimaryKeyValue, 0, 8));
                 LOGGER.log(Level.SEVERE, "found status stone table={0}, logpos, {1}, nextpk={2}", new Object[]{status.tableName, status.sequenceNumber, nextPrimaryKeyValue});
             },
@@ -530,7 +530,7 @@ public class TableManager {
         List<Record> changedRecords = transaction.changedRecords.get(table.name);
         // transaction is still holding locks on each record, so we can change records
         if (changedRecords != null) {
-            for (Record r : changedRecords) {                
+            for (Record r : changedRecords) {
                 applyUpdate(r.key, r.value);
             }
         }
@@ -560,6 +560,9 @@ public class TableManager {
                 Bytes key = new Bytes(entry.key);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                    if (transaction == null) {
+                        throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                    }
                     transaction.registerDeleteOnTable(this.table.name, key);
                 } else {
                     applyDelete(key);
@@ -571,8 +574,11 @@ public class TableManager {
                 Bytes value = new Bytes(entry.value);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                    if (transaction == null) {
+                        throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                    }
                     transaction.registerRecoredUpdate(this.table.name, key, value);
-                } else {                    
+                } else {
                     applyUpdate(key, value);
                 }
                 break;
@@ -583,6 +589,9 @@ public class TableManager {
                 Bytes value = new Bytes(entry.value);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                    if (transaction == null) {
+                        throw new DataStorageManagerException("no such transaction " + entry.transactionId);
+                    }
                     transaction.registerInsertOnTable(table.name, key, value);
                 } else {
                     applyInsert(key, value);
@@ -603,11 +612,15 @@ public class TableManager {
     }
 
     private void applyUpdate(Bytes key, Bytes value) {
-        Long pageId = keyToPage.put(key, NO_PAGE);        
+        Long pageId = keyToPage.put(key, NO_PAGE);
         buffer.put(key, new Record(key, value));
         dirtyPages.add(pageId);
         dirtyRecords.incrementAndGet();
 
+    }
+
+    void dropTableData() throws DataStorageManagerException {
+        dataStorageManager.dropTable(table.tablespace, table.name);
     }
 
     private static final class MyLongBinaryOperator implements LongBinaryOperator {
@@ -719,7 +732,7 @@ public class TableManager {
             if (to_unload > 0) {
                 unloadCleanPages(to_unload + UNLOAD_PAGES_MIN_BATCH);
             }
-            List<Record> page = dataStorageManager.loadPage(table.name, pageId);
+            List<Record> page = dataStorageManager.loadPage(table.tablespace, table.name, pageId);
             loadedPages.add(pageId);
             for (Record r : page) {
                 buffer.put(r.key, r);
@@ -781,7 +794,7 @@ public class TableManager {
 
     private void createNewPage(TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "createNewPage at " + tableStatus.sequenceNumber + " with " + newPage.size() + " records");
-        Long newPageId = dataStorageManager.writePage(table.name, tableStatus, newPage);
+        Long newPageId = dataStorageManager.writePage(table.tablespace, table.name, tableStatus, newPage);
         for (Record record : newPage) {
             keyToPage.put(record.key, newPageId);
         }

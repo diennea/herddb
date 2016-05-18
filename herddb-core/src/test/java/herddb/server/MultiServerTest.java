@@ -19,6 +19,8 @@
  */
 package herddb.server;
 
+import herddb.cluster.LedgersInfo;
+import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.codec.RecordSerializer;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
@@ -35,6 +37,7 @@ import herddb.utils.ZKTestEnv;
 import java.util.Arrays;
 import java.util.HashSet;
 import org.junit.After;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -77,13 +80,11 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
 
-        ServerConfiguration serverconfig_2 = new ServerConfiguration(folder.newFolder().toPath());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_NODEID, "server2");
-        serverconfig_2.set(ServerConfiguration.PROPERTY_PORT, 7868);
-        serverconfig_2.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -132,13 +133,11 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
 
-        ServerConfiguration serverconfig_2 = new ServerConfiguration(folder.newFolder().toPath());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_NODEID, "server2");
-        serverconfig_2.set(ServerConfiguration.PROPERTY_PORT, 7868);
-        serverconfig_2.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -176,6 +175,7 @@ public class MultiServerTest {
     }
 
     @Test
+    @Ignore
     public void test_leader_offline_log_no_more_available() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
@@ -184,14 +184,13 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD, 1);
 
-        ServerConfiguration serverconfig_2 = new ServerConfiguration(folder.newFolder().toPath());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_NODEID, "server2");
-        serverconfig_2.set(ServerConfiguration.PROPERTY_PORT, 7868);
-        serverconfig_2.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
-        serverconfig_2.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
@@ -209,30 +208,42 @@ public class MultiServerTest {
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
                     new HashSet<>(Arrays.asList("server1", "server2")), "server1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            server_1.getManager().checkpoint();
         }
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
-            server_1.getManager().checkpoint();
-
-        }
-
-        try (Server server_2 = new Server(serverconfig_2)) {
-            server_2.start();
-
-            assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
-
-            // wait for data to arrive on server_2
-            for (int i = 0; i < 100; i++) {
-                GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                if (found.found()) {
-                    break;
-                }
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", TableSpace.DEFAULT);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
             }
-            assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+            // let the first ledger be dropped out
+            Thread.sleep(1000);
+            server_1.getManager().checkpoint();
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", TableSpace.DEFAULT);
+                assertEquals(1, ledgersList.getActiveLedgers().size());
+            }
+
+            // data will be downloaded from the other server
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                // wait for data to arrive on server_2
+                for (int i = 0; i < 100; i++) {
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+                }
+                assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+            }
         }
+
     }
 
 }

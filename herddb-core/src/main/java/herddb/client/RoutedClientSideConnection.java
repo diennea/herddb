@@ -37,6 +37,7 @@ import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * A real connection to a server
@@ -210,6 +211,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
+        }
+    }
+
+    List<String> listTables(String tableSpace) throws HDBException {
+        try (ScanResultSet resultSet = executeScan("SELECT name FROM SYSTABLES", Collections.emptyList(), 0, 1000)) {
+            return resultSet.consume().stream().map(m -> (String) m.get("name")).collect(Collectors.toList());
         }
     }
 

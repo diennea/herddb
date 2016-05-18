@@ -90,6 +90,11 @@ public class HDBConnection implements AutoCloseable {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
         route.rollbackTransaction(tableSpace, tx);
     }
+    
+    public List<String> listTables(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        return route.listTables(tableSpace);
+    }
 
     public void commitTransaction(String tableSpace, long tx) throws ClientSideMetadataProviderException, HDBException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);

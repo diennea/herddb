@@ -20,6 +20,7 @@
 package herddb.server;
 
 import java.nio.file.Path;
+import java.security.AuthProvider;
 import java.util.Properties;
 
 /**
@@ -47,28 +48,20 @@ public final class ServerConfiguration {
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.sessiontimeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
-    
+
     public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble";
-    public static final int  PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT = 1;
+    public static final int PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE = "server.bookkeeper.writequorumsize";
-    public static final int  PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT = 1;
+    public static final int PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_ACKQUORUMSIZE = "server.bookkeeper.ackquorumsize";
-    public static final int  PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
+    public static final int PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD = "server.bookkeeper.logretentionperiod";
     public static final String PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE = "server.bookkeeper.maxlogfilesize";
-    
-    
-    
-    
-     private int ensemble = 1;
-    private int writeQuorumSize = 1;
-    private int ackQuorumSize = 1;
-    private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
-    private long maxLogicalLogFileSize = 1024 * 1024 * 256;
-    
-    
+
     public static final String PROPERTY_LOG_RETENTION_PERIOD = "server.log.retention.period";
-    public static final int  PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000*10*60*24*2;
+    public static final long PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000L * 10 * 60 * 24 * 2;
+
+    public static final int PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE_DEFAULT = 1024 * 1024 * 256;
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
     public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
@@ -76,12 +69,24 @@ public final class ServerConfiguration {
     public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
 
     public ServerConfiguration(Properties properties) {
-        this.properties = properties;
+        this.properties = new Properties();
+        this.properties.putAll(properties);
     }
 
     public ServerConfiguration(Path baseDir) {
         this();
         set(PROPERTY_BASEDIR, baseDir.toAbsolutePath());
+    }
+
+    /**
+     * Copy configuration
+     *
+     * @return
+     */
+    public ServerConfiguration copy() {
+        Properties copy = new Properties();
+        copy.putAll(this.properties);
+        return new ServerConfiguration(copy);
     }
 
     public ServerConfiguration() {
@@ -90,31 +95,34 @@ public final class ServerConfiguration {
 
     public int getInt(String key, int defaultValue) {
         final String value = this.properties.getProperty(key);
-        
-        if ( value == null || value.isEmpty() )
+
+        if (value == null || value.isEmpty()) {
             return defaultValue;
-        
+        }
+
         return Integer.parseInt(value);
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
         final String value = this.properties.getProperty(key);
-        
-        if ( value == null || value.isEmpty() )
+
+        if (value == null || value.isEmpty()) {
             return defaultValue;
-        
+        }
+
         return Boolean.parseBoolean(value);
     }
-    
+
     public long getLong(String key, long defaultValue) {
         final String value = this.properties.getProperty(key);
-        
-        if ( value == null || value.isEmpty() )
+
+        if (value == null || value.isEmpty()) {
             return defaultValue;
-        
+        }
+
         return Long.parseLong(value);
     }
-    
+
     public String getString(String key, String defaultValue) {
         return this.properties.getProperty(key, defaultValue);
     }
@@ -126,6 +134,11 @@ public final class ServerConfiguration {
             this.properties.setProperty(key, value + "");
         }
         return this;
+    }
+
+    @Override
+    public String toString() {
+        return "ServerConfiguration{" + "properties=" + properties + '}';
     }
 
 }

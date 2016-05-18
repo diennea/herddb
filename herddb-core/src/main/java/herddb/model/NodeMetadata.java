@@ -37,10 +37,16 @@ public class NodeMetadata {
 
     public final String nodeId;
     public final Object metadataStorageVersion;
+    public final String host;
+    public final int port;
+    public final boolean ssl;
 
-    private NodeMetadata(String nodeId, Object metadataStorageVersion) {
+    private NodeMetadata(String nodeId, Object metadataStorageVersion, String host, int port, boolean ssl) {
         this.nodeId = nodeId;
         this.metadataStorageVersion = metadataStorageVersion;
+        this.host = host;
+        this.port = port;
+        this.ssl = ssl;
     }
 
     @Override
@@ -58,8 +64,10 @@ public class NodeMetadata {
 
     public static NodeMetadata deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
         String nodeId = in.readUTF();
-
-        return new NodeMetadata(nodeId, metadataStorageVersion);
+        String host = in.readUTF();
+        int port = in.readInt();
+        boolean ssl = in.readInt() == 1;
+        return new NodeMetadata(nodeId, metadataStorageVersion, host, port, ssl);
     }
 
     public byte[] serialize() throws IOException {
@@ -72,11 +80,17 @@ public class NodeMetadata {
 
     public void serialize(DataOutputStream out) throws IOException {
         out.writeUTF(nodeId);
+        out.writeUTF(host);
+        out.writeInt(port);
+        out.writeInt(ssl ? 1 : 0);
     }
 
     public static class Builder {
 
-        private String nodeId;
+        private String nodeId  = "localhost";
+        private String host = "localhost";
+        private int port = 7000;
+        private boolean ssl = false;
 
         private Builder() {
         }
@@ -86,12 +100,27 @@ public class NodeMetadata {
             return this;
         }
 
+        public Builder host(String host) {
+            this.host = host;
+            return this;
+        }
+
+        public Builder port(int port) {
+            this.port = port;
+            return this;
+        }
+
+        public Builder ssl(boolean ssl) {
+            this.ssl = ssl;
+            return this;
+        }
+
         public NodeMetadata build() {
             if (nodeId == null || nodeId.isEmpty()) {
                 throw new IllegalArgumentException("nodeId is not defined");
             }
 
-            return new NodeMetadata(nodeId, null);
+            return new NodeMetadata(nodeId, null, host, port, ssl);
         }
 
     }

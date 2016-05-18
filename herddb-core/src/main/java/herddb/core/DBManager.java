@@ -183,8 +183,19 @@ public class DBManager implements AutoCloseable {
             LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
             TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this);
-            tablesSpaces.put(tableSpaceName, manager);
-            manager.start();
+            try {
+                manager.start();
+                tablesSpaces.put(tableSpaceName, manager);
+            } catch (DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException | DDLException t) {
+                LOGGER.log(Level.SEVERE, "Error Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
+                LOGGER.log(Level.SEVERE, "Error", t);
+                try {
+                    manager.close();
+                } catch (Throwable t2) {
+                    LOGGER.log(Level.SEVERE, "Other Error", t2);
+                }
+                throw t;
+            }
         } else if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
             stopTableSpace(tableSpaceName);
         }
@@ -315,15 +326,15 @@ public class DBManager implements AutoCloseable {
         }
     }
 
-    private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {        
+    private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         try {
             int updateCount = 0;
             try {
                 while (result.hasNext()) {
-                    Tuple next = result.next();                    
+                    Tuple next = result.next();
                     context.setCurrentTuple(next);
                     try {
-                        DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context, transactionContext);                        
+                        DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context, transactionContext);
                         updateCount += executeUpdate.getUpdateCount();
                     } finally {
                         context.setCurrentTuple(null);
@@ -413,7 +424,7 @@ public class DBManager implements AutoCloseable {
         }
     }
 
-    public void checkpoint() throws LogNotAvailableException {
+    public void checkpoint() throws LogNotAvailableException, DataStorageManagerException {
         List<TableSpaceManager> managers;
         generalLock.readLock().lock();
         try {
@@ -554,5 +565,5 @@ public class DBManager implements AutoCloseable {
     public TableSpaceManager getTableSpaceManager(String tableSpace) {
         return tablesSpaces.get(tableSpace);
     }
-        
+
 }

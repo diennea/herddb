@@ -184,7 +184,7 @@ public class FileCommitLog extends CommitLog {
     public FileCommitLog(Path logDirectory, long maxLogFileSize) {
         this.maxLogFileSize = maxLogFileSize;
         this.logDirectory = logDirectory.toAbsolutePath();
-        LOGGER.log(Level.SEVERE, "logdirectory:{1},maxLogFileSize {2} bytes", new Object[]{logDirectory, maxLogFileSize});
+        LOGGER.log(Level.SEVERE, "logdirectory: {0}, maxLogFileSize {1} bytes", new Object[]{logDirectory, maxLogFileSize});
     }
 
     @Override

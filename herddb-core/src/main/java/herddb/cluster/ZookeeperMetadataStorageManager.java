@@ -124,17 +124,17 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
      * @return
      * @throws LogNotAvailableException
      */
-    public static LedgersInfo readActualLedgersListFromZookeeper(ZooKeeper zooKeeper, String ledgersPath) throws LogNotAvailableException {
+    public static LedgersInfo readActualLedgersListFromZookeeper(ZooKeeper zooKeeper, String ledgersPath, String tableSpace) throws LogNotAvailableException {
         while (zooKeeper.getState() != ZooKeeper.States.CLOSED) {
             try {
                 Stat stat = new Stat();
-                byte[] actualLedgers = zooKeeper.getData(ledgersPath, false, stat);
+                byte[] actualLedgers = zooKeeper.getData(ledgersPath+"/"+tableSpace, false, stat);
                 return LedgersInfo.deserialize(actualLedgers, stat.getVersion());
             } catch (KeeperException.NoNodeException firstboot) {
                 LOGGER.log(Level.SEVERE, "node " + ledgersPath + " not found");
                 return LedgersInfo.deserialize(null, -1); // -1 is a special ZK version
             } catch (KeeperException.ConnectionLossException error) {
-                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath, error);
+                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath+"/"+tableSpace, error);
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException err) {
@@ -142,7 +142,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                     throw new LogNotAvailableException(err);
                 }
             } catch (Exception error) {
-                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath, error);
+                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath+"/"+tableSpace, error);
                 throw new LogNotAvailableException(error);
             }
         }
@@ -150,7 +150,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     }
 
     public LedgersInfo getActualLedgersList(String tableSpace) throws LogNotAvailableException {
-        return readActualLedgersListFromZookeeper(zooKeeper, ledgersPath + "/" + tableSpace);
+        return readActualLedgersListFromZookeeper(zooKeeper, ledgersPath, tableSpace);
     }
 
     public void saveActualLedgersList(String tableSpace, LedgersInfo info) throws LogNotAvailableException {

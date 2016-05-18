@@ -19,6 +19,7 @@
  */
 package herddb.storage;
 
+import herddb.client.HDBConnection;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -41,7 +42,7 @@ public abstract class DataStorageManager {
      * @param pageId
      * @return
      */
-    public abstract List<Record> loadPage(String tableName, Long pageId) throws DataStorageManagerException;
+    public abstract List<Record> loadPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException;
 
     /**
      * Load the ful list of keys on a page
@@ -49,7 +50,7 @@ public abstract class DataStorageManager {
      * @param tableName
      * @param consumer
      */
-    public abstract void restore(String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException;
+    public abstract void restore(String tableSpace, String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException;
 
     /**
      * Write a page on disk
@@ -60,7 +61,7 @@ public abstract class DataStorageManager {
      * @return
      * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract Long writePage(String tableName, TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException;
+    public abstract Long writePage(String tableSpace, String tableName, TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException;
 
     /**
      * Return the actual number of pages presents on disk
@@ -69,7 +70,7 @@ public abstract class DataStorageManager {
      * @return
      * @throws DataStorageManagerException
      */
-    public abstract int getActualNumberOfPages(String tableName) throws DataStorageManagerException;
+    public abstract int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException;
 
     /**
      * Boots the Storage Manager
@@ -105,6 +106,12 @@ public abstract class DataStorageManager {
      */
     public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException;
 
-    public abstract LogSequenceNumber getLastcheckpointSequenceNumber() throws DataStorageManagerException;
+    public abstract void writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
+    public abstract LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException;
+
+    public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;
+
+    public abstract void downloadTable(String tableSpaceName, String table, HDBConnection con) throws DataStorageManagerException;
+        
 }

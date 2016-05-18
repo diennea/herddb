@@ -19,7 +19,14 @@
  */
 package herddb.core;
 
+import herddb.client.ClientConfiguration;
+import herddb.client.ClientSideMetadataProvider;
+import herddb.client.ClientSideMetadataProviderException;
+import herddb.client.HDBClient;
+import herddb.client.HDBConnection;
+import herddb.client.HDBException;
 import herddb.log.CommitLog;
+import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogEntryType;
@@ -31,6 +38,7 @@ import herddb.model.DDLException;
 import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.NodeMetadata;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -46,14 +54,17 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -100,7 +111,8 @@ public class TableSpaceManager {
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         recover(tableSpaceInfo);
 
-        actualLogSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber();
+        actualLogSequenceNumber = log.getActualSequenceNumber();
+        LOGGER.log(Level.SEVERE, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
 
         tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         if (tableSpaceInfo.leaderId.equals(nodeId)) {
@@ -110,8 +122,9 @@ public class TableSpaceManager {
         }
     }
 
-    void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException {
-        LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber();
+    void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+        LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceName);
+        LOGGER.log(Level.SEVERE, "recover, logSequenceNumber from DataStorage: " + logSequenceNumber);
         List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceName);
         LOGGER.log(Level.SEVERE, "tablesAtBoot", tablesAtBoot.stream().map(t -> {
             return t.name;
@@ -122,6 +135,22 @@ public class TableSpaceManager {
 
         LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
 
+        try {
+            log.recovery(logSequenceNumber, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                @Override
+                public void accept(LogSequenceNumber t, LogEntry u) {
+                    try {
+                        apply(t, u);
+                    } catch (Exception err) {
+                        throw new RuntimeException(err);
+                    }
+                }
+            }, false);
+            return;
+        } catch (FullRecoveryNeededException fullRecoveryNeeded) {
+            LOGGER.log(Level.SEVERE, "full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+        }
+        downloadTableSpaceData();
         log.recovery(logSequenceNumber, new BiConsumer<LogSequenceNumber, LogEntry>() {
             @Override
             public void accept(LogSequenceNumber t, LogEntry u) {
@@ -157,6 +186,8 @@ public class TableSpaceManager {
                 }
                 for (TableManager manager : managers) {
                     if (transaction.getNewTables().containsKey(manager.getTable().name)) {
+                        LOGGER.log(Level.SEVERE, "rollback CREATE TABLE " + manager.getTable().name);
+                        manager.dropTableData();
                         manager.close();
                         tables.remove(Bytes.from_string(manager.getTable().name));
                     } else {
@@ -179,6 +210,9 @@ public class TableSpaceManager {
                 for (TableManager manager : managers) {
                     manager.onTransactionCommit(transaction);
                 }
+                if (!transaction.getNewTables().isEmpty()) {
+                    writeTablesOnDataStorageManager();
+                }
                 transactions.remove(transaction.transactionId);
             }
             break;
@@ -190,8 +224,10 @@ public class TableSpaceManager {
                     transaction.registerNewTable(table);
                 }
                 bootTable(table);
+                if (entry.transactionId < 0) {
+                    writeTablesOnDataStorageManager();
+                }
             }
-            ;
             break;
         }
 
@@ -200,6 +236,14 @@ public class TableSpaceManager {
             tableManager.apply(entry);
         }
 
+    }
+
+    private void writeTablesOnDataStorageManager() throws DataStorageManagerException {
+        List<Table> tablelist = new ArrayList<>();
+        for (TableManager tableManager : tables.values()) {
+            tablelist.add(tableManager.getTable());
+        }
+        dataStorageManager.writeTables(tableSpaceName, actualLogSequenceNumber, tablelist);
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
@@ -219,6 +263,48 @@ public class TableSpaceManager {
             throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
         }
         return manager.scan(statement, context, transaction);
+    }
+
+    private void downloadTableSpaceData() throws MetadataStorageManagerException, DataStorageManagerException {
+        TableSpace tableSpaceData = metadataStorageManager.describeTableSpace(tableSpaceName);
+        String leaderId = tableSpaceData.leaderId;
+        if (this.nodeId.equals(leaderId)) {
+            throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from myself");
+        }
+        Optional<NodeMetadata> leaderAddress = metadataStorageManager.listNodes().stream().filter(n -> n.nodeId.equals(leaderId)).findAny();
+        if (!leaderAddress.isPresent()) {
+            throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
+        }
+        NodeMetadata nodeData = leaderAddress.get();
+        try (HDBClient client = new HDBClient(new ClientConfiguration());) {
+            client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
+                @Override
+                public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
+                    return leaderId;
+                }
+
+                @Override
+                public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException {
+                    return new ServerHostData(leaderId, nodeData.port, nodeData.host, nodeData.ssl, Collections.emptyMap());
+                }
+            });
+            try (HDBConnection con = client.openConnection()) {
+                List<String> tables = con.listTables(tableSpaceName);
+                LOGGER.log(Level.SEVERE, "discovered tables " + tables + " on " + tableSpaceName + " from server " + leaderId);
+                for (String table : tables) {
+                    downloadTabledata(table, con);
+                }
+            } catch (ClientSideMetadataProviderException | HDBException networkError) {
+                throw new DataStorageManagerException(networkError);
+            }
+
+        }
+
+    }
+
+    private void downloadTabledata(String table, HDBConnection con) throws DataStorageManagerException {
+        dataStorageManager.dropTable(tableSpaceName, table);
+        dataStorageManager.downloadTable(tableSpaceName, table, con);
     }
 
     private class FollowerThread implements Runnable {
@@ -379,7 +465,7 @@ public class TableSpaceManager {
         }
     }
 
-    void checkpoint() throws LogNotAvailableException {
+    void checkpoint() throws LogNotAvailableException, DataStorageManagerException {
         log.checkpoint();
     }
 
