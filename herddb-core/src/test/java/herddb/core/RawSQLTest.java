@@ -1149,4 +1149,31 @@ public class RawSQLTest {
 
         }
     }
+
+    @Test
+    public void andOrTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string, t1 timestamp)", Collections.emptyList());
+
+            
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1), "a")).getUpdateCount());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=2 and n1=1",Collections.emptyList()).consume().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 and n1=2",Collections.emptyList()).consume().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=3 and n1=2",Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 and n1=1",Collections.emptyList()).consume().size());
+            
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=2 or n1=1",Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=2",Collections.emptyList()).consume().size());
+            assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=3 or n1=2",Collections.emptyList()).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=1",Collections.emptyList()).consume().size());
+            
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE not (n1=2) or n1=3",Collections.emptyList()).consume().size());
+        }
+    }
 }

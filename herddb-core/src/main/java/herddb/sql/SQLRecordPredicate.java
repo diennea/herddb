@@ -175,6 +175,35 @@ public class SQLRecordPredicate extends Predicate {
         if (expression instanceof JdbcParameter) {
             return state.parameters.get(state.parameterPos++);
         }
+        if (expression instanceof AndExpression) {
+            AndExpression a = (AndExpression) expression;
+
+            if (!toBoolean(evaluateExpression(a.getLeftExpression(), bean, state))) {
+                return a.isNot();
+            }
+            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
+        }
+        if (expression instanceof OrExpression) {
+            OrExpression a = (OrExpression) expression;
+            if (toBoolean(evaluateExpression(a.getLeftExpression(), bean, state))) {
+                return !a.isNot();
+            }
+            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
+        }
+        if (expression instanceof net.sf.jsqlparser.schema.Column) {
+            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
+            if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
+            }
+            return bean.get(c.getColumnName().toLowerCase());
+        }
+        if (expression instanceof Parenthesis) {
+            Parenthesis p = (Parenthesis) expression;
+            return handleNot(p.isNot(), evaluateExpression(p.getExpression(), bean, state));
+        }
+        if (expression instanceof StringValue) {
+            return ((StringValue) expression).getValue();
+        }
         if (expression instanceof EqualsTo) {
             EqualsTo e = (EqualsTo) expression;
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
@@ -227,37 +256,9 @@ public class SQLRecordPredicate extends Predicate {
                     && (objectEquals(left, start)
                     || objectEquals(left, end)
                     || (greaterThan(left, start) && minorThan(left, end))) // check value in range
-            );                        
+            );
         }
-        if (expression instanceof AndExpression) {
-            AndExpression a = (AndExpression) expression;
 
-            if (!toBoolean(evaluateExpression(a.getLeftExpression(), bean, state))) {
-                return !a.isNot();
-            }
-            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
-        }
-        if (expression instanceof OrExpression) {
-            OrExpression a = (OrExpression) expression;
-            if (toBoolean(evaluateExpression(a.getLeftExpression(), bean, state))) {
-                return !a.isNot();
-            }
-            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), bean, state)));
-        }
-        if (expression instanceof net.sf.jsqlparser.schema.Column) {
-            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-            if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
-                throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
-            }
-            return bean.get(c.getColumnName().toLowerCase());
-        }
-        if (expression instanceof Parenthesis) {
-            Parenthesis p = (Parenthesis) expression;
-            return handleNot(p.isNot(), evaluateExpression(p.getExpression(), bean, state));
-        }
-        if (expression instanceof StringValue) {
-            return ((StringValue) expression).getValue();
-        }
         if (expression instanceof SignedExpression) {
             SignedExpression s = (SignedExpression) expression;
             Object evaluated = evaluateExpression(s.getExpression(), bean, state);
