@@ -21,6 +21,7 @@ package herddb.model;
 
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
+import java.lang.ref.SoftReference;
 import java.util.Map;
 
 /**
@@ -32,7 +33,7 @@ public class Record {
 
     public final Bytes key;
     public final Bytes value;
-    public Map<String, Object> bean;
+    private SoftReference<Map<String, Object>> cache;
 
     public Record(Bytes key, Bytes value) {
         this.key = key;
@@ -40,10 +41,12 @@ public class Record {
     }
 
     public synchronized Map<String, Object> toBean(Table table) {
-        if (bean == null) {
-            bean = RecordSerializer.toBean(this, table);
+        Map<String, Object> cached = cache != null ? cache.get() : null;
+        if (cached == null) {
+            cached = RecordSerializer.toBean(this, table);
+            cache = new SoftReference<>(cached);
         }
-        return bean;
+        return cached;
     }
 
     @Override

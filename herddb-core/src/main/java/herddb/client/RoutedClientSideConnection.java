@@ -224,6 +224,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         try {
             String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
             Message message = Message.OPEN_SCANNER(clientId, query, scannerId, tx, params, fetchSize, maxRows);
+            LOGGER.log(Level.SEVERE, "open scanner" + scannerId + " for query " + query + ", params " + params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 throw new HDBException(reply + "");

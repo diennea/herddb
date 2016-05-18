@@ -188,13 +188,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
-//                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
-                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
+                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
                         scanners.put(scannerId, scanner);
+                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
                     }
                 } catch (StatementExecutionException | DataScannerException err) {
+                    LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
                     scanners.remove(scannerId);
                     _channel.sendReplyMessage(message, Message.ERROR(null, err));
                 }
@@ -233,6 +234,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             case Message.TYPE_CLOSESCANNER: {
                 String scannerId = (String) message.parameters.get("scannerId");
+                LOGGER.log(Level.SEVERE, "remove scanner " + scannerId);
                 ServerSideScannerPeer removed = scanners.remove(scannerId);
                 if (removed != null) {
                     removed.clientClose();
@@ -270,6 +272,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
         }
         openTransactions.clear();
+        LOGGER.log(Level.SEVERE, "closing scanners " + scanners.keySet());
         scanners.values().forEach(s -> s.close());
         scanners.clear();
     }
