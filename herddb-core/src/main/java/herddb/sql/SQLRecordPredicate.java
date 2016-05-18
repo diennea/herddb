@@ -320,8 +320,7 @@ public class SQLRecordPredicate extends Predicate {
                         if (t.fieldNames.length > 1) {
                             throw new StatementExecutionException("subquery returned more than one column");
                         }
-                        Object tuple_value = t.get(0);
-                        LOGGER.log(Level.SEVERE, "comparing " + value + " with subquery result " + tuple_value);
+                        Object tuple_value = t.get(0);                        
                         if (objectEquals(value, tuple_value)) {
                             return true;
                         }

@@ -86,11 +86,11 @@ public class StatementEvaluationContext {
         if (cached != null) {
             return cached;
         }
-        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
+//        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
         TranslatedQuery translated = manager.getTranslator().translate(subquery, Collections.emptyList(), true, true);
         try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext);) {
             List<Tuple> fullResult = result.dataScanner.consume();
-            LOGGER.log(Level.SEVERE, "executing subquery " + subquery+" -> "+fullResult);
+//            LOGGER.log(Level.SEVERE, "executing subquery " + subquery+" -> "+fullResult);
             subqueryCache.put(subquery, fullResult);
             return fullResult;
         } catch (DataScannerException error) {

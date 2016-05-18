@@ -36,6 +36,7 @@ import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A real connection to a server
@@ -212,6 +213,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
+    private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
+
     ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows) throws HDBException {
         ensureOpen();
         Channel _channel = channel;
@@ -219,7 +222,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            String scannerId = UUID.randomUUID().toString();
+            String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
             Message message = Message.OPEN_SCANNER(clientId, query, scannerId, tx, params, fetchSize, maxRows);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
@@ -227,7 +230,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             }
             List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
             List<String> columnNames = (List<String>) reply.parameters.get("columns");
-            LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
+            //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
             ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer);
             ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, impl);
             scanners.put(scannerId, scanner);
@@ -286,7 +289,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             }
             try {
                 Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(clientId, scannerId, fetchSize), 10000);
-                LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
+                //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
                 if (result.type == Message.TYPE_ERROR) {
                     throw new HDBException("server side scanner error: " + result.parameters);
                 }
