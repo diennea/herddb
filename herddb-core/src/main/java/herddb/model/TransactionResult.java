@@ -27,13 +27,30 @@ package herddb.model;
 public class TransactionResult extends StatementExecutionResult {
 
     private final long transactionId;
+    private final OutcomeType outcome;
 
-    public TransactionResult(long transactionId) {
+    public static enum OutcomeType {
+        BEGIN,
+        COMMIT,
+        ROLLBACK
+    }
+
+    public TransactionResult(long transactionId, OutcomeType outcome) {
         this.transactionId = transactionId;
+        this.outcome = outcome;
     }
 
     public long getTransactionId() {
         return transactionId;
+    }
+
+    public OutcomeType getOutcome() {
+        return outcome;
+    }
+
+    @Override
+    public String toString() {
+        return "TransactionResult{" + "transactionId=" + transactionId + ", outcome=" + outcome + '}';
     }
 
 }

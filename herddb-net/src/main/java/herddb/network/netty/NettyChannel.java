@@ -258,7 +258,12 @@ public class NettyChannel extends Channel {
         try {
             callbackexecutor.submit(runnable);
         } catch (RejectedExecutionException stopped) {
-            LOGGER.log(Level.SEVERE, this + " rejected runnable " + runnable, stopped);
+            LOGGER.log(Level.SEVERE, this + " rejected runnable " + runnable + ":" + stopped);
+            try {
+                runnable.run();
+            } catch (Throwable error) {
+                LOGGER.log(Level.SEVERE, this + " error on rejected runnable " + runnable + ":" + error);
+            }
         }
     }
 

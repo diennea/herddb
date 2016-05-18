@@ -554,4 +554,5 @@ public class DBManager implements AutoCloseable {
     public TableSpaceManager getTableSpaceManager(String tableSpace) {
         return tablesSpaces.get(tableSpace);
     }
+        
 }

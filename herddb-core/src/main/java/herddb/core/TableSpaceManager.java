@@ -50,6 +50,8 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -283,7 +285,7 @@ public class TableSpaceManager {
     private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
     StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        Transaction transaction = transactions.get(transactionContext.transactionId);                
+        Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
@@ -393,7 +395,7 @@ public class TableSpaceManager {
             throw new StatementExecutionException(err);
         }
 
-        return new TransactionResult(id);
+        return new TransactionResult(id, TransactionResult.OutcomeType.BEGIN);
     }
 
     private StatementExecutionResult rollbackTransaction(RollbackTransactionStatement rollbackTransactionStatement) throws StatementExecutionException {
@@ -410,7 +412,7 @@ public class TableSpaceManager {
             throw new StatementExecutionException(err);
         }
 
-        return new TransactionResult(tx.transactionId);
+        return new TransactionResult(tx.transactionId, TransactionResult.OutcomeType.ROLLBACK);
     }
 
     private StatementExecutionResult commitTransaction(CommitTransactionStatement commitTransactionStatement) throws StatementExecutionException {
@@ -427,7 +429,7 @@ public class TableSpaceManager {
             throw new StatementExecutionException(err);
         }
 
-        return new TransactionResult(tx.transactionId);
+        return new TransactionResult(tx.transactionId, TransactionResult.OutcomeType.COMMIT);
     }
 
     public boolean isLeader() {
@@ -440,6 +442,10 @@ public class TableSpaceManager {
 
     public TableManager getTableManager(String tableName) {
         return tables.get(Bytes.from_string(tableName));
+    }
+
+    public Collection<Long> getOpenTransactions() {
+        return new HashSet<>(this.transactions.keySet());
     }
 
 }

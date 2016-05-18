@@ -30,6 +30,7 @@ import herddb.model.GetResult;
 import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.Statement;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
@@ -37,6 +38,7 @@ import herddb.model.TableAwareStatement;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
+import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
@@ -47,7 +49,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -65,6 +69,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     private final Channel channel;
     private final Server server;
     private final Map<String, ServerSideScannerPeer> scanners = new ConcurrentHashMap<>();
+    private final Map<String, Set<Long>> openTransactions = new ConcurrentHashMap<>();
 
     public ServerSideConnectionPeer(Channel channel, Server server) {
         this.channel = channel;
@@ -116,6 +121,21 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     } else if (result instanceof TransactionResult) {
                         TransactionResult txresult = (TransactionResult) result;
                         Map<String, Object> data = new HashMap<>();
+                        Set<Long> transactionsForTableSpace = openTransactions.get(statement.getTableSpace());
+                        if (transactionsForTableSpace == null) {
+                            transactionsForTableSpace = new ConcurrentSkipListSet<>();
+                            openTransactions.put(statement.getTableSpace(), transactionsForTableSpace);
+                        }
+                        switch (txresult.getOutcome()) {
+                            case BEGIN: {
+                                transactionsForTableSpace.add(txresult.getTransactionId());
+                                break;
+                            }
+                            case COMMIT:
+                            case ROLLBACK:
+                                transactionsForTableSpace.remove(txresult.getTransactionId());
+                                break;
+                        }
                         data.put("tx", txresult.getTransactionId());
                         _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data));
                     } else if (result instanceof DDLStatementExecutionResult) {
@@ -227,7 +247,26 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void channelClosed() {
+        LOGGER.log(Level.SEVERE, "channelClosed {0}", this);
+        rollbackOpentransactions();
         this.server.connectionClosed(this);
+    }
+
+    private void rollbackOpentransactions() {
+        for (Map.Entry<String, Set<Long>> openTransaction : openTransactions.entrySet()) {
+            String tableSpace = openTransaction.getKey();
+            for (Long tx : openTransaction.getValue()) {
+                try {
+                    LOGGER.log(Level.SEVERE, "rolling back trasaction tx=" + tx + " on tablespace " + tableSpace);
+                    RollbackTransactionStatement statement = new RollbackTransactionStatement(tableSpace, tx);
+                    StatementExecutionResult result = server.getManager().executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    LOGGER.log(Level.SEVERE, "rollback outcome trasaction tx=" + tx + " on tablespace " + tableSpace + ": " + result);
+                } catch (Throwable t) {
+                    LOGGER.log(Level.SEVERE, "error while rolling back trasaction tx=" + tx + " on tablespace " + tableSpace + " :" + t, t);
+                }
+            }
+        }
+        openTransactions.clear();
     }
 
 }
