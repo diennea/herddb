@@ -74,7 +74,11 @@ public class SQLRecordKeyFunction extends RecordFunction {
             Expression expression = expressions.get(i);
             Object value;
             if (expression instanceof JdbcParameter) {
-                value = statementEvaluationContext.jdbcParameters.get(paramIndex++);
+                try {
+                    value = statementEvaluationContext.jdbcParameters.get(paramIndex++);
+                } catch (IndexOutOfBoundsException missingParam) {
+                    throw new StatementExecutionException("missing JDBC parameter");
+                }
             } else if (expression instanceof LongValue) {
                 value = ((LongValue) expression).getValue();
             } else if (expression instanceof TimestampValue) {
