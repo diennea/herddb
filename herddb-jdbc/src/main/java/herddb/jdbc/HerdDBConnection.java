@@ -56,19 +56,14 @@ import javax.sql.rowset.serial.SerialClob;
  */
 public class HerdDBConnection implements java.sql.Connection {
 
-    private final HDBClient client;
     private final HDBConnection connection;
     private long transactionId;
     private boolean autocommit = true;
     private String tableSpace;
 
-    public HerdDBConnection(HDBClient client) throws SQLException {
-        if (client == null) {
-            throw new SQLException("client not started");
-        }
-        this.client = client;
+    public HerdDBConnection(HDBConnection connection) throws SQLException {
         this.tableSpace = TableSpace.DEFAULT;
-        this.connection = client.openConnection();
+        this.connection = connection;
     }
 
     long ensureTransaction() throws SQLException {
@@ -84,10 +79,6 @@ public class HerdDBConnection implements java.sql.Connection {
 
     public long getTransactionId() {
         return transactionId;
-    }
-
-    public HDBClient getClient() {
-        return client;
     }
 
     public String getTableSpace() {
@@ -147,8 +138,7 @@ public class HerdDBConnection implements java.sql.Connection {
         if (transactionId <= 0) {
             // no transaction actually started, nothing to commit
             return;
-        }
-        new Exception("tx " + transactionId).printStackTrace(System.out);
+        }        
         try {
             connection.commitTransaction(tableSpace, transactionId);
         } catch (ClientSideMetadataProviderException | HDBException err) {
@@ -181,7 +171,6 @@ public class HerdDBConnection implements java.sql.Connection {
         if (transactionId > 0) {
             rollback();
         }
-        connection.close();
     }
 
     @Override

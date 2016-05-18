@@ -20,6 +20,7 @@
 package herddb.jdbc;
 
 import herddb.client.HDBClient;
+import herddb.client.HDBConnection;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -34,6 +35,7 @@ import java.util.logging.Logger;
 public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     protected HDBClient client;
+    protected HDBConnection connection;
 
     protected HerdDBDataSource() {
     }
@@ -43,6 +45,7 @@ public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     }
 
     protected void init() throws SQLException {
+        this.connection = client.openConnection();
     }
 
     public HDBClient getClient() {
@@ -61,7 +64,7 @@ public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
         init();
-        return new HerdDBConnection(client);
+        return new HerdDBConnection(connection);
     }
 
     private PrintWriter logWriter;
@@ -103,5 +106,8 @@ public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     @Override
     public void close() {
+        if (connection != null) {
+            connection.close();
+        }
     }
 }

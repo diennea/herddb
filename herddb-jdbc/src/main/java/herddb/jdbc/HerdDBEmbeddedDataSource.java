@@ -74,6 +74,7 @@ public class HerdDBEmbeddedDataSource extends HerdDBDataSource {
             client = new HDBClient(clientConfiguration);
             client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
         }
+        super.init();
     }
 
     @Override
