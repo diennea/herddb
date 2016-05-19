@@ -76,7 +76,7 @@ import java.util.stream.Collectors;
  *
  * @author enrico.olivelli
  */
-public class TableManager {
+public class TableManager implements AbstractTableManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
@@ -205,10 +205,12 @@ public class TableManager {
         return tableContext;
     }
 
+    @Override
     public Table getTable() {
         return table;
     }
 
+    @Override
     public void start() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
         pagesLock.writeLock().lock();
@@ -226,7 +228,8 @@ public class TableManager {
         LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}", new Object[]{keyToPage.size(), table.name});
     }
 
-    StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
+    @Override
+    public StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
         pagesLock.readLock().lock();
         try {
             if (statement instanceof UpdateStatement) {
@@ -527,7 +530,8 @@ public class TableManager {
         }
     }
 
-    void onTransactionCommit(Transaction transaction) throws DataStorageManagerException {
+    @Override
+    public void onTransactionCommit(Transaction transaction) throws DataStorageManagerException {
         List<Record> changedRecords = transaction.changedRecords.get(table.name);
         // transaction is still holding locks on each record, so we can change records
         if (changedRecords != null) {
@@ -550,11 +554,13 @@ public class TableManager {
         transaction.releaseLocksOnTable(table.name, locksManager);
     }
 
-    void onTransactionRollback(Transaction transaction) {
+    @Override
+    public void onTransactionRollback(Transaction transaction) {
         transaction.releaseLocksOnTable(table.name, locksManager);
     }
 
-    void apply(LogEntry entry) throws DataStorageManagerException {
+    @Override
+    public void apply(LogEntry entry) throws DataStorageManagerException {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
@@ -620,11 +626,13 @@ public class TableManager {
 
     }
 
-    void dropTableData() throws DataStorageManagerException {
+    @Override
+    public void dropTableData() throws DataStorageManagerException {
         dataStorageManager.dropTable(table.tablespace, table.name);
     }
 
-    void dump(Consumer<Record> records) throws DataStorageManagerException {
+    @Override
+    public void dump(Consumer<Record> records) throws DataStorageManagerException {
         pagesLock.readLock().lock();
         try {
             for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
@@ -697,8 +705,7 @@ public class TableManager {
         }
     }
 
-    void close() {
-        // TODO
+    public void close() {
     }
 
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
@@ -780,7 +787,8 @@ public class TableManager {
         }
     }
 
-    void checkpoint() throws DataStorageManagerException {
+    @Override
+    public void checkpoint() throws DataStorageManagerException {
         pagesLock.writeLock().lock();
         LogSequenceNumber sequenceNumber = log.getActualSequenceNumber();
         TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data);
@@ -837,7 +845,8 @@ public class TableManager {
         }
     }
 
-    DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+    @Override
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
 
         Predicate predicate = statement.getPredicate();
 
@@ -953,12 +962,20 @@ public class TableManager {
 
     };
 
+    @Override
     public TableManagerStats getStats() {
         return stats;
     }
 
+    @Override
     public long getNextPrimaryKeyValue() {
         return nextPrimaryKeyValue.get();
     }
 
+    @Override
+    public boolean isSystemTable() {
+        return false;
+    }
+
+    
 }

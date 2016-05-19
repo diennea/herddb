@@ -26,6 +26,8 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.TableSpaceDumpReceiver;
+import herddb.core.system.SyscolumnsTableManager;
+import herddb.core.system.SystablesTableManager;
 import herddb.log.CommitLog;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
@@ -97,7 +99,7 @@ public class TableSpaceManager {
     private final CommitLog log;
     private final String tableSpaceName;
     private final String nodeId;
-    private final Map<Bytes, TableManager> tables = new ConcurrentHashMap<>();
+    private final Map<String, AbstractTableManager> tables = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager manager;
@@ -115,9 +117,21 @@ public class TableSpaceManager {
         this.tableSpaceName = tableSpaceName;
     }
 
+    private void bootSystemTables() {
+        registerSystemTableManager(new SystablesTableManager(this));
+        registerSystemTableManager(new SyscolumnsTableManager(this));
+    }
+
+    private void registerSystemTableManager(AbstractTableManager tableManager) {
+        tables.put(tableManager.getTable().name, tableManager);
+    }
+
     void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
 
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
+
+        bootSystemTables();
+
         recover(tableSpaceInfo);
 
         LOGGER.log(Level.SEVERE, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
@@ -186,19 +200,19 @@ public class TableSpaceManager {
             case LogEntryType.ROLLBACKTRANSACTION: {
                 long id = entry.transactionId;
                 Transaction transaction = transactions.get(id);
-                List<TableManager> managers;
+                List<AbstractTableManager> managers;
                 try {
                     generalLock.writeLock().lock();
                     managers = new ArrayList<>(tables.values());
                 } finally {
                     generalLock.writeLock().unlock();
                 }
-                for (TableManager manager : managers) {
+                for (AbstractTableManager manager : managers) {
                     if (transaction.getNewTables().containsKey(manager.getTable().name)) {
                         LOGGER.log(Level.SEVERE, "rollback CREATE TABLE " + manager.getTable().name);
                         manager.dropTableData();
                         manager.close();
-                        tables.remove(Bytes.from_string(manager.getTable().name));
+                        tables.remove(manager.getTable().name);
                     } else {
                         manager.onTransactionRollback(transaction);
                     }
@@ -209,14 +223,14 @@ public class TableSpaceManager {
             case LogEntryType.COMMITTRANSACTION: {
                 long id = entry.transactionId;
                 Transaction transaction = transactions.get(id);
-                List<TableManager> managers;
+                List<AbstractTableManager> managers;
                 try {
                     generalLock.writeLock().lock();
                     managers = new ArrayList<>(tables.values());
                 } finally {
                     generalLock.writeLock().unlock();
                 }
-                for (TableManager manager : managers) {
+                for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction);
                 }
                 if (!transaction.getNewTables().isEmpty()) {
@@ -241,7 +255,7 @@ public class TableSpaceManager {
         }
 
         if (entry.tableName != null) {
-            TableManager tableManager = tables.get(new Bytes(entry.tableName));
+            AbstractTableManager tableManager = tables.get(Bytes.to_string(entry.tableName));
             tableManager.apply(entry);
         }
 
@@ -249,8 +263,10 @@ public class TableSpaceManager {
 
     private void writeTablesOnDataStorageManager() throws DataStorageManagerException {
         List<Table> tablelist = new ArrayList<>();
-        for (TableManager tableManager : tables.values()) {
-            tablelist.add(tableManager.getTable());
+        for (AbstractTableManager tableManager : tables.values()) {
+            if (!tableManager.isSystemTable()) {
+                tablelist.add(tableManager.getTable());
+            }
         }
         dataStorageManager.writeTables(tableSpaceName, actualLogSequenceNumber, tablelist);
     }
@@ -261,10 +277,10 @@ public class TableSpaceManager {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
         String table = statement.getTable();
-        TableManager manager;
+        AbstractTableManager manager;
         generalLock.readLock().lock();
         try {
-            manager = tables.get(Bytes.from_string(table));
+            manager = tables.get(table);
         } finally {
             generalLock.readLock().unlock();
         }
@@ -310,15 +326,24 @@ public class TableSpaceManager {
                     throw new DataStorageManagerException("Error while receiving dump: " + receiver.getError(), receiver.getError());
                 }
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
-                LOGGER.log(Level.SEVERE,"After download local actualLogSequenceNumber is "+actualLogSequenceNumber);
+                LOGGER.log(Level.SEVERE, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
                 checkpoint();
-                
+
             } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
                 throw new DataStorageManagerException(networkError);
             }
 
         }
 
+    }
+
+    public List<Table> getAllTables() {
+        generalLock.readLock().lock();
+        try {
+            return tables.values().stream().map(AbstractTableManager::getTable).collect(Collectors.toList());
+        } finally {
+            generalLock.readLock().unlock();
+        }
     }
 
     private class DumpReceiver extends TableSpaceDumpReceiver {
@@ -396,7 +421,10 @@ public class TableSpaceManager {
             startData.put("offset", actualLogSequenceNumber.offset);
             _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, startData), timeout);
 
-            for (TableManager tableManager : tables.values()) {
+            for (AbstractTableManager tableManager : tables.values()) {
+                if (tableManager.isSystemTable()) {
+                    continue;
+                }
                 Table table = tableManager.getTable();
                 byte[] serialized = table.serialize();
                 Map<String, Object> beginTableData = new HashMap<>();
@@ -544,10 +572,10 @@ public class TableSpaceManager {
         if (statement instanceof TableAwareStatement) {
             TableAwareStatement st = (TableAwareStatement) statement;
             String table = st.getTable();
-            TableManager manager;
+            AbstractTableManager manager;
             generalLock.readLock().lock();
             try {
-                manager = tables.get(Bytes.from_string(table));
+                manager = tables.get(table);
             } finally {
                 generalLock.readLock().unlock();
             }
@@ -585,7 +613,7 @@ public class TableSpaceManager {
     private TableManager bootTable(Table table) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
-        tables.put(Bytes.from_string(table.name), tableManager);
+        tables.put(table.name, tableManager);
         tableManager.start();
         return tableManager;
     }
@@ -594,7 +622,7 @@ public class TableSpaceManager {
         closed = true;
         try {
             generalLock.writeLock().lock();
-            for (TableManager table : tables.values()) {
+            for (AbstractTableManager table : tables.values()) {
                 table.close();
             }
             log.close();
@@ -610,8 +638,10 @@ public class TableSpaceManager {
             LOGGER.log(Level.SEVERE, nodeId + " checkpoint at " + actualLogSequenceNumber);
 
             // we checkpoint all data to disk and save the actual log sequence number            
-            for (TableManager tableManager : tables.values()) {
-                tableManager.checkpoint();
+            for (AbstractTableManager tableManager : tables.values()) {
+                if (!tableManager.isSystemTable()) {
+                    tableManager.checkpoint();
+                }
             }
             writeTablesOnDataStorageManager();
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceName, actualLogSequenceNumber);
@@ -680,8 +710,8 @@ public class TableSpaceManager {
         return transactions.get(transactionId);
     }
 
-    public TableManager getTableManager(String tableName) {
-        return tables.get(Bytes.from_string(tableName));
+    public AbstractTableManager getTableManager(String tableName) {
+        return tables.get(tableName);
     }
 
     public Collection<Long> getOpenTransactions() {

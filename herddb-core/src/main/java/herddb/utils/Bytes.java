@@ -73,6 +73,9 @@ public final class Bytes implements Comparable<Bytes> {
     public String to_string() {
         return new String(data, StandardCharsets.UTF_8);
     }
+    public static String to_string(byte[] data) {
+        return new String(data, StandardCharsets.UTF_8);
+    }
 
     public java.sql.Timestamp to_timestamp() {
         return toTimestamp(data, 0, 8);

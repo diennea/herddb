@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import herddb.core.AbstractTableManager;
 import herddb.model.CurrentTupleKeySeek;
 import herddb.core.DBManager;
 import herddb.core.TableManager;
@@ -242,7 +243,7 @@ public class SQLTranslator {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
         }
-        TableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
@@ -331,7 +332,7 @@ public class SQLTranslator {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
         }
-        TableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
@@ -368,7 +369,7 @@ public class SQLTranslator {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
         }
-        TableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }
@@ -569,7 +570,7 @@ public class SQLTranslator {
         if (tableSpaceManager == null) {
             throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
         }
-        TableManager tableManager = tableSpaceManager.getTableManager(tableName);
+        AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
             throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
         }

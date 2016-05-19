@@ -434,7 +434,7 @@ public class DBManager implements AutoCloseable {
         } finally {
             generalLock.readLock().unlock();
         }
-        for (TableSpaceManager man : managers) {
+        for (TableSpaceManager man : managers) {            
             man.checkpoint();
         }
     }

@@ -31,5 +31,22 @@ public class ColumnTypes {
     public static final int INTEGER = 2;
     public static final int BYTEARRAY = 3;
     public static final int TIMESTAMP = 4;
-    
+
+    public static String typeToString(int type) {
+        switch (type) {
+            case STRING:
+                return "string";
+            case LONG:
+                return "long";
+            case INTEGER:
+                return "integer";
+            case BYTEARRAY:
+                return "bytearray";
+            case TIMESTAMP:
+                return "timestamp";
+            default:
+                return "type?" + type;
+        }
+    }
+
 }

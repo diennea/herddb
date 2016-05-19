@@ -48,7 +48,7 @@ public class MaterializedRecordSet {
         this.columns = columns;
     }
 
-    void sort(TupleComparator comparator) {
+    public void sort(TupleComparator comparator) {
         if (comparator != null) {
             records.sort(comparator);
         }
@@ -62,7 +62,7 @@ public class MaterializedRecordSet {
         return result;
     }
 
-    void applyLimits(ScanLimits limits) {
+    public void applyLimits(ScanLimits limits) {
         if (limits == null) {
             return;
         }

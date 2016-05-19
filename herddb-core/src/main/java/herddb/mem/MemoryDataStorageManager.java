@@ -138,7 +138,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
         tables.forEach((t) -> {
             if (!t.tablespace.equals(tableSpace)) {
-                throw new IllegalArgumentException("illegal tablespace");
+                throw new IllegalArgumentException("illegal tablespace " + t.tablespace + " for " + t.name + " <> " + tableSpace);
             }
         });
         List<Table> res = tablesByTablespace.get(tableSpace);
