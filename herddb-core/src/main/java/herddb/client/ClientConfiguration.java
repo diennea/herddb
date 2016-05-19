@@ -37,6 +37,21 @@ public class ClientConfiguration {
     public static final long PROPERTY_TIMEOUT_DEFAULT = 1000L * 60 * 5;
     public static final String PROPERTY_CLIENTID_DEFAULT = "localhost";
 
+    public static final String PROPERTY_MODE = "client.mode";
+
+    public static final String PROPERTY_MODE_LOCAL = "local";
+    public static final String PROPERTY_MODE_STANDALONE = "standalone";
+    public static final String PROPERTY_MODE_CLUSTER = "cluster";
+
+    public static final String PROPERTY_ZOOKEEPER_ADDRESS = "client.zookeeper.address";
+    public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "client.zookeeper.sessiontimeout";
+    public static final String PROPERTY_ZOOKEEPER_PATH = "client.zookeeper.path";
+    
+    public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
+    public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
+    public static final int PROPERTY_PORT_DEFAULT = 7000;
+    public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
+
     public ClientConfiguration(Properties properties) {
         this.properties = properties;
     }
@@ -52,31 +67,34 @@ public class ClientConfiguration {
 
     public int getInt(String key, int defaultValue) {
         final String value = this.properties.getProperty(key);
-        
-        if ( value == null || value.isEmpty() )
+
+        if (value == null || value.isEmpty()) {
             return defaultValue;
-        
+        }
+
         return Integer.parseInt(value);
     }
 
     public boolean getBoolean(String key, boolean defaultValue) {
         final String value = this.properties.getProperty(key);
-        
-        if ( value == null || value.isEmpty() )
+
+        if (value == null || value.isEmpty()) {
             return defaultValue;
-        
+        }
+
         return Boolean.parseBoolean(value);
     }
-    
+
     public long getLong(String key, long defaultValue) {
         final String value = this.properties.getProperty(key);
-        
-        if ( value == null || value.isEmpty() )
+
+        if (value == null || value.isEmpty()) {
             return defaultValue;
-        
+        }
+
         return Long.parseLong(value);
     }
-    
+
     public String getString(String key, String defaultValue) {
         return this.properties.getProperty(key, defaultValue);
     }

@@ -278,7 +278,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
 
-    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException {
+    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException {        
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {

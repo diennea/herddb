@@ -26,7 +26,7 @@ import herddb.network.ServerHostData;
  *
  * @author enrico.olivelli
  */
-public interface ClientSideMetadataProvider {
+public interface ClientSideMetadataProvider extends AutoCloseable {
 
     /**
      * Returns the actual leader for the given tableSpace
@@ -39,9 +39,14 @@ public interface ClientSideMetadataProvider {
 
     /**
      * Returns the actual address of a node
+     *
      * @param nodeId
      * @return
      * @throws ClientSideMetadataProviderException
      */
     public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException;
+
+    @Override
+    public default void close() {
+    }
 }

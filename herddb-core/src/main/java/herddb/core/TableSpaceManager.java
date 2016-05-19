@@ -636,7 +636,9 @@ public class TableSpaceManager {
         try {
 
             LOGGER.log(Level.SEVERE, nodeId + " checkpoint at " + actualLogSequenceNumber);
-
+            if (actualLogSequenceNumber == null) {
+                throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
+            }
             // we checkpoint all data to disk and save the actual log sequence number            
             for (AbstractTableManager tableManager : tables.values()) {
                 if (!tableManager.isSystemTable()) {

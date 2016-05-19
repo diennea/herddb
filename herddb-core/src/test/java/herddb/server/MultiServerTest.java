@@ -114,6 +114,7 @@ public class MultiServerTest {
                     if (found.found()) {
                         break;
                     }
+                    Thread.sleep(100);
                 }
                 assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null),
                         StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
@@ -169,6 +170,7 @@ public class MultiServerTest {
                 if (found.found()) {
                     break;
                 }
+                Thread.sleep(100);
             }
             assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
         }
@@ -238,6 +240,7 @@ public class MultiServerTest {
                     if (found.found()) {
                         break;
                     }
+                    Thread.sleep(100);
                 }
                 assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
             }

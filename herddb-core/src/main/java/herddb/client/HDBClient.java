@@ -19,6 +19,9 @@
  */
 package herddb.client;
 
+import static herddb.client.ClientConfiguration.PROPERTY_MODE;
+import static herddb.client.ClientConfiguration.PROPERTY_MODE_LOCAL;
+import herddb.server.LoopbackClientSideMetadataProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +41,24 @@ public class HDBClient implements AutoCloseable {
 
     public HDBClient(ClientConfiguration configuration) {
         this.configuration = configuration;
+        init();
+    }
+
+    private void init() {
+        String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
+        switch (mode) {
+            case ClientConfiguration.PROPERTY_MODE_LOCAL:
+                break;
+            case ClientConfiguration.PROPERTY_MODE_STANDALONE:
+                break;
+            case ClientConfiguration.PROPERTY_MODE_CLUSTER:
+                this.clientSideMetadataProvider = new ZookeeperClientSideMetadataProvider(
+                        configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
+                        configuration.getInt(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
+                        configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)
+                );
+                break;
+        }
     }
 
     public ClientSideMetadataProvider getClientSideMetadataProvider() {
@@ -60,7 +81,7 @@ public class HDBClient implements AutoCloseable {
         }
     }
 
-    public HDBConnection openConnection() {        
+    public HDBConnection openConnection() {
         HDBConnection con = new HDBConnection(this);
         connections.put(con.getId(), con);
         return con;
