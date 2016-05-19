@@ -226,7 +226,7 @@ public class BookkeeperCommitLog extends CommitLog {
     public BookkeeperCommitLog(String tableSpace, ZookeeperMetadataStorageManager metadataStorageManager) throws LogNotAvailableException {
         this.metadataManager = metadataStorageManager;
         this.tableSpace = tableSpace;
-        ClientConfiguration config = new ClientConfiguration();
+        ClientConfiguration config = new ClientConfiguration();        
         try {
             this.bookKeeper = new BookKeeper(config, metadataManager.getZooKeeper());
         } catch (IOException | InterruptedException | KeeperException t) {
@@ -456,11 +456,7 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public void checkpoint() throws LogNotAvailableException {
-        dropOldLedgers();
-    }
-
-    private void dropOldLedgers() throws LogNotAvailableException {
+    public void dropOldLedgers() throws LogNotAvailableException {        
         if (ledgersRetentionPeriod > 0) {
             long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
             List<Long> oldLedgers;

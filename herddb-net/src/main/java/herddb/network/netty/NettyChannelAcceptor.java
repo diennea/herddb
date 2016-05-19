@@ -248,9 +248,10 @@ public class NettyChannelAcceptor implements AutoCloseable {
                     .option(ChannelOption.SO_BACKLOG, 128)
                     .childOption(ChannelOption.SO_KEEPALIVE, true);
 
-            LocalServerRegistry.registerLocalServer(address.getAddress().getHostAddress(), port, ssl);
+            String hostAddress = NetworkUtils.getAddress(address);
+            LocalServerRegistry.registerLocalServer(hostAddress, port, ssl);
 
-            ChannelFuture local_f = b_local.bind(new LocalAddress(address.getAddress().getHostAddress() + ":" + port + ":" + ssl)).sync();
+            ChannelFuture local_f = b_local.bind(new LocalAddress(hostAddress + ":" + port + ":" + ssl)).sync();
             this.local_channel = local_f.channel();
         }
     }

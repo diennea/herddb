@@ -19,7 +19,6 @@
  */
 package herddb.mem;
 
-import herddb.client.HDBConnection;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -29,6 +28,7 @@ import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -161,11 +161,15 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public void dropTable(String tablespace, String name) throws DataStorageManagerException {
-
-    }
-
-    @Override
-    public void downloadTable(String tableSpaceName, String table, HDBConnection con) throws DataStorageManagerException {
+        List<Table> tables = tablesByTablespace.get(tablespace);
+        if (tables != null) {
+            for (Iterator<Table> it = tables.iterator(); it.hasNext();) {
+                Table table = it.next();
+                if (table.name.equals(name)) {
+                    it.remove();
+                }
+            }
+        }
     }
 
 }

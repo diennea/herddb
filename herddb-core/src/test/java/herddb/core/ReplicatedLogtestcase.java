@@ -59,7 +59,7 @@ public abstract class ReplicatedLogtestcase {
         BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager);
         FileDataStorageManager dataStorageManager = new FileDataStorageManager(path);
         System.setErr(System.out);
-        DBManager manager = new DBManager(nodeId, metadataStorageManager, dataStorageManager, commitLogManager);
+        DBManager manager = new DBManager(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, folder.newFolder().toPath(), null);
         manager.start();
         return manager;
     }

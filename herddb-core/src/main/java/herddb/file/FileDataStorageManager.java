@@ -327,12 +327,6 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void downloadTable(String tableSpaceName, String table, HDBConnection con) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "downloadTable " + tableSpaceName + ", table " + table);
-        
-    }
-
-    @Override
     public LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException {
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);

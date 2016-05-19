@@ -114,12 +114,12 @@ public class NettyConnector implements AutoCloseable {
 
         InetSocketAddress inet = new InetSocketAddress(host, port);
         SocketAddress address;
-        String _host = inet.getAddress().getHostAddress();
+        String hostAddress = NetworkUtils.getAddress(inet);
         
-        if (LocalServerRegistry.isLocalServer(_host, port, ssl)) {
+        if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
             channelType = LocalChannel.class;
-            address = new LocalAddress(_host + ":" + port + ":" + ssl);
-            LOGGER.log(Level.SEVERE, "connecting to local in-JVM server");
+            address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
+            LOGGER.log(Level.SEVERE, "connecting to local in-JVM server "+address);
         } else {
             channelType = NioSocketChannel.class;
             address = inet;

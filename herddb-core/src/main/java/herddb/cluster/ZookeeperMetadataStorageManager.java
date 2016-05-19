@@ -293,9 +293,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
             List<String> children = zooKeeper.getChildren(nodesPath, false, null);
             List<NodeMetadata> result = new ArrayList<>();
             for (String child : children) {
-                Stat stat = new Stat();
-                byte[] node = zooKeeper.getData(nodesPath + "/" + child, null, stat);
-                NodeMetadata nodeMetadata = NodeMetadata.deserialize(node, stat.getVersion());
+                NodeMetadata nodeMetadata = getNode(child);
                 result.add(nodeMetadata);
             }
             return result;
@@ -303,6 +301,13 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
             throw new MetadataStorageManagerException(err);
         }
 
+    }
+
+    private NodeMetadata getNode(String nodeId) throws KeeperException, IOException, InterruptedException {
+        Stat stat = new Stat();
+        byte[] node = zooKeeper.getData(nodesPath + "/" + nodeId, null, stat);
+        NodeMetadata nodeMetadata = NodeMetadata.deserialize(node, stat.getVersion());
+        return nodeMetadata;
     }
 
     @Override

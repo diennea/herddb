@@ -36,6 +36,7 @@ public abstract class CommitLog {
      * written to the log
      *
      * @param entry
+     * @return 
      * @throws LogNotAvailableException
      */
     public abstract LogSequenceNumber log(LogEntry entry) throws LogNotAvailableException;
@@ -71,7 +72,7 @@ public abstract class CommitLog {
 
     public abstract boolean isClosed();
 
-    public void checkpoint() throws LogNotAvailableException {
+    public void dropOldLedgers() throws LogNotAvailableException {
 
     }
 

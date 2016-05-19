@@ -174,8 +174,7 @@ public class MultiServerTest {
         }
     }
 
-    @Test
-    @Ignore
+    @Test    
     public void test_leader_offline_log_no_more_available() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");

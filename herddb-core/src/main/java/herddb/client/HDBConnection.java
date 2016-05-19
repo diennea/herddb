@@ -72,7 +72,7 @@ public class HDBConnection implements AutoCloseable {
     }
     private static final Logger LOG = Logger.getLogger(HDBConnection.class.getName());
 
-    void releaseRoute(String nodeId) {        
+    void releaseRoute(String nodeId) {
         routesLock.lock();
         try {
             routes.remove(nodeId);
@@ -90,11 +90,6 @@ public class HDBConnection implements AutoCloseable {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
         route.rollbackTransaction(tableSpace, tx);
     }
-    
-    public List<String> listTables(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        return route.listTables(tableSpace);
-    }
 
     public void commitTransaction(String tableSpace, long tx) throws ClientSideMetadataProviderException, HDBException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
@@ -111,12 +106,17 @@ public class HDBConnection implements AutoCloseable {
         return route.executeGet(query, tx, params);
     }
 
-    public ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+    public ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        return route.executeScan(query, params, tx, maxRows);
+        return route.executeScan(query, params, tx, maxRows, fetchSize);
     }
 
-    private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {        
+    public void dumpTableSpace(String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        route.dumpTableSpace(tableSpace, fetchSize, receiver);
+    }
+
+    private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {
         routesLock.lock();
         try {
             RoutedClientSideConnection route = routes.get(nodeId);

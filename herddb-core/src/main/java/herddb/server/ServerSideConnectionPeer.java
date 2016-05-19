@@ -152,6 +152,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
             }
             break;
+            case Message.TYPE_REQUEST_TABLESPACE_DUMP: {
+                String dumpId = (String) message.parameters.get("dumpId");
+                int fetchSize = 10;
+                if (message.parameters.containsKey("fetchSize")) {
+                    fetchSize = (Integer) message.parameters.get("fetchSize");
+                }
+                String tableSpace = (String) message.parameters.get("tableSpace");
+                server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize);
+                
+            }
+            break;
             case Message.TYPE_OPENSCANNER: {
                 Long tx = (Long) message.parameters.get("tx");
                 long txId = tx != null ? tx : 0;

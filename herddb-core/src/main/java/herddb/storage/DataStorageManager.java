@@ -111,7 +111,6 @@ public abstract class DataStorageManager {
     public abstract LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException;
 
     public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;
-
-    public abstract void downloadTable(String tableSpaceName, String table, HDBConnection con) throws DataStorageManagerException;
+    
         
 }

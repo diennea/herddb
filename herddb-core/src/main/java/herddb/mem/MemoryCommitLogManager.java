@@ -39,7 +39,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
     public CommitLog createCommitLog(String tableSpace) {
         return new CommitLog() {
 
-            AtomicLong offset = new AtomicLong();
+            AtomicLong offset = new AtomicLong(0);
 
             @Override
             public LogSequenceNumber log(LogEntry entry) throws LogNotAvailableException {

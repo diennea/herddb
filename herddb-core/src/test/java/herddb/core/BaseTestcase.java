@@ -89,7 +89,7 @@ public class BaseTestcase {
         commitLogManager = makeCommitLogManager();
         dataStorageManager = makeDataStorageManager();
         System.setErr(System.out);
-        manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager);
+        manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager,null, null);
         manager.start();
         CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
         manager.executeStatement(st1,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);

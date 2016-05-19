@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
@@ -31,13 +30,18 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.client.impl.ClientSideScannerPeer;
+import herddb.log.LogSequenceNumber;
+import herddb.model.Record;
+import herddb.model.Table;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
+import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
+import herddb.storage.DataStorageManagerException;
+import herddb.utils.Bytes;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 /**
  * A real connection to a server
@@ -54,8 +58,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final String clientId;
     private final ReentrantLock connectionLock = new ReentrantLock(true);
     private volatile Channel channel;
-    private Map<String, ClientSideScannerPeer> scanners = new ConcurrentHashMap<>();
-    private final int fetchSize = 10;
+    private final Map<String, ClientSideScannerPeer> scanners = new ConcurrentHashMap<>();
+    private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
         this.connection = connection;
@@ -63,8 +67,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
         this.connector = new NettyConnector(this);
 
-        final ServerHostData server
-                = connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
+        final ServerHostData server = connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
 
         this.connector.setHost(server.getHost());
         this.connector.setPort(server.getPort());
@@ -77,6 +80,65 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     @Override
     public void messageReceived(Message message) {
         LOGGER.log(Level.SEVERE, "{0} - received {1}", new Object[]{nodeId, message.toString()});
+        Channel _channel = channel;
+        switch (message.type) {
+            case Message.TYPE_TABLESPACE_DUMP_DATA: {
+                String dumpId = (String) message.parameters.get("dumpId");
+                TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
+                LOGGER.log(Level.SEVERE, "receiver for " + dumpId + ": " + receiver);
+                if (receiver == null) {
+                    if (_channel != null) {
+                        _channel.sendReplyMessage(message, Message.ERROR(clientId, new Exception("no such dump receiver " + dumpId)));
+                    }
+                    return;
+                }
+                try {
+                    Map<String, Object> values = (Map<String, Object>) message.parameters.get("values");
+                    String command = (String) values.get("command") + "";
+                    switch (command) {
+                        case "start": {
+                            long ledgerId = (long) values.get("ledgerid");
+                            long offset = (long) values.get("offset");
+                            receiver.start(new LogSequenceNumber(ledgerId, offset));
+                            break;
+                        }
+                        case "beginTable": {
+                            byte[] tableDefinition = (byte[]) values.get("table");
+                            Table table = Table.deserialize(tableDefinition);
+                            receiver.beginTable(table);
+                            break;
+                        }
+                        case "endTable": {
+                            receiver.endTable();
+                            break;
+                        }
+                        case "finish": {
+                            receiver.finish();
+                            break;
+                        }
+                        case "data": {
+                            List<KeyValue> data = (List<KeyValue>) values.get("records");
+                            List<Record> records = new ArrayList<>(data.size());
+                            for (KeyValue kv : data) {
+                                records.add(new Record(new Bytes(kv.key), new Bytes(kv.value)));
+                            }
+                            receiver.receiveTableDataChunk(records);
+                            break;
+                        }
+                    }
+                    if (_channel != null) {
+                        _channel.sendReplyMessage(message, Message.ACK(clientId));
+                    }
+                } catch (DataStorageManagerException error) {
+                    LOGGER.log(Level.SEVERE, "error while handling dump data", error);
+                    if (_channel != null) {
+                        _channel.sendReplyMessage(message, Message.ERROR(clientId, error));
+                    }
+                }
+            }
+            break;
+
+        }
     }
 
     @Override
@@ -214,15 +276,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    List<String> listTables(String tableSpace) throws HDBException {
-        try (ScanResultSet resultSet = executeScan("SELECT name FROM SYSTABLES", Collections.emptyList(), 0, 1000)) {
-            return resultSet.consume().stream().map(m -> (String) m.get("name")).collect(Collectors.toList());
-        }
-    }
-
     private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
 
-    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows) throws HDBException {
+    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -239,10 +295,31 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
             List<String> columnNames = (List<String>) reply.parameters.get("columns");
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
-            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer);
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer, fetchSize);
             ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, impl);
             scanners.put(scannerId, scanner);
             return impl;
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
+    void dumpTableSpace(String tableSpace, int fetchSize, TableSpaceDumpReceiver receiver) throws HDBException {
+        ensureOpen();
+        Channel _channel = channel;
+        if (_channel == null) {
+            throw new HDBException("not connected to node " + nodeId);
+        }
+        try {
+            String dumpId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
+            Message message = Message.REQUEST_TABLESPACE_DUMP(clientId, tableSpace, dumpId, fetchSize);
+            LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace);
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace + ": first reply " + reply.parameters);
+            if (reply.type == Message.TYPE_ERROR) {
+                throw new HDBException(reply + "");
+            }
+            dumpReceivers.put(dumpId, receiver);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -253,10 +330,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         private final String scannerId;
         private final ScanResultSetMetadata metadata;
 
-        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer) {
+        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer, int fetchSize) {
             this.scannerId = scannerId;
             this.metadata = new ScanResultSetMetadata(columns);
             this.fetchBuffer.addAll(fetchBuffer);
+            this.fetchSize = fetchSize;
             if (fetchBuffer.isEmpty()) {
                 // empty result set
                 finished = true;
@@ -274,6 +352,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         boolean finished;
         boolean noMoreData;
         int bufferPosition;
+        int fetchSize;
 
         @Override
         public void close() {

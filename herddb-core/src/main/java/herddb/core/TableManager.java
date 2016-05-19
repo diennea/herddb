@@ -65,6 +65,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.function.LongBinaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -102,7 +103,7 @@ public class TableManager {
     private final Map<Bytes, Long> keyToPage = new ConcurrentHashMap<>();
 
     /**
-     * Keys deleted since the last flush
+     * Keys deleted since the last checkpoint
      */
     private final Set<Bytes> deletedKeys = new ConcurrentSkipListSet<>();
 
@@ -623,6 +624,42 @@ public class TableManager {
         dataStorageManager.dropTable(table.tablespace, table.name);
     }
 
+    void dump(Consumer<Record> records) throws DataStorageManagerException {
+        pagesLock.readLock().lock();
+        try {
+            for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
+                Bytes key = entry.getKey();
+                Long pageId = entry.getValue();
+                if (pageId != null) { // record disappeared during the scan
+                    Record record;
+                    if (Objects.equals(pageId, NO_PAGE)) {
+                        record = buffer.get(key);
+                    } else {
+                        ensurePageLoaded(pageId);
+                        record = buffer.get(key);
+                    }
+                    if (record == null) {
+                        throw new DataStorageManagerException("inconsistency during dump! no record in memory for " + entry.getKey() + " page " + pageId);
+                    }
+                    try {
+                        records.accept(record);
+                    } catch (Exception error) {
+                        throw new DataStorageManagerException(error);
+                    }
+                }
+            }
+        } finally {
+            pagesLock.readLock().unlock();
+        }
+    }
+
+    void writeFromDump(List<Record> record) {
+        LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
+        for (Record r : record) {
+            applyInsert(r.key, r.value);
+        }
+    }
+
     private static final class MyLongBinaryOperator implements LongBinaryOperator {
 
         @Override
@@ -656,7 +693,7 @@ public class TableManager {
     private void autoFlush() throws DataStorageManagerException {
         if (dirtyRecords.get() >= MAX_DIRTY_RECORDS) {
             LOGGER.log(Level.SEVERE, "autoflush");
-            flush();
+            checkpoint();
         }
     }
 
@@ -743,7 +780,7 @@ public class TableManager {
         }
     }
 
-    void flush() throws DataStorageManagerException {
+    void checkpoint() throws DataStorageManagerException {
         pagesLock.writeLock().lock();
         LogSequenceNumber sequenceNumber = log.getActualSequenceNumber();
         TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data);
@@ -845,7 +882,7 @@ public class TableManager {
                                     record = buffer.get(key);
                                 }
                                 if (record == null) {
-                                    throw new RuntimeException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId);
+                                    throw new DataStorageManagerException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId);
                                 }
                                 if (predicate == null || predicate.evaluate(record, context)) {
                                     recordSet.records.add(new Tuple(record.toBean(table)));

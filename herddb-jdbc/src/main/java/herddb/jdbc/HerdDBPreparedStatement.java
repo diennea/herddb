@@ -66,7 +66,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     @Override
     public ResultSet executeQuery() throws SQLException {
         try {
-            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, parameters, parent.ensureTransaction(), maxRows);
+            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, parameters, parent.ensureTransaction(), maxRows, fetchSize);
             return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
             throw new SQLException(ex);
@@ -448,7 +448,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         try {
-            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList(), parent.ensureTransaction() , maxRows);
+            ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList(), parent.ensureTransaction(), maxRows, fetchSize);
             return new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
             throw new SQLException(ex);

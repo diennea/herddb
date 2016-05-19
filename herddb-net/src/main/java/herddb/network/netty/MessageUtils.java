@@ -20,6 +20,7 @@
  */
 package herddb.network.netty;
 
+import herddb.network.KeyValue;
 import herddb.network.Message;
 import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
@@ -53,6 +54,7 @@ public class MessageUtils {
     private static final byte OPCODE_BYTEARRAY_VALUE = 13;
     private static final byte OPCODE_TIMESTAMP_VALUE = 14;
     private static final byte OPCODE_BYTE_VALUE = 15;
+    private static final byte OPCODE_KEYVALUE_VALUE = 16;
 
     private static void writeUTF8String(ByteBuf buf, String s) {
         byte[] asarray = s.getBytes(StandardCharsets.UTF_8);
@@ -102,6 +104,13 @@ public class MessageUtils {
         } else if (o instanceof java.lang.Byte) {
             encoded.writeByte(OPCODE_BYTE_VALUE);
             encoded.writeByte(((Byte) o));
+        } else if (o instanceof KeyValue) {
+            KeyValue kv = (KeyValue) o;
+            encoded.writeByte(OPCODE_KEYVALUE_VALUE);
+            encoded.writeInt(kv.key.length);
+            encoded.writeBytes(kv.key);
+            encoded.writeInt(kv.value.length);
+            encoded.writeBytes(kv.value);
         } else if (o instanceof Integer) {
             encoded.writeByte(OPCODE_INT_VALUE);
             encoded.writeInt((Integer) o);
@@ -190,6 +199,14 @@ public class MessageUtils {
                 return new java.sql.Timestamp(encoded.readLong());
             case OPCODE_BYTE_VALUE:
                 return encoded.readByte();
+            case OPCODE_KEYVALUE_VALUE:
+                int len_key = encoded.readInt();
+                byte[] key = new byte[len_key];
+                encoded.readBytes(key);
+                int len_value = encoded.readInt();
+                byte[] value = new byte[len_value];
+                encoded.readBytes(value);
+                return new KeyValue(key, value);
             default:
                 throw new RuntimeException("invalid opcode: " + _opcode);
         }

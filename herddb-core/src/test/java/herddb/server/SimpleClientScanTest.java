@@ -57,16 +57,16 @@ public class SimpleClientScanTest {
                     Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)).updateCount);
                 }
 
-                assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0, 0).consume().size());
+                assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0, 0, 10).consume().size());
 
                 // maxRows
-                assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0, 17).consume().size());
+                assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0, 17, 10).consume().size());
 
                 // empty result set                
-                assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", Collections.emptyList(), 0, 0).consume().size());
+                assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", Collections.emptyList(), 0, 0, 10).consume().size());
 
                 // single fetch result test
-                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'", Collections.emptyList(), 0, 0).consume().size());
+                assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='test_1'", Collections.emptyList(), 0, 0, 10).consume().size());
 
             }
         }

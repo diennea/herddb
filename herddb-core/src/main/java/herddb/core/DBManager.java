@@ -48,12 +48,17 @@ import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.network.Channel;
+import herddb.network.Message;
+import herddb.network.ServerHostData;
 import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +84,7 @@ import java.util.stream.Collectors;
  */
 public class DBManager implements AutoCloseable {
 
-    private final Logger LOGGER = Logger.getLogger(DBManager.class.getName());
+    private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
@@ -90,6 +95,8 @@ public class DBManager implements AutoCloseable {
     private final AtomicBoolean stopped = new AtomicBoolean();
     private final BlockingQueue<Object> activatorQueue = new LinkedBlockingDeque<>();
     private final SQLTranslator translator;
+    private final Path tmpDirectory;
+    private final ServerHostData hostData;
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -99,11 +106,13 @@ public class DBManager implements AutoCloseable {
         }
     });
 
-    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager) {
+    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
+        this.tmpDirectory = tmpDirectory;
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
         this.nodeId = nodeId;
+        this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
         this.translator = new SQLTranslator(this);
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
@@ -119,7 +128,13 @@ public class DBManager implements AutoCloseable {
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
 
         metadataStorageManager.start();
-        metadataStorageManager.registerNode(NodeMetadata.builder().nodeId(nodeId).build());
+        metadataStorageManager.registerNode(NodeMetadata
+                .builder()
+                .host(hostData.getHost())
+                .port(hostData.getPort())
+                .ssl(hostData.isSsl())
+                .nodeId(nodeId)
+                .build());
 
         metadataStorageManager.ensureDefaultTableSpace(nodeId);
 
@@ -232,7 +247,7 @@ public class DBManager implements AutoCloseable {
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         context.setManager(this);
         context.setTransactionContext(transactionContext);
-        LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
+        //LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
@@ -410,21 +425,8 @@ public class DBManager implements AutoCloseable {
         threadPool.shutdown();
     }
 
-    public void flush() throws DataStorageManagerException {
+    public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
 
-        List<TableSpaceManager> managers;
-        generalLock.readLock().lock();
-        try {
-            managers = new ArrayList<>(tablesSpaces.values());
-        } finally {
-            generalLock.readLock().unlock();
-        }
-        for (TableSpaceManager man : managers) {
-            man.flush();
-        }
-    }
-
-    public void checkpoint() throws LogNotAvailableException, DataStorageManagerException {
         List<TableSpaceManager> managers;
         generalLock.readLock().lock();
         try {
@@ -476,6 +478,17 @@ public class DBManager implements AutoCloseable {
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
+    }
+
+    public void dumpTableSpace(String tableSpace, String dumpId, Message message, Channel _channel, int fetchSize) {
+        TableSpaceManager manager = tablesSpaces.get(tableSpace);
+        if (manager == null) {
+            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("tableSpace " + tableSpace + " not booted here")));
+            return;
+        } else {
+            _channel.sendReplyMessage(message, Message.ACK(null));
+        }
+        manager.dumpTableSpace(dumpId, _channel, fetchSize);
     }
 
     private class Activator implements Runnable {
@@ -564,6 +577,10 @@ public class DBManager implements AutoCloseable {
 
     public TableSpaceManager getTableSpaceManager(String tableSpace) {
         return tablesSpaces.get(tableSpace);
+    }
+
+    public Path getTmpDirectory() {
+        return tmpDirectory;
     }
 
 }

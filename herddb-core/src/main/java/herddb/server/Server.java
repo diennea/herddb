@@ -65,7 +65,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     public MetadataStorageManager getMetadataStorageManager() {
         return metadataStorageManager;
     }
-    
+
     public DBManager getManager() {
         return manager;
     }
@@ -83,16 +83,19 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
         this.metadataStorageManager = buildMetadataStorageManager();
-        this.manager = new DBManager(nodeId,
-                metadataStorageManager,
-                buildDataStorageManager(),
-                buildFileCommitLogManager());
         this.serverHostData = new ServerHostData(
                 configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT),
                 configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT),
                 "",
                 configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
                 new HashMap<>());
+        this.manager = new DBManager(nodeId,
+                metadataStorageManager,
+                buildDataStorageManager(),
+                buildFileCommitLogManager(),
+                baseDirectory, serverHostData
+        );
+
         this.networkServer = buildChannelAcceptor();
         this.networkServer.setAcceptor(this);
     }

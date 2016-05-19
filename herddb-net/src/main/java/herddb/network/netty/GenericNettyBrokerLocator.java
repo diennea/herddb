@@ -69,7 +69,7 @@ public abstract class GenericNettyBrokerLocator implements ServerLocator {
             }
             InetSocketAddress addre = broker.getSocketAddress();
             connector.setPort(addre.getPort());
-            connector.setHost(addre.getAddress().getHostAddress());
+            connector.setHost(NetworkUtils.getAddress(addre));
             connector.setConnectTimeout(connectTimeout);
             connector.setSocketTimeout(socketTimeout);
             connector.setSsl(broker.isSsl());

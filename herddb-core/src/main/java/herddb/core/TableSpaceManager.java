@@ -25,6 +25,7 @@ import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
+import herddb.client.TableSpaceDumpReceiver;
 import herddb.log.CommitLog;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
@@ -39,6 +40,7 @@ import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.NodeMetadata;
+import herddb.model.Record;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -54,6 +56,9 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.network.Channel;
+import herddb.network.KeyValue;
+import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -61,14 +66,19 @@ import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -90,7 +100,6 @@ public class TableSpaceManager {
     private final Map<Bytes, TableManager> tables = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
-    private final Map<String, Table> tablesMetadata = new ConcurrentHashMap<>();
     private final DBManager manager;
     private boolean leader;
     private boolean closed;
@@ -111,7 +120,6 @@ public class TableSpaceManager {
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
         recover(tableSpaceInfo);
 
-        actualLogSequenceNumber = log.getActualSequenceNumber();
         LOGGER.log(Level.SEVERE, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
 
         tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
@@ -124,6 +132,7 @@ public class TableSpaceManager {
 
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceName);
+        actualLogSequenceNumber = logSequenceNumber;
         LOGGER.log(Level.SEVERE, "recover, logSequenceNumber from DataStorage: " + logSequenceNumber);
         List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceName);
         LOGGER.log(Level.SEVERE, "tablesAtBoot", tablesAtBoot.stream().map(t -> {
@@ -265,7 +274,7 @@ public class TableSpaceManager {
         return manager.scan(statement, context, transaction);
     }
 
-    private void downloadTableSpaceData() throws MetadataStorageManagerException, DataStorageManagerException {
+    private void downloadTableSpaceData() throws MetadataStorageManagerException, DataStorageManagerException, LogNotAvailableException {
         TableSpace tableSpaceData = metadataStorageManager.describeTableSpace(tableSpaceName);
         String leaderId = tableSpaceData.leaderId;
         if (this.nodeId.equals(leaderId)) {
@@ -276,7 +285,7 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
         }
         NodeMetadata nodeData = leaderAddress.get();
-        try (HDBClient client = new HDBClient(new ClientConfiguration());) {
+        try (HDBClient client = new HDBClient(new ClientConfiguration(manager.getTmpDirectory()));) {
             client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
                 @Override
                 public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
@@ -285,16 +294,26 @@ public class TableSpaceManager {
 
                 @Override
                 public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException {
-                    return new ServerHostData(leaderId, nodeData.port, nodeData.host, nodeData.ssl, Collections.emptyMap());
+                    return new ServerHostData(nodeData.host, nodeData.port, "?", nodeData.ssl, Collections.emptyMap());
                 }
             });
             try (HDBConnection con = client.openConnection()) {
-                List<String> tables = con.listTables(tableSpaceName);
-                LOGGER.log(Level.SEVERE, "discovered tables " + tables + " on " + tableSpaceName + " from server " + leaderId);
-                for (String table : tables) {
-                    downloadTabledata(table, con);
+                DumpReceiver receiver = new DumpReceiver();
+                int fetchSize = 10000;
+                con.dumpTableSpace(tableSpaceName, receiver, fetchSize);
+                long _start = System.currentTimeMillis();
+                boolean ok = receiver.join(1000 * 60 * 60);
+                if (!ok) {
+                    throw new DataStorageManagerException("Cannot receive dump within " + (System.currentTimeMillis() - _start) + " ms");
                 }
-            } catch (ClientSideMetadataProviderException | HDBException networkError) {
+                if (receiver.getError() != null) {
+                    throw new DataStorageManagerException("Error while receiving dump: " + receiver.getError(), receiver.getError());
+                }
+                this.actualLogSequenceNumber = receiver.logSequenceNumber;
+                LOGGER.log(Level.SEVERE,"After download local actualLogSequenceNumber is "+actualLogSequenceNumber);
+                checkpoint();
+                
+            } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
                 throw new DataStorageManagerException(networkError);
             }
 
@@ -302,9 +321,140 @@ public class TableSpaceManager {
 
     }
 
-    private void downloadTabledata(String table, HDBConnection con) throws DataStorageManagerException {
-        dataStorageManager.dropTable(tableSpaceName, table);
-        dataStorageManager.downloadTable(tableSpaceName, table, con);
+    private class DumpReceiver extends TableSpaceDumpReceiver {
+
+        private TableManager currentTable;
+        private final CountDownLatch latch;
+        private Throwable error;
+        private LogSequenceNumber logSequenceNumber;
+
+        public DumpReceiver() {
+            this.latch = new CountDownLatch(1);
+        }
+
+        @Override
+        public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
+            this.logSequenceNumber = logSequenceNumber;
+        }
+
+        public LogSequenceNumber getLogSequenceNumber() {
+            return logSequenceNumber;
+        }
+
+        public boolean join(int timeout) throws InterruptedException {
+            return latch.await(timeout, TimeUnit.MILLISECONDS);
+        }
+
+        public Throwable getError() {
+            return error;
+        }
+
+        @Override
+        public void onError(Throwable error) throws DataStorageManagerException {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", onError ", error);
+            this.error = error;
+            latch.countDown();
+
+        }
+
+        @Override
+        public void finish() throws DataStorageManagerException {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", finish");
+            latch.countDown();
+        }
+
+        @Override
+        public void endTable() throws DataStorageManagerException {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", endTable " + currentTable.getTable().name);
+            currentTable = null;
+        }
+
+        @Override
+        public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {
+            currentTable.writeFromDump(record);
+        }
+
+        @Override
+        public void beginTable(Table table) throws DataStorageManagerException {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name);
+            dataStorageManager.dropTable(tableSpaceName, table.name);
+            currentTable = bootTable(table);
+        }
+
+    }
+
+    void dumpTableSpace(String dumpId, Channel _channel, int fetchSize) {
+        LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize);
+        generalLock.readLock().lock();
+        try {
+
+            final int timeout = 60000;
+
+            Map<String, Object> startData = new HashMap<>();
+            startData.put("command", "start");
+            startData.put("ledgerid", actualLogSequenceNumber.ledgerId);
+            startData.put("offset", actualLogSequenceNumber.offset);
+            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, startData), timeout);
+
+            for (TableManager tableManager : tables.values()) {
+                Table table = tableManager.getTable();
+                byte[] serialized = table.serialize();
+                Map<String, Object> beginTableData = new HashMap<>();
+                beginTableData.put("command", "beginTable");
+                beginTableData.put("table", serialized);
+                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, beginTableData), timeout);
+
+                List<KeyValue> batch = new ArrayList<>();
+                Consumer<Record> sink = new Consumer<Record>() {
+                    @Override
+                    public void accept(Record t) {
+                        try {
+                            batch.add(new KeyValue(t.key.data, t.value.data));
+                            if (batch.size() == fetchSize) {
+                                Map<String, Object> data = new HashMap<>();
+                                data.put("command", "data");
+                                data.put("records", batch);
+                                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+                                batch.clear();
+                            }
+                        } catch (Exception error) {
+                            throw new RuntimeException(error);
+                        }
+                    }
+                };
+                try {
+                    tableManager.dump(sink);
+
+                    if (!batch.isEmpty()) {
+                        Map<String, Object> data = new HashMap<>();
+                        data.put("command", "data");
+                        data.put("records", batch);
+                        _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+                        batch.clear();
+                    }
+
+                } catch (DataStorageManagerException err) {
+                    Map<String, Object> errorOnData = new HashMap<>();
+                    errorOnData.put("command", "error");
+                    _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, errorOnData), timeout);
+                    LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
+                    return;
+                }
+
+                Map<String, Object> endTableData = new HashMap<>();
+                endTableData.put("command", "endTable");
+                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, endTableData), timeout);
+            }
+
+            Map<String, Object> finishData = new HashMap<>();
+            finishData.put("command", "finish");
+            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, finishData), timeout);
+        } catch (InterruptedException | TimeoutException error) {
+            LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId);
+        } finally {
+            generalLock.readLock().unlock();
+        }
+
     }
 
     private class FollowerThread implements Runnable {
@@ -432,11 +582,12 @@ public class TableSpaceManager {
         }
     }
 
-    private void bootTable(Table table) throws DataStorageManagerException {
+    private TableManager bootTable(Table table) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
         tables.put(Bytes.from_string(table.name), tableManager);
         tableManager.start();
+        return tableManager;
     }
 
     public void close() throws LogNotAvailableException {
@@ -452,21 +603,24 @@ public class TableSpaceManager {
         }
     }
 
-    void flush() throws DataStorageManagerException {
-        List<TableManager> managers;
+    void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
+        generalLock.writeLock().lock();
         try {
-            generalLock.writeLock().lock();
-            managers = new ArrayList<>(tables.values());
+
+            LOGGER.log(Level.SEVERE, nodeId + " checkpoint at " + actualLogSequenceNumber);
+
+            // we checkpoint all data to disk and save the actual log sequence number            
+            for (TableManager tableManager : tables.values()) {
+                tableManager.checkpoint();
+            }
+            writeTablesOnDataStorageManager();
+            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceName, actualLogSequenceNumber);
+            log.dropOldLedgers();
+
         } finally {
             generalLock.writeLock().unlock();
         }
-        for (TableManager manager : managers) {
-            manager.flush();
-        }
-    }
 
-    void checkpoint() throws LogNotAvailableException, DataStorageManagerException {
-        log.checkpoint();
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {
@@ -533,5 +687,4 @@ public class TableSpaceManager {
     public Collection<Long> getOpenTransactions() {
         return new HashSet<>(this.transactions.keySet());
     }
-
 }

@@ -282,7 +282,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         CreateTableStatement st2 = new CreateTableStatement(table);
         manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-        manager.flush();
+        manager.checkpoint();
 
         Table transacted_table = Table
                 .builder()

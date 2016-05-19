@@ -81,7 +81,7 @@ public final class LogSequenceNumber {
     }
 
     public boolean isStartOfTime() {
-        return (ledgerId <= 0 && offset <= 0);
+        return ledgerId == -1 && offset == -1;
     }
 
 }

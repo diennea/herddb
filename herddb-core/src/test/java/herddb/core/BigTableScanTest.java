@@ -51,7 +51,7 @@ public class BigTableScanTest {
     public void bigTableScan() throws Exception {
         int testSize = 5000;
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager());) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -78,7 +78,7 @@ public class BigTableScanTest {
             assertEquals(testSize, stats.getTablesize());
             assertEquals(0, stats.getLoadedpages());
 
-            manager.flush();
+            manager.checkpoint();
 
             try (DataScanner scan = manager.scan(new ScanStatement(table.tablespace, table, new FullTableScanPredicate()), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
                 AtomicInteger count = new AtomicInteger();
