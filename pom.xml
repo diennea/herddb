@@ -79,6 +79,7 @@
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
+                <module>herddb-services</module>
             </modules>
             <distributionManagement>        
 <!--                <repository>                                

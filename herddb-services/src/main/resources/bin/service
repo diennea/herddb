@@ -1,0 +1,320 @@
+#!/bin/bash
+#
+# Licensed to Diennea S.r.l. under one
+# or more contributor license agreements. See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership. Diennea S.r.l. licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# majordodo daemon start/stop script
+#
+# Comments to support chkconfig
+# chkconfig: 2345 95 05
+# description: Distributed operation and data organizer
+#
+# Remember to configure BASE_DIR if you add this script to init.d
+#
+# Configure RUN_AS_USER if you want the script to launch the service
+# as a specific user. Note that if you leave RUN_AS_USER empty
+# the current user (the user used to launch this script) will be used
+#
+# Remember to change the owner of the directory and the files if you
+# set a different RUN_AS_USER
+
+### BEGIN OF CONFIGURATION PARAMETERS ###
+
+
+SERVICE=$1
+shift
+
+BASE_DIR=
+RUN_AS_USER=
+PIDFILENAME=$SERVICE.java.pid
+MAINCLASS=
+
+case "$SERVICE" in
+  server)
+    MAINCLASS=herddb.server.ServerMain
+    ;;
+   
+      
+  *)
+    echo $"Usage: $0 [broker|worker] {start|stop|restart|console|kill|stacktrace|status}"
+    RETVAL=1
+    exit $RETVAL
+esac
+
+
+KILL_GRACE_TIME=10
+
+### END OF CONFIGURATION PARAMETERS ###
+
+### Initialization
+PRERUN="false"
+RETVAL=0
+
+### BASE_DIR discovery
+if [ -z "$BASE_DIR" ]; then
+  BASE_DIR="`dirname \"$0\"`"
+  BASE_DIR="`( cd \"$BASE_DIR\" && pwd )`"
+fi
+BASE_DIR=$BASE_DIR/..
+BASE_DIR="`( cd \"$BASE_DIR\" && pwd )`"
+
+
+if [ "$BASE_DIR" = "/etc/init.d" ]; then
+  echo "To run as init.d script you need to configure BASE_DIR inside the script"
+  exit 1
+fi
+
+if [ -z "$BASE_DIR" ]; then
+  echo "The path is not accessible to the script"
+  exit 1
+fi
+
+### PID discovery
+if [ -e "$BASE_DIR/$PIDFILENAME" ]; then
+  PROCESS_PID="`cat $BASE_DIR/$PIDFILENAME`"
+else
+  PROCESS_PID="X"
+fi
+
+### Set working directory
+cd "$BASE_DIR"
+
+###
+### Service commands
+###
+
+start() {
+  echo "Starting service..."
+
+  if [ "$PROCESS_PID" != 'X' ]; then
+    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+      echo "Process $PROCESS_PID already running"
+      RETVAL=1
+      return
+    else
+      rm -f "$BASE_DIR/$PIDFILENAME"
+      echo "Removed stale pidfile $BASE_DIR/$PIDFILENAME"
+    fi
+  fi
+
+  $PRERUN "$BASE_DIR/bin/java-utils.sh -daemon $SERVICE -Dpidfile=$PIDFILENAME $MAINCLASS"
+  RETVAL=$?
+  return
+}
+
+console() {
+  echo "Starting service..."
+
+  if [ "$PROCESS_PID" != 'X' ]; then
+    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+      echo "Process $PROCESS_PID already running"
+      RETVAL=1
+      return
+    else
+      rm -f "$BASE_DIR/$PIDFILENAME"
+      echo "Removed stale pidfile $BASE_DIR/$PIDFILENAME"
+    fi
+  fi
+
+  $PRERUN "$BASE_DIR/bin/java-utils.sh $SERVICE -Dpidfile=$PIDFILENAME $MAINCLASS"
+  RETVAL=$?
+  return
+}
+
+stop() {
+  if [ "$PROCESS_PID" != 'X' ]; then
+    echo "Stopping service, pid $PROCESS_PID..."
+
+    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+      command kill -SIGTERM $PROCESS_PID
+      RETVAL=$?
+      i=$KILL_GRACE_TIME
+      while [ -n "`ps h -p $PROCESS_PID`" -a "$i" -gt "0" ]; do
+        echo "Waiting for $PROCESS_PID to die..."
+        i=$[$i-1]
+        sleep 1
+      done
+
+      if [ -n "`ps h -p $PROCESS_PID`" ]; then
+        echo "Process $PROCESS_PID did not exist on request. Killing"
+        command kill -SIGKILL $PROCESS_PID
+        RETVAL=$?
+        sleep 1
+      fi
+      return
+
+    else
+      rm -f "$BASE_DIR/$PIDFILENAME"
+      echo "Removed stale pidfile $BASE_DIR/$PIDFILENAME"
+      RETVAL=1
+      return
+    fi
+
+  else
+    echo "Pidfile $BASE_DIR/$PIDFILENAME does not exist"
+    RETVAL=1
+    return
+  fi
+}
+
+kill() {
+  if [ "$PROCESS_PID" != 'X' ]; then
+    echo "Killing service, pid $PROCESS_PID..."
+
+    command kill -SIGKILL $PROCESS_PID
+    RETVAL=$?
+
+    rm -f "$BASE_DIR/$PIDFILENAME"
+    echo "Removed stale pidfile $BASE_DIR/$PIDFILENAME"
+
+  else
+    echo "Pidfile $BASE_DIR/$PIDFILENAME does not exist"
+    RETVAL=1
+  fi
+}
+
+stacktrace() {
+  if [ "$PROCESS_PID" != 'X' ]; then
+    echo "Requesting stacktrace dump, pid $PROCESS_PID..."
+
+    command kill -SIGQUIT $PROCESS_PID
+    RETVAL=$?
+
+  else
+    echo "Pidfile $BASE_DIR/$PIDFILENAME does not exist"
+    RETVAL=1
+  fi
+}
+
+status() {
+  if [ "$PROCESS_PID" != 'X' ]; then
+
+    if [ -n "`ps h -p $PROCESS_PID`" ]; then
+      echo "Service is running, pid $PROCESS_PID"
+    else
+      echo "Pidfile $BASE_DIR/$PIDFILENAME does exist, but process is not running"
+      rm -f "$BASE_DIR/$PIDFILENAME"
+      echo "Removed stale pidfile $BASE_DIR/$PIDFILENAME"
+      RETVAL=1
+    fi
+
+  else
+    echo "Service is not running"
+    RETVAL=1
+  fi
+}
+
+###
+### Access control
+###
+
+checkuser() {
+  CURRENT_USER="`id -u -n`"
+
+  if [ "X$RUN_AS_USER" = "X" ]; then
+    WANTED_USER=$CURRENT_USER
+  else
+    WANTED_USER=$RUN_AS_USER
+  fi
+
+  if [ "$PROCESS_PID" != 'X' ]; then
+    CHECK_FILE=$BASE_DIR/$PIDFILENAME
+  else
+    CHECK_FILE=$BASE_DIR
+  fi
+
+  if [ "`stat -c %U "$CHECK_FILE"`" != "$WANTED_USER" ]; then
+    echo "Trying to run as '$WANTED_USER', yet $CHECK_FILE is not owned by '$WANTED_USER'. Exiting"
+    exit 1
+  fi
+
+  if [ "$CURRENT_USER" = 'root' ]; then CURRENT_IS_ROOT=true; fi
+  if [ "$WANTED_USER" = 'root' ]; then WANTED_IS_ROOT=true; fi
+  if [ "$CURRENT_USER" = "$WANTED_USER" ]; then WANTED_IS_CURRENT=true; fi
+
+  if [ "$CURRENT_IS_ROOT" != true ]; then
+
+    if [ "$WANTED_IS_ROOT" = true ]; then
+      echo "Trying to run as root. Please run this command as root (or change the RUN_AS_USER parameter)"
+      exit 1
+    fi
+
+    if [ "$WANTED_IS_CURRENT" = true ]; then
+      PRERUN="eval"
+      return
+
+    else
+      echo "Trying to run as '$WANTED_USER'. Please run this command as either '$WANTED_USER' or root"
+      exit 1
+    fi
+
+  else
+    if [ "$WANTED_IS_ROOT" = true ]; then
+      PRERUN="eval"
+      return
+
+    else
+      if [ -f "/sbin/runuser" ]; then
+        PRERUN="/sbin/runuser"
+      else
+        PRERUN="su"
+      fi
+
+      PRERUN="$PRERUN - $RUN_AS_USER -c"
+    fi
+  fi
+}
+
+case "$1" in
+  start)
+    checkuser
+    start
+    ;;
+
+  stop)
+    stop
+    ;;
+
+  restart)
+    checkuser
+    stop
+    start
+    ;;
+
+  console)
+    checkuser
+    console
+    ;;
+
+  kill)
+    kill
+    ;;
+
+  stacktrace)
+    stacktrace
+    ;;
+
+  status)
+    status
+    ;;
+
+  *)
+    echo $"Usage: $0 {start|stop|restart|console|kill|stacktrace|status}"
+    RETVAL=1
+esac
+
+exit $RETVAL
