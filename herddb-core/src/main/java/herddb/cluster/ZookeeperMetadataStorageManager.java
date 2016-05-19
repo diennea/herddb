@@ -68,6 +68,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                     firstConnectionLatch.countDown();
                     break;
             }
+            notifyMetadataChanged();
         }
     };
 
@@ -128,13 +129,13 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         while (zooKeeper.getState() != ZooKeeper.States.CLOSED) {
             try {
                 Stat stat = new Stat();
-                byte[] actualLedgers = zooKeeper.getData(ledgersPath+"/"+tableSpace, false, stat);
+                byte[] actualLedgers = zooKeeper.getData(ledgersPath + "/" + tableSpace, false, stat);
                 return LedgersInfo.deserialize(actualLedgers, stat.getVersion());
             } catch (KeeperException.NoNodeException firstboot) {
                 LOGGER.log(Level.SEVERE, "node " + ledgersPath + " not found");
                 return LedgersInfo.deserialize(null, -1); // -1 is a special ZK version
             } catch (KeeperException.ConnectionLossException error) {
-                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath+"/"+tableSpace, error);
+                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath + "/" + tableSpace, error);
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException err) {
@@ -142,7 +143,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                     throw new LogNotAvailableException(err);
                 }
             } catch (Exception error) {
-                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath+"/"+tableSpace, error);
+                LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath + "/" + tableSpace, error);
                 throw new LogNotAvailableException(error);
             }
         }
@@ -195,7 +196,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     private TableSpaceList listTablesSpaces() throws KeeperException, InterruptedException {
         Stat stat = new Stat();
-        List<String> children = zooKeeper.getChildren(tableSpacesPath, false, stat);
+        List<String> children = zooKeeper.getChildren(tableSpacesPath, mainWatcher, stat);
         return new TableSpaceList(stat.getVersion(), children);
     }
 
@@ -210,6 +211,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     private boolean updateTableSpaceNode(TableSpace tableSpace, int metadataStorageVersion) throws KeeperException, InterruptedException, IOException, TableSpaceDoesNotExistException {
         try {
             zooKeeper.setData(basePath + "/tableSpaces/" + tableSpace.name, tableSpace.serialize(), metadataStorageVersion);
+            notifyMetadataChanged();
             return true;
         } catch (KeeperException.BadVersionException changed) {
             return false;
@@ -256,7 +258,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     public TableSpace describeTableSpace(String name) throws MetadataStorageManagerException {
         try {
             Stat stat = new Stat();
-            byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + name, false, stat);
+            byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + name, mainWatcher, stat);
             return TableSpace.deserialize(result, stat.getVersion());
         } catch (KeeperException.NoNodeException ex) {
             return null;
@@ -270,6 +272,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
         try {
             createTableSpaceNode(tableSpace);
+            notifyMetadataChanged();
         } catch (KeeperException | InterruptedException | IOException ex) {
             throw new MetadataStorageManagerException(ex);
         }
@@ -281,7 +284,11 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
             throw new MetadataStorageManagerException("metadataStorageVersion not read from ZK");
         }
         try {
-            return updateTableSpaceNode(tableSpace, (Integer) previous.metadataStorageVersion);
+            boolean result = updateTableSpaceNode(tableSpace, (Integer) previous.metadataStorageVersion);
+            if (result) {
+                notifyMetadataChanged();
+            }
+            return result;
         } catch (KeeperException | InterruptedException | IOException ex) {
             throw new MetadataStorageManagerException(ex);
         }
@@ -290,7 +297,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     @Override
     public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
         try {
-            List<String> children = zooKeeper.getChildren(nodesPath, false, null);
+            List<String> children = zooKeeper.getChildren(nodesPath, mainWatcher, null);
             List<NodeMetadata> result = new ArrayList<>();
             for (String child : children) {
                 NodeMetadata nodeMetadata = getNode(child);
@@ -305,7 +312,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     private NodeMetadata getNode(String nodeId) throws KeeperException, IOException, InterruptedException {
         Stat stat = new Stat();
-        byte[] node = zooKeeper.getData(nodesPath + "/" + nodeId, null, stat);
+        byte[] node = zooKeeper.getData(nodesPath + "/" + nodeId, mainWatcher, stat);
         NodeMetadata nodeMetadata = NodeMetadata.deserialize(node, stat.getVersion());
         return nodeMetadata;
     }
@@ -319,6 +326,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
             } catch (KeeperException.NodeExistsException ok) {
                 zooKeeper.setData(nodesPath + "/" + nodeMetadata.nodeId, data, -1);
             }
+            notifyMetadataChanged();
         } catch (IOException | InterruptedException | KeeperException err) {
             throw new MetadataStorageManagerException(err);
         }

@@ -22,6 +22,7 @@ package herddb.core;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
+import herddb.metadata.MetadataChangeListener;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
@@ -35,6 +36,7 @@ import herddb.model.ExecutionPlan;
 import herddb.model.GetResult;
 import herddb.model.LimitedDataScanner;
 import herddb.model.NodeMetadata;
+import herddb.model.NotLeaderException;
 import herddb.model.ScanResult;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
@@ -82,7 +84,7 @@ import java.util.stream.Collectors;
  *
  * @author enrico.olivelli
  */
-public class DBManager implements AutoCloseable {
+public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
@@ -97,6 +99,7 @@ public class DBManager implements AutoCloseable {
     private final SQLTranslator translator;
     private final Path tmpDirectory;
     private final ServerHostData hostData;
+    private boolean errorIfNotLeader = true;
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -105,6 +108,14 @@ public class DBManager implements AutoCloseable {
             return t;
         }
     });
+
+    public boolean isErrorIfNotLeader() {
+        return errorIfNotLeader;
+    }
+
+    public void setErrorIfNotLeader(boolean errorIfNotLeader) {
+        this.errorIfNotLeader = errorIfNotLeader;
+    }
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
         this.tmpDirectory = tmpDirectory;
@@ -124,10 +135,15 @@ public class DBManager implements AutoCloseable {
 
     /**
      * Initial boot of the system
+     *
+     * @throws herddb.storage.DataStorageManagerException
+     * @throws herddb.log.LogNotAvailableException
+     * @throws herddb.metadata.MetadataStorageManagerException
      */
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
 
         metadataStorageManager.start();
+        metadataStorageManager.setMetadataChangeListener(this);
         metadataStorageManager.registerNode(NodeMetadata
                 .builder()
                 .host(hostData.getHost())
@@ -194,6 +210,18 @@ public class DBManager implements AutoCloseable {
     private void handleTableSpace(TableSpace tableSpace) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
 
         String tableSpaceName = tableSpace.name;
+
+        TableSpaceManager actual_manager = tablesSpaces.get(tableSpaceName);
+        if (actual_manager != null && actual_manager.isLeader() && !tableSpace.leaderId.equals(nodeId)) {
+            LOGGER.log(Level.SEVERE, "Tablespace {0} leader is no more {1}, it changed to {2}", new Object[]{tableSpaceName, nodeId, tableSpace.leaderId});
+            stopTableSpace(tableSpaceName);
+        }
+        
+        if (actual_manager != null && !actual_manager.isLeader() && tableSpace.leaderId.equals(nodeId)) {
+            LOGGER.log(Level.SEVERE, "Tablespace {0} need to switch to leadership on node {1}", new Object[]{tableSpaceName, nodeId});
+            stopTableSpace(tableSpaceName);
+        }
+
         if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
             LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
@@ -211,8 +239,12 @@ public class DBManager implements AutoCloseable {
                 }
                 throw t;
             }
-        } else if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
+            return;
+        }
+
+        if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
             stopTableSpace(tableSpaceName);
+            return;
         }
 
         if (tableSpace.replicas.size() < tableSpace.expectedReplicaCount) {
@@ -242,6 +274,7 @@ public class DBManager implements AutoCloseable {
                 }
             }
         }
+
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
@@ -276,6 +309,9 @@ public class DBManager implements AutoCloseable {
             }
             if (manager == null) {
                 throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
+            }
+            if (errorIfNotLeader && !manager.isLeader()) {
+                throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
             }
             return manager.executeStatement(statement, context, transactionContext);
         } finally {
@@ -381,6 +417,9 @@ public class DBManager implements AutoCloseable {
         if (manager == null) {
             throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
         }
+        if (errorIfNotLeader && !manager.isLeader()) {
+            throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
+        }
         return manager.scan(statement, context, transactionContext);
     }
 
@@ -434,7 +473,7 @@ public class DBManager implements AutoCloseable {
         } finally {
             generalLock.readLock().unlock();
         }
-        for (TableSpaceManager man : managers) {            
+        for (TableSpaceManager man : managers) {
             man.checkpoint();
         }
     }
@@ -567,10 +606,11 @@ public class DBManager implements AutoCloseable {
     }
 
     private void stopTableSpace(String tableSpace) {
+        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " on " + nodeId);
         try {
             tablesSpaces.get(tableSpace).close();
         } catch (LogNotAvailableException err) {
-            LOGGER.log(Level.SEVERE, "cannot close for reboot tablespace " + tableSpace, err);
+            LOGGER.log(Level.SEVERE, "node " + nodeId + " cannot close for reboot tablespace " + tableSpace, err);
         }
         tablesSpaces.remove(tableSpace);
     }
@@ -581,6 +621,12 @@ public class DBManager implements AutoCloseable {
 
     public Path getTmpDirectory() {
         return tmpDirectory;
+    }
+
+    @Override
+    public void metadataChanged() {
+        LOGGER.log(Level.SEVERE, "metadata changed");
+        triggerActivator();
     }
 
 }

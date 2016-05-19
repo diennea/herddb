@@ -34,6 +34,12 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_NODEID = "server.nodeId";
     public static final String PROPERTY_MODE = "server.mode";
+    
+    /**
+     * Accept requests only for TableSpaces for which the local server is leader
+     */
+    public static final String PROPERTY_ENFORCE_LEADERSHIP = "server.enforceleadership";
+    public static final boolean PROPERTY_ENFORCE_LEADERSHIP_DEFAULT = true;
 
     public static final String PROPERTY_MODE_LOCAL = "local";
     public static final String PROPERTY_MODE_STANDALONE = "standalone";

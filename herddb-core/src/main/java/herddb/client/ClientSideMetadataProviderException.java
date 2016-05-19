@@ -30,4 +30,8 @@ public class ClientSideMetadataProviderException extends Exception {
         super(cause);
     }
 
+    public ClientSideMetadataProviderException(String message) {
+        super(message);
+    }
+
 }

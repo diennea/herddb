@@ -314,7 +314,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public LogSequenceNumber log(LogEntry edit) throws LogNotAvailableException {
-        LOGGER.log(Level.SEVERE, "log {0}", new Object[]{edit});
+//        LOGGER.log(Level.SEVERE, "log {0}", new Object[]{edit});
         while (true) {
             if (closed) {
                 throw new LogNotAvailableException(new Exception("closed"));

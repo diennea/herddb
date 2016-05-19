@@ -19,6 +19,7 @@
  */
 package herddb.metadata;
 
+import herddb.core.DBManager;
 import herddb.model.DDLException;
 import herddb.model.InvalidTableException;
 import herddb.model.NodeMetadata;
@@ -34,6 +35,8 @@ import java.util.List;
  * @author enrico.olivelli
  */
 public abstract class MetadataStorageManager implements AutoCloseable {
+
+    private MetadataChangeListener listener;
 
     public abstract void start() throws MetadataStorageManagerException;
 
@@ -79,8 +82,9 @@ public abstract class MetadataStorageManager implements AutoCloseable {
 
     /**
      * Registers a node in the system
+     *
      * @param nodeMetadata
-     * @throws MetadataStorageManagerException 
+     * @throws MetadataStorageManagerException
      */
     public void registerNode(NodeMetadata nodeMetadata) throws MetadataStorageManagerException {
     }
@@ -89,9 +93,24 @@ public abstract class MetadataStorageManager implements AutoCloseable {
      * Enumerates all known nodes
      *
      * @return
+     * @throws herddb.metadata.MetadataStorageManagerException
      */
     public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
         return Collections.emptyList();
+    }
+
+    public final void setMetadataChangeListener(MetadataChangeListener listener) {
+        this.listener = listener;
+    }
+
+    public final MetadataChangeListener getListener() {
+        return listener;
+    }
+
+    protected void notifyMetadataChanged() {
+        if (listener != null) {
+            listener.metadataChanged();
+        }
     }
 
 }

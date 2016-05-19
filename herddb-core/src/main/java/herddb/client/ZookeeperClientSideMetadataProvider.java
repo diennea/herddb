@@ -24,6 +24,8 @@ import herddb.model.TableSpace;
 import herddb.network.ServerHostData;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
@@ -63,13 +65,28 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
         this.ownZooKeeper = true;
     }
 
+    private final Map<String, String> tableSpaceLeaders = new ConcurrentHashMap<>();
+    private final Map<String, ServerHostData> servers = new ConcurrentHashMap<>();
+
+    @Override
+    public void requestMetadataRefresh() {
+        tableSpaceLeaders.clear();
+        servers.clear();
+    }
+
     @Override
     public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
+        String cached = tableSpaceLeaders.get(tableSpace);
+        if (cached != null) {
+            return cached;
+        }
         ZooKeeper zooKeeper = getZooKeeper();
         try {
             Stat stat = new Stat();
             byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + tableSpace, false, stat);
-            return TableSpace.deserialize(result, stat.getVersion()).leaderId;
+            String leader = TableSpace.deserialize(result, stat.getVersion()).leaderId;
+            tableSpaceLeaders.put(tableSpace, leader);
+            return leader;
         } catch (KeeperException.NoNodeException ex) {
             return null;
         } catch (KeeperException | InterruptedException | IOException ex) {
@@ -87,12 +104,18 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
 
     @Override
     public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException {
+        ServerHostData cached = servers.get(nodeId);
+        if (cached != null) {
+            return cached;
+        }
         ZooKeeper zooKeeper = getZooKeeper();
         try {
             Stat stat = new Stat();
             byte[] node = zooKeeper.getData(basePath + "/nodes/" + nodeId, null, stat);
             NodeMetadata nodeMetadata = NodeMetadata.deserialize(node, stat.getVersion());
-            return new ServerHostData(nodeMetadata.host, nodeMetadata.port, "?", nodeMetadata.ssl, new HashMap<>());
+            ServerHostData result = new ServerHostData(nodeMetadata.host, nodeMetadata.port, "?", nodeMetadata.ssl, new HashMap<>());
+            servers.put(nodeId, result);
+            return result;
         } catch (KeeperException.NoNodeException ex) {
             return null;
         } catch (KeeperException | InterruptedException | IOException ex) {

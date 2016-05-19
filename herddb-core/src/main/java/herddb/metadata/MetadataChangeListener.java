@@ -17,25 +17,14 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.metadata;
 
 /**
- * Generic client side exception
+ * Listens for changes on metadata, for instance changes on
  *
  * @author enrico.olivelli
  */
-public class HDBException extends Exception {
-        
-    public HDBException(String message) {
-        super(message);
-    }
+public interface MetadataChangeListener {
 
-    public HDBException(Throwable cause) {
-        super(cause);
-    }
-
-    public HDBException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
+    void metadataChanged();
 }

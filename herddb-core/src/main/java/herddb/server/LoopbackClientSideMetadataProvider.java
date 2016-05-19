@@ -26,6 +26,7 @@ import herddb.server.Server;
 
 /**
  * Loopback for tests
+ *
  * @author enrico.olivelli
  */
 public class LoopbackClientSideMetadataProvider implements ClientSideMetadataProvider {

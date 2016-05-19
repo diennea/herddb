@@ -95,6 +95,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 buildFileCommitLogManager(),
                 baseDirectory, serverHostData
         );
+        boolean enforeLeadership = configuration.getBoolean(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP_DEFAULT);
+        this.manager.setErrorIfNotLeader(enforeLeadership);
 
         this.networkServer = buildChannelAcceptor();
         this.networkServer.setAcceptor(this);

@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import herddb.client.impl.RetryRequestException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -56,7 +57,7 @@ public class HDBConnection implements AutoCloseable {
 
     @Override
     public void close() {
-        LOG.log(Level.SEVERE, "{0} close ", this);
+        LOGGER.log(Level.SEVERE, "{0} close ", this);
         closed = true;
         List<RoutedClientSideConnection> routesAtClose;
         routesLock.lock();
@@ -70,7 +71,7 @@ public class HDBConnection implements AutoCloseable {
         }
         client.releaseConnection(this);
     }
-    private static final Logger LOG = Logger.getLogger(HDBConnection.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(HDBConnection.class.getName());
 
     void releaseRoute(String nodeId) {
         routesLock.lock();
@@ -82,33 +83,92 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public long beginTransaction(String tableSpace) throws ClientSideMetadataProviderException, HDBException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        return route.beginTransaction(tableSpace);
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                return route.beginTransaction(tableSpace);
+            } catch (RetryRequestException retry) {
+                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+        }
+        throw new HDBException("client is closed");
     }
 
     public void rollbackTransaction(String tableSpace, long tx) throws ClientSideMetadataProviderException, HDBException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        route.rollbackTransaction(tableSpace, tx);
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                route.rollbackTransaction(tableSpace, tx);
+                return;
+            } catch (RetryRequestException retry) {
+                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+        }
+        throw new HDBException("client is closed");
     }
 
     public void commitTransaction(String tableSpace, long tx) throws ClientSideMetadataProviderException, HDBException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        route.commitTransaction(tableSpace, tx);
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                route.commitTransaction(tableSpace, tx);
+                return;
+            } catch (RetryRequestException retry) {
+                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+        }
+        throw new HDBException("client is closed");
     }
 
     public DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        return route.executeUpdate(query, tx, params);
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                return route.executeUpdate(query, tx, params);
+            } catch (RetryRequestException retry) {
+                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+        }
+        throw new HDBException("client is closed");
     }
 
     public Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        return route.executeGet(query, tx, params);
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                return route.executeGet(query, tx, params);
+            } catch (RetryRequestException retry) {
+                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+        }
+        throw new HDBException("client is closed");
     }
 
     public ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
-        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        return route.executeScan(query, params, tx, maxRows, fetchSize);
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                return route.executeScan(query, params, tx, maxRows, fetchSize);
+            } catch (RetryRequestException retry) {
+                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+
+        }
+        throw new HDBException("client is closed");
+    }
+
+    private void sleepOnRetry() throws HDBException {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException err) {
+            throw new HDBException(err);
+        }
     }
 
     public void dumpTableSpace(String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
@@ -143,6 +203,11 @@ public class HDBConnection implements AutoCloseable {
 
     public boolean isClosed() {
         return closed;
+    }
+
+    void requestMetadataRefresh() throws ClientSideMetadataProviderException {
+
+        client.getClientSideMetadataProvider().requestMetadataRefresh();
     }
 
 }

@@ -103,9 +103,9 @@ public class TableSpaceManager {
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager manager;
-    private boolean leader;
-    private boolean closed;
-    private boolean failed;
+    private volatile boolean leader;
+    private volatile boolean closed;
+    private volatile boolean failed;
     private LogSequenceNumber actualLogSequenceNumber;
 
     public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager) {
@@ -419,7 +419,11 @@ public class TableSpaceManager {
             startData.put("command", "start");
             startData.put("ledgerid", actualLogSequenceNumber.ledgerId);
             startData.put("offset", actualLogSequenceNumber.offset);
-            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, startData), timeout);
+            Message response_to_start = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, startData), timeout);
+            if (response_to_start.type != Message.TYPE_ACK) {
+                LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.parameters);
+                return;
+            }
 
             for (AbstractTableManager tableManager : tables.values()) {
                 if (tableManager.isSystemTable()) {
@@ -535,7 +539,7 @@ public class TableSpaceManager {
         // every pending transaction MUST be rollback back
         List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
         log.startWriting();
-        LOGGER.log(Level.SEVERE, "startAsLeader tablespace {0} log, there were {1} pending transactions to be rolledback", new Object[]{tableSpaceName, transactions.size()});
+        LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId,tableSpaceName, transactions.size()});
         for (long tx : pending_transactions) {
             LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
             LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);

@@ -65,6 +65,8 @@ public class SimpleReplicationTest extends ReplicatedLogtestcase {
                 assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
 
                 assertTrue(manager2.waitForTable(tableSpaceName, tableName, 10000, false));
+                
+                manager2.setErrorIfNotLeader(false);
 
                 for (int i = 0; i < 100; i++) {
                     boolean ok = manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found();

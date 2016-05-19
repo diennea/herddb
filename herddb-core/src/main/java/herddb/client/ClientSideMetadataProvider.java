@@ -49,4 +49,9 @@ public interface ClientSideMetadataProvider extends AutoCloseable {
     @Override
     public default void close() {
     }
+
+    public default void requestMetadataRefresh() throws ClientSideMetadataProviderException {
+        throw new ClientSideMetadataProviderException("not working in cluser mode. metadata refresh is not possible");
+    }
+
 }

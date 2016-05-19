@@ -17,25 +17,24 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.model;
 
 /**
- * Generic client side exception
- *
+ * This exception tells that the query as been routed to a server which is no (more) the leader for the tablespace
  * @author enrico.olivelli
  */
-public class HDBException extends Exception {
-        
-    public HDBException(String message) {
+public class NotLeaderException extends StatementExecutionException {
+
+    public NotLeaderException(String message) {
         super(message);
     }
 
-    public HDBException(Throwable cause) {
-        super(cause);
-    }
-
-    public HDBException(String message, Throwable cause) {
+    public NotLeaderException(String message, Throwable cause) {
         super(message, cause);
     }
 
+    public NotLeaderException(Throwable cause) {
+        super(cause);
+    }
+    
 }

@@ -30,6 +30,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.client.impl.ClientSideScannerPeer;
+import herddb.client.impl.RetryRequestException;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -176,7 +177,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    DMLResult executeUpdate(String query, long tx, List<Object> params) throws HDBException {
+    DMLResult executeUpdate(String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -186,6 +187,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             Message message = Message.EXECUTE_STATEMENT(clientId, query, tx, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
                 throw new HDBException(reply + "");
             }
             long updateCount = (Long) reply.parameters.get("updateCount");
@@ -201,7 +207,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    Map<String, Object> executeGet(String query, long tx, List<Object> params) throws HDBException {
+    Map<String, Object> executeGet(String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -211,6 +217,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             Message message = Message.EXECUTE_STATEMENT(clientId, query, tx, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
                 throw new HDBException(reply + "");
             }
             long found = (Long) reply.parameters.get("updateCount");
@@ -223,7 +234,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    long beginTransaction(String tableSpace) throws HDBException {
+    long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -233,6 +244,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE BEGINTRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
                 throw new HDBException(reply + "");
             }
             Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
@@ -242,7 +258,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    void commitTransaction(String tableSpace, long tx) throws HDBException {
+    void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -252,6 +268,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE COMMITTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
                 throw new HDBException(reply + "");
             }
         } catch (InterruptedException | TimeoutException err) {
@@ -259,7 +280,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    void rollbackTransaction(String tableSpace, long tx) throws HDBException {
+    void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -269,6 +290,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
                 throw new HDBException(reply + "");
             }
         } catch (InterruptedException | TimeoutException err) {
@@ -278,7 +304,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
 
-    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException {        
+    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -290,6 +316,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             LOGGER.log(Level.SEVERE, "open scanner" + scannerId + " for query " + query + ", params " + params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
                 throw new HDBException(reply + "");
             }
             List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
@@ -304,7 +335,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    void dumpTableSpace(String tableSpace, int fetchSize, TableSpaceDumpReceiver receiver) throws HDBException {
+    void dumpTableSpace(String tableSpace, int fetchSize, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -317,6 +348,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             Message reply = _channel.sendMessageWithReply(message, timeout);
             LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace + ": first reply " + reply.parameters);
             if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
                 throw new HDBException(reply + "");
             }
             dumpReceivers.put(dumpId, receiver);

@@ -17,25 +17,26 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.client.impl;
+
+import herddb.client.HDBException;
 
 /**
- * Generic client side exception
- *
+ * a retry is needed. for instance in case of leadership change
  * @author enrico.olivelli
  */
-public class HDBException extends Exception {
-        
-    public HDBException(String message) {
+public class RetryRequestException extends HDBException {
+
+    public RetryRequestException(String message) {
         super(message);
     }
 
-    public HDBException(Throwable cause) {
+    public RetryRequestException(Throwable cause) {
         super(cause);
     }
 
-    public HDBException(String message, Throwable cause) {
+    public RetryRequestException(String message, Throwable cause) {
         super(message, cause);
     }
-
+    
 }

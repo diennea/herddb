@@ -27,6 +27,7 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.GetResult;
+import herddb.model.NotLeaderException;
 import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.Statement;
@@ -148,7 +149,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
                     }
                 } catch (StatementExecutionException err) {
-                    _channel.sendReplyMessage(message, Message.ERROR(null, err));
+                    Message error = Message.ERROR(null, err);
+                    if (err instanceof NotLeaderException) {
+                        error.setParameter("notLeader", "true");
+                    }
+                    _channel.sendReplyMessage(message, error);
                 }
             }
             break;
@@ -160,7 +165,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
                 String tableSpace = (String) message.parameters.get("tableSpace");
                 server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize);
-                
+
             }
             break;
             case Message.TYPE_OPENSCANNER: {
@@ -208,7 +213,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 } catch (StatementExecutionException | DataScannerException err) {
                     LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
                     scanners.remove(scannerId);
-                    _channel.sendReplyMessage(message, Message.ERROR(null, err));
+
+                    Message error = Message.ERROR(null, err);
+                    if (err instanceof NotLeaderException) {
+                        error.setParameter("notLeader", "true");
+                    }
+                    _channel.sendReplyMessage(message, error);
                 }
 
                 break;
