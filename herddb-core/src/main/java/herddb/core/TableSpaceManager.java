@@ -255,7 +255,7 @@ public class TableSpaceManager {
         }
 
         if (entry.tableName != null) {
-            AbstractTableManager tableManager = tables.get(Bytes.to_string(entry.tableName));
+            AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(entry);
         }
 

@@ -159,7 +159,7 @@ public class SQLRecordPredicate extends Predicate {
         return false;
     }
 
-    static boolean like(Object a, Object b) {
+    public static boolean like(Object a, Object b) {
         if (a == null || b == null) {
             return false;
         }

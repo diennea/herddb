@@ -34,14 +34,14 @@ import java.nio.charset.StandardCharsets;
 public class LogEntry {
 
     public final short type;
-    public final byte[] tableSpace;
+    public final String tableSpace;
     public final long transactionId;
-    public final byte[] tableName;
+    public final String tableName;
     public final byte[] key;
     public final byte[] value;
     public final long timestamp;
 
-    public LogEntry(long timestamp, short type, byte[] tableSpace, long transactionId, byte[] tableName, byte[] key, byte[] value) {
+    public LogEntry(long timestamp, short type, String tableSpace, long transactionId, String tableName, byte[] key, byte[] value) {
         this.timestamp = timestamp;
         this.type = type;
         this.tableSpace = tableSpace;
@@ -58,28 +58,24 @@ public class LogEntry {
                 doo.writeLong(timestamp);
                 doo.writeShort(type);
                 doo.writeLong(transactionId);
-                doo.writeShort(tableSpace.length);
-                doo.write(tableSpace);
+                doo.writeUTF(tableSpace);
                 switch (type) {
                     case LogEntryType.UPDATE:
-                        doo.writeInt(tableName.length);
-                        doo.write(tableName);
+                        doo.writeUTF(tableName);
                         doo.writeInt(key.length);
                         doo.write(key);
                         doo.writeInt(value.length);
                         doo.write(value);
                         break;
                     case LogEntryType.INSERT:
-                        doo.writeInt(tableName.length);
-                        doo.write(tableName);
+                        doo.writeUTF(tableName);
                         doo.writeInt(key.length);
                         doo.write(key);
                         doo.writeInt(value.length);
                         doo.write(value);
                         break;
                     case LogEntryType.DELETE:
-                        doo.writeInt(tableName.length);
-                        doo.write(tableName);
+                        doo.writeUTF(tableName);
                         doo.writeInt(key.length);
                         doo.write(key);
                         break;
@@ -109,25 +105,24 @@ public class LogEntry {
             long timestamp = dis.readLong();
             short type = dis.readShort();
             long transactionId = dis.readLong();
-            int tableSpaceLen = dis.readShort();
-            byte[] tableSpace = new byte[tableSpaceLen];
-            dis.readFully(tableSpace);
+            String tableSpace = dis.readUTF();
+
             byte[] key = null;
             byte[] value = null;
-            byte[] tableName = null;
+            String tableName = null;
             switch (type) {
                 case LogEntryType.UPDATE:
-                    tableName = readArray(dis);
+                    tableName = dis.readUTF();
                     key = readArray(dis);
                     value = readArray(dis);
                     break;
                 case LogEntryType.INSERT:
-                    tableName = readArray(dis);
+                    tableName = dis.readUTF();
                     key = readArray(dis);
                     value = readArray(dis);
                     break;
                 case LogEntryType.DELETE:
-                    tableName = readArray(dis);
+                    tableName = dis.readUTF();
                     key = readArray(dis);
                     break;
                 case LogEntryType.CREATE_TABLE:
@@ -156,7 +151,7 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" + type + ", tableSpace=" + new String(tableSpace, StandardCharsets.UTF_8) + ", transactionId=" + transactionId + ", tableName=" + tableName + '}';
+        return "LogEntry{" + "type=" + type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + key + ", value=" + value + ", timestamp=" + timestamp + '}';
     }
 
 }

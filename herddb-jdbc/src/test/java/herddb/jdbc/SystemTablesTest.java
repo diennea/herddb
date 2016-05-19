@@ -25,10 +25,12 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.LoopbackClientSideMetadataProvider;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -56,7 +58,7 @@ public class SystemTablesTest {
                         Connection con = dataSource.getConnection();
                         Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
-                    statement.execute("CREATE TABLE mytable2 (key string primary key, name string)");
+                    statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string, ts timestamp)");
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
 
@@ -70,6 +72,74 @@ public class SystemTablesTest {
 
                     }
 
+                    DatabaseMetaData metaData = con.getMetaData();
+                    try (ResultSet rs = metaData.getTables(null, null, null, null)) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertTrue(records.stream().filter(s -> s.contains("mytable")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains("mytable2")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains("systables")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains("syscolumns")).findAny().isPresent());
+
+                    }
+
+                    try (ResultSet rs = metaData.getTables(null, null, "m%table", null)) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertTrue(records.stream().filter(s -> s.contains("mytable")).findAny().isPresent());
+                        assertEquals(1, records.size());
+                    }
+                    try (ResultSet rs = metaData.getTables(null, null, "m%table_", null)) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertTrue(records.stream().filter(s -> s.contains("mytable")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains("mytable2")).findAny().isPresent());
+                        assertEquals(2, records.size());
+                    }
+
+                    try (ResultSet rs = metaData.getColumns(null, null, "mytable2", null)) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            System.out.println("record:" + record);
+                            records.add(record);
+                        }
+                        assertEquals(3, records.size());
+                        assertTrue(records.stream().filter(s -> s.contains("n2")
+                                && s.contains("integer")
+                        ).findAny().isPresent());
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("name") && s.contains("string")
+                        ).findAny().isPresent());
+                        assertTrue(records.stream().filter(s
+                                -> s.contains("ts") && s.contains("timestamp")
+                        ).findAny().isPresent());
+                    }
                 }
             }
         }
