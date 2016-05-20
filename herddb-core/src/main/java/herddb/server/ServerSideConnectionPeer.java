@@ -240,6 +240,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
+                        if (dataScanner.isFinished()) {
+                            scanners.remove(scannerId);
+                        }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
                         _channel.sendReplyMessage(message,
                                 Message.RESULTSET_CHUNK(null, scannerId, columns, converted));

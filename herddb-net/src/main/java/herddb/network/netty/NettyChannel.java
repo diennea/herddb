@@ -223,6 +223,14 @@ public class NettyChannel extends Channel {
             }
         }
 
+        failPendingMessages(socketDescription);
+
+        if (connector != null) {
+            connector.close();
+        }
+    }
+
+    private void failPendingMessages(String socketDescription) {
         pendingReplyMessages.forEach((key, callback) -> {
             Message original = pendingReplyMessagesSource.remove(key);
             LOGGER.log(Level.SEVERE, this + " message " + key + " was not replied (" + original + ") callback:" + callback);
@@ -235,10 +243,6 @@ public class NettyChannel extends Channel {
         pendingReplyMessages.clear();
         pendingReplyMessagesSource.clear();
         pendingReplyMessagesDeadline.clear();
-
-        if (connector != null) {
-            connector.close();
-        }
     }
 
     void exceptionCaught(Throwable cause) {
@@ -247,6 +251,7 @@ public class NettyChannel extends Channel {
     }
 
     void channelClosed() {
+        failPendingMessages(socket+"");
         submitCallback(() -> {
             if (this.messagesReceiver != null) {
                 this.messagesReceiver.channelClosed();

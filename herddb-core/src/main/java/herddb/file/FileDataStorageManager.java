@@ -20,6 +20,7 @@
 package herddb.file;
 
 import herddb.client.HDBConnection;
+import herddb.utils.EnsureIncrementAccumulator;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -161,6 +162,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     dataIn.readFully(key);
                     long pageId = dataIn.readLong();
                     consumer.accept(new Bytes(key), pageId);
+                    newPageId.accumulateAndGet(pageId + 1, new EnsureIncrementAccumulator());
                 }
 
             }

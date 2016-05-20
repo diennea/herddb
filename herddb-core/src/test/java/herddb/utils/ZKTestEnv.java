@@ -47,9 +47,12 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setZkServers("localhost:1282");
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
         conf.setJournalDirName(targetDir.toAbsolutePath().toString());        
-        conf.setFlushInterval(1000);
-        conf.setGcWaitTime(10);
+        conf.setFlushInterval(10000);
+        conf.setGcWaitTime(5);
+        conf.setJournalFlushWhenQueueEmpty(true);
+//        conf.setJournalBufferedEntriesThreshold(1);
         conf.setAutoRecoveryDaemonEnabled(false);
+        conf.setEnableLocalTransport(true);
 
         conf.setAllowLoopback(true);
         conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms            

@@ -78,4 +78,8 @@ public abstract class DataScanner implements AutoCloseable {
         }
         return records;
     }
+
+    public boolean isFinished() throws DataScannerException {
+        return !hasNext();
+    }
 }

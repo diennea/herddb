@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.utils.EnsureIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
@@ -80,11 +81,11 @@ public class TableManager implements AbstractTableManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
-    private static final int MAX_RECORDS_PER_PAGE = 100;
+    private static final int MAX_RECORDS_PER_PAGE = 10000;
 
-    private static final int MAX_LOADED_PAGES = 100;
+    private static final int MAX_LOADED_PAGES = 1000;
 
-    private static final int MAX_DIRTY_RECORDS = 1000;
+    private static final int MAX_DIRTY_RECORDS = 10000;
 
     private static final int UNLOAD_PAGES_MIN_BATCH = 10;
 
@@ -668,18 +669,6 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
-    private static final class MyLongBinaryOperator implements LongBinaryOperator {
-
-        @Override
-        public long applyAsLong(long left, long right) {
-            if (left <= right) {
-                return right;
-            } else {
-                return left;
-            }
-        }
-
-    }
 
     private void applyInsert(Bytes key, Bytes value) {
         if (table.auto_increment) {
@@ -690,7 +679,7 @@ public class TableManager implements AbstractTableManager {
             } else {
                 pk_logical_value = key.to_long();
             }
-            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, new MyLongBinaryOperator());
+            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, new EnsureIncrementAccumulator());
         }
         keyToPage.put(key, NO_PAGE);
         buffer.put(key, new Record(key, value));
