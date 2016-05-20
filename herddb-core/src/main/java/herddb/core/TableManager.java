@@ -219,7 +219,7 @@ public class TableManager implements AbstractTableManager {
                 this.nextPrimaryKeyValue.set(Bytes.toLong(status.nextPrimaryKeyValue, 0, 8));
                 LOGGER.log(Level.SEVERE, "found status stone table={0}, logpos, {1}, nextpk={2}", new Object[]{status.tableName, status.sequenceNumber, nextPrimaryKeyValue});
             },
-                    (key, pageId) -> {
+                    (key, pageId) -> {                        
                         keyToPage.put(key, pageId);
                     });
         } finally {

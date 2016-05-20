@@ -46,8 +46,8 @@ public class ZKTestEnv implements AutoCloseable {
         Path targetDir = path.resolve("bookie_data");
         conf.setZkServers("localhost:1282");
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
-        conf.setJournalDirName(targetDir.toAbsolutePath().toString());
-        conf.setFlushInterval(10);
+        conf.setJournalDirName(targetDir.toAbsolutePath().toString());        
+        conf.setFlushInterval(1000);
         conf.setGcWaitTime(10);
         conf.setAutoRecoveryDaemonEnabled(false);
 

@@ -83,6 +83,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     public void start() throws MetadataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "start, zkAddress " + zkAddress + ", zkSessionTimeout:" + zkSessionTimeout + ", basePath:" + basePath);
         try {
             this.zooKeeper = new ZooKeeper(zkAddress, zkSessionTimeout, mainWatcher);
             firstConnectionLatch.await(zkSessionTimeout, TimeUnit.SECONDS); // TODO: use another timeout?

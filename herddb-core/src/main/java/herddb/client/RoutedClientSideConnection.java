@@ -29,7 +29,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import herddb.client.impl.ClientSideScannerPeer;
 import herddb.client.impl.RetryRequestException;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
@@ -59,7 +58,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final String clientId;
     private final ReentrantLock connectionLock = new ReentrantLock(true);
     private volatile Channel channel;
-    private final Map<String, ClientSideScannerPeer> scanners = new ConcurrentHashMap<>();
+    
     private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
@@ -96,6 +95,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 try {
                     Map<String, Object> values = (Map<String, Object>) message.parameters.get("values");
                     String command = (String) values.get("command") + "";
+                    boolean sendAck = true;
                     switch (command) {
                         case "start": {
                             long ledgerId = (long) values.get("ledgerid");
@@ -115,6 +115,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         }
                         case "finish": {
                             receiver.finish();
+                            sendAck = false;
                             break;
                         }
                         case "data": {
@@ -127,7 +128,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             break;
                         }
                     }
-                    if (_channel != null) {
+                    if (_channel != null && sendAck) {
                         _channel.sendReplyMessage(message, Message.ACK(clientId));
                     }
                 } catch (DataStorageManagerException error) {
@@ -327,8 +328,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             List<String> columnNames = (List<String>) reply.parameters.get("columns");
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
             ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer, fetchSize);
-            ClientSideScannerPeer scanner = new ClientSideScannerPeer(scannerId, impl);
-            scanners.put(scannerId, scanner);
+            
             return impl;
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -345,6 +345,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             String dumpId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
             Message message = Message.REQUEST_TABLESPACE_DUMP(clientId, tableSpace, dumpId, fetchSize);
             LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace);
+            dumpReceivers.put(dumpId, receiver);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace + ": first reply " + reply.parameters);
             if (reply.type == Message.TYPE_ERROR) {
@@ -355,7 +356,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 throw new HDBException(reply + "");
             }
-            dumpReceivers.put(dumpId, receiver);
+            
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }

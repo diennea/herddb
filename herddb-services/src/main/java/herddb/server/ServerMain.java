@@ -42,6 +42,7 @@ public class ServerMain implements AutoCloseable {
     private final Properties configuration;
     private final PidFileLocker pidFileLocker;
     private Server server;
+    private boolean started;
 
     private static ServerMain runningInstance;
 
@@ -71,12 +72,14 @@ public class ServerMain implements AutoCloseable {
             Properties configuration = new Properties();
             File configFile;
             if (args.length > 0) {
-                configFile = new File(args[0]);
+                configFile = new File(args[0]).getAbsoluteFile();
+                System.out.println("Reading configuration from " + configFile);
                 try (FileReader reader = new FileReader(configFile)) {
                     configuration.load(reader);
                 }
             } else {
-                configFile = new File("conf/server.properties");
+                configFile = new File("conf/server.properties").getAbsoluteFile();
+                System.out.println("Reading configuration from " + configFile);
                 if (configFile.isFile()) {
                     try (FileReader reader = new FileReader(configFile)) {
                         configuration.load(reader);
@@ -100,6 +103,7 @@ public class ServerMain implements AutoCloseable {
             });
             runningInstance = new ServerMain(configuration);
             runningInstance.start();
+
             runningInstance.join();
 
         } catch (Throwable t) {
@@ -108,13 +112,26 @@ public class ServerMain implements AutoCloseable {
         }
     }
 
+    public boolean isStarted() {
+        return started;
+    }
+
     private final static CountDownLatch running = new CountDownLatch(1);
+
+    public static ServerMain getRunningInstance() {
+        return runningInstance;
+    }
+
+    public Server getServer() {
+        return server;
+    }
 
     public void join() {
         try {
             running.await();
         } catch (InterruptedException discard) {
         }
+        started = false;
     }
 
     public void start() throws Exception {
@@ -126,6 +143,7 @@ public class ServerMain implements AutoCloseable {
         server.start();
 
         System.out.println("HerdDB server starter");
+        started = true;
     }
 
 }

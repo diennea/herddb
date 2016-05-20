@@ -216,7 +216,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "Tablespace {0} leader is no more {1}, it changed to {2}", new Object[]{tableSpaceName, nodeId, tableSpace.leaderId});
             stopTableSpace(tableSpaceName);
         }
-        
+
         if (actual_manager != null && !actual_manager.isLeader() && tableSpace.leaderId.equals(nodeId)) {
             LOGGER.log(Level.SEVERE, "Tablespace {0} need to switch to leadership on node {1}", new Object[]{tableSpaceName, nodeId});
             stopTableSpace(tableSpaceName);
@@ -542,8 +542,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         generalLock.writeLock().lock();
                         try {
                             Collection<String> actualTablesSpaces = metadataStorageManager.listTableSpaces();
+
                             for (String tableSpace : actualTablesSpaces) {
-                                TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);
+                                TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);                                
                                 try {
                                     handleTableSpace(tableSpaceMetadata);
                                 } catch (Exception err) {

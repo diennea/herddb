@@ -168,4 +168,10 @@ public class TableSpace {
         }
 
     }
+
+    @Override
+    public String toString() {
+        return "TableSpace{" + "name=" + name + ", leaderId=" + leaderId + ", replicas=" + replicas + ", expectedReplicaCount=" + expectedReplicaCount + ", metadataStorageVersion=" + metadataStorageVersion + '}';
+    }
+
 }

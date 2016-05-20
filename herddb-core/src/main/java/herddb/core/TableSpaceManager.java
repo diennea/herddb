@@ -61,6 +61,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.KeyValue;
 import herddb.network.Message;
+import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -480,7 +481,11 @@ public class TableSpaceManager {
 
             Map<String, Object> finishData = new HashMap<>();
             finishData.put("command", "finish");
-            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, finishData), timeout);
+            _channel.sendOneWayMessage(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, finishData), new SendResultCallback() {
+                @Override
+                public void messageSent(Message originalMessage, Throwable error) {
+                }
+            });
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId);
         } finally {
@@ -539,7 +544,7 @@ public class TableSpaceManager {
         // every pending transaction MUST be rollback back
         List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
         log.startWriting();
-        LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId,tableSpaceName, transactions.size()});
+        LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, transactions.size()});
         for (long tx : pending_transactions) {
             LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
             LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);

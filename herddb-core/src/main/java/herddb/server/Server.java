@@ -38,11 +38,13 @@ import herddb.network.ServerSideConnectionAcceptor;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.storage.DataStorageManager;
 import java.lang.management.ManagementFactory;
+import java.net.InetAddress;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -77,18 +79,21 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     public Server(ServerConfiguration configuration) {
         this.configuration = configuration;
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
-        if (nodeId.isEmpty()) {
-            nodeId = ManagementFactory.getRuntimeMXBean().getName();
-        }
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
         this.metadataStorageManager = buildMetadataStorageManager();
+        String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
+        int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
         this.serverHostData = new ServerHostData(
-                configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT),
-                configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT),
+                host,
+                port,
                 "",
                 configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
                 new HashMap<>());
+        if (nodeId.isEmpty()) {
+            nodeId = host + ":" + port;
+        }
+        LOGGER.log(Level.SEVERE, "local nodeID is " + nodeId);
         this.manager = new DBManager(nodeId,
                 metadataStorageManager,
                 buildDataStorageManager(),
@@ -163,8 +168,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public void waitForStandaloneBoot() throws Exception {
-        if (!this.manager.waitForTablespace(TableSpace.DEFAULT, 10000, true)) {
-            throw new Exception("TableSpace " + TableSpace.DEFAULT + " not started");
+        waitForTableSpaceBoot(TableSpace.DEFAULT, true);
+    }
+
+    public void waitForTableSpaceBoot(String tableSpace, boolean leader) throws Exception {
+        if (!this.manager.waitForTablespace(tableSpace, 10000, leader)) {
+            throw new Exception("TableSpace " + tableSpace + " not started");
         }
     }
 

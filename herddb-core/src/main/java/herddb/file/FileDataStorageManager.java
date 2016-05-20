@@ -142,25 +142,34 @@ public class FileDataStorageManager extends DataStorageManager {
         try (InputStream input = Files.newInputStream(keys, StandardOpenOption.READ);
                 DataInputStream dataIn = new DataInputStream(input)) {
             while (true) {
-                int keySize = dataIn.readInt();
-                if (keySize == TABLE_STATUS_MARKER) {
+                int marker;
+                try {
+                    marker = dataIn.readInt();
+                } catch (EOFException ok) {
+                    break;
+                }
+                if (marker == TABLE_STATUS_MARKER) {
                     TableStatus tableStatus = TableStatus.deserialize(dataIn);
                     tableStatusConsumer.accept(tableStatus);
                 } else {
+                    throw new IOException("corrupted file " + keys + ", missing marker");
+                }
+                int numRecords = dataIn.readInt();
+                for (int i = 0; i < numRecords; i++) {
+                    int keySize = dataIn.readInt();
                     byte[] key = new byte[keySize];
                     dataIn.readFully(key);
                     long pageId = dataIn.readLong();
                     consumer.accept(new Bytes(key), pageId);
                 }
+
             }
-        } catch (EOFException err) {
-            // OK
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
     }
 
-    private static final int TABLE_STATUS_MARKER = -1;
+    private static final int TABLE_STATUS_MARKER = 1233;
 
     @Override
     public Long writePage(String tableSpace, String tableName, TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException {
@@ -192,6 +201,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
             dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
             tableStatus.serialize(dataOutputKeys);
+
             dataOutputKeys.writeInt(newPage.size());
 
             for (Record record : newPage) {

@@ -58,7 +58,7 @@
         <libs.jsqlparser>0.9.5</libs.jsqlparser>
         <libs.curator>2.8.0</libs.curator>
         <libs.guava>19.0</libs.guava>
-        <libs.bookkeeper>4.3.2</libs.bookkeeper>
+        <libs.bookkeeper>4.4.0</libs.bookkeeper>
     </properties>
         
     <dependencies>
