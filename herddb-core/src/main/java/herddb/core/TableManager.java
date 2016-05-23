@@ -51,6 +51,7 @@ import herddb.model.TableContext;
 import herddb.model.Tuple;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
@@ -115,6 +116,8 @@ public class TableManager implements AbstractTableManager {
     private final Set<Long> loadedPages = new HashSet<>();
 
     private final Set<Long> dirtyPages = new ConcurrentSkipListSet<>();
+
+    private final Set<Long> activePages = new ConcurrentSkipListSet<>();
 
     private final AtomicInteger dirtyRecords = new AtomicInteger();
 
@@ -216,13 +219,32 @@ public class TableManager implements AbstractTableManager {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
         pagesLock.writeLock().lock();
         try {
-            dataStorageManager.restore(table.tablespace, table.name, (status) -> {
-                this.nextPrimaryKeyValue.set(Bytes.toLong(status.nextPrimaryKeyValue, 0, 8));
-                LOGGER.log(Level.SEVERE, "found status stone table={0}, logpos, {1}, nextpk={2}", new Object[]{status.tableName, status.sequenceNumber, nextPrimaryKeyValue});
-            },
-                    (key, pageId) -> {                        
-                        keyToPage.put(key, pageId);
-                    });
+            dataStorageManager.fullTableScan(table.tablespace, table.name,
+                    new FullTableScanConsumer() {
+
+                long currentPage;
+
+                @Override
+                public void acceptTableStatus(TableStatus tableStatus) {
+                    nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
+                }
+
+                @Override
+                public void startPage(long pageId) {
+                    currentPage = pageId;
+                }
+
+                @Override
+                public void acceptRecord(Record record) {
+                    keyToPage.put(record.key, currentPage);
+                }
+
+                @Override
+                public void endPage() {
+                    currentPage = -1;
+                }
+            });
+
         } finally {
             pagesLock.writeLock().unlock();
         }
@@ -634,32 +656,26 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void dump(Consumer<Record> records) throws DataStorageManagerException {
-        pagesLock.readLock().lock();
-        try {
-            for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
-                Bytes key = entry.getKey();
-                Long pageId = entry.getValue();
-                if (pageId != null) { // record disappeared during the scan
-                    Record record;
-                    if (Objects.equals(pageId, NO_PAGE)) {
-                        record = buffer.get(key);
-                    } else {
-                        ensurePageLoaded(pageId);
-                        record = buffer.get(key);
-                    }
-                    if (record == null) {
-                        throw new DataStorageManagerException("inconsistency during dump! no record in memory for " + entry.getKey() + " page " + pageId);
-                    }
-                    try {
-                        records.accept(record);
-                    } catch (Exception error) {
-                        throw new DataStorageManagerException(error);
-                    }
-                }
+        
+        dataStorageManager.fullTableScan(table.tablespace, table.name, new FullTableScanConsumer() {
+            @Override
+            public void acceptTableStatus(TableStatus tableStatus) {
+                
             }
-        } finally {
-            pagesLock.readLock().unlock();
-        }
+            @Override
+            public void startPage(long pageId) {
+            }
+
+            @Override
+            public void acceptRecord(Record record) {
+                records.accept(record);
+            }
+
+            @Override
+            public void endPage() {
+
+            }
+        });
     }
 
     void writeFromDump(List<Record> record) {
@@ -668,7 +684,6 @@ public class TableManager implements AbstractTableManager {
             applyInsert(r.key, r.value);
         }
     }
-
 
     private void applyInsert(Bytes key, Bytes value) {
         if (table.auto_increment) {
@@ -780,7 +795,7 @@ public class TableManager implements AbstractTableManager {
     public void checkpoint() throws DataStorageManagerException {
         pagesLock.writeLock().lock();
         LogSequenceNumber sequenceNumber = log.getActualSequenceNumber();
-        TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data);
+        
         try {
             /*
                 When the size of loaded data in the memory reaches a maximum value the rows on memory are dumped back to disk creating new pages
@@ -806,7 +821,7 @@ public class TableManager implements AbstractTableManager {
                 if (toKeep != null) {
                     newPage.add(toKeep);
                     if (++count == MAX_RECORDS_PER_PAGE) {
-                        createNewPage(tableStatus, newPage);
+                        createNewPage(newPage);
                         newPage.clear();
                         count = 0;
                     }
@@ -814,21 +829,27 @@ public class TableManager implements AbstractTableManager {
 
             }
             if (!newPage.isEmpty()) {
-                createNewPage(tableStatus, newPage);
+                createNewPage(newPage);
             }
+            
             buffer.clear();
             loadedPages.clear();
             dirtyPages.clear();
+            activePages.removeAll(dirtyPages);
             dirtyRecords.set(0);
+            TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, activePages);
+            dataStorageManager.writeCurrentTableStatus(table.tablespace, table.name, tableStatus);
+            
         } finally {
             pagesLock.writeLock().unlock();
         }
 
     }
 
-    private void createNewPage(TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "createNewPage at " + tableStatus.sequenceNumber + " with " + newPage.size() + " records");
-        Long newPageId = dataStorageManager.writePage(table.tablespace, table.name, tableStatus, newPage);
+    private void createNewPage(List<Record> newPage) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "createNewPage with " + newPage.size() + " records");
+        Long newPageId = dataStorageManager.writePage(table.tablespace, table.name, newPage);        
+        activePages.add(newPageId);
         for (Record record : newPage) {
             keyToPage.put(record.key, newPageId);
         }
@@ -966,5 +987,4 @@ public class TableManager implements AbstractTableManager {
         return false;
     }
 
-    
 }

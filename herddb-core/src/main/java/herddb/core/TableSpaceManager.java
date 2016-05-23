@@ -400,7 +400,9 @@ public class TableSpaceManager {
 
     }
 
-    void dumpTableSpace(String dumpId, Channel _channel, int fetchSize) {
+    void dumpTableSpace(String dumpId, Channel _channel, int fetchSize) throws DataStorageManagerException, LogNotAvailableException {
+        
+        checkpoint();
         LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize);
         generalLock.readLock().lock();
         try {

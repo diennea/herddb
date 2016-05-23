@@ -527,7 +527,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         } else {
             _channel.sendReplyMessage(message, Message.ACK(null));
         }
-        manager.dumpTableSpace(dumpId, _channel, fetchSize);
+        try {
+            manager.dumpTableSpace(dumpId, _channel, fetchSize);
+        } catch (DataStorageManagerException | LogNotAvailableException error) {
+            LOGGER.log(Level.SEVERE, "error before dump", error);
+            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("internal error " + error, error)));
+        }
     }
 
     private class Activator implements Runnable {
@@ -544,7 +549,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                             Collection<String> actualTablesSpaces = metadataStorageManager.listTableSpaces();
 
                             for (String tableSpace : actualTablesSpaces) {
-                                TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);                                
+                                TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);
                                 try {
                                     handleTableSpace(tableSpaceMetadata);
                                 } catch (Exception err) {

@@ -45,12 +45,14 @@ public abstract class DataStorageManager {
     public abstract List<Record> loadPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException;
 
     /**
-     * Load the ful list of keys on a page
+     * Load the full data of a table
      *
+     * @param tableSpace
      * @param tableName
      * @param consumer
+     * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract void restore(String tableSpace, String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException;
+    public abstract void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException;
 
     /**
      * Write a page on disk
@@ -61,7 +63,18 @@ public abstract class DataStorageManager {
      * @return
      * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract Long writePage(String tableSpace, String tableName, TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException;
+    public abstract Long writePage(String tableSpace, String tableName, List<Record> newPage) throws DataStorageManagerException;
+
+    /**
+     * Write current table status. This operations mark the actual set of pages
+     * at a given log sequence number and "closes" a snapshot
+     *
+     * @param tableSpace
+     * @param tableName
+     * @param tableStatus
+     * @throws DataStorageManagerException
+     */
+    public abstract void writeCurrentTableStatus(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
 
     /**
      * Return the actual number of pages presents on disk
@@ -111,6 +124,5 @@ public abstract class DataStorageManager {
     public abstract LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException;
 
     public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;
-    
-        
+
 }

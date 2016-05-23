@@ -120,7 +120,7 @@ public class FlushTest extends BaseTestcase {
         for (long pageId = 1; pageId <= dataStorageManager.getActualNumberOfPages(tableSpace, tableName); pageId++) {
             Page page = mem.getPage(tableName, pageId);
             List<Record> records = page.getRecords();
-            System.out.println("PAGE #" + pageId + " records :" + records + " seq " + page.getSequenceNumber());
+            System.out.println("PAGE #" + pageId + " records :" + records);
         }
 
         assertEquals(5, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));

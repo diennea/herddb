@@ -24,17 +24,17 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -50,24 +50,18 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public static final class Page {
 
         private final List<Record> records;
-        private final LogSequenceNumber sequenceNumber;
 
-        public Page(List<Record> records, LogSequenceNumber sequenceNumber) {
+        public Page(List<Record> records) {
             this.records = records;
-            this.sequenceNumber = sequenceNumber;
         }
 
         public List<Record> getRecords() {
             return records;
         }
 
-        public LogSequenceNumber getSequenceNumber() {
-            return sequenceNumber;
-        }
-
         @Override
         public String toString() {
-            return "Page{" + "records=" + records.size() + ", sequenceNumber=" + sequenceNumber + '}';
+            return "Page{" + "records=" + records.size();
         }
 
     }
@@ -99,17 +93,21 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void restore(String tableSpace, String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) {
-        // AT BOOT NO DATA IS PRESENT
+    public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
+        consumer.acceptTableStatus(new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, new HashSet<>()));
     }
 
     @Override
-    public Long writePage(String tableSpace, String tableName, TableStatus tableStatus, List<Record> newPage) {
+    public Long writePage(String tableSpace, String tableName, List<Record> newPage) {
         long pageId = newPageId.incrementAndGet();
-        Page page = new Page(new ArrayList<>(newPage), tableStatus.sequenceNumber);
+        Page page = new Page(new ArrayList<>(newPage));
         pages.put(tableName + "_" + pageId, page);
         LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
         return pageId;
+    }
+
+    @Override
+    public void writeCurrentTableStatus(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
     }
 
     @Override

@@ -23,6 +23,8 @@ import herddb.log.LogSequenceNumber;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Status of a table on disk
@@ -34,11 +36,13 @@ public class TableStatus {
     public final String tableName;
     public final LogSequenceNumber sequenceNumber;
     public final byte[] nextPrimaryKeyValue;
+    public final Set<Long> activePages;
 
-    public TableStatus(String tableName, LogSequenceNumber sequenceNumber, byte[] nextPrimaryKeyValue) {
+    public TableStatus(String tableName, LogSequenceNumber sequenceNumber, byte[] nextPrimaryKeyValue, Set<Long> activePages) {
         this.tableName = tableName;
         this.sequenceNumber = sequenceNumber;
         this.nextPrimaryKeyValue = nextPrimaryKeyValue;
+        this.activePages = new HashSet<>(activePages);
     }
 
     public void serialize(DataOutputStream output) throws IOException {
@@ -47,6 +51,10 @@ public class TableStatus {
         output.writeLong(sequenceNumber.offset);
         output.writeInt(nextPrimaryKeyValue.length);
         output.write(nextPrimaryKeyValue);
+        output.writeInt(activePages.size());
+        for (long idpage : activePages) {
+            output.writeLong(idpage);
+        }
     }
 
     public static TableStatus deserialize(DataInputStream in) throws IOException {
@@ -56,7 +64,19 @@ public class TableStatus {
         int len = in.readInt();
         byte[] nextPrimaryKeyValue = new byte[len];
         in.readFully(nextPrimaryKeyValue);
-        return new TableStatus(tableName, new LogSequenceNumber(ledgerId, offset), nextPrimaryKeyValue);
+        int numPages = in.readInt();
+        Set<Long> activePages = new HashSet<>();
+        for (int i = 0; i < numPages; i++) {
+            activePages.add(in.readLong());
+        }
+        return new TableStatus(tableName, new LogSequenceNumber(ledgerId, offset), nextPrimaryKeyValue, activePages);
     }
+
+    @Override
+    public String toString() {
+        return "TableStatus{" + "tableName=" + tableName + ", sequenceNumber=" + sequenceNumber + ", activePages=" + activePages + '}';
+    }
+    
+    
 
 }

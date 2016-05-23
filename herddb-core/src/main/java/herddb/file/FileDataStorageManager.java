@@ -26,6 +26,7 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import java.io.DataInputStream;
@@ -43,6 +44,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -101,8 +103,8 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve(pageId + ".page");
     }
 
-    private Path getTableMetadataFile(Path tableDirectory) {
-        return tableDirectory.resolve("keys");
+    private Path getTableCheckPointsFile(Path tableDirectory) {
+        return tableDirectory.resolve("checkpoints");
     }
 
     @Override
@@ -129,17 +131,38 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void restore(String tableSpace, String tableName, Consumer<TableStatus> tableStatusConsumer, BiConsumer<Bytes, Long> consumer) throws DataStorageManagerException {
+    public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
+
+        TableStatus latestStatus = readActualTableStatus(tableSpace, tableName);
+
+        LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
+        consumer.acceptTableStatus(latestStatus);
+        for (long idpage : latestStatus.activePages) {
+            List<Record> records = loadPage(tableSpace, tableName, idpage);
+            consumer.startPage(idpage);
+            LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
+            for (Record record : records) {
+                consumer.acceptRecord(record);
+            }
+            consumer.endPage();
+        }
+
+    }
+
+    private TableStatus readActualTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, tableName);
         try {
             Files.createDirectories(tableDir);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getTableMetadataFile(tableDir);
+        Path keys = getTableCheckPointsFile(tableDir);
+        LOGGER.log(Level.SEVERE,"readActualTableStatus "+tableSpace+"."+tableName+" from "+keys);
         if (!Files.isRegularFile(keys)) {
-            return;
+            LOGGER.log(Level.SEVERE,"readActualTableStatus "+tableSpace+"."+tableName+" from "+keys+". file does not exist");
+            return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, new HashSet<>());
         }
+        TableStatus latestStatus = null;
         try (InputStream input = Files.newInputStream(keys, StandardOpenOption.READ);
                 DataInputStream dataIn = new DataInputStream(input)) {
             while (true) {
@@ -151,30 +174,44 @@ public class FileDataStorageManager extends DataStorageManager {
                 }
                 if (marker == TABLE_STATUS_MARKER) {
                     TableStatus tableStatus = TableStatus.deserialize(dataIn);
-                    tableStatusConsumer.accept(tableStatus);
+                    latestStatus = tableStatus;
                 } else {
                     throw new IOException("corrupted file " + keys + ", missing marker");
-                }
-                int numRecords = dataIn.readInt();
-                for (int i = 0; i < numRecords; i++) {
-                    int keySize = dataIn.readInt();
-                    byte[] key = new byte[keySize];
-                    dataIn.readFully(key);
-                    long pageId = dataIn.readLong();
-                    consumer.accept(new Bytes(key), pageId);
-                    newPageId.accumulateAndGet(pageId + 1, new EnsureIncrementAccumulator());
                 }
 
             }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        if (latestStatus == null) {
+            throw new DataStorageManagerException("table status not found on disk");
+        }
+        return latestStatus;
     }
 
     private static final int TABLE_STATUS_MARKER = 1233;
 
     @Override
-    public Long writePage(String tableSpace, String tableName, TableStatus tableStatus, List<Record> newPage) throws DataStorageManagerException {
+    public void writeCurrentTableStatus(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {        
+        Path tableDir = getTableDirectory(tableSpace, tableName);
+        try {
+            Files.createDirectories(tableDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        Path keys = getTableCheckPointsFile(tableDir);
+        LOGGER.log(Level.SEVERE, "writeCurrentTableStatus " + tableSpace + ", " + tableName + ": " + tableStatus+" to file "+keys);
+        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
+                DataOutputStream dataOutputKeys = new DataOutputStream(outputKeys)) {
+            dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
+            tableStatus.serialize(dataOutputKeys);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public Long writePage(String tableSpace, String tableName, List<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long pageId = newPageId.incrementAndGet();
         Path tableDir = getTableDirectory(tableSpace, tableName);
@@ -197,44 +234,13 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
-        Path keys = getTableMetadataFile(tableDir);
-        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-                DataOutputStream dataOutputKeys = new DataOutputStream(outputKeys)) {
-
-            dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
-            tableStatus.serialize(dataOutputKeys);
-
-            dataOutputKeys.writeInt(newPage.size());
-
-            for (Record record : newPage) {
-                dataOutputKeys.writeInt(record.key.data.length);
-                dataOutputKeys.write(record.key.data);
-                dataOutputKeys.writeLong(pageId);
-            }
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
         return pageId;
     }
 
     @Override
     public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
-        Path tableDir = getTableDirectory(tableSpace, tableName);
-        try {
-            Files.createDirectories(tableDir);
-
-            AtomicInteger count = new AtomicInteger();
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(tableDir, (path) -> {
-                return path.toString().endsWith(".page");
-            });) {
-                stream.forEach(p -> {
-                    count.incrementAndGet();
-                });
-            }
-            return count.get();
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
+        TableStatus readActualTableStatus = readActualTableStatus(tableSpace, tableName);
+        return readActualTableStatus.activePages.size();
     }
 
     @Override
