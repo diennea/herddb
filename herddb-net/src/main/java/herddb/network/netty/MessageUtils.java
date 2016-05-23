@@ -55,6 +55,7 @@ public class MessageUtils {
     private static final byte OPCODE_TIMESTAMP_VALUE = 14;
     private static final byte OPCODE_BYTE_VALUE = 15;
     private static final byte OPCODE_KEYVALUE_VALUE = 16;
+    private static final byte OPCODE_BOOLEAN_VALUE = 17;
 
     private static void writeUTF8String(ByteBuf buf, String s) {
         byte[] asarray = s.getBytes(StandardCharsets.UTF_8);
@@ -114,6 +115,9 @@ public class MessageUtils {
         } else if (o instanceof Integer) {
             encoded.writeByte(OPCODE_INT_VALUE);
             encoded.writeInt((Integer) o);
+        } else if (o instanceof Boolean) {
+            encoded.writeByte(OPCODE_BOOLEAN_VALUE);
+            encoded.writeByte(((Boolean) o).booleanValue() ? 1 : 0);
         } else if (o instanceof Long) {
             encoded.writeByte(OPCODE_LONG_VALUE);
             encoded.writeLong((Long) o);
@@ -159,6 +163,8 @@ public class MessageUtils {
                 return readUTF8String(encoded);
             case OPCODE_INT_VALUE:
                 return encoded.readInt();
+            case OPCODE_BOOLEAN_VALUE:
+                return encoded.readByte() == 1 ? true : false;
             case OPCODE_MAP_VALUE: {
                 int len = encoded.readInt();
                 Map<Object, Object> ret = new HashMap<>();

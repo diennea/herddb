@@ -204,9 +204,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
+                        boolean last = dataScanner.isFinished();
                         LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
-                        scanners.put(scannerId, scanner);
-                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
+                        if (!last) {
+                            scanners.put(scannerId, scanner);
+                        }
+                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last));
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
                     }
@@ -240,17 +243,20 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         for (Tuple r : records) {
                             converted.add(r.toMap());
                         }
+                        boolean last = false;
                         if (dataScanner.isFinished()) {
+                            LOGGER.log(Level.SEVERE, "unregistering scanner " + scannerId + ", resultset is finished");
                             scanners.remove(scannerId);
+                            last = true;
                         }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
                         _channel.sendReplyMessage(message,
-                                Message.RESULTSET_CHUNK(null, scannerId, columns, converted));
+                                Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last));
                     } catch (DataScannerException error) {
                         _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
                     }
                 } else {
-                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId)).setParameter("scannerId", scannerId));
+                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId + ", only " + scanners.keySet())).setParameter("scannerId", scannerId));
                 }
             }
             ;
@@ -258,7 +264,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             case Message.TYPE_CLOSESCANNER: {
                 String scannerId = (String) message.parameters.get("scannerId");
-                LOGGER.log(Level.SEVERE, "remove scanner " + scannerId);
+                LOGGER.log(Level.SEVERE, "remove scanner " + scannerId + " as requested by client");
                 ServerSideScannerPeer removed = scanners.remove(scannerId);
                 if (removed != null) {
                     removed.clientClose();

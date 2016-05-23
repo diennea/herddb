@@ -58,7 +58,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final String clientId;
     private final ReentrantLock connectionLock = new ReentrantLock(true);
     private volatile Channel channel;
-    
+
     private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
 
     public RoutedClientSideConnection(HDBConnection connection, String nodeId) throws ClientSideMetadataProviderException {
@@ -326,9 +326,10 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             }
             List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
             List<String> columnNames = (List<String>) reply.parameters.get("columns");
+            boolean last = (Boolean) reply.parameters.get("last");
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
-            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer, fetchSize);
-            
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer, fetchSize, last);
+
             return impl;
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -356,7 +357,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 throw new HDBException(reply + "");
             }
-            
+
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -367,7 +368,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         private final String scannerId;
         private final ScanResultSetMetadata metadata;
 
-        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer, int fetchSize) {
+        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer, int fetchSize, boolean onlyOneChunk) {
             this.scannerId = scannerId;
             this.metadata = new ScanResultSetMetadata(columns);
             this.fetchBuffer.addAll(fetchBuffer);
@@ -376,6 +377,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 // empty result set
                 finished = true;
                 noMoreData = true;
+            }
+            if (onlyOneChunk) {
+                lastChunk = true;
             }
         }
 
@@ -390,6 +394,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         boolean noMoreData;
         int bufferPosition;
         int fetchSize;
+        boolean lastChunk;
 
         @Override
         public void close() {
@@ -405,6 +410,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
 
         private void fillBuffer() throws HDBException {
+            if (lastChunk) {
+                fetchBuffer.clear();
+                noMoreData = true;
+                bufferPosition = 0;
+                return;
+            }
             fetchBuffer.clear();
             ensureOpen();
             Channel _channel = channel;
@@ -422,6 +433,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     throw new HDBException("protocol error: " + result);
                 }
                 List<Map<String, Object>> records = (List<Map<String, Object>>) result.parameters.get("records");
+                lastChunk = (Boolean) result.parameters.get("last");
                 if (records.isEmpty()) {
                     noMoreData = true;
                 }

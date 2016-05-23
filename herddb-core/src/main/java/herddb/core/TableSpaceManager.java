@@ -175,16 +175,7 @@ public class TableSpaceManager {
             LOGGER.log(Level.SEVERE, "full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
         }
         downloadTableSpaceData();
-        log.recovery(logSequenceNumber, new BiConsumer<LogSequenceNumber, LogEntry>() {
-            @Override
-            public void accept(LogSequenceNumber t, LogEntry u) {
-                try {
-                    apply(t, u);
-                } catch (Exception err) {
-                    throw new RuntimeException(err);
-                }
-            }
-        }, false);
+        log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
 
     }
 
@@ -727,5 +718,20 @@ public class TableSpaceManager {
 
     public Collection<Long> getOpenTransactions() {
         return new HashSet<>(this.transactions.keySet());
+    }
+
+    private class ApplyEntryOnRecovery implements BiConsumer<LogSequenceNumber, LogEntry> {
+
+        public ApplyEntryOnRecovery() {
+        }
+
+        @Override
+        public void accept(LogSequenceNumber t, LogEntry u) {
+            try {
+                apply(t, u);
+            } catch (Exception err) {
+                throw new RuntimeException(err);
+            }
+        }
     }
 }
