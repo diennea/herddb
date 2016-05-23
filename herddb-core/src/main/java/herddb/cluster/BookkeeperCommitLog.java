@@ -44,6 +44,7 @@ import javax.xml.ws.Holder;
 import org.apache.bookkeeper.client.AsyncCallback;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BKException.BKNotEnoughBookiesException;
+import org.apache.bookkeeper.client.BKException.Code;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
@@ -226,7 +227,7 @@ public class BookkeeperCommitLog extends CommitLog {
     public BookkeeperCommitLog(String tableSpace, ZookeeperMetadataStorageManager metadataStorageManager) throws LogNotAvailableException {
         this.metadataManager = metadataStorageManager;
         this.tableSpace = tableSpace;
-        ClientConfiguration config = new ClientConfiguration();        
+        ClientConfiguration config = new ClientConfiguration();
         try {
             this.bookKeeper = new BookKeeper(config, metadataManager.getZooKeeper());
         } catch (IOException | InterruptedException | KeeperException t) {
@@ -418,18 +419,42 @@ public class BookkeeperCommitLog extends CommitLog {
                             b = end + 1;
                             double percent = ((start - first) * 100.0 / (lastAddConfirmed + 1));
                             LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %)", new Object[]{start, end, percent});
-                            Enumeration<LedgerEntry> seq = handle.readEntries(start, end);
-                            while (seq.hasMoreElements()) {
-                                LedgerEntry entry = seq.nextElement();
-                                LogSequenceNumber number = new LogSequenceNumber(ledgerId, entry.getEntryId());
-                                LogEntry statusEdit = LogEntry.deserialize(entry.getEntry());
-                                if (number.after(snapshotSequenceNumber)) {
-                                    LOGGER.log(Level.FINEST, "RECOVER ENTRY {0}, {1}", new Object[]{number, statusEdit});
-                                    consumer.accept(number, statusEdit);
-                                } else {
-                                    LOGGER.log(Level.FINEST, "SKIP ENTRY {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
+                            long _start = System.currentTimeMillis();
+                            CountDownLatch latch = new CountDownLatch((int) (end - start));
+                            Holder<Exception> error = new Holder<>();
+                            long size = end - start;
+                            handle.asyncReadEntries(start, end, new AsyncCallback.ReadCallback() {
+                                @Override
+                                public void readComplete(int code, LedgerHandle lh, Enumeration<LedgerEntry> seq, Object o) {
+                                    LOGGER.log(Level.SEVERE, "readComplete" + code + " " + lh);
+                                    if (code != Code.OK) {
+                                        error.value = BKException.create(code);
+                                        LOGGER.log(Level.SEVERE, "readComplete error:" + error);
+                                        for (long k = 0; k < size; k++) {
+                                            latch.countDown();
+                                        }
+                                        return;
+                                    }
+                                    while (seq.hasMoreElements()) {
+                                        LedgerEntry entry = seq.nextElement();
+                                        LogSequenceNumber number = new LogSequenceNumber(ledgerId, entry.getEntryId());
+                                        LogEntry statusEdit = LogEntry.deserialize(entry.getEntry());
+                                        if (number.after(snapshotSequenceNumber)) {
+                                            LOGGER.log(Level.FINEST, "RECOVER ENTRY {0}, {1}", new Object[]{number, statusEdit});
+                                            consumer.accept(number, statusEdit);
+                                        } else {
+                                            LOGGER.log(Level.FINEST, "SKIP ENTRY {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
+                                        }
+                                        latch.countDown();
+                                    }
                                 }
+                            }, null);
+                            latch.await();
+                            if (error.value != null) {
+                                throw error.value;
                             }
+                            long _stop = System.currentTimeMillis();
+                            LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %) read time {3}", new Object[]{start, end, percent, (_stop - _start) + " ms"});
                         }
                     }
                 } finally {
@@ -456,7 +481,7 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public void dropOldLedgers() throws LogNotAvailableException {        
+    public void dropOldLedgers() throws LogNotAvailableException {
         if (ledgersRetentionPeriod > 0) {
             long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
             List<Long> oldLedgers;
