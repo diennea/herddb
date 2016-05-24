@@ -147,7 +147,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void tableAltered(Table table) throws DDLException {
+    public void tableAltered(Table table, Transaction transaction) throws DDLException {
         throw new InvalidTableException("cannot alter system tables");
     }
 

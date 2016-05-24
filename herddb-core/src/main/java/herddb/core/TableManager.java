@@ -27,7 +27,11 @@ import herddb.log.LogEntryFactory;
 import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.model.AlterFailedException;
+import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.CurrentTupleKeySeek;
+import herddb.model.DDLException;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
@@ -45,10 +49,13 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableContext;
 import herddb.model.Tuple;
+import herddb.model.predicates.DropColumnsRecordFunction;
+import herddb.model.predicates.KeyOnlyProjection;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -68,7 +75,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
-import java.util.function.LongBinaryOperator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -868,7 +874,7 @@ public class TableManager implements AbstractTableManager {
                 PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
                 GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
                 if (getResult.found()) {
-                    recordSet.records.add(new Tuple(getResult.getRecord().toBean(table),table.columns));
+                    recordSet.records.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
                 }
             } else {
                 pagesLock.readLock().lock();
@@ -887,7 +893,7 @@ public class TableManager implements AbstractTableManager {
                                 if (record != null) {
                                     // use current transaction version of the record
                                     if (predicate == null || predicate.evaluate(record, context)) {
-                                        recordSet.records.add(new Tuple(record.toBean(table),table.columns));
+                                        recordSet.records.add(new Tuple(record.toBean(table), table.columns));
                                     }
                                     continue;
                                 }
@@ -905,7 +911,7 @@ public class TableManager implements AbstractTableManager {
                                     throw new DataStorageManagerException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId);
                                 }
                                 if (predicate == null || predicate.evaluate(record, context)) {
-                                    recordSet.records.add(new Tuple(record.toBean(table),table.columns));
+                                    recordSet.records.add(new Tuple(record.toBean(table), table.columns));
                                 }
                             }
                         } finally {
@@ -918,7 +924,7 @@ public class TableManager implements AbstractTableManager {
                         for (Record record : transaction.getNewRecordsForTable(table.name)) {
                             if (!transaction.recordDeleted(table.name, record.key)
                                     && (predicate == null || predicate.evaluate(record, context))) {
-                                recordSet.records.add(new Tuple(record.toBean(table),table.columns));
+                                recordSet.records.add(new Tuple(record.toBean(table), table.columns));
                             }
                         }
                     }
@@ -989,8 +995,38 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void tableAltered(Table table)  {
+    public void tableAltered(Table table, Transaction transaction) throws DDLException {
+
+        // compute diff, if some column as been dropped we need to remove the value from each record
+        List<String> droppedColumns = new ArrayList<>();
+        for (Column c : this.table.columns) {
+            if (table.getColumn(c.name) == null) {
+                droppedColumns.add(c.name);
+            }
+        }
         this.table = table;
+        if (!droppedColumns.isEmpty()) {
+            LOGGER.log(Level.SEVERE, "table " + table.name + " need to drop colunns " + droppedColumns + ", performing and update on each record");
+            try {
+                int count = 0;
+                try (DataScanner scanner = scan(new ScanStatement(table.tablespace, table.name, new KeyOnlyProjection(table), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transaction);) {
+                    RecordFunction mutator = new DropColumnsRecordFunction(table, droppedColumns);
+                    StatementEvaluationContext context = new StatementEvaluationContext();
+                    UpdateStatement update = new UpdateStatement(table.tablespace, table.name, new CurrentTupleKeySeek(table), mutator, null);
+                    while (scanner.hasNext()) {
+                        context.setCurrentTuple(scanner.next());
+                        executeStatement(update, transaction, context);
+                        context.setCurrentTuple(null);
+                        count++;
+                    }
+                }
+                LOGGER.log(Level.SEVERE, "table " + table.name + " need to drop colunns " + droppedColumns + ", applied to " + count + " records");
+            } catch (StatementExecutionException | DataScannerException ex) {
+                throw new AlterFailedException(ex);
+            }
+
+        }
+
     }
 
 }

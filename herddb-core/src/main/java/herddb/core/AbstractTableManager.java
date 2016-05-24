@@ -69,5 +69,5 @@ public interface AbstractTableManager extends AutoCloseable {
     
     boolean isSystemTable();
 
-    public void tableAltered(Table table) throws DDLException;
+    public void tableAltered(Table table, Transaction transaction) throws DDLException;
 }

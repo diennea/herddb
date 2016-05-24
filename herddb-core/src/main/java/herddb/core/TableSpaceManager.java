@@ -247,7 +247,7 @@ public class TableSpaceManager {
             break;
             case LogEntryType.ALTER_TABLE: {
                 Table table = Table.deserialize(entry.value);
-                alterTable(table);
+                alterTable(table, null);
                 writeTablesOnDataStorageManager();
             }
             break;
@@ -661,10 +661,10 @@ public class TableSpaceManager {
         return tableManager;
     }
 
-    private AbstractTableManager alterTable(Table table) throws DDLException {
+    private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {
         LOGGER.log(Level.SEVERE, "alterTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         AbstractTableManager tableManager = tables.get(table.name);
-        tableManager.tableAltered(table);
+        tableManager.tableAltered(table, transaction);
         return tableManager;
     }
 

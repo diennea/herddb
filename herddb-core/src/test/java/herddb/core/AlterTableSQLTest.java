@@ -121,13 +121,27 @@ public class AlterTableSQLTest {
                 List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).fieldNames.length);
+                assertEquals("b", tuples.get(0).get("s1"));
             }
             execute(manager, "ALTER TABLE tblspace1.tsql drop column s1", Collections.emptyList());
+            
             {
-                List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList()).consume();
+                List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
                 assertEquals(1, tuples.size());
                 assertEquals(2, tuples.get(0).fieldNames.length);
+                assertEquals(null, tuples.get(0).get("s1"));
             }
+            
+            execute(manager, "ALTER TABLE tblspace1.tsql add column s1 string", Collections.emptyList());
+            
+            {
+                List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).fieldNames.length);
+                assertEquals(null, tuples.get(0).get("s1"));
+            }
+            
+
             try {
                 execute(manager, "ALTER TABLE tblspace1.tsql drop column k1", Collections.emptyList());
                 fail();
