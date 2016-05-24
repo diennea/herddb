@@ -21,7 +21,7 @@ package herddb.jdbc;
 
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
-import herddb.server.LoopbackClientSideMetadataProvider;
+import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
@@ -58,7 +58,7 @@ public class MixedCaseIdentifiersTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
-                client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (HerdDBDataSource dataSource = new HerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement create = con.createStatement();

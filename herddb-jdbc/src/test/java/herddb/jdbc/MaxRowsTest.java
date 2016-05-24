@@ -23,7 +23,7 @@ import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
-import herddb.server.LoopbackClientSideMetadataProvider;
+import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -51,7 +51,7 @@ public class MaxRowsTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
-                client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (HerdDBDataSource dataSource = new HerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement statement = con.createStatement();) {

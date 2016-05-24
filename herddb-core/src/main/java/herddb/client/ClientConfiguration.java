@@ -19,6 +19,8 @@
  */
 package herddb.client;
 
+import java.io.File;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Properties;
 
@@ -43,13 +45,19 @@ public class ClientConfiguration {
     public static final String PROPERTY_MODE_STANDALONE = "standalone";
     public static final String PROPERTY_MODE_CLUSTER = "cluster";
 
+    public static final String PROPERTY_SERVER_ADDRESS = "client.server.address";
+    public static final String PROPERTY_SERVER_PORT = "client.server.port";
+    public static final String PROPERTY_SERVER_SSL = "client.server.ssl";
+
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "client.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "client.zookeeper.sessiontimeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "client.zookeeper.path";
-    
+
     public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
     public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
-    public static final int PROPERTY_PORT_DEFAULT = 7000;
+    public static final int PROPERTY_SERVER_PORT_DEFAULT = 7000;
+    public static final String PROPERTY_SERVER_ADDRESS_DEFAULT = "localhost";
+    public static final boolean PROPERTY_SERVER_SSL_DEFAULT = false;
     public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
 
     public ClientConfiguration(Properties properties) {
@@ -63,6 +71,7 @@ public class ClientConfiguration {
 
     public ClientConfiguration() {
         this.properties = new Properties();
+        set(PROPERTY_BASEDIR, new File(System.getProperty("java.io.tmpdir")).toPath().toAbsolutePath());
     }
 
     public int getInt(String key, int defaultValue) {
@@ -106,6 +115,55 @@ public class ClientConfiguration {
             this.properties.setProperty(key, value + "");
         }
         return this;
+    }
+
+    public void readJdbcUrl(String url) {
+        int questionMark = url.indexOf('?');
+        if (questionMark <= 0) {
+            questionMark = url.length();
+        }
+        String before = url.substring(0, questionMark);
+        if (!before.startsWith("jdbc:herddb:")) {
+            throw new IllegalArgumentException("invalid url " + url);
+        }
+        if (before.startsWith("jdbc:herddb:zookeeper:")) {
+            set(PROPERTY_MODE, PROPERTY_MODE_CLUSTER);
+            String zkaddress = before.substring("jdbc:herddb:zookeeper:".length());
+            int slash = zkaddress.indexOf('/');
+            if (slash <= 0) {
+                set(PROPERTY_ZOOKEEPER_ADDRESS, zkaddress);
+            } else {
+                String path = zkaddress.substring(slash);
+                zkaddress = zkaddress.substring(0, slash);
+                set(PROPERTY_ZOOKEEPER_ADDRESS, zkaddress);
+                set(PROPERTY_ZOOKEEPER_PATH, path);
+            }
+        } else {
+            set(PROPERTY_MODE, PROPERTY_MODE_STANDALONE);
+            before = before.substring("jdbc:herddb:".length());
+            int port_pos = before.indexOf(':');
+            String host = before;
+            int port = PROPERTY_SERVER_PORT_DEFAULT;
+            if (port_pos > 0) {
+                host = before.substring(0, port_pos);
+                port = Integer.parseInt(before.substring(port_pos + 1));
+            }
+            set(PROPERTY_SERVER_ADDRESS, host);
+            set(PROPERTY_SERVER_PORT, port);
+        }
+        String qs = url.substring(questionMark);
+        String[] params = qs.split("&");
+        for (String param : params) {
+            // TODO: URLDecoder??
+            int pos = param.indexOf('=');
+            if (pos > 0) {
+                String key = param.substring(0, pos);
+                String value = param.substring(pos + 1);
+                set(key, value);
+            } else {
+                set(param, "");
+            }
+        }
     }
 
 }

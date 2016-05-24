@@ -48,7 +48,7 @@ public class SimpleClientServerTest {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                     HDBConnection connection = client.openConnection()) {
-                client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;

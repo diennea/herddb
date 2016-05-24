@@ -22,29 +22,36 @@ package herddb.server;
 import herddb.client.ClientSideMetadataProvider;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.network.ServerHostData;
-import herddb.server.Server;
+import java.util.HashMap;
 
 /**
- * Loopback for tests
+ * Static discovery of service
  *
  * @author enrico.olivelli
  */
-public class LoopbackClientSideMetadataProvider implements ClientSideMetadataProvider {
+public class StaticClientSideMetadataProvider implements ClientSideMetadataProvider {
 
-    private final Server server;
+    private final ServerHostData serverHostData;
+    private final String nodeId;
 
-    public LoopbackClientSideMetadataProvider(Server server) {
-        this.server = server;
+    public StaticClientSideMetadataProvider(Server server) {
+        this.serverHostData = server.getServerHostData();
+        this.nodeId = server.getNodeId();
+    }
+
+    public StaticClientSideMetadataProvider(String host, int port, boolean ssl) {
+        this.serverHostData = new ServerHostData(host, port, "", ssl, new HashMap<>());
+        this.nodeId = host + ":" + port;
     }
 
     @Override
     public ServerHostData getServerHostData(String nodeId) throws ClientSideMetadataProviderException {
-        return server.getServerHostData();
+        return serverHostData;
     }
 
     @Override
     public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
-        return server.getNodeId();
+        return nodeId;
     }
 
 }

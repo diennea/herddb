@@ -48,7 +48,7 @@ public class RollbackOnCloseConnectionTest {
             server.getNetworkServer().setEnableJVMNetwork(false);
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
-                client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long tx;
 

@@ -21,7 +21,7 @@ package herddb.client;
 
 import static herddb.client.ClientConfiguration.PROPERTY_MODE;
 import static herddb.client.ClientConfiguration.PROPERTY_MODE_LOCAL;
-import herddb.server.LoopbackClientSideMetadataProvider;
+import herddb.server.StaticClientSideMetadataProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +50,11 @@ public class HDBClient implements AutoCloseable {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
                 break;
             case ClientConfiguration.PROPERTY_MODE_STANDALONE:
+                this.clientSideMetadataProvider = new StaticClientSideMetadataProvider(
+                        configuration.getString(ClientConfiguration.PROPERTY_SERVER_ADDRESS, ClientConfiguration.PROPERTY_SERVER_ADDRESS_DEFAULT),
+                        configuration.getInt(ClientConfiguration.PROPERTY_SERVER_PORT, ClientConfiguration.PROPERTY_SERVER_PORT_DEFAULT),
+                        configuration.getBoolean(ClientConfiguration.PROPERTY_SERVER_SSL, ClientConfiguration.PROPERTY_SERVER_SSL_DEFAULT)
+                );
                 break;
             case ClientConfiguration.PROPERTY_MODE_CLUSTER:
                 this.clientSideMetadataProvider = new ZookeeperClientSideMetadataProvider(

@@ -31,7 +31,7 @@ import org.junit.rules.TemporaryFolder;
 
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
-import herddb.server.LoopbackClientSideMetadataProvider;
+import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 
@@ -58,7 +58,7 @@ public class PreparedStatemetParametersTest
             
             try ( HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath())) )
             {
-                client.setClientSideMetadataProvider( new LoopbackClientSideMetadataProvider(server) );
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server) );
                 
                 try ( HerdDBDataSource dataSource = new HerdDBDataSource(client) )
                 {

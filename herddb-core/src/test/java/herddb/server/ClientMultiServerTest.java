@@ -164,7 +164,7 @@ public class ClientMultiServerTest {
                 // assert  that server_1 is not accepting request any more
                 try (HDBClient client_to_1 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                         HDBConnection connection = client_to_1.openConnection()) {
-                    client_to_1.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server_1));
+                    client_to_1.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_1));
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", Collections.emptyList(), 0, 0, 10);) {
                         fail("server_1 MUST not accept queries");
                     } catch (ClientSideMetadataProviderException ok) {
@@ -174,7 +174,7 @@ public class ClientMultiServerTest {
                 // assert that server_2 is accepting requests
                 try (HDBClient client_to_2 = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                         HDBConnection connection = client_to_2.openConnection()) {
-                    client_to_2.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server_2));
+                    client_to_2.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server_2));
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", Collections.emptyList(), 0, 0, 10);) {
                         assertEquals(1,scan.consume().size());
                     }

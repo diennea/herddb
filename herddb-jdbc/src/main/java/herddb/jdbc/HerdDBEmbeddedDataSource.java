@@ -21,7 +21,7 @@ package herddb.jdbc;
 
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
-import herddb.server.LoopbackClientSideMetadataProvider;
+import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.nio.file.Paths;
@@ -76,7 +76,7 @@ public class HerdDBEmbeddedDataSource extends HerdDBDataSource {
         }
         if (client == null) {
             client = new HDBClient(clientConfiguration);
-            client.setClientSideMetadataProvider(new LoopbackClientSideMetadataProvider(server));
+            client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
         }
         super.ensureConnection();
     }
