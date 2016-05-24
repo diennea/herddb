@@ -58,6 +58,17 @@ public class Tuple {
             values[i++] = entry.getValue();
         }
     }
+     public Tuple(Map<String, Object> record, Column[] columns) {
+        int size = columns.length;
+        this.fieldNames = new String[size];
+        this.values = new Object[size];
+        this.map = record;
+        int i = 0;
+        for (Column c : columns) {
+            fieldNames[i] = c.name;
+            values[i++] = record.get(c.name);
+        }
+    }
 
     public int size() {
         return values.length;

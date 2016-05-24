@@ -33,5 +33,6 @@ public class LogEntryType {
     public static final short BEGINTRANSACTION = 5;
     public static final short COMMITTRANSACTION = 6;
     public static final short ROLLBACKTRANSACTION = 7;
+    public static final short ALTER_TABLE = 8;
 
 }

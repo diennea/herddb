@@ -80,6 +80,7 @@ public class LogEntry {
                         doo.write(key);
                         break;
                     case LogEntryType.CREATE_TABLE:
+                    case LogEntryType.ALTER_TABLE:
                         // value contains the table definition
                         doo.writeInt(value.length);
                         doo.write(value);
@@ -126,6 +127,7 @@ public class LogEntry {
                     key = readArray(dis);
                     break;
                 case LogEntryType.CREATE_TABLE:
+                case LogEntryType.ALTER_TABLE:
                     // value contains the table definition                                        
                     value = readArray(dis);
                     break;

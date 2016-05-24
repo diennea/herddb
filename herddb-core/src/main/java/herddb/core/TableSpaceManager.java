@@ -53,6 +53,7 @@ import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.Transaction;
 import herddb.model.TransactionContext;
+import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
@@ -65,7 +66,6 @@ import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -238,10 +238,17 @@ public class TableSpaceManager {
                     Transaction transaction = transactions.get(id);
                     transaction.registerNewTable(table);
                 }
+
                 bootTable(table);
-                if (entry.transactionId < 0) {
+                if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager();
                 }
+            }
+            break;
+            case LogEntryType.ALTER_TABLE: {
+                Table table = Table.deserialize(entry.value);
+                alterTable(table);
+                writeTablesOnDataStorageManager();
             }
             break;
         }
@@ -338,6 +345,38 @@ public class TableSpaceManager {
         }
     }
 
+    private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
+
+        if (transactionContext.transactionId > 0) {
+            throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
+        }
+        AbstractTableManager manager;
+        generalLock.writeLock().lock();
+        try {
+            manager = tables.get(alterTableStatement.getTable());
+            if (manager == null) {
+                throw new TableDoesNotExistException("no table " + alterTableStatement.getTable() + " in tablespace " + tableSpaceName);
+            }
+            manager = tables.get(alterTableStatement.getTable());
+        } finally {
+            generalLock.writeLock().unlock();
+        }
+        Table newTable;
+        try {
+            newTable = manager.getTable().applyAlterTable(alterTableStatement);
+        } catch (IllegalArgumentException error) {
+            throw new StatementExecutionException(error);
+        }
+        LogEntry entry = LogEntryFactory.alterTable(newTable, null);
+        try {
+            LogSequenceNumber pos = log.log(entry);
+            apply(pos, entry);
+        } catch (Exception err) {
+            throw new StatementExecutionException(err);
+        }
+        return new DDLStatementExecutionResult();
+    }
+
     private class DumpReceiver extends TableSpaceDumpReceiver {
 
         private TableManager currentTable;
@@ -401,7 +440,7 @@ public class TableSpaceManager {
     }
 
     void dumpTableSpace(String dumpId, Channel _channel, int fetchSize) throws DataStorageManagerException, LogNotAvailableException {
-        
+
         checkpoint();
         LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize);
         generalLock.readLock().lock();
@@ -570,7 +609,9 @@ public class TableSpaceManager {
         if (statement instanceof CommitTransactionStatement) {
             return commitTransaction((CommitTransactionStatement) statement);
         }
-
+        if (statement instanceof AlterTableStatement) {
+            return alterTable((AlterTableStatement) statement, transactionContext);
+        }
         if (statement instanceof TableAwareStatement) {
             TableAwareStatement st = (TableAwareStatement) statement;
             String table = st.getTable();
@@ -617,6 +658,13 @@ public class TableSpaceManager {
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
         tables.put(table.name, tableManager);
         tableManager.start();
+        return tableManager;
+    }
+
+    private AbstractTableManager alterTable(Table table) throws DDLException {
+        LOGGER.log(Level.SEVERE, "alterTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
+        AbstractTableManager tableManager = tables.get(table.name);
+        tableManager.tableAltered(table);
         return tableManager;
     }
 

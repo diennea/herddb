@@ -336,7 +336,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         if (plan.mainStatement instanceof ScanStatement) {
             DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
-
             if (plan.mutator != null) {
                 return executeMutatorPlan(result, plan, context, transactionContext);
             } else {

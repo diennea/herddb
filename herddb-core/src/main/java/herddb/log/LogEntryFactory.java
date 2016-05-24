@@ -30,13 +30,14 @@ import java.nio.charset.StandardCharsets;
  */
 public class LogEntryFactory {
 
-    private static byte[] bytes(String name) {
-        return name.getBytes(StandardCharsets.UTF_8);
-    }
-
+    
     public static LogEntry createTable(Table table, Transaction transaction) {
         byte[] payload = table.serialize();
         return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_TABLE, table.tablespace, transaction != null ? transaction.transactionId : 0, null, null, payload);
+    }
+    public static LogEntry alterTable(Table table, Transaction transaction) {
+        byte[] payload = table.serialize();
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.ALTER_TABLE, table.tablespace, transaction != null ? transaction.transactionId : 0, null, null, payload);
     }
 
     public static LogEntry beginTransaction(String tablespace, long transactionId) {

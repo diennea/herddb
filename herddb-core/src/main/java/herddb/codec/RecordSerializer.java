@@ -200,7 +200,10 @@ public final class RecordSerializer {
                     int len = din.readInt();
                     byte[] v = new byte[len];
                     din.readFully(v);
-                    res.put(name, deserialize(v, table.getColumn(name).type));
+                    Column col = table.getColumn(name);
+                    if (col != null) {
+                        res.put(name, deserialize(v, col.type));
+                    }
                 }
             }
             return res;

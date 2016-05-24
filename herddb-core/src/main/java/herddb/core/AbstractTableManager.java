@@ -21,6 +21,7 @@ package herddb.core;
 
 import herddb.core.stats.TableManagerStats;
 import herddb.log.LogEntry;
+import herddb.model.DDLException;
 import herddb.model.DataScanner;
 import herddb.model.Record;
 import herddb.model.Statement;
@@ -67,4 +68,6 @@ public interface AbstractTableManager extends AutoCloseable {
     long getNextPrimaryKeyValue();
     
     boolean isSystemTable();
+
+    public void tableAltered(Table table) throws DDLException;
 }

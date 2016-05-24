@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.model.commands.AlterTableStatement;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -119,6 +120,39 @@ public class Table {
         return columnsByName.get(cname.toLowerCase());
     }
 
+    public Table applyAlterTable(AlterTableStatement alterTableStatement) {
+        Builder builder = builder()
+                .name(this.name)
+                .tablespace(this.tablespace);
+        List<String> dropColumns = alterTableStatement.getDropColumns();
+        for (String dropColumn : dropColumns) {
+            if (this.getColumn(dropColumn) == null) {
+                throw new IllegalArgumentException("column " + dropColumn + " not found int table " + this.name);
+            }
+            if (isPrimaryKeyColumn(dropColumn)) {
+                throw new IllegalArgumentException("column " + dropColumn + " cannot be dropped because is part of the primary key of table " + this.name);
+            }
+        }
+        for (Column c : this.columns) {
+            if (dropColumns == null || !dropColumns.contains(c.name.toLowerCase())) {
+                builder.column(c.name, c.type);
+            }
+        }
+        if (alterTableStatement.getAddColumns() != null) {
+            for (Column c : alterTableStatement.getAddColumns()) {
+                if (getColumn(c.name) != null) {
+                    throw new IllegalArgumentException("column " + c.name + " not found int table " + this.name);
+                }
+                builder.column(c.name, c.type);
+            }
+        }
+        for (String pk : this.primaryKey) {
+            builder.primaryKey(pk, this.auto_increment);
+        }
+        return builder.build();
+
+    }
+
     public static class Builder {
 
         private final List<Column> columns = new ArrayList<>();
@@ -163,6 +197,9 @@ public class Table {
         public Builder column(String name, int type) {
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException();
+            }
+            if (this.columns.stream().filter(c -> (c.name.equals(name))).findAny().isPresent()) {
+                throw new IllegalArgumentException("column " + name + " already exists");
             }
             this.columns.add(Column.column(name, type));
             return this;

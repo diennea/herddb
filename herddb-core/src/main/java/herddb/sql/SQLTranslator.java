@@ -22,7 +22,6 @@ package herddb.sql;
 import herddb.core.AbstractTableManager;
 import herddb.model.CurrentTupleKeySeek;
 import herddb.core.DBManager;
-import herddb.core.TableManager;
 import herddb.core.TableSpaceManager;
 import herddb.model.Aggregator;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
@@ -40,6 +39,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TupleComparator;
+import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
@@ -74,6 +74,7 @@ import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.ItemsList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.table.Index;
@@ -132,8 +133,10 @@ public class SQLTranslator {
                 result = buildSelectStatement((Select) stmt, scan);
             } else if (stmt instanceof Execute) {
                 result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
+            } else if (stmt instanceof Alter) {
+                result = ExecutionPlan.simple(buildAlterStatement((Alter) stmt));
             } else {
-                throw new StatementExecutionException("unable to parse query " + query + ", type " + stmt.getClass());
+                throw new StatementExecutionException("unable to execute query " + query + ", type " + stmt.getClass());
             }
             if (allowCache) {
                 cache.put(cacheKey, result);
@@ -170,41 +173,11 @@ public class SQLTranslator {
         }
 
         for (ColumnDefinition cf : s.getColumnDefinitions()) {
-            int type;
             String columnName = cf.getColumnName().toLowerCase();
             allColumnNames.add(columnName);
-            switch (cf.getColDataType().getDataType().toLowerCase()) {
-                case "string":
-                case "varchar":
-                case "nvarchar":
-                case "nvarchar2":
-                case "nclob":
-                case "clob":
-                    type = ColumnTypes.STRING;
-                    break;
-                case "long":
-                case "bigint":
-                    type = ColumnTypes.LONG;
-                    break;
-                case "int":
-                case "integer":
-                case "tinyint":
-                case "smallint":
-                    type = ColumnTypes.INTEGER;
-                    break;
-                case "bytea":
-                case "blob":
-                case "image":
-                    type = ColumnTypes.BYTEARRAY;
-                    break;
-                case "timestamp":
-                case "timestamptz":
-                case "datetime":
-                    type = ColumnTypes.TIMESTAMP;
-                    break;
-                default:
-                    throw new StatementExecutionException("bad type " + cf.getColDataType().getDataType());
-            }
+            int type;
+            String dataType = cf.getColDataType().getDataType();
+            type = sqlDataTypeToColumnType(dataType);
             tablebuilder.column(columnName, type);
 
             if (cf.getColumnSpecStrings() != null) {
@@ -231,6 +204,43 @@ public class SQLTranslator {
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition: " + err.getMessage(), err);
         }
+    }
+
+    private int sqlDataTypeToColumnType(String dataType) throws StatementExecutionException {
+        int type;
+        switch (dataType.toLowerCase()) {
+            case "string":
+            case "varchar":
+            case "nvarchar":
+            case "nvarchar2":
+            case "nclob":
+            case "clob":
+                type = ColumnTypes.STRING;
+                break;
+            case "long":
+            case "bigint":
+                type = ColumnTypes.LONG;
+                break;
+            case "int":
+            case "integer":
+            case "tinyint":
+            case "smallint":
+                type = ColumnTypes.INTEGER;
+                break;
+            case "bytea":
+            case "blob":
+            case "image":
+                type = ColumnTypes.BYTEARRAY;
+                break;
+            case "timestamp":
+            case "timestamptz":
+            case "datetime":
+                type = ColumnTypes.TIMESTAMP;
+                break;
+            default:
+                throw new StatementExecutionException("bad type " + dataType);
+        }
+        return type;
     }
 
     private Statement buildInsertStatement(Insert s) throws StatementExecutionException {
@@ -731,6 +741,32 @@ public class SQLTranslator {
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
+    }
+
+    private Statement buildAlterStatement(Alter alter) throws StatementExecutionException {
+        System.out.println("buildAlterStatement " + alter);
+        if (alter.getTable() == null) {
+            throw new StatementExecutionException("missing table name");
+        }
+        String tableSpace = alter.getTable().getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = TableSpace.DEFAULT;
+        }
+        List<Column> addColumns = new ArrayList<>();
+        List<String> dropColumns = new ArrayList<>();
+        String tableName = alter.getTable().getName();
+        switch (alter.getOperation()) {
+            case "add":
+                Column newColumn = Column.column(alter.getColumnName(), sqlDataTypeToColumnType(alter.getDataType().getDataType()));
+                addColumns.add(newColumn);
+                break;
+            case "drop":
+                dropColumns.add(alter.getColumnName());
+                break;
+            default:
+                throw new StatementExecutionException("supported alter operation '" + alter.getOperation() + "'");
+        }
+        return new AlterTableStatement(addColumns, dropColumns, tableName, tableSpace);
     }
 
     private boolean isAggregateFunction(Expression expression) throws StatementExecutionException {

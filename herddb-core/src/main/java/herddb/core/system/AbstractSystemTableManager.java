@@ -26,7 +26,9 @@ import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
 import herddb.log.LogEntry;
 import herddb.model.ColumnTypes;
+import herddb.model.DDLException;
 import herddb.model.DataScanner;
+import herddb.model.InvalidTableException;
 import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.Statement;
@@ -42,6 +44,7 @@ import java.util.function.Consumer;
 
 /**
  * System tables
+ *
  * @author enrico.olivelli
  */
 public abstract class AbstractSystemTableManager implements AbstractTableManager {
@@ -137,12 +140,17 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     public long getNextPrimaryKeyValue() {
         return -1;
     }
-    
+
     @Override
     public boolean isSystemTable() {
         return true;
     }
-        
+
+    @Override
+    public void tableAltered(Table table) throws DDLException {
+        throw new InvalidTableException("cannot alter system tables");
+    }
+
     protected abstract Iterable<Record> buildVirtualRecordList();
 
     @Override
