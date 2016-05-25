@@ -82,7 +82,7 @@
                 <module>herddb-services</module>
             </modules>
             <distributionManagement>        
-<!--                <repository>                                
+                <!--                <repository>                                
                     <id>dev.majordodo.org</id>
                     <name>Majordodo Public Repository</name>
                     <url>https://dev.majordodo.org/nexus/content/repositories/releases/</url>
@@ -94,7 +94,12 @@
                 </repository>                
             </distributionManagement>
             <build>        
-                <plugins>                        
+                <plugins>  
+                    <plugin>                       
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>findbugs-maven-plugin</artifactId>
+                        <version>3.0.3</version>                        
+                    </plugin>                      
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
