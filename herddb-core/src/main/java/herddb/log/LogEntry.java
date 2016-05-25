@@ -19,12 +19,11 @@
  */
 package herddb.log;
 
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 /**
  * An entry on the log
@@ -54,7 +53,7 @@ public class LogEntry {
     public byte[] serialize() {
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try (DataOutputStream doo = new DataOutputStream(out)) {
+            try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(out)) {
                 doo.writeLong(timestamp);
                 doo.writeShort(type);
                 doo.writeLong(transactionId);
@@ -62,28 +61,22 @@ public class LogEntry {
                 switch (type) {
                     case LogEntryType.UPDATE:
                         doo.writeUTF(tableName);
-                        doo.writeInt(key.length);
-                        doo.write(key);
-                        doo.writeInt(value.length);
-                        doo.write(value);
+                        doo.writeArray(key);
+                        doo.writeArray(value);
                         break;
                     case LogEntryType.INSERT:
                         doo.writeUTF(tableName);
-                        doo.writeInt(key.length);
-                        doo.write(key);
-                        doo.writeInt(value.length);
-                        doo.write(value);
+                        doo.writeArray(key);
+                        doo.writeArray(value);
                         break;
                     case LogEntryType.DELETE:
                         doo.writeUTF(tableName);
-                        doo.writeInt(key.length);
-                        doo.write(key);
+                        doo.writeArray(key);
                         break;
                     case LogEntryType.CREATE_TABLE:
                     case LogEntryType.ALTER_TABLE:
                         // value contains the table definition
-                        doo.writeInt(value.length);
-                        doo.write(value);
+                        doo.writeArray(value);
                         break;
                     case LogEntryType.BEGINTRANSACTION:
                     case LogEntryType.COMMITTRANSACTION:
@@ -102,7 +95,7 @@ public class LogEntry {
     public static LogEntry deserialize(byte[] data) {
         try {
             ByteArrayInputStream in = new ByteArrayInputStream(data);
-            DataInputStream dis = new DataInputStream(in);
+            ExtendedDataInputStream dis = new ExtendedDataInputStream(in);
             long timestamp = dis.readLong();
             short type = dis.readShort();
             long transactionId = dis.readLong();
@@ -114,22 +107,22 @@ public class LogEntry {
             switch (type) {
                 case LogEntryType.UPDATE:
                     tableName = dis.readUTF();
-                    key = readArray(dis);
-                    value = readArray(dis);
+                    key = dis.readArray();
+                    value = dis.readArray();
                     break;
                 case LogEntryType.INSERT:
                     tableName = dis.readUTF();
-                    key = readArray(dis);
-                    value = readArray(dis);
+                    key = dis.readArray();
+                    value = dis.readArray();
                     break;
                 case LogEntryType.DELETE:
                     tableName = dis.readUTF();
-                    key = readArray(dis);
+                    key = dis.readArray();
                     break;
                 case LogEntryType.CREATE_TABLE:
                 case LogEntryType.ALTER_TABLE:
                     // value contains the table definition                                        
-                    value = readArray(dis);
+                    value = dis.readArray();
                     break;
                 case LogEntryType.BEGINTRANSACTION:
                 case LogEntryType.COMMITTRANSACTION:
@@ -142,13 +135,6 @@ public class LogEntry {
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
-    }
-
-    private static byte[] readArray(DataInputStream doo) throws IOException {
-        int len = doo.readInt();
-        byte[] res = new byte[len];
-        doo.readFully(res);
-        return res;
     }
 
     @Override

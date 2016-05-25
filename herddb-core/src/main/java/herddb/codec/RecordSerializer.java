@@ -24,10 +24,11 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.HashMap;
@@ -119,7 +120,7 @@ public final class RecordSerializer {
             byte[] fieldValue = serialize(v, c.type);
             return new Bytes(fieldValue);
         } else {
-            try (DataOutputStream doo_key = new DataOutputStream(key);) {
+            try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
                 for (String pkColumn : table.primaryKey) {
                     Column c = table.getColumn(pkColumn);
                     Object v = record.get(c.name);
@@ -127,8 +128,7 @@ public final class RecordSerializer {
                         throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
                     }
                     byte[] fieldValue = serialize(v, c.type);
-                    doo_key.writeInt(fieldValue.length);
-                    doo_key.write(fieldValue);
+                    doo_key.writeArray(fieldValue);
                 }
             } catch (IOException err) {
                 throw new RuntimeException(err);
@@ -151,14 +151,13 @@ public final class RecordSerializer {
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
         ByteArrayOutputStream value = new ByteArrayOutputStream();
 
-        try (DataOutputStream doo = new DataOutputStream(value);) {
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);
                 if (v != null && !table.isPrimaryKeyColumn(c.name)) {
                     byte[] fieldValue = serialize(v, c.type);
                     doo.writeUTF(c.name);
-                    doo.writeInt(fieldValue.length);
-                    doo.write(fieldValue);
+                    doo.writeArray(fieldValue);
                 }
             }
         } catch (IOException err) {
@@ -189,7 +188,7 @@ public final class RecordSerializer {
 
             if (record.value != null) {
                 ByteArrayInputStream s = new ByteArrayInputStream(record.value.data);
-                DataInputStream din = new DataInputStream(s);
+                ExtendedDataInputStream din = new ExtendedDataInputStream(s);
                 while (true) {
                     String name;
                     try {
@@ -197,9 +196,7 @@ public final class RecordSerializer {
                     } catch (EOFException ok) {
                         break;
                     }
-                    int len = din.readInt();
-                    byte[] v = new byte[len];
-                    din.readFully(v);
+                    byte[] v = din.readArray();
                     Column col = table.getColumn(name);
                     if (col != null) {
                         res.put(name, deserialize(v, col.type));
@@ -214,11 +211,9 @@ public final class RecordSerializer {
 
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, Map<String, Object> res) {
         try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
-                DataInputStream din = new DataInputStream(key_in)) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
             for (String primaryKeyColumn : table.primaryKey) {
-                int data_len = din.readInt();
-                byte[] value = new byte[data_len];
-                din.readFully(value);
+                byte[] value = din.readArray();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
             }
         } catch (IOException err) {
