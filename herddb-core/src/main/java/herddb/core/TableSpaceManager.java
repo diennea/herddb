@@ -48,6 +48,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
+import herddb.model.TableAlreadyExistsException;
 import herddb.model.TableAwareStatement;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
@@ -634,7 +635,9 @@ public class TableSpaceManager {
     private StatementExecutionResult createTable(CreateTableStatement statement, Transaction transaction) throws StatementExecutionException {
         try {
             generalLock.writeLock().lock();
-
+            if (tables.containsKey(statement.getTableDefinition().name)) {
+                throw new TableAlreadyExistsException(statement.getTableDefinition().name);
+            }
             LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
             LogSequenceNumber pos;
             try {
