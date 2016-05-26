@@ -52,7 +52,7 @@ public class MaxRowsTest {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (HerdDBDataSource dataSource = new HerdDBDataSource(client);
+                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");

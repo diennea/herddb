@@ -60,7 +60,7 @@ public class PreparedStatemetParametersTest
             {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server) );
                 
-                try ( HerdDBDataSource dataSource = new HerdDBDataSource(client) )
+                try ( AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client) )
                 {
                     
                     try ( Connection con = dataSource.getConnection();

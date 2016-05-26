@@ -36,7 +36,7 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-public class HerdDBEmbeddedDataSource extends HerdDBDataSource {
+public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
 
     private static final Logger LOGGER = Logger.getLogger(HerdDBEmbeddedDataSource.class.getName());
 

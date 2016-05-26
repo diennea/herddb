@@ -58,11 +58,11 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     private Driver() {
     }
 
-    private final Map<String, HerdDBDataSource> datasources = new HashMap<>();
+    private final Map<String, AbstractHerdDBDataSource> datasources = new HashMap<>();
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
-        HerdDBDataSource datasource = ensureDatasource(url, info);
+        AbstractHerdDBDataSource datasource = ensureDatasource(url, info);
         return datasource.getConnection();
     }
 
@@ -96,13 +96,13 @@ public class Driver implements java.sql.Driver, AutoCloseable {
         return LOG;
     }
 
-    private synchronized HerdDBDataSource ensureDatasource(String url, Properties info) {
+    private synchronized AbstractHerdDBDataSource ensureDatasource(String url, Properties info) {
         String key = url + "_" + info;
-        HerdDBDataSource ds = datasources.get(key);
+        AbstractHerdDBDataSource ds = datasources.get(key);
         if (ds != null) {
             return ds;
         }
-        ds = new HerdDBDataSource(buildClient(url, info));
+        ds = new AbstractHerdDBDataSource(buildClient(url, info));
         datasources.put(key, ds);
         return ds;
     }
@@ -119,7 +119,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     @Override
     public synchronized void close() {
         LOG.log(Level.SEVERE, "Unregistering HerdDB JDBC Driver");
-        datasources.values().forEach(HerdDBDataSource::close);
+        datasources.values().forEach(AbstractHerdDBDataSource::close);
         datasources.clear();
     }
 

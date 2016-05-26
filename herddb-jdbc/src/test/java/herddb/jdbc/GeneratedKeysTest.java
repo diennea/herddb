@@ -49,7 +49,7 @@ public class GeneratedKeysTest {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (HerdDBDataSource dataSource = new HerdDBDataSource(client);
+                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
@@ -83,7 +83,7 @@ public class GeneratedKeysTest {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (HerdDBDataSource dataSource = new HerdDBDataSource(client);
+                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 long primary key auto_increment, name string)");

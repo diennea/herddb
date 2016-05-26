@@ -19,97 +19,58 @@
  */
 package herddb.jdbc;
 
+import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
-import herddb.client.HDBConnection;
-import java.io.PrintWriter;
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
+import java.util.Properties;
 import java.util.logging.Logger;
 
 /**
- * HerdDB DataSource
+ * Generic DataSource for connecting to a remote HerdDB cluster
  *
  * @author enrico.olivelli
  */
-public class HerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
+public class HerdDBDataSource extends AbstractHerdDBDataSource {
 
-    protected HDBClient client;
-    protected HDBConnection connection;
+    private static final Logger LOGGER = Logger.getLogger(HerdDBDataSource.class.getName());
 
-    protected HerdDBDataSource() {
+    private ClientConfiguration clientConfiguration;
+    private final Properties properties = new Properties();
+    private String url;
+
+    public String getUrl() {
+        return url;
     }
 
-    public HerdDBDataSource(HDBClient client) {
-        this.client = client;
+    public void setUrl(String url) {
+        this.url = url;
     }
 
-    protected void ensureConnection() throws SQLException {
-        if (this.connection == null) {
-            this.connection = client.openConnection();
+    public HerdDBDataSource() {
+    }
+
+    public Properties getProperties() {
+        return properties;
+    }
+
+    @Override
+    protected synchronized void ensureConnection() throws SQLException {
+        if (clientConfiguration == null) {
+            clientConfiguration = new ClientConfiguration(properties);
+            clientConfiguration.readJdbcUrl(url);
         }
-    }
-
-    public HDBClient getClient() {
-        return client;
-    }
-
-    public void setClient(HDBClient client) {
-        this.client = client;
+        if (client == null) {
+            client = new HDBClient(clientConfiguration);
+        }
+        super.ensureConnection();
     }
 
     @Override
-    public Connection getConnection() throws SQLException {
-        return getConnection(null, null);
-    }
-
-    @Override
-    public Connection getConnection(String username, String password) throws SQLException {
-        ensureConnection();
-        return new HerdDBConnection(connection);
-    }
-
-    private PrintWriter logWriter;
-
-    @Override
-    public PrintWriter getLogWriter() throws SQLException {
-        return logWriter;
-    }
-
-    @Override
-    public void setLogWriter(PrintWriter out) throws SQLException {
-        this.logWriter = out;
-    }
-
-    @Override
-    public void setLoginTimeout(int seconds) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
-
-    @Override
-    public int getLoginTimeout() throws SQLException {
-        return -1;
-    }
-
-    @Override
-    public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        throw new SQLFeatureNotSupportedException();
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        return (T) this;
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
-    }
-
-    @Override
-    public void close() {
-        if (connection != null) {
-            connection.close();
+    public synchronized void close() {
+        super.close();
+        if (client != null) {
+            client.close();
+            client = null;
         }
     }
 }

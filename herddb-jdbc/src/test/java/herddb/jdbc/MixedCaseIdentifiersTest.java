@@ -59,7 +59,7 @@ public class MixedCaseIdentifiersTest {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (HerdDBDataSource dataSource = new HerdDBDataSource(client);
+                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement create = con.createStatement();
                         PreparedStatement statement_insert = con.prepareStatement("INSERT INTO q1_MESSAGE(msg_id,STATUS,recipient) values(?,?,?)");
