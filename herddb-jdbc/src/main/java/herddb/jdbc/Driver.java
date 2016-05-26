@@ -55,7 +55,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     }
     
 
-    private Driver() {
+    public Driver() {
     }
 
     private final Map<String, AbstractHerdDBDataSource> datasources = new HashMap<>();
