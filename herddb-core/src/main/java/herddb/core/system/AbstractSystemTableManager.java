@@ -151,7 +151,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         throw new InvalidTableException("cannot alter system tables");
     }
 
-    protected abstract Iterable<Record> buildVirtualRecordList();
+    protected abstract Iterable<Record> buildVirtualRecordList() throws StatementExecutionException;
 
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {

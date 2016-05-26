@@ -43,6 +43,7 @@ import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
@@ -115,6 +116,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public void setErrorIfNotLeader(boolean errorIfNotLeader) {
         this.errorIfNotLeader = errorIfNotLeader;
+    }
+
+    public MetadataStorageManager getMetadataStorageManager() {
+        return metadataStorageManager;
     }
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
@@ -446,6 +451,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             metadataStorageManager.registerTableSpace(tableSpace);
             triggerActivator();
             return new DDLStatementExecutionResult();
+        } catch (StatementExecutionException err) {
+            throw err;
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -500,6 +507,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     alterTableSpaceStatement.getLeaderId())
                     .name(alterTableSpaceStatement.getTableSpace())
                     .replicas(alterTableSpaceStatement.getReplicas())
+                    .expectedReplicaCount(alterTableSpaceStatement.getExpectedReplicaCount())
                     .build();
         } catch (IllegalArgumentException invalid) {
             throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);

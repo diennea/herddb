@@ -279,11 +279,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         Bytes key = Bytes.from_int(1234);
         Bytes value = Bytes.from_long(8888);
-
-        CreateTableStatement st2 = new CreateTableStatement(table);
-        manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-        manager.checkpoint();
-
+        
         Table transacted_table = Table
                 .builder()
                 .tablespace("tblspace1")

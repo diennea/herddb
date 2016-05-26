@@ -31,11 +31,17 @@ public class AlterTableSpaceStatement extends DDLStatement {
 
     private final Set<String> replicas;
     private final String leaderId;
+    private final int expectedReplicaCount;
 
-    public AlterTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId) {
+    public AlterTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount) {
         super(tableSpace);
         this.replicas = replicas;
         this.leaderId = leaderId;
+        this.expectedReplicaCount = expectedReplicaCount;
+    }
+
+    public int getExpectedReplicaCount() {
+        return expectedReplicaCount;
     }
 
     public Set<String> getReplicas() {

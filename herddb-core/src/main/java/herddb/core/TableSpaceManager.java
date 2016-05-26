@@ -28,6 +28,7 @@ import herddb.client.HDBException;
 import herddb.client.TableSpaceDumpReceiver;
 import herddb.core.system.SyscolumnsTableManager;
 import herddb.core.system.SystablesTableManager;
+import herddb.core.system.SystablespacesTableManager;
 import herddb.log.CommitLog;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
@@ -122,6 +123,7 @@ public class TableSpaceManager {
     private void bootSystemTables() {
         registerSystemTableManager(new SystablesTableManager(this));
         registerSystemTableManager(new SyscolumnsTableManager(this));
+        registerSystemTableManager(new SystablespacesTableManager(this));
     }
 
     private void registerSystemTableManager(AbstractTableManager tableManager) {
@@ -335,6 +337,10 @@ public class TableSpaceManager {
 
         }
 
+    }
+
+    public MetadataStorageManager getMetadataStorageManager() {
+        return metadataStorageManager;
     }
 
     public List<Table> getAllTables() {

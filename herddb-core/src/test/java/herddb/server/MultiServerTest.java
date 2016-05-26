@@ -105,7 +105,7 @@ public class MultiServerTest {
                 server_2.start();
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                        new HashSet<>(Arrays.asList("server1", "server2")), "server1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
@@ -157,7 +157,7 @@ public class MultiServerTest {
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         }
 
@@ -211,7 +211,7 @@ public class MultiServerTest {
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
 
         try (Server server_1 = new Server(serverconfig_1)) {

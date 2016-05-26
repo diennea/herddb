@@ -23,6 +23,7 @@ import herddb.core.AbstractTableManager;
 import herddb.model.CurrentTupleKeySeek;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
+import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
@@ -38,10 +39,13 @@ import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TupleComparator;
+import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
@@ -736,6 +740,57 @@ public class SQLTranslator {
                     return new RollbackTransactionStatement(tableSpaceName.toString(), Long.parseLong(transactionId.toString()));
                 } catch (NumberFormatException err) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
+                }
+            }
+            case "CREATETABLESPACE": {
+                if (execute.getExprList().getExpressions().size() < 1) {
+                    throw new StatementExecutionException("CREATETABLESPACE syntax (EXECUTE CREATETABLESPACE tableSpaceName [LEDAERID])");
+                }
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
+                String leaderId = null;
+                if (execute.getExprList().getExpressions().size() > 1) {
+                    leaderId = (String) resolveValue(execute.getExprList().getExpressions().get(1));
+                }
+                if (leaderId == null) {
+                    leaderId = this.manager.getNodeId();
+                }
+                return new CreateTableSpaceStatement(tableSpaceName + "", Collections.singleton(leaderId), leaderId, 1);
+            }
+            case "ALTERTABLESPACE": {
+                if (execute.getExprList().getExpressions().size() < 3) {
+                    throw new StatementExecutionException("ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName property value)");
+                }
+                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
+                String property = (String) resolveValue(execute.getExprList().getExpressions().get(1));
+                String value = resolveValue(execute.getExprList().getExpressions().get(2))+"";
+                try {
+                    TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
+                    if (tableSpace == null) {
+                        throw new TableSpaceDoesNotExistException(tableSpaceName);
+                    }
+                    Set<String> replica = tableSpace.replicas;
+                    String leader = tableSpace.leaderId;
+                    int expectedreplicacount = tableSpace.expectedReplicaCount;
+                    switch (property.toLowerCase()) {
+                        case "replica":
+                            replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s->!s.isEmpty()).collect(Collectors.toSet());                            
+                            break;
+                        case "leader":
+                            leader = value;
+                            break;
+                        case "expectedreplicacount":
+                            try {
+                                expectedreplicacount = Integer.parseInt(value.trim());
+                                if (expectedreplicacount <= 0) {
+                                    throw new StatementExecutionException("invalid expectedreplicacount " + value + " must be positive");
+                                }
+                            } catch (NumberFormatException err) {
+                                throw new StatementExecutionException("invalid expectedreplicacount " + value + ": " + err);
+                            }
+                    }
+                    return new AlterTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount);
+                } catch (MetadataStorageManagerException err) {
+                    throw new StatementExecutionException(err);
                 }
             }
             default:

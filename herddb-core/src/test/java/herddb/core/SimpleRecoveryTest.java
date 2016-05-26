@@ -30,6 +30,7 @@ import herddb.model.GetResult;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
+import herddb.model.TableAlreadyExistsException;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
@@ -63,7 +64,7 @@ public class SimpleRecoveryTest {
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void createTable1() throws Exception {
+    public void createTable1_aftercheckpoint() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
         Path logsPath = folder.newFolder("logs").toPath();
@@ -115,8 +116,73 @@ public class SimpleRecoveryTest {
                     .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
+            try {
+                manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                fail();
+            } catch (TableAlreadyExistsException alreadyExists) {
+            }
+        }
+
+    }
+    
+     @Test
+    public void createTable1_nocheckpoint() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.checkpoint();
+            
+        }
+
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath),
+                tmoDir, null)) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            try {
+                manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                fail();
+            } catch (TableAlreadyExistsException alreadyExists) {
+            }
         }
 
     }
