@@ -22,12 +22,14 @@ package herddb.mem;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
+import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -40,6 +42,32 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
 
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final Map<String, TableSpace> tableSpaces = new HashMap<>();
+
+    private final List<NodeMetadata> nodes = new ArrayList<>();
+
+    @Override
+    public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
+        lock.readLock().lock();
+        try {
+            return new ArrayList<>(nodes);
+        } finally {
+            lock.readLock().unlock();
+        }
+
+    }
+
+    @Override
+    public void registerNode(NodeMetadata nodeMetadata) throws MetadataStorageManagerException {
+        lock.writeLock().lock();
+        try {
+            if (nodes.stream().filter(s -> s.nodeId.equals(nodeMetadata.nodeId)).findAny().isPresent()) {
+                throw new MetadataStorageManagerException("node " + nodeMetadata.nodeId + " already exists");
+            }
+            nodes.add(nodeMetadata);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
 
     @Override
     public Collection<String> listTableSpaces() {

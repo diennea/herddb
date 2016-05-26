@@ -27,6 +27,7 @@ import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.TableSpaceDumpReceiver;
 import herddb.core.system.SyscolumnsTableManager;
+import herddb.core.system.SysnodesTableManager;
 import herddb.core.system.SystablesTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.log.CommitLog;
@@ -124,6 +125,7 @@ public class TableSpaceManager {
         registerSystemTableManager(new SystablesTableManager(this));
         registerSystemTableManager(new SyscolumnsTableManager(this));
         registerSystemTableManager(new SystablespacesTableManager(this));
+        registerSystemTableManager(new SysnodesTableManager(this));
     }
 
     private void registerSystemTableManager(AbstractTableManager tableManager) {
