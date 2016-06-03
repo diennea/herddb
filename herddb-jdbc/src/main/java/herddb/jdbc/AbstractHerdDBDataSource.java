@@ -19,12 +19,14 @@
  */
 package herddb.jdbc;
 
+import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.Properties;
 import java.util.logging.Logger;
 
 /**
@@ -32,10 +34,26 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-public class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
+class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     protected HDBClient client;
     protected HDBConnection connection;
+    protected final Properties properties = new Properties();
+    protected int loginTimeout;
+
+    protected String url;
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public Properties getProperties() {
+        return properties;
+    }
 
     protected AbstractHerdDBDataSource() {
     }
@@ -44,7 +62,17 @@ public class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoClose
         this.client = client;
     }
 
-    protected void ensureConnection() throws SQLException {
+    protected synchronized void ensureClient() throws SQLException {
+        if (client == null) {
+            ClientConfiguration clientConfiguration = new ClientConfiguration(properties);
+            clientConfiguration.readJdbcUrl(url);
+            client = new HDBClient(clientConfiguration);
+        }
+    }
+
+    protected synchronized void ensureConnection() throws SQLException {
+        ensureClient();
+
         if (this.connection == null) {
             this.connection = client.openConnection();
         }
@@ -83,12 +111,12 @@ public class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoClose
 
     @Override
     public void setLoginTimeout(int seconds) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        this.loginTimeout = seconds;
     }
 
     @Override
     public int getLoginTimeout() throws SQLException {
-        return -1;
+        return loginTimeout;
     }
 
     @Override
@@ -107,9 +135,14 @@ public class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoClose
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (connection != null) {
             connection.close();
+            connection = null;
+        }
+        if (client != null) {
+            client.close();
+            client = null;
         }
     }
 }

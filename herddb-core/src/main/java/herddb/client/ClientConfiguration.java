@@ -118,6 +118,9 @@ public class ClientConfiguration {
     }
 
     public void readJdbcUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return;
+        }
         int questionMark = url.indexOf('?');
         if (questionMark <= 0) {
             questionMark = url.length();

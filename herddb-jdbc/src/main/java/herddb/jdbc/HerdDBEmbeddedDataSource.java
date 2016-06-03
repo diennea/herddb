@@ -40,9 +40,6 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
 
     private static final Logger LOGGER = Logger.getLogger(HerdDBEmbeddedDataSource.class.getName());
 
-    private ClientConfiguration clientConfiguration;
-    private final Properties properties = new Properties();
-    private ServerConfiguration serverConfiguration;
     private Server server;
 
     public HerdDBEmbeddedDataSource() {
@@ -52,38 +49,39 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
         return server;
     }
 
-    public Properties getProperties() {
-        return properties;
-    }
-
     @Override
-    protected synchronized void ensureConnection() throws SQLException {
-        if (serverConfiguration == null) {
-            LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB");
-            serverConfiguration = new ServerConfiguration(properties);
-        }
+    protected synchronized void ensureClient() throws SQLException {
+
         if (server == null) {
+            ServerConfiguration serverConfiguration = new ServerConfiguration(properties);
+            LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB");
             server = new Server(serverConfiguration);
             try {
                 server.start();
-                server.waitForStandaloneBoot();
+
             } catch (Exception ex) {
                 throw new SQLException("Cannot boot embedded server " + ex, ex);
             }
         }
-        if (clientConfiguration == null) {
-            clientConfiguration = new ClientConfiguration(properties);
-        }
-        if (client == null) {
-            client = new HDBClient(clientConfiguration);
+
+        super.ensureClient();
+
+        if (client.getClientSideMetadataProvider() == null) {
+            try {
+                // single machine, local mode, boot the 'default' tablespace
+                server.waitForStandaloneBoot();
+            } catch (Exception ex) {
+                throw new SQLException("Cannot boot embedded server " + ex, ex);
+            }
             client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
         }
-        super.ensureConnection();
+
     }
 
     @Override
     public synchronized void close() {
         super.close();
+
         if (server != null) {
             try {
                 server.close();

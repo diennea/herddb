@@ -22,7 +22,6 @@ package herddb.jdbc;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import java.sql.SQLException;
-import java.util.Properties;
 import java.util.logging.Logger;
 
 /**
@@ -34,43 +33,7 @@ public class HerdDBDataSource extends AbstractHerdDBDataSource {
 
     private static final Logger LOGGER = Logger.getLogger(HerdDBDataSource.class.getName());
 
-    private ClientConfiguration clientConfiguration;
-    private final Properties properties = new Properties();
-    private String url;
-
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
     public HerdDBDataSource() {
     }
 
-    public Properties getProperties() {
-        return properties;
-    }
-
-    @Override
-    protected synchronized void ensureConnection() throws SQLException {
-        if (clientConfiguration == null) {
-            clientConfiguration = new ClientConfiguration(properties);
-            clientConfiguration.readJdbcUrl(url);
-        }
-        if (client == null) {
-            client = new HDBClient(clientConfiguration);
-        }
-        super.ensureConnection();
-    }
-
-    @Override
-    public synchronized void close() {
-        super.close();
-        if (client != null) {
-            client.close();
-            client = null;
-        }
-    }
 }
