@@ -61,7 +61,8 @@ public class ClientConfiguration {
     public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
 
     public ClientConfiguration(Properties properties) {
-        this.properties = properties;
+        this.properties = new Properties();
+        this.properties.putAll(properties);
     }
 
     public ClientConfiguration(Path baseDir) {
@@ -141,9 +142,9 @@ public class ClientConfiguration {
                 set(PROPERTY_ZOOKEEPER_ADDRESS, zkaddress);
                 set(PROPERTY_ZOOKEEPER_PATH, path);
             }
-        } else {
+        } else if (before.startsWith("jdbc:herddb:server:")) {
             set(PROPERTY_MODE, PROPERTY_MODE_STANDALONE);
-            before = before.substring("jdbc:herddb:".length());
+            before = before.substring("jdbc:herddb:server:".length());
             int port_pos = before.indexOf(':');
             String host = before;
             int port = PROPERTY_SERVER_PORT_DEFAULT;
@@ -153,6 +154,8 @@ public class ClientConfiguration {
             }
             set(PROPERTY_SERVER_ADDRESS, host);
             set(PROPERTY_SERVER_PORT, port);
+        } else if (before.startsWith("jdbc:herddb:local:")) {
+            set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
         }
         String qs = url.substring(questionMark);
         String[] params = qs.split("&");

@@ -20,7 +20,6 @@
 package herddb.server;
 
 import java.nio.file.Path;
-import java.security.AuthProvider;
 import java.util.Properties;
 
 /**
@@ -34,7 +33,7 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_NODEID = "server.nodeId";
     public static final String PROPERTY_MODE = "server.mode";
-    
+
     /**
      * Accept requests only for TableSpaces for which the local server is leader
      */
@@ -145,6 +144,60 @@ public final class ServerConfiguration {
     @Override
     public String toString() {
         return "ServerConfiguration{" + "properties=" + properties + '}';
+    }
+
+    public void readJdbcUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return;
+        }
+        int questionMark = url.indexOf('?');
+        if (questionMark <= 0) {
+            questionMark = url.length();
+        }
+        String before = url.substring(0, questionMark);
+        if (!before.startsWith("jdbc:herddb:")) {
+            throw new IllegalArgumentException("invalid url " + url);
+        }
+        if (before.startsWith("jdbc:herddb:zookeeper:")) {
+            set(PROPERTY_MODE, PROPERTY_MODE_CLUSTER);
+            String zkaddress = before.substring("jdbc:herddb:zookeeper:".length());
+            int slash = zkaddress.indexOf('/');
+            if (slash <= 0) {
+                set(PROPERTY_ZOOKEEPER_ADDRESS, zkaddress);
+            } else {
+                String path = zkaddress.substring(slash);
+                zkaddress = zkaddress.substring(0, slash);
+                set(PROPERTY_ZOOKEEPER_ADDRESS, zkaddress);
+                set(PROPERTY_ZOOKEEPER_PATH, path);
+            }
+        } else if (before.startsWith("jdbc:herddb:server:")) {
+            set(PROPERTY_MODE, PROPERTY_MODE_STANDALONE);
+            before = before.substring("jdbc:herddb:server:".length());
+            int port_pos = before.indexOf(':');
+            String host = before;
+            int port = PROPERTY_PORT_DEFAULT;
+            if (port_pos > 0) {
+                host = before.substring(0, port_pos);
+                port = Integer.parseInt(before.substring(port_pos + 1));
+            }
+            set(PROPERTY_HOST, host);
+            set(PROPERTY_PORT, port);
+        } else if (before.startsWith("jdbc:herddb:local:")) {
+            set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
+        }
+        String qs = url.substring(questionMark);
+        String[] params = qs.split("&");
+        for (String param : params) {
+            // TODO: URLDecoder??
+            int pos = param.indexOf('=');
+            if (pos > 0) {
+                String key = param.substring(0, pos);
+                String value = param.substring(pos + 1);
+                set(key, value);
+            } else {
+                set(param, "");
+            }
+        }
     }
 
 }

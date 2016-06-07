@@ -19,13 +19,9 @@
  */
 package herddb.jdbc;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
-import java.nio.file.Paths;
-import java.security.AuthProvider;
 import java.sql.SQLException;
 import java.util.Properties;
 import java.util.logging.Level;
@@ -41,8 +37,13 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
     private static final Logger LOGGER = Logger.getLogger(HerdDBEmbeddedDataSource.class.getName());
 
     private Server server;
+    private volatile boolean serverInitialized;
 
     public HerdDBEmbeddedDataSource() {
+    }
+
+    public HerdDBEmbeddedDataSource(Properties properties) {
+        this.properties.putAll(properties);
     }
 
     public Server getServer() {
@@ -52,28 +53,24 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
     @Override
     protected synchronized void ensureClient() throws SQLException {
 
-        if (server == null) {
-            ServerConfiguration serverConfiguration = new ServerConfiguration(properties);
-            LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB");
-            server = new Server(serverConfiguration);
-            try {
-                server.start();
-
-            } catch (Exception ex) {
-                throw new SQLException("Cannot boot embedded server " + ex, ex);
-            }
-        }
-
         super.ensureClient();
 
-        if (client.getClientSideMetadataProvider() == null) {
-            try {
-                // single machine, local mode, boot the 'default' tablespace
-                server.waitForStandaloneBoot();
-            } catch (Exception ex) {
-                throw new SQLException("Cannot boot embedded server " + ex, ex);
+        if (!serverInitialized) {
+            ServerConfiguration serverConfiguration = new ServerConfiguration(properties);            
+            serverConfiguration.readJdbcUrl(url);
+            LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB, url:"+url+", properties:"+properties);
+            if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL))) {
+                server = new Server(serverConfiguration);
+                try {
+                    server.start();
+                    // single machine, local mode, boot the 'default' tablespace
+                    server.waitForStandaloneBoot();
+                    client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                } catch (Exception ex) {
+                    throw new SQLException("Cannot boot embedded server " + ex, ex);
+                }
             }
-            client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+            serverInitialized = true;
         }
 
     }

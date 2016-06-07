@@ -61,35 +61,35 @@ public class JdbcDriverZookeeperTest {
 
     @Test
     public void test() throws Exception {
-        try {
-            Class.forName(Driver.class.getName(), true, Thread.currentThread().getContextClassLoader());
 
-            ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
-            serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
-            serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
-            serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
-            serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
-            serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
-            serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
 
-            try (Server server = new Server(serverconfig_1)) {
-                server.start();
-                server.waitForStandaloneBoot();
-                try (Connection connection = DriverManager.getConnection("jdbc:herddb:zookeeper:" + testEnv.getAddress() + "" + testEnv.getPath());
-                        Statement statement = connection.createStatement();
-                        ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
-                    int count = 0;
-                    while (rs.next()) {
-                        System.out.println("table: " + rs.getString(1));
-                        count++;
-                    }
-                    assertTrue(count > 0);
+        try (Server server = new Server(serverconfig_1)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:zookeeper:" + testEnv.getAddress() + "" + testEnv.getPath());
+                    Statement statement = connection.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                int count = 0;
+                while (rs.next()) {
+                    System.out.println("table: " + rs.getString(1));
+                    count++;
                 }
+                assertTrue(count > 0);
             }
-        } finally {
-            for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
-                DriverManager.deregisterDriver(drivers.nextElement());
-            }
+        }
+    }
+
+    @After
+    public void destroy() throws Exception {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
+            DriverManager.deregisterDriver(drivers.nextElement());
         }
     }
 }

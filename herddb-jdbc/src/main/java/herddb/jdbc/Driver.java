@@ -53,16 +53,15 @@ public class Driver implements java.sql.Driver, AutoCloseable {
             LOG.log(Level.SEVERE, "error while registring JDBC driver:" + error, error);
         }
     }
-    
 
     public Driver() {
     }
 
-    private final Map<String, AbstractHerdDBDataSource> datasources = new HashMap<>();
+    private final Map<String, HerdDBEmbeddedDataSource> datasources = new HashMap<>();
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
-        AbstractHerdDBDataSource datasource = ensureDatasource(url, info);
+        HerdDBEmbeddedDataSource datasource = ensureDatasource(url, info);
         return datasource.getConnection();
     }
 
@@ -96,24 +95,18 @@ public class Driver implements java.sql.Driver, AutoCloseable {
         return LOG;
     }
 
-    private synchronized AbstractHerdDBDataSource ensureDatasource(String url, Properties info) {
+    private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {
+
         String key = url + "_" + info;
-        AbstractHerdDBDataSource ds = datasources.get(key);
+        HerdDBEmbeddedDataSource ds = datasources.get(key);
         if (ds != null) {
             return ds;
         }
-        ds = new AbstractHerdDBDataSource(buildClient(url, info));
+        ds = new HerdDBEmbeddedDataSource(info);
+        ds.setUrl(url);
+
         datasources.put(key, ds);
         return ds;
-    }
-
-    private HDBClient buildClient(String url, Properties info) {
-        ClientConfiguration config = new ClientConfiguration();
-        config.readJdbcUrl(url);
-        for (String key : info.stringPropertyNames()) {
-            config.set(key, info.getProperty(key));
-        }
-        return new HDBClient(config);
     }
 
     @Override

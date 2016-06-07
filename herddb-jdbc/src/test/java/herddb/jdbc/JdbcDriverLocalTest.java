@@ -19,8 +19,6 @@
  */
 package herddb.jdbc;
 
-import herddb.server.Server;
-import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -28,6 +26,7 @@ import java.sql.Statement;
 import java.util.Enumeration;
 import org.junit.After;
 import static org.junit.Assert.assertTrue;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -37,7 +36,7 @@ import org.junit.rules.TemporaryFolder;
  *
  * @author enrico.olivelli
  */
-public class JdbcDriverTest {
+public class JdbcDriverLocalTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -45,31 +44,28 @@ public class JdbcDriverTest {
     @Test
     public void test() throws Exception {
 
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
-            server.start();
-
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
-                int count = 0;
-                while (rs.next()) {
-                    System.out.println("table: " + rs.getString(1));
-                    count++;
-                }
-                assertTrue(count > 0);
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local");
+                Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+            int count = 0;
+            while (rs.next()) {
+                System.out.println("table: " + rs.getString(1));
+                count++;
             }
-
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost");
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
-                int count = 0;
-                while (rs.next()) {
-                    System.out.println("table: " + rs.getString(1));
-                    count++;
-                }
-                assertTrue(count > 0);
-            }
+            assertTrue(count > 0);
         }
+
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local");
+                Statement statement = connection.createStatement();
+                ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+            int count = 0;
+            while (rs.next()) {
+                System.out.println("table: " + rs.getString(1));
+                count++;
+            }
+            assertTrue(count > 0);
+        }
+
     }
 
     @After

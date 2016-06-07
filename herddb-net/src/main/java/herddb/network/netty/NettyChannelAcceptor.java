@@ -205,7 +205,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
         bossGroup = new NioEventLoopGroup(workerThreads);
         workerGroup = new NioEventLoopGroup(workerThreads);
         InetSocketAddress address = new InetSocketAddress(host, port);
-
+        LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port+""});
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {
             @Override
             public void initChannel(io.netty.channel.Channel ch) throws Exception {

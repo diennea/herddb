@@ -27,8 +27,11 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.Enumeration;
 import org.apache.commons.dbcp.BasicDataSource;
+import org.junit.After;
 import static org.junit.Assert.assertTrue;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
@@ -46,7 +49,7 @@ public class CommonsDBCPTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             BasicDataSource dataSource = new BasicDataSource();
-            dataSource.setUrl("jdbc:herddb:localhost:7000?");
+            dataSource.setUrl("jdbc:herddb:server:localhost:7000?");
             dataSource.setDriverClassName(Driver.class.getName());
             try (Connection connection = dataSource.getConnection();
                     Statement statement = connection.createStatement();
@@ -60,6 +63,13 @@ public class CommonsDBCPTest {
             }
             dataSource.close();
 
+        }
+    }
+
+    @After    
+    public void destroy() throws Exception {
+        for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
+            DriverManager.deregisterDriver(drivers.nextElement());
         }
     }
 }
