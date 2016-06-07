@@ -19,34 +19,36 @@
  */
 package herddb.jdbc;
 
+import org.junit.Test;
+
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import org.apache.commons.dbcp.BasicDataSource;
 import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 /**
- * Tests for connections using jdbc driver
  *
  * @author enrico.olivelli
  */
-public class JdbcDriverTest {
+public class CommonsDBCPTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
     public void test() throws Exception {
-        
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
-
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:localhost:7000?");
+            BasicDataSource dataSource = new BasicDataSource();
+            dataSource.setUrl("jdbc:herddb:localhost:7000?");
+            dataSource.setDriverClassName(Driver.class.getName());
+            try (Connection connection = dataSource.getConnection();
                     Statement statement = connection.createStatement();
                     ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
                 int count = 0;
@@ -56,17 +58,8 @@ public class JdbcDriverTest {
                 }
                 assertTrue(count > 0);
             }
+            dataSource.close();
 
-            try (Connection connection = DriverManager.getConnection("jdbc:herddb:localhost?");
-                    Statement statement = connection.createStatement();
-                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
-                int count = 0;
-                while (rs.next()) {
-                    System.out.println("table: " + rs.getString(1));
-                    count++;
-                }
-                assertTrue(count > 0);
-            }
         }
     }
 }
