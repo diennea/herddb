@@ -37,8 +37,6 @@ import herddb.network.ServerSideConnection;
 import herddb.network.ServerSideConnectionAcceptor;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.storage.DataStorageManager;
-import java.lang.management.ManagementFactory;
-import java.net.InetAddress;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;

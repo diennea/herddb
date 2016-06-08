@@ -19,14 +19,11 @@
  */
 package herddb.client;
 
-import static herddb.client.ClientConfiguration.PROPERTY_MODE;
-import static herddb.client.ClientConfiguration.PROPERTY_MODE_LOCAL;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * HerdDB Client

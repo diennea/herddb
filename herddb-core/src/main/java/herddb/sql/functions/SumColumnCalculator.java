@@ -21,14 +21,7 @@ package herddb.sql.functions;
 
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
-import herddb.sql.AggregatedColumnCalculator;
-import java.time.Clock;
-import java.time.Instant;
-import java.util.function.Function;
 import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.LongValue;
-import net.sf.jsqlparser.expression.StringValue;
-import net.sf.jsqlparser.schema.Column;
 
 /**
  * SQL SUM

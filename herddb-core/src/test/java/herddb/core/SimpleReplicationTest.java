@@ -32,7 +32,6 @@ import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.HashSet;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import org.junit.Test;
 
 /**

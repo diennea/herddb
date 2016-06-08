@@ -29,8 +29,6 @@ import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
-import herddb.model.predicates.RawValueEquals;
-import herddb.utils.Bytes;
 import java.util.HashMap;
 import java.util.Map;
 import static org.junit.Assert.assertEquals;
@@ -39,7 +37,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */

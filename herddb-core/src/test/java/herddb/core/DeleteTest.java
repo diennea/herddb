@@ -28,7 +28,6 @@ import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
-import herddb.model.TransactionContext;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.TranslatedQuery;
@@ -39,7 +38,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */

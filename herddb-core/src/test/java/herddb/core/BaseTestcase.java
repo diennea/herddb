@@ -27,7 +27,6 @@ import herddb.metadata.MetadataStorageManager;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
-import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;

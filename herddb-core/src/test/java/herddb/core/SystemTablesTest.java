@@ -38,7 +38,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */

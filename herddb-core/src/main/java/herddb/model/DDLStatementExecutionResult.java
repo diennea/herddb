@@ -19,8 +19,6 @@
  */
 package herddb.model;
 
-import herddb.utils.Bytes;
-
 /**
  * Result of statement which mutate data
  *

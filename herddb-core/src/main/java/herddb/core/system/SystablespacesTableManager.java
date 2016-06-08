@@ -22,7 +22,6 @@ package herddb.core.system;
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
 import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.StatementExecutionException;

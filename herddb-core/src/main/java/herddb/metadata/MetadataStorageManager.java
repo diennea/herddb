@@ -19,7 +19,6 @@
  */
 package herddb.metadata;
 
-import herddb.core.DBManager;
 import herddb.model.DDLException;
 import herddb.model.InvalidTableException;
 import herddb.model.NodeMetadata;

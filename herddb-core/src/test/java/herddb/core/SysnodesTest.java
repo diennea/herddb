@@ -22,13 +22,10 @@ package herddb.core;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.ScanResult;
 import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpace;
-import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.sql.TranslatedQuery;
@@ -38,10 +35,9 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */

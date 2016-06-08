@@ -23,7 +23,6 @@ import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
-import herddb.utils.Bytes;
 
 /**
  * Insert a new record

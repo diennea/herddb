@@ -20,7 +20,6 @@
 package herddb.client;
 
 import java.io.File;
-import java.net.URI;
 import java.nio.file.Path;
 import java.util.Properties;
 

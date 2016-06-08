@@ -27,10 +27,8 @@ import herddb.log.LogEntryFactory;
 import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
-import herddb.model.AlterFailedException;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
-import herddb.model.CurrentTupleKeySeek;
 import herddb.model.DDLException;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DuplicatePrimaryKeyException;
@@ -49,13 +47,10 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
-import herddb.model.DataScannerException;
 import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableContext;
 import herddb.model.Tuple;
-import herddb.model.predicates.DropColumnsRecordFunction;
-import herddb.model.predicates.KeyOnlyProjection;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -840,12 +835,12 @@ public class TableManager implements AbstractTableManager {
             }
 
             buffer.clear();
-            loadedPages.clear();
-            dirtyPages.clear();
+            loadedPages.clear();            
             activePages.removeAll(dirtyPages);
+            dirtyPages.clear();
             dirtyRecords.set(0);
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, activePages);
-            dataStorageManager.writeCurrentTableStatus(table.tablespace, table.name, tableStatus);
+            dataStorageManager.tableCheckpoint(table.tablespace, table.name, tableStatus);
 
         } finally {
             pagesLock.writeLock().unlock();

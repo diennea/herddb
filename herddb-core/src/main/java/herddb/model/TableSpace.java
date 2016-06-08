@@ -19,7 +19,6 @@
  */
 package herddb.model;
 
-import herddb.log.LogSequenceNumber;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;

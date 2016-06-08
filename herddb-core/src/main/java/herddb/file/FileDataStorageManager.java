@@ -35,6 +35,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -184,7 +185,7 @@ public class FileDataStorageManager extends DataStorageManager {
     private static final int TABLE_STATUS_MARKER = 1233;
 
     @Override
-    public void writeCurrentTableStatus(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+    public void tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, tableName);
         try {
             Files.createDirectories(tableDir);
@@ -192,11 +193,66 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         Path keys = getTableCheckPointsFile(tableDir);
-        LOGGER.log(Level.SEVERE, "writeCurrentTableStatus " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + keys);
+        LOGGER.log(Level.SEVERE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + keys);
         try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
                 DataOutputStream dataOutputKeys = new DataOutputStream(outputKeys)) {
             dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
             tableStatus.serialize(dataOutputKeys);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+
+        // we can drop old page files now
+        List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
+        for (Path p : pageFiles) {
+            long pageId = getPageId(p);
+            LOGGER.log(Level.INFO, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId);
+            if (pageId > 0 && !tableStatus.activePages.contains(pageId)) {
+                LOGGER.log(Level.SEVERE, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". to be deleted");
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException err) {
+                    LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
+                }
+            }
+        }
+    }
+
+    private static long getPageId(Path p) {
+        String filename = p.getFileName().toString();
+        if (filename.endsWith(".page")) {
+            try {
+                return Long.parseLong(filename.substring(0, filename.length() - ".page".length()));
+            } catch (NumberFormatException no) {
+                return -1;
+            }
+        } else {
+            return -1;
+        }
+    }
+
+    private static boolean isPageFile(Path path) {
+        return getPageId(path) >= 0;
+    }
+
+    public List<Path> getTablePageFiles(String tableSpace, String tableName) throws DataStorageManagerException {
+        Path tableDir = getTableDirectory(tableSpace, tableName);
+        try {
+            Files.createDirectories(tableDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+
+        try (DirectoryStream<Path> files = Files.newDirectoryStream(tableDir, new DirectoryStream.Filter<Path>() {
+            @Override
+            public boolean accept(Path entry) throws IOException {
+                return isPageFile(entry);
+            }
+
+        })) {
+            List<Path> result = new ArrayList<>();
+            files.forEach(result::add);
+            return result;
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }

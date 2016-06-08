@@ -20,9 +20,7 @@
 package herddb.core;
 
 import herddb.cluster.BookkeeperCommitLogManager;
-import herddb.file.FileCommitLogManager;
 import herddb.log.CommitLogManager;
-import herddb.mem.MemoryDataStorageManager;
 import herddb.metadata.MetadataStorageManager;
 import herddb.model.GetResult;
 import herddb.model.commands.InsertStatement;
@@ -36,20 +34,21 @@ import herddb.file.FileDataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.storage.DataStorageManager;
+import herddb.storage.FullTableScanConsumer;
+import herddb.storage.TableStatus;
 import herddb.utils.ZKTestEnv;
 import java.util.List;
-import org.apache.curator.test.TestingServer;
+import javax.xml.ws.Holder;
 import org.junit.Test;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */
@@ -116,7 +115,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
         // a new page must be allocated
         manager.checkpoint();
-        assertEquals(2, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("6"));
@@ -130,7 +129,7 @@ public class SimpleClusterTest extends BaseTestcase {
         }
         // only a new page must be allocated, not two more
         manager.checkpoint();
-        assertEquals(3, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
@@ -141,7 +140,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
         // a delete does not trigger new pages in this case
         manager.checkpoint();
-        assertEquals(3, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {
             assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key2"), Bytes.from_string("50"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
@@ -149,20 +148,43 @@ public class SimpleClusterTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(4, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key2"), null);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
         // a new page, containg the key3 record is needed
         manager.checkpoint();
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
-        for (long pageId = 1; pageId <= dataStorageManager.getActualNumberOfPages(tableSpace, tableName); pageId++) {
+        Holder<TableStatus> _tableStatus = new Holder<>();
+        dataStorageManager.fullTableScan(tableSpace, tableName, new FullTableScanConsumer() {
+            @Override
+            public void acceptTableStatus(TableStatus tableStatus) {
+                _tableStatus.value = tableStatus;
+            }
+
+            @Override
+            public void startPage(long pageId) {
+
+            }
+
+            @Override
+            public void acceptRecord(Record record) {
+
+            }
+
+            @Override
+            public void endPage() {
+
+            }
+        });
+        for (long pageId : _tableStatus.value.activePages) {
             List<Record> records = dataStorageManager.loadPage(tableSpace, tableName, pageId);
             System.out.println("PAGE #" + pageId + " records :" + records);
         }
 
-        assertEquals(5, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, _tableStatus.value.activePages.size());
 
     }
 }

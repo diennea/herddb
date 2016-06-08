@@ -19,8 +19,6 @@
  */
 package herddb.core;
 
-import herddb.mem.MemoryDataStorageManager;
-import herddb.mem.MemoryDataStorageManager.Page;
 import herddb.model.GetResult;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
@@ -30,20 +28,24 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
-import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */
-public class FlushTest extends BaseTestcase {
+public class FlushMemTest extends BaseTestcase {
+
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
+
 
     @Test
     public void test() throws Exception {
@@ -53,7 +55,7 @@ public class FlushTest extends BaseTestcase {
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
-        assertNull(dataStorageManager.loadPage(tableSpace, tableName, 1L));
+
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
         manager.checkpoint();
         assertNotNull(dataStorageManager.loadPage(tableSpace, tableName, 1L));
@@ -73,9 +75,9 @@ public class FlushTest extends BaseTestcase {
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
-        // a new page must be allocated
+        // a new page must be allocated, but the first will be dropped, as it does not contain any useful record
         manager.checkpoint();
-        assertEquals(2, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("6"));
@@ -87,9 +89,9 @@ public class FlushTest extends BaseTestcase {
             UpdateStatement st = new UpdateStatement(tableSpace, tableName, record, null);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
-        // only a new page must be allocated, not two more
+        // only a new page must be allocated, not two more, but the prev page will be dropped, as it does not contain any useful record
         manager.checkpoint();
-        assertEquals(3, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
@@ -98,9 +100,9 @@ public class FlushTest extends BaseTestcase {
             assertFalse(result.found());
         }
 
-        // a delete does not trigger new pages in this case
+        // a delete does not trigger new pages in this case, no more record will lead to no more active page
         manager.checkpoint();
-        assertEquals(3, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {
             assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key2"), Bytes.from_string("50"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
@@ -108,7 +110,7 @@ public class FlushTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(4, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key2"), null);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
@@ -116,14 +118,7 @@ public class FlushTest extends BaseTestcase {
         // a new page, containg the key3 record is needed
         manager.checkpoint();
 
-        MemoryDataStorageManager mem = (MemoryDataStorageManager) dataStorageManager;
-        for (long pageId = 1; pageId <= dataStorageManager.getActualNumberOfPages(tableSpace, tableName); pageId++) {
-            Page page = mem.getPage(tableName, pageId);
-            List<Record> records = page.getRecords();
-            System.out.println("PAGE #" + pageId + " records :" + records);
-        }
-
-        assertEquals(5, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
     }
 }

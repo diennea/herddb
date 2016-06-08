@@ -25,7 +25,6 @@ import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
 import herddb.log.LogEntry;
-import herddb.model.ColumnTypes;
 import herddb.model.DDLException;
 import herddb.model.DataScanner;
 import herddb.model.InvalidTableException;

@@ -21,7 +21,6 @@ package herddb.log;
 
 import herddb.model.Table;
 import herddb.model.Transaction;
-import java.nio.charset.StandardCharsets;
 
 /**
  * Factory for entries

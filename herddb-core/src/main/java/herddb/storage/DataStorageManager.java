@@ -19,14 +19,10 @@
  */
 package herddb.storage;
 
-import herddb.client.HDBConnection;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
-import herddb.utils.Bytes;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * Physical storage of data
@@ -74,7 +70,7 @@ public abstract class DataStorageManager {
      * @param tableStatus
      * @throws DataStorageManagerException
      */
-    public abstract void writeCurrentTableStatus(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
+    public abstract void tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
 
     /**
      * Return the actual number of pages presents on disk

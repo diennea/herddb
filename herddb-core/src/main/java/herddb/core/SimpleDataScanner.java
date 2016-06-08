@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.Tuple;

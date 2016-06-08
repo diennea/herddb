@@ -19,41 +19,27 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.GetResult;
-import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.model.TransactionResult;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.model.commands.GetStatement;
-import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
-import herddb.utils.Bytes;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import org.junit.Assert;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */

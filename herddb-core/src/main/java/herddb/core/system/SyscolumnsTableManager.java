@@ -22,7 +22,6 @@ package herddb.core.system;
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
-import static herddb.model.Column.column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;

@@ -21,7 +21,6 @@ package herddb.model.commands;
 
 import herddb.model.Column;
 import herddb.model.DDLStatement;
-import herddb.model.DMLStatement;
 import java.util.List;
 
 /**

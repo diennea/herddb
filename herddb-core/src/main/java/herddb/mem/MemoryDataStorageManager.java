@@ -107,7 +107,21 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeCurrentTableStatus(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+    public void tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+
+        List<Long> pagesForTable = new ArrayList<>();
+        String prefix = tableName + "_";
+        for (String key : pages.keySet()) {
+            if (key.startsWith(prefix)) {
+                long pageId = Long.parseLong(key.substring(prefix.length()));
+                pagesForTable.add(pageId);
+            }
+        }
+        pagesForTable.removeAll(tableStatus.activePages);
+        for (long pageId : pagesForTable) {
+            pages.remove(prefix + pageId);
+        }
+
     }
 
     @Override

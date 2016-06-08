@@ -24,7 +24,6 @@ import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.ConstValueRecordFunction;
-import herddb.utils.Bytes;
 
 /**
  * Update an existing record

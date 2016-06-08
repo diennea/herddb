@@ -39,7 +39,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Tests on table creation
+ * 
  *
  * @author enrico.olivelli
  */
