@@ -996,7 +996,6 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void tableAltered(Table table, Transaction transaction) throws DDLException {
-
         // compute diff, if some column as been dropped we need to remove the value from each record
         List<String> droppedColumns = new ArrayList<>();
         for (Column c : this.table.columns) {
@@ -1004,29 +1003,19 @@ public class TableManager implements AbstractTableManager {
                 droppedColumns.add(c.name);
             }
         }
+
         this.table = table;
         if (!droppedColumns.isEmpty()) {
-            LOGGER.log(Level.SEVERE, "table " + table.name + " need to drop colunns " + droppedColumns + ", performing and update on each record");
+            pagesLock.readLock().lock();
             try {
-                int count = 0;
-                try (DataScanner scanner = scan(new ScanStatement(table.tablespace, table.name, new KeyOnlyProjection(table), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transaction);) {
-                    RecordFunction mutator = new DropColumnsRecordFunction(table, droppedColumns);
-                    StatementEvaluationContext context = new StatementEvaluationContext();
-                    UpdateStatement update = new UpdateStatement(table.tablespace, table.name, new CurrentTupleKeySeek(table), mutator, null);
-                    while (scanner.hasNext()) {
-                        context.setCurrentTuple(scanner.next());
-                        executeStatement(update, transaction, context);
-                        context.setCurrentTuple(null);
-                        count++;
-                    }
+                for (Record record : buffer.values()) {
+                    // table structure changed
+                    record.clearCache();
                 }
-                LOGGER.log(Level.SEVERE, "table " + table.name + " need to drop colunns " + droppedColumns + ", applied to " + count + " records");
-            } catch (StatementExecutionException | DataScannerException ex) {
-                throw new AlterFailedException(ex);
+            } finally {
+                pagesLock.readLock().unlock();
             }
-
         }
-
     }
 
 }

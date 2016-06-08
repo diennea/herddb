@@ -45,19 +45,27 @@ public class Table {
     public final String tablespace;
     public final Column[] columns;
     public final Map<String, Column> columnsByName;
+    public final Map<Integer, Column> columnsBySerialPosition;
     public final String[] primaryKey;
     public final boolean auto_increment;
     private final Set<String> primaryKeyColumns;
+    public final int maxSerialPosition;
 
-    private Table(String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment) {
+    private Table(String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment, int maxSerialPosition) {
         this.name = name;
         this.columns = columns;
+        this.maxSerialPosition = maxSerialPosition;
         this.primaryKey = primaryKey;
         this.tablespace = tablespace;
         this.columnsByName = new HashMap<>();
+        this.columnsBySerialPosition = new HashMap<>();
         this.auto_increment = auto_increment;
         for (Column c : columns) {
             columnsByName.put(c.name.toLowerCase(), c);
+            if (c.serialPosition < 0) {
+                throw new IllegalArgumentException();
+            }
+            columnsBySerialPosition.put(c.serialPosition, c);
         }
         this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));
     }
@@ -77,6 +85,7 @@ public class Table {
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
             boolean auto_increment = dii.readByte() > 0;
+            int maxSerialPosition = dii.readInt();
             byte pkcols = dii.readByte();
             String[] primaryKey = new String[pkcols];
             for (int i = 0; i < pkcols; i++) {
@@ -87,9 +96,10 @@ public class Table {
             for (int i = 0; i < ncols; i++) {
                 String cname = dii.readUTF();
                 int type = dii.readInt();
-                columns[i] = Column.column(cname, type);
+                int serialPosition = dii.readInt();
+                columns[i] = Column.column(cname, type, serialPosition);
             }
-            return new Table(name, columns, primaryKey, tablespace, auto_increment);
+            return new Table(name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
         } catch (IOException err) {
             throw new IllegalArgumentException(err);
         }
@@ -101,6 +111,7 @@ public class Table {
             doo.writeUTF(tablespace);
             doo.writeUTF(name);
             doo.writeByte(auto_increment ? 1 : 0);
+            doo.writeInt(maxSerialPosition);
             doo.writeByte(primaryKey.length);
             for (String primaryKeyColumn : primaryKey) {
                 doo.writeUTF(primaryKeyColumn);
@@ -109,6 +120,7 @@ public class Table {
             for (Column c : columns) {
                 doo.writeUTF(c.name);
                 doo.writeInt(c.type);
+                doo.writeInt(c.serialPosition);
             }
         } catch (IOException ee) {
             throw new RuntimeException(ee);
@@ -121,6 +133,7 @@ public class Table {
     }
 
     public Table applyAlterTable(AlterTableStatement alterTableStatement) {
+        int new_maxSerialPosition = this.maxSerialPosition;
         Builder builder = builder()
                 .name(this.name)
                 .tablespace(this.tablespace);
@@ -135,22 +148,29 @@ public class Table {
         }
         for (Column c : this.columns) {
             if (dropColumns == null || !dropColumns.contains(c.name.toLowerCase())) {
-                builder.column(c.name, c.type);
+                builder.column(c.name, c.type, c.serialPosition);
             }
+            new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);
         }
+
         if (alterTableStatement.getAddColumns() != null) {
             for (Column c : alterTableStatement.getAddColumns()) {
                 if (getColumn(c.name) != null) {
                     throw new IllegalArgumentException("column " + c.name + " not found int table " + this.name);
                 }
-                builder.column(c.name, c.type);
+                builder.column(c.name, c.type, ++new_maxSerialPosition);
             }
         }
         for (String pk : this.primaryKey) {
             builder.primaryKey(pk, this.auto_increment);
         }
+        builder.maxSerialPosition(new_maxSerialPosition);
         return builder.build();
 
+    }
+
+    public Column getColumnBySerialPosition(int serialPosition) {
+        return columnsBySerialPosition.get(serialPosition);
     }
 
     public static class Builder {
@@ -160,12 +180,18 @@ public class Table {
         private List<String> primaryKey = new ArrayList<>();
         private String tablespace = TableSpace.DEFAULT;
         private boolean auto_increment;
+        private int maxSerialPosition = 0;
 
         private Builder() {
         }
 
         public Builder name(String name) {
             this.name = name;
+            return this;
+        }
+
+        public Builder maxSerialPosition(int maxSerialPosition) {
+            this.maxSerialPosition = maxSerialPosition;
             return this;
         }
 
@@ -201,7 +227,18 @@ public class Table {
             if (this.columns.stream().filter(c -> (c.name.equals(name))).findAny().isPresent()) {
                 throw new IllegalArgumentException("column " + name + " already exists");
             }
-            this.columns.add(Column.column(name, type));
+            this.columns.add(Column.column(name, type,maxSerialPosition++));
+            return this;
+        }
+
+        public Builder column(String name, int type, int serialPosition) {
+            if (name == null || name.isEmpty()) {
+                throw new IllegalArgumentException();
+            }
+            if (this.columns.stream().filter(c -> (c.name.equals(name))).findAny().isPresent()) {
+                throw new IllegalArgumentException("column " + name + " already exists");
+            }
+            this.columns.add(Column.column(name, type, serialPosition));
             return this;
         }
 
@@ -225,7 +262,7 @@ public class Table {
                 }
             }
 
-            return new Table(name, columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]), tablespace, auto_increment);
+            return new Table(name, columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]), tablespace, auto_increment, maxSerialPosition);
         }
 
     }

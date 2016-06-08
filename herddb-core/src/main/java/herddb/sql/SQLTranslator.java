@@ -176,13 +176,14 @@ public class SQLTranslator {
             }
         }
 
+        int position = 0;
         for (ColumnDefinition cf : s.getColumnDefinitions()) {
             String columnName = cf.getColumnName().toLowerCase();
             allColumnNames.add(columnName);
             int type;
             String dataType = cf.getColDataType().getDataType();
             type = sqlDataTypeToColumnType(dataType);
-            tablebuilder.column(columnName, type);
+            tablebuilder.column(columnName, type, position++);
 
             if (cf.getColumnSpecStrings() != null) {
                 List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
@@ -198,7 +199,7 @@ public class SQLTranslator {
         }
 
         if (!foundPk) {
-            tablebuilder.column("_pk", ColumnTypes.LONG);
+            tablebuilder.column("_pk", ColumnTypes.LONG, position++);
             tablebuilder.primaryKey("_pk", true);
         }
 
@@ -762,7 +763,7 @@ public class SQLTranslator {
                 }
                 String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
                 String property = (String) resolveValue(execute.getExprList().getExpressions().get(1));
-                String value = resolveValue(execute.getExprList().getExpressions().get(2))+"";
+                String value = resolveValue(execute.getExprList().getExpressions().get(2)) + "";
                 try {
                     TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
                     if (tableSpace == null) {
@@ -773,7 +774,7 @@ public class SQLTranslator {
                     int expectedreplicacount = tableSpace.expectedReplicaCount;
                     switch (property.toLowerCase()) {
                         case "replica":
-                            replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s->!s.isEmpty()).collect(Collectors.toSet());                            
+                            replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
                             break;
                         case "leader":
                             leader = value;

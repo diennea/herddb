@@ -28,7 +28,6 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.HashMap;
@@ -156,7 +155,7 @@ public final class RecordSerializer {
                 Object v = record.get(c.name);
                 if (v != null && !table.isPrimaryKeyColumn(c.name)) {
                     byte[] fieldValue = serialize(v, c.type);
-                    doo.writeUTF(c.name);
+                    doo.writeVInt(c.serialPosition);
                     doo.writeArray(fieldValue);
                 }
             }
@@ -190,16 +189,16 @@ public final class RecordSerializer {
                 ByteArrayInputStream s = new ByteArrayInputStream(record.value.data);
                 ExtendedDataInputStream din = new ExtendedDataInputStream(s);
                 while (true) {
-                    String name;
+                    int serialPosition;
                     try {
-                        name = din.readUTF();
-                    } catch (EOFException ok) {
+                        serialPosition = din.readVInt();
+                    } catch (EOFException eof) {
                         break;
                     }
                     byte[] v = din.readArray();
-                    Column col = table.getColumn(name);
+                    Column col = table.getColumnBySerialPosition(serialPosition);
                     if (col != null) {
-                        res.put(name, deserialize(v, col.type));
+                        res.put(col.name, deserialize(v, col.type));
                     }
                 }
             }

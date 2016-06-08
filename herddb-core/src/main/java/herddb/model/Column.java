@@ -26,6 +26,8 @@ package herddb.model;
  */
 public class Column {
 
+    public final int serialPosition;
+
     public final String name;
 
     /**
@@ -33,13 +35,18 @@ public class Column {
      */
     public final int type;
 
-    private Column(String name, int type) {
+    private Column(String name, int type, int serialPosition) {
         this.name = name;
         this.type = type;
+        this.serialPosition = serialPosition;
     }
 
     public static Column column(String name, int type) {
-        return new Column(name, type);
+        return new Column(name, type, -1);
+    }
+
+    public static Column column(String name, int type, int serialPosition) {
+        return new Column(name, type, serialPosition);
     }
 
 }

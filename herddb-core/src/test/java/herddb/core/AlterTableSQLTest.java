@@ -19,41 +19,24 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.DuplicatePrimaryKeyException;
-import herddb.model.GetResult;
-import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
 import herddb.model.TransactionContext;
-import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.model.commands.GetStatement;
-import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
-import herddb.utils.Bytes;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import org.junit.Assert;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -89,6 +72,10 @@ public class AlterTableSQLTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            Table table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(2, table.getColumn("s1").serialPosition);
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1) values('a',1,'b')", Collections.emptyList());
             {
                 List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
@@ -102,6 +89,11 @@ public class AlterTableSQLTest {
                 assertEquals(1, tuples.size());
                 assertEquals(4, tuples.get(0).fieldNames.length);
             }
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(2, table.getColumn("s1").serialPosition);
+            assertEquals(3, table.getColumn("k2").serialPosition);
 
         }
     }
@@ -116,6 +108,10 @@ public class AlterTableSQLTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            Table table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(2, table.getColumn("s1").serialPosition);
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1) values('a',1,'b')", Collections.emptyList());
             {
                 List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
@@ -124,6 +120,10 @@ public class AlterTableSQLTest {
                 assertEquals("b", tuples.get(0).get("s1"));
             }
             execute(manager, "ALTER TABLE tblspace1.tsql drop column s1", Collections.emptyList());
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(2,table.columns.length);
             
             {
                 List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
@@ -131,16 +131,18 @@ public class AlterTableSQLTest {
                 assertEquals(2, tuples.get(0).fieldNames.length);
                 assertEquals(null, tuples.get(0).get("s1"));
             }
-            
+
             execute(manager, "ALTER TABLE tblspace1.tsql add column s1 string", Collections.emptyList());
-            
+            table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(3, table.getColumn("s1").serialPosition);
             {
                 List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).fieldNames.length);
                 assertEquals(null, tuples.get(0).get("s1"));
             }
-            
 
             try {
                 execute(manager, "ALTER TABLE tblspace1.tsql drop column k1", Collections.emptyList());

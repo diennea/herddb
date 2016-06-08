@@ -54,4 +54,8 @@ public class Record {
         return "Record{" + "key=" + key + ", value=" + value + '}';
     }
 
+    public void clearCache() {
+        cache = null;
+    }
+
 }
