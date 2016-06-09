@@ -26,8 +26,12 @@ import herddb.model.TableSpace;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.SimpleFormatter;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -38,7 +42,27 @@ import org.junit.rules.TemporaryFolder;
  * @author enrico.olivelli
  */
 public class SimpleClientServerTest {
-
+//
+//         @Before
+//    public void setupLogger() throws Exception {
+//        Level level = Level.FINEST;
+//        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+//
+//            @Override
+//            public void uncaughtException(Thread t, Throwable e) {
+//                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
+//                e.printStackTrace();
+//            }
+//        });
+//        java.util.logging.LogManager.getLogManager().reset();
+//        ConsoleHandler ch = new ConsoleHandler();
+//        ch.setLevel(level);
+//        SimpleFormatter f = new SimpleFormatter();
+//        ch.setFormatter(f);
+//        java.util.logging.Logger.getLogger("").setLevel(level);
+//        java.util.logging.Logger.getLogger("").addHandler(ch);
+//    }
+    
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
@@ -46,7 +70,8 @@ public class SimpleClientServerTest {
     public void test() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
-            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());            
+            try (HDBClient client = new HDBClient(clientConfiguration);
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 

@@ -36,6 +36,8 @@ import herddb.network.ServerHostData;
 import herddb.network.ServerSideConnection;
 import herddb.network.ServerSideConnectionAcceptor;
 import herddb.network.netty.NettyChannelAcceptor;
+import herddb.security.SimpleSingleUserManager;
+import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -61,6 +63,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
     private final String mode;
     private final MetadataStorageManager metadataStorageManager;
+    private final UserManager userManager;
+
+    public UserManager getUserManager() {
+        return userManager;
+    }
 
     public MetadataStorageManager getMetadataStorageManager() {
         return metadataStorageManager;
@@ -76,6 +83,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     public Server(ServerConfiguration configuration) {
         this.configuration = configuration;
+        this.userManager = new SimpleSingleUserManager(configuration);
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();

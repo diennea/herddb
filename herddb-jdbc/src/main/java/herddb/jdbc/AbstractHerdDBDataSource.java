@@ -92,7 +92,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     }
 
     @Override
-    public Connection getConnection(String username, String password) throws SQLException {
+    public Connection getConnection(String username, String password) throws SQLException {        
         ensureConnection();
         return new HerdDBConnection(connection);
     }

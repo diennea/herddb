@@ -32,6 +32,11 @@ public class ClientConfiguration {
 
     private final Properties properties;
 
+    public static final String PROPERTY_CLIENT_USERNAME = "client.username";
+    public static final String PROPERTY_CLIENT_USERNAME_DEFAULT = "sa";
+    public static final String PROPERTY_CLIENT_PASSWORD = "client.password";
+    public static final String PROPERTY_CLIENT_PASSWORD_DEFAULT = "hdb";
+
     public static final String PROPERTY_BASEDIR = "client.baseDir";
     public static final String PROPERTY_TIMEOUT = "client.timeout";
     public static final String PROPERTY_CLIENTID = "client.clientId";

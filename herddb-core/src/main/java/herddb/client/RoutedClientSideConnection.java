@@ -39,6 +39,7 @@ import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
+import herddb.security.sasl.SaslNettyClient;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.concurrent.atomic.AtomicLong;
@@ -75,6 +76,33 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
+    }
+
+    private void performAuthentication() throws Exception {
+
+        SaslNettyClient saslNettyClient = new SaslNettyClient(
+                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
+                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT)
+        );
+        Channel _channel = channel;
+        Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(), timeout);
+
+        while (true) {
+            byte[] responseToSendToServer;
+            if (saslResponse.type == Message.TYPE_SASL_TOKEN_SERVER_RESPONSE) {
+                byte[] token = (byte[]) saslResponse.parameters.get("token");
+                responseToSendToServer = saslNettyClient.saslResponse(token);
+                if (saslNettyClient.isComplete()) {
+                    LOGGER.finest("SASL auth completed with success");
+                    break;
+                }
+            } else if (saslResponse.type == Message.TYPE_ERROR) {
+                throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + saslResponse.parameters + ")");
+            } else {
+                throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
+            }
+            saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_TOKEN(responseToSendToServer), timeout);
+        }
     }
 
     @Override
@@ -170,6 +198,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             if (channel == null) {
                 LOGGER.log(Level.SEVERE, "{0} - connect", this);
                 channel = connector.connect();
+                performAuthentication();
             }
         } catch (Exception err) {
             throw new HDBException(err);

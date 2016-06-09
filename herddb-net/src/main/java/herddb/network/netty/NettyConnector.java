@@ -115,20 +115,20 @@ public class NettyConnector implements AutoCloseable {
         InetSocketAddress inet = new InetSocketAddress(host, port);
         SocketAddress address;
         String hostAddress = NetworkUtils.getAddress(inet);
-        
+
         if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
             channelType = LocalChannel.class;
             address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
-            LOGGER.log(Level.SEVERE, "connecting to local in-JVM server "+address);
+            LOGGER.log(Level.SEVERE, "connecting to local in-JVM server " + address);
         } else {
             channelType = NioSocketChannel.class;
             address = inet;
             LOGGER.log(Level.SEVERE, "connecting to remote server " + address);
         }
-                
+
         Bootstrap b = new Bootstrap();
         b.group(group)
-                .channel(channelType)                
+                .channel(channelType)
                 .option(ChannelOption.SO_TIMEOUT, socketTimeout)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
                 .handler(new ChannelInitializer<Channel>() {
@@ -150,7 +150,7 @@ public class NettyConnector implements AutoCloseable {
 
         LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address});
         ChannelFuture f = b.connect(address).sync();
-        socketchannel = f.channel();
+        socketchannel = f.channel();       
         return channel;
 
     }

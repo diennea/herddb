@@ -45,6 +45,7 @@ import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.Message;
 import herddb.network.ServerSideConnection;
+import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -74,6 +75,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
      */
     private final Map<String, ServerSideScannerPeer> scanners = new ConcurrentHashMap<>();
     private final Map<String, Set<Long>> openTransactions = new ConcurrentHashMap<>();
+    private boolean authenticated;
 
     public ServerSideConnectionPeer(Channel channel, Server server) {
         this.channel = channel;
@@ -86,12 +88,58 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         return id;
     }
 
+    private SaslNettyServer saslNettyServer;
+
     @Override
     public void messageReceived(Message message) {
         LOGGER.log(Level.FINEST, "messageReceived " + message);
         Channel _channel = channel;
+
         switch (message.type) {
+            case Message.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
+                try {
+                    if (saslNettyServer == null) {
+                        saslNettyServer = new SaslNettyServer(server);
+                    }
+                    byte[] responseToken = saslNettyServer.response(new byte[0]);
+                    Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
+                    _channel.sendReplyMessage(message, tokenChallenge);
+                } catch (Exception err) {
+                    Message error = Message.ERROR(null, err);
+                    _channel.sendReplyMessage(message, error);
+                }
+                break;
+            }
+            case Message.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
+                try {
+                    if (saslNettyServer == null) {
+                        saslNettyServer = new SaslNettyServer(server);
+                    }
+                    byte[] token = (byte[]) message.parameters.get("token");
+                    byte[] responseToken = saslNettyServer.response(token);
+                    Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
+                    _channel.sendReplyMessage(message, tokenChallenge);
+                    if (saslNettyServer.isComplete()) {
+                        authenticated = true;
+                    }
+                } catch (Exception err) {
+                    if (err instanceof javax.security.sasl.SaslException) {
+                        LOGGER.log(Level.SEVERE, "SASL error " + err, err);
+                        Message error = Message.ERROR(null, new Exception("Authentication failed (SASL error)"));
+                        _channel.sendReplyMessage(message, error);
+                    } else {
+                        Message error = Message.ERROR(null, err);
+                        _channel.sendReplyMessage(message, error);
+                    }
+                }
+                break;
+            }
             case Message.TYPE_EXECUTE_STATEMENT: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
                 Long tx = (Long) message.parameters.get("tx");
                 long txId = tx != null ? tx : 0;
                 String query = (String) message.parameters.get("query");
@@ -158,6 +206,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             break;
             case Message.TYPE_REQUEST_TABLESPACE_DUMP: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
                 String dumpId = (String) message.parameters.get("dumpId");
                 int fetchSize = 10;
                 if (message.parameters.containsKey("fetchSize")) {
@@ -169,6 +222,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             break;
             case Message.TYPE_OPENSCANNER: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
                 Long tx = (Long) message.parameters.get("tx");
                 long txId = tx != null ? tx : 0;
                 String query = (String) message.parameters.get("query");
@@ -228,6 +286,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
 
             case Message.TYPE_FETCHSCANNERDATA: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
                 String scannerId = (String) message.parameters.get("scannerId");
                 int fetchSize = (Integer) message.parameters.get("fetchSize");
                 ServerSideScannerPeer scanner = scanners.get(scannerId);
@@ -263,6 +326,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             break;
 
             case Message.TYPE_CLOSESCANNER: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
                 String scannerId = (String) message.parameters.get("scannerId");
                 LOGGER.log(Level.SEVERE, "remove scanner " + scannerId + " as requested by client");
                 ServerSideScannerPeer removed = scanners.remove(scannerId);

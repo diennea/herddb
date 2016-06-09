@@ -81,24 +81,24 @@ public final class Message {
         data.put("params", params);
         return new Message(clientId, TYPE_OPENSCANNER, data);
     }
-    
+
     public static Message REQUEST_TABLESPACE_DUMP(String clientId, String tableSpace, String dumpId, int fetchSize) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
-        data.put("dumpId", dumpId);        
-        data.put("fetchSize", fetchSize);        
-        data.put("tableSpace", tableSpace);        
+        data.put("dumpId", dumpId);
+        data.put("fetchSize", fetchSize);
+        data.put("tableSpace", tableSpace);
         return new Message(clientId, TYPE_REQUEST_TABLESPACE_DUMP, data);
     }
-    
-    public static Message TABLESPACE_DUMP_DATA(String clientId, String tableSpace, String dumpId, Map<String,Object> values) {
+
+    public static Message TABLESPACE_DUMP_DATA(String clientId, String tableSpace, String dumpId, Map<String, Object> values) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
-        data.put("dumpId", dumpId);        
-        data.put("values", values);        
-        return new Message(clientId,TYPE_TABLESPACE_DUMP_DATA, data);
+        data.put("dumpId", dumpId);
+        data.put("values", values);
+        return new Message(clientId, TYPE_TABLESPACE_DUMP_DATA, data);
     }
 
     public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<String> columns, List<Map<String, Object>> records, boolean last) {
@@ -138,6 +138,29 @@ public final class Message {
         return new Message(null, TYPE_EXECUTE_STATEMENT_RESULT, data);
     }
 
+    public static Message SASL_TOKEN_MESSAGE_REQUEST() {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        return new Message(null, TYPE_SASL_TOKEN_MESSAGE_REQUEST, data);
+    }
+
+    public static Message SASL_TOKEN_SERVER_RESPONSE(byte[] saslTokenChallenge) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("token", saslTokenChallenge);
+        return new Message(null, TYPE_SASL_TOKEN_SERVER_RESPONSE, data);
+    }
+
+    public static Message SASL_TOKEN_MESSAGE_TOKEN(byte[] token) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("token", token);
+        return new Message(null, TYPE_SASL_TOKEN_MESSAGE_TOKEN, data);
+    }
+
     public final String clientId;
     public final int type;
     public final Map<String, Object> parameters;
@@ -162,6 +185,10 @@ public final class Message {
     public static final int TYPE_FETCHSCANNERDATA = 10;
     public static final int TYPE_REQUEST_TABLESPACE_DUMP = 11;
     public static final int TYPE_TABLESPACE_DUMP_DATA = 12;
+
+    public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
+    public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;
+    public static final int TYPE_SASL_TOKEN_MESSAGE_TOKEN = 102;
 
     public static String typeToString(int type) {
         switch (type) {
@@ -188,7 +215,13 @@ public final class Message {
             case TYPE_REQUEST_TABLESPACE_DUMP:
                 return "REQUEST_TABLESPACE_DUMP";
             case TYPE_TABLESPACE_DUMP_DATA:
-                return "TABLESPACE_DUMP_DATA";                
+                return "TABLESPACE_DUMP_DATA";
+            case TYPE_SASL_TOKEN_MESSAGE_REQUEST:
+                return "SASL_TOKEN_MESSAGE_REQUEST";
+            case TYPE_SASL_TOKEN_SERVER_RESPONSE:
+                return "SASL_TOKEN_SERVER_RESPONSE";
+            case TYPE_SASL_TOKEN_MESSAGE_TOKEN:
+                return "SASL_TOKEN_MESSAGE_TOKEN";
             default:
                 return "?" + type;
         }
