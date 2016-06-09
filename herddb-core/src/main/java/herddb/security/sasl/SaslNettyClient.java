@@ -83,26 +83,14 @@ public class SaslNettyClient {
         }
     }
 
-    /**
-     * Implementation of javax.security.auth.callback.CallbackHandler that works
-     * with Storm topology tokens.
-     */
+    
     private static class SaslClientCallbackHandler implements CallbackHandler {
 
-        /**
-         * Generated username contained in TopologyToken
-         */
+        
         private final String userName;
-        /**
-         * Generated password contained in TopologyToken
-         */
+        
         private final char[] userPassword;
-
-        /**
-         * Set private members using topology token.
-         *
-         * @param username
-         */
+        
         public SaslClientCallbackHandler(String username, char[] token) {
             this.userName = username;
             this.userPassword = token;
