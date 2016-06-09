@@ -25,8 +25,6 @@ package herddb.security;
  * @author enrico.olivelli
  */
 public abstract class UserManager {
-
-    public abstract boolean loginUser(String username, String password) ;
-    
+        
     public abstract String getExpectedPassword(String username);
 }

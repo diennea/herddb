@@ -305,7 +305,10 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
         }
         NodeMetadata nodeData = leaderAddress.get();
-        try (HDBClient client = new HDBClient(new ClientConfiguration(manager.getTmpDirectory()));) {
+        ClientConfiguration clientConfiguration = new ClientConfiguration(manager.getTmpDirectory());
+        clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, manager.getServerToServerUsername());
+        clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, manager.getServerToServerPassword());
+        try (HDBClient client = new HDBClient(clientConfiguration);) {
             client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
                 @Override
                 public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {

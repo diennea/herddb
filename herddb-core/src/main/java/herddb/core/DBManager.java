@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.client.ClientConfiguration;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
@@ -99,6 +100,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final SQLTranslator translator;
     private final Path tmpDirectory;
     private final ServerHostData hostData;
+    private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
+    private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
     private boolean errorIfNotLeader = true;
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
@@ -119,6 +122,22 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public MetadataStorageManager getMetadataStorageManager() {
         return metadataStorageManager;
+    }
+
+    public String getServerToServerUsername() {
+        return serverToServerUsername;
+    }
+
+    public void setServerToServerUsername(String serverToServerUsername) {
+        this.serverToServerUsername = serverToServerUsername;
+    }
+
+    public String getServerToServerPassword() {
+        return serverToServerPassword;
+    }
+
+    public void setServerToServerPassword(String serverToServerPassword) {
+        this.serverToServerPassword = serverToServerPassword;
     }
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {

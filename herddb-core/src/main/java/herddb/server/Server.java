@@ -19,9 +19,11 @@
  */
 package herddb.server;
 
+import herddb.client.ClientConfiguration;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.core.DBManager;
+import herddb.file.FileBasedUserManager;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -39,6 +41,7 @@ import herddb.network.netty.NettyChannelAcceptor;
 import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -63,10 +66,14 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
     private final String mode;
     private final MetadataStorageManager metadataStorageManager;
-    private final UserManager userManager;
+    private UserManager userManager;
 
     public UserManager getUserManager() {
         return userManager;
+    }
+
+    public void setUserManager(UserManager userManager) {
+        this.userManager = userManager;
     }
 
     public MetadataStorageManager getMetadataStorageManager() {
@@ -83,10 +90,22 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     public Server(ServerConfiguration configuration) {
         this.configuration = configuration;
-        this.userManager = new SimpleSingleUserManager(configuration);
+
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
+        String usersfile = configuration.getString(ServerConfiguration.PROPERTY_USERS_FILE, ServerConfiguration.PROPERTY_USERS_FILE_DEFAULT);
+        if (usersfile.isEmpty()) {
+            this.userManager = new SimpleSingleUserManager(configuration);
+        } else {
+            try {
+                Path userDirectoryFile = baseDirectory.resolve(usersfile).toAbsolutePath();
+                LOGGER.log(Level.SEVERE, "Reading users from file " + userDirectoryFile);
+                this.userManager = new FileBasedUserManager(userDirectoryFile);
+            } catch (IOException error) {
+                throw new RuntimeException(error);
+            }
+        }
         this.metadataStorageManager = buildMetadataStorageManager();
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
@@ -106,6 +125,9 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 buildFileCommitLogManager(),
                 baseDirectory, serverHostData
         );
+        this.manager.setServerToServerUsername(configuration.getString(ServerConfiguration.PROPERTY_SERVER_TO_SERVER_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT));
+        this.manager.setServerToServerPassword(configuration.getString(ServerConfiguration.PROPERTY_SERVER_TO_SERVER_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT));
+
         boolean enforeLeadership = configuration.getBoolean(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP_DEFAULT);
         this.manager.setErrorIfNotLeader(enforeLeadership);
 

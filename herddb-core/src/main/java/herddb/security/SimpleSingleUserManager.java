@@ -41,11 +41,6 @@ public class SimpleSingleUserManager extends UserManager {
     }
 
     @Override
-    public boolean loginUser(String username, String password) {
-        return admin_username.equalsIgnoreCase(username) && admin_password.equals(password);
-    }
-
-    @Override
     public String getExpectedPassword(String username) {
         if (admin_username.equalsIgnoreCase(username)) {
             return admin_password;
