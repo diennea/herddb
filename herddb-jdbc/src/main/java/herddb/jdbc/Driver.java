@@ -96,12 +96,15 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     }
 
     private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {
-
+        System.out.println("ensureDatasource:"+url+" "+info);
         String key = url + "_" + info;
         HerdDBEmbeddedDataSource ds = datasources.get(key);
         if (ds != null) {
             return ds;
         }
+        /**
+         * DriverManager puts username/password in 'user' and 'password' properties
+         */
         ds = new HerdDBEmbeddedDataSource(info);
         ds.setUrl(url);
 

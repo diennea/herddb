@@ -43,6 +43,36 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     protected String url;
 
+    public String getUsername() {
+        if (client != null) {
+            return client.getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
+        } else {
+            return properties.getProperty(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
+        }
+    }
+
+    public void setUsername(String username) {
+        properties.put(ClientConfiguration.PROPERTY_CLIENT_USERNAME, username);
+        if (client != null) {
+            client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, username);
+        }
+    }
+
+    public String getPassword() {
+        if (client != null) {
+            return client.getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
+        } else {
+            return properties.getProperty(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
+        }
+    }
+
+    public void setPassword(String password) {
+        properties.put(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, password);
+        if (client != null) {
+            client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, password);
+        }
+    }
+
     public String getUrl() {
         return url;
     }
@@ -92,7 +122,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     }
 
     @Override
-    public Connection getConnection(String username, String password) throws SQLException {        
+    public Connection getConnection(String username, String password) throws SQLException {
         ensureConnection();
         return new HerdDBConnection(connection);
     }

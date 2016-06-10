@@ -32,9 +32,17 @@ public class ClientConfiguration {
 
     private final Properties properties;
 
-    public static final String PROPERTY_CLIENT_USERNAME = "client.username";
+    /**
+     * Username to use to connect to the cluster. 
+     * The value of this property is exactly "user" which is the name of the property used by DriverManager.getConnection(username/password)
+     */
+    public static final String PROPERTY_CLIENT_USERNAME = "user";
     public static final String PROPERTY_CLIENT_USERNAME_DEFAULT = "sa";
-    public static final String PROPERTY_CLIENT_PASSWORD = "client.password";
+    /**
+     * Password to use to connect to the cluster. 
+     * The value of this property is exactly "password" which is the name of the property used by DriverManager.getConnection(username/password)
+     */
+    public static final String PROPERTY_CLIENT_PASSWORD = "password";
     public static final String PROPERTY_CLIENT_PASSWORD_DEFAULT = "hdb";
 
     public static final String PROPERTY_BASEDIR = "client.baseDir";
