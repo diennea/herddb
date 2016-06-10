@@ -343,7 +343,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         try {
             String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
             Message message = Message.OPEN_SCANNER(clientId, query, scannerId, tx, params, fetchSize, maxRows);
-            LOGGER.log(Level.SEVERE, "open scanner" + scannerId + " for query " + query + ", params " + params);
+            LOGGER.log(Level.FINEST, "open scanner{0} for query {1}, params {2}", new Object[]{scannerId, query, params});
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;

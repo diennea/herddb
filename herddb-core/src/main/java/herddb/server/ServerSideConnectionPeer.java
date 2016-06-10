@@ -92,7 +92,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void messageReceived(Message message) {
-        LOGGER.log(Level.FINEST, "messageReceived " + message);
+        LOGGER.log(Level.FINEST, "messageReceived {0}", message);
         Channel _channel = channel;
 
         switch (message.type) {
@@ -263,7 +263,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             converted.add(r.toMap());
                         }
                         boolean last = dataScanner.isFinished();
-                        LOGGER.log(Level.SEVERE, "sending first " + converted.size() + " records to scanner " + scannerId + " query " + query);
+                        LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{converted.size(), scannerId, query});
                         if (!last) {
                             scanners.put(scannerId, scanner);
                         }

@@ -134,11 +134,8 @@ public class SaslNettyServer {
      * @return token to send back to the server.
      */
     public byte[] response(byte[] token) throws SaslException {
-        try {
-            LOG.severe("response: Responding to input token of length: "
-                    + token.length);
-            byte[] retval = saslServer.evaluateResponse(token);
-            LOG.severe("response: Response token length: " + retval.length);
+        try {            
+            byte[] retval = saslServer.evaluateResponse(token);            
             return retval;
         } catch (SaslException e) {
             LOG.severe("response: Failed to evaluate client token of length: "
