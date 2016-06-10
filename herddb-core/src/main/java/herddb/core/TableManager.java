@@ -58,6 +58,7 @@ import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -65,6 +66,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -73,6 +75,8 @@ import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
 
 /**
  * Handles Data of a Table
@@ -103,7 +107,7 @@ public class TableManager implements AbstractTableManager {
      * keyToPage: a structure which maps each key to the ID of the page
      * (map<byte[], long>) (this can be quite large)
      */
-    private final Map<Bytes, Long> keyToPage = new ConcurrentHashMap<>();
+    private final Map<Bytes, Long> keyToPage;
 
     /**
      * Keys deleted since the last checkpoint
@@ -147,13 +151,15 @@ public class TableManager implements AbstractTableManager {
     private final DataStorageManager dataStorageManager;
     private final TableSpaceManager tableSpaceManager;
 
-    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager) {
+    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager) throws DataStorageManagerException {
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.log = log;
         this.dataStorageManager = dataStorageManager;
 
         this.tableContext = buildTableContext();
+        this.keyToPage = dataStorageManager.createKeyToPageMap(table.tablespace, table.name);
+
     }
 
     private TableContext buildTableContext() {
@@ -712,6 +718,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     public void close() {
+        dataStorageManager.releaseKeyToPageMap(table.tablespace, table.name, keyToPage);
     }
 
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
@@ -835,7 +842,7 @@ public class TableManager implements AbstractTableManager {
             }
 
             buffer.clear();
-            loadedPages.clear();            
+            loadedPages.clear();
             activePages.removeAll(dirtyPages);
             dirtyPages.clear();
             dirtyRecords.set(0);
@@ -862,14 +869,14 @@ public class TableManager implements AbstractTableManager {
 
         Predicate predicate = statement.getPredicate();
 
-        MaterializedRecordSet recordSet = new MaterializedRecordSet(table.columns);
+        MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
         // TODO: swap on disk the resultset
         try {
             if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
                 PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
                 GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
                 if (getResult.found()) {
-                    recordSet.records.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
+                    recordSet.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
                 }
             } else {
                 pagesLock.readLock().lock();
@@ -888,7 +895,7 @@ public class TableManager implements AbstractTableManager {
                                 if (record != null) {
                                     // use current transaction version of the record
                                     if (predicate == null || predicate.evaluate(record, context)) {
-                                        recordSet.records.add(new Tuple(record.toBean(table), table.columns));
+                                        recordSet.add(new Tuple(record.toBean(table), table.columns));
                                     }
                                     continue;
                                 }
@@ -906,7 +913,7 @@ public class TableManager implements AbstractTableManager {
                                     throw new DataStorageManagerException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId);
                                 }
                                 if (predicate == null || predicate.evaluate(record, context)) {
-                                    recordSet.records.add(new Tuple(record.toBean(table), table.columns));
+                                    recordSet.add(new Tuple(record.toBean(table), table.columns));
                                 }
                             }
                         } finally {
@@ -919,7 +926,7 @@ public class TableManager implements AbstractTableManager {
                         for (Record record : transaction.getNewRecordsForTable(table.name)) {
                             if (!transaction.recordDeleted(table.name, record.key)
                                     && (predicate == null || predicate.evaluate(record, context))) {
-                                recordSet.records.add(new Tuple(record.toBean(table), table.columns));
+                                recordSet.add(new Tuple(record.toBean(table), table.columns));
                             }
                         }
                     }
@@ -927,13 +934,13 @@ public class TableManager implements AbstractTableManager {
                     pagesLock.readLock().unlock();
                 }
             }
-
+            recordSet.writeFinished();
             recordSet.sort(statement.getComparator());
 
             // TODO: if no sort is present the limits can be applying during the scan and perform an early exit
             recordSet.applyLimits(statement.getLimits());
 
-            recordSet = recordSet.select(statement.getProjection());
+            recordSet.applyProjection(statement.getProjection());
 
             return new SimpleDataScanner(recordSet);
         } catch (DataStorageManagerException err) {

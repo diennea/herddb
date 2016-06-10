@@ -36,10 +36,10 @@ public class SimpleDataScanner extends DataScanner {
     private Tuple next;
     private boolean finished;
 
-    public SimpleDataScanner(MaterializedRecordSet keys) {
-        super(keys.columns);
-        this.keys = keys;
-        this.iterator = this.keys.records.iterator();
+    public SimpleDataScanner(MaterializedRecordSet recordSet) {
+        super(recordSet.columns);
+        this.keys = recordSet;
+        this.iterator = this.keys.iterator();
     }
 
     @Override

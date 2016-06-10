@@ -26,6 +26,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -35,34 +36,72 @@ import java.util.List;
  */
 public class MaterializedRecordSet {
 
-    public List<Tuple> records;
-    final Column[] columns;
+    private List<Tuple> records;
+    Column[] columns;
+    private boolean writeFinished;
+    private int size;
+    private RecordSetFactory factory;
 
-    public MaterializedRecordSet(Column[] columns) {
-        records = new ArrayList<>();
+    MaterializedRecordSet(Column[] columns, RecordSetFactory factory) {
+        this.records = new ArrayList<>();
         this.columns = columns;
+        this.factory = factory;
     }
 
-    public MaterializedRecordSet(int size, Column[] columns) {
-        records = new ArrayList<>(size);
+    MaterializedRecordSet(int size, Column[] columns, RecordSetFactory factory) {
+        this.records = new ArrayList<>(size);
         this.columns = columns;
+        this.factory = factory;
+    }
+
+    public Iterator<Tuple> iterator() {
+        if (!writeFinished) {
+            throw new IllegalStateException("RecordSet is still in write mode");
+        }
+        return records.iterator();
+    }
+
+    public void add(Tuple record) {
+        if (writeFinished) {
+            throw new IllegalStateException("RecordSet in read mode");
+        }
+        records.add(record);
+        size++;
+    }
+
+    public void writeFinished() {
+        writeFinished = true;
+    }
+
+    public int size() {
+        return size;
     }
 
     public void sort(TupleComparator comparator) {
+        if (!writeFinished) {
+            throw new IllegalStateException("RecordSet is still in write mode");
+        }
         if (comparator != null) {
             records.sort(comparator);
         }
     }
 
-    public MaterializedRecordSet select(Projection projection) throws StatementExecutionException {
-        MaterializedRecordSet result = new MaterializedRecordSet(records.size(), projection.getColumns());
-        for (Tuple record : records) {
-            result.records.add(projection.map(record));
+    public void applyProjection(Projection projection) throws StatementExecutionException {
+        if (!writeFinished) {
+            throw new IllegalStateException("RecordSet is still in write mode");
         }
-        return result;
+        this.columns = projection.getColumns();
+        List<Tuple> projected = new ArrayList<>(size);
+        for (Tuple record : records) {
+            projected.add(projection.map(record));
+        }
+        this.records = projected;
     }
 
     public void applyLimits(ScanLimits limits) {
+        if (!writeFinished) {
+            throw new IllegalStateException("RecordSet is still in write mode");
+        }
         if (limits == null) {
             return;
         }

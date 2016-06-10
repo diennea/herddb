@@ -29,12 +29,17 @@ import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.FileUtils;
+import java.io.DataInput;
 import java.io.DataInputStream;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.EOFException;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -46,9 +51,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.HTreeMap;
+import org.mapdb.Serializer;
 
 /**
  * Data Storage on local filesystem
@@ -59,10 +70,12 @@ public class FileDataStorageManager extends DataStorageManager {
 
     private static final Logger LOGGER = Logger.getLogger(FileDataStorageManager.class.getName());
     private final Path baseDirectory;
+    private final Path tmpDirectory;
     private final AtomicLong newPageId = new AtomicLong();
 
     public FileDataStorageManager(Path baseDirectory) {
         this.baseDirectory = baseDirectory.resolve("data");
+        this.tmpDirectory = baseDirectory.resolve("tmp");
     }
 
     @Override
@@ -70,6 +83,9 @@ public class FileDataStorageManager extends DataStorageManager {
         try {
             LOGGER.log(Level.SEVERE, "ensuring directory {0}", baseDirectory.toAbsolutePath().toString());
             Files.createDirectories(baseDirectory);
+            LOGGER.log(Level.SEVERE, "preparing tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+            FileUtils.cleanDirectory(tmpDirectory);
+            Files.createDirectories(tmpDirectory);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
@@ -77,7 +93,12 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void close() throws DataStorageManagerException {
-
+        LOGGER.log(Level.SEVERE, "cleaning tmp directory {0}", tmpDirectory.toAbsolutePath().toString());
+        try {
+            FileUtils.cleanDirectory(tmpDirectory);
+        } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "Cannot clean tmp directory", err);
+        }
     }
 
     private Path getTablespaceDirectory(String tablespace) {
@@ -438,4 +459,59 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new IOException("name " + f.toAbsolutePath() + " is not a directory");
         }
     }
+
+    @Override
+    public ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException {
+        try {
+            File temporarySwapFile = File.createTempFile("keysswap", ".bin", tmpDirectory.toFile());
+            DB db = DBMaker
+                    .newFileDB(temporarySwapFile)
+                    .asyncWriteEnable()
+                    .cacheHardRefEnable()
+                    .mmapFileEnableIfSupported()
+                    .transactionDisable()
+                    .commitFileSyncDisable()
+                    .deleteFilesAfterClose()
+                    .make();
+            return db.createHashMap("keys")
+                    .keySerializer(new BytesSerializer())
+                    .make();
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage) {
+        if (keyToPage != null) {
+            HTreeMap treeMap = (HTreeMap) keyToPage;
+            treeMap.close();
+        }
+    }
+
+    private static final class BytesSerializer implements Serializable, Serializer<Bytes> {
+
+        private static final long serialVersionUID = 0;
+
+        @Override
+        public void serialize(DataOutput arg0, Bytes arg1) throws IOException {                        
+            arg0.writeInt(arg1.data.length);
+            arg0.write(arg1.data);
+        }
+
+        @Override
+        public Bytes deserialize(DataInput arg0, int arg1) throws IOException {
+            int len = arg0.readInt();
+            byte[] data = new byte[len];
+            arg0.readFully(data);
+            return Bytes.from_array(data);
+        }
+
+        @Override
+        public int fixedSize() {
+            return -1;
+        }
+
+    }
+
 }

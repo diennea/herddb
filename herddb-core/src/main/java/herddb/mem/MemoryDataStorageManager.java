@@ -32,8 +32,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -181,6 +183,18 @@ public class MemoryDataStorageManager extends DataStorageManager {
                     it.remove();
                 }
             }
+        }
+    }
+
+    @Override
+    public ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) {
+        return new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage) {
+        if (keyToPage != null) {
+            keyToPage.clear();
         }
     }
 

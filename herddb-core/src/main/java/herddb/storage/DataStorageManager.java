@@ -22,7 +22,10 @@ package herddb.storage;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.utils.Bytes;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Physical storage of data
@@ -120,5 +123,9 @@ public abstract class DataStorageManager {
     public abstract LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException;
 
     public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;
+
+    public abstract ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException;
+
+    public abstract void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage);
 
 }

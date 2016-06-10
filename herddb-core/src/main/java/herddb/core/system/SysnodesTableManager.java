@@ -54,7 +54,7 @@ public class SysnodesTableManager extends AbstractSystemTableManager {
     @Override
     protected Iterable<Record> buildVirtualRecordList() throws StatementExecutionException {
         try {
-            Collection<NodeMetadata> nodes = parent.getMetadataStorageManager().listNodes();
+            Collection<NodeMetadata> nodes = tableSpaceManager.getMetadataStorageManager().listNodes();
             List<Record> result = new ArrayList<>();
             for (NodeMetadata t : nodes) {
                 result.add(RecordSerializer.makeRecord(

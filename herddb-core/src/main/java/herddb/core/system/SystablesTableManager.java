@@ -47,7 +47,7 @@ public class SystablesTableManager extends AbstractSystemTableManager {
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = parent.getAllTables();
+        List<Table> tables = tableSpaceManager.getAllTables();
         return tables
                 .stream()
                 .map(r -> RecordSerializer.makeRecord(table, "table_name", r.name))

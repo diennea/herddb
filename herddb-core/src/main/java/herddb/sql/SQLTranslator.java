@@ -628,7 +628,7 @@ public class SQLTranslator {
             ScanLimits limitsOnScan = null;
             ScanLimits limitsOnPlan = null;
             if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
-                aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences());
+                aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences(), manager.getRecordSetFactory());
             }
 
             TupleComparator comparatorOnScan = null;

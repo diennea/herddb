@@ -99,6 +99,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final BlockingQueue<Object> activatorQueue = new LinkedBlockingDeque<>();
     private final SQLTranslator translator;
     private final Path tmpDirectory;
+    private final RecordSetFactory recordSetFactory;
     private final ServerHostData hostData;
     private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
@@ -142,6 +143,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
         this.tmpDirectory = tmpDirectory;
+        this.recordSetFactory = new RecordSetFactory(tmpDirectory);
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
@@ -378,10 +380,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             scanResult = new ScanResult(result);
         }
         if (plan.comparator != null) {
-            // SORT is to by applied before limits
-            MaterializedRecordSet sortedSet = new MaterializedRecordSet(scanResult.dataScanner.getSchema());
+            // SORT is to be applied before limits
+            MaterializedRecordSet sortedSet = recordSetFactory.createRecordSet(scanResult.dataScanner.getSchema());
             try {
-                scanResult.dataScanner.forEach(sortedSet.records::add);
+                scanResult.dataScanner.forEach(sortedSet::add);
+                sortedSet.writeFinished();
                 sortedSet.sort(plan.comparator);
                 scanResult = new ScanResult(new SimpleDataScanner(sortedSet));
             } catch (DataScannerException err) {
@@ -652,6 +655,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public Path getTmpDirectory() {
         return tmpDirectory;
+    }
+
+    public RecordSetFactory getRecordSetFactory() {
+        return recordSetFactory;
     }
 
     @Override

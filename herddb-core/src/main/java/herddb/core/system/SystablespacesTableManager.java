@@ -56,10 +56,10 @@ public class SystablespacesTableManager extends AbstractSystemTableManager {
     @Override
     protected Iterable<Record> buildVirtualRecordList() throws StatementExecutionException {
         try {
-            Collection<String> names = parent.getMetadataStorageManager().listTableSpaces();
+            Collection<String> names = tableSpaceManager.getMetadataStorageManager().listTableSpaces();
             List<Record> result = new ArrayList<>();
             for (String name : names) {
-                TableSpace t = parent.getMetadataStorageManager().describeTableSpace(name);
+                TableSpace t = tableSpaceManager.getMetadataStorageManager().describeTableSpace(name);
                 if (t != null) {
                     result.add(RecordSerializer.makeRecord(
                             table,

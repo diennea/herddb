@@ -48,17 +48,17 @@ import java.util.function.Consumer;
  */
 public abstract class AbstractSystemTableManager implements AbstractTableManager {
 
-    protected TableSpaceManager parent;
+    protected TableSpaceManager tableSpaceManager;
     protected final Table table;
 
-    public AbstractSystemTableManager(TableSpaceManager parent, Table table) {
-        this.parent = parent;
+    public AbstractSystemTableManager(TableSpaceManager tableSpaceManager, Table table) {
+        this.tableSpaceManager = tableSpaceManager;
         this.table = table;
     }
 
     @Override
     public StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
-        throw new StatementExecutionException("no supported on system tables");
+        throw new StatementExecutionException("not supported on system tables");
     }
 
     @Override
@@ -155,15 +155,16 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
         Predicate predicate = statement.getPredicate();
-        MaterializedRecordSet recordSet = new MaterializedRecordSet(table.columns);
+        MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
         for (Record record : buildVirtualRecordList()) {
             if (predicate == null || predicate.evaluate(record, context)) {
-                recordSet.records.add(new Tuple(record.toBean(table)));
+                recordSet.add(new Tuple(record.toBean(table)));
             }
         }
+        recordSet.writeFinished();
         recordSet.sort(statement.getComparator());
         recordSet.applyLimits(statement.getLimits());
-        recordSet = recordSet.select(statement.getProjection());
+        recordSet.applyProjection(statement.getProjection());
         return new SimpleDataScanner(recordSet);
     }
 

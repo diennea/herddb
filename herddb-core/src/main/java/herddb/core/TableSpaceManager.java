@@ -798,4 +798,9 @@ public class TableSpaceManager {
             }
         }
     }
+
+    public DBManager getManager() {
+        return manager;
+    }
+
 }

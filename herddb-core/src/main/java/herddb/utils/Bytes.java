@@ -73,6 +73,7 @@ public final class Bytes implements Comparable<Bytes> {
     public String to_string() {
         return new String(data, StandardCharsets.UTF_8);
     }
+
     public static String to_string(byte[] data) {
         return new String(data, StandardCharsets.UTF_8);
     }
@@ -154,7 +155,7 @@ public final class Bytes implements Comparable<Bytes> {
             l <<= 8;
             l ^= bytes[i] & 0xFF;
         }
-        if (l < 0){
+        if (l < 0) {
             return null;
         }
         return new java.sql.Timestamp(l);
@@ -180,8 +181,8 @@ public final class Bytes implements Comparable<Bytes> {
         // ONLY FOR TESTS
         return arraytohexstring(data);
     }
-    
-     public static String arraytohexstring(byte[] bytes) {
+
+    public static String arraytohexstring(byte[] bytes) {
         StringBuilder string = new StringBuilder();
         for (byte b : bytes) {
             String hexString = Integer.toHexString(0x00FF & b);
