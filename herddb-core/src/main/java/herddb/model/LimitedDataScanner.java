@@ -19,16 +19,13 @@
  */
 package herddb.model;
 
-import herddb.model.DataScanner;
-import herddb.model.ScanLimits;
-
 /**
  *
  * @author enrico.olivelli
  */
 public class LimitedDataScanner extends DataScanner {
 
-     int remaining;
+    int remaining;
     final int offset;
     final DataScanner wrapped;
 
@@ -60,6 +57,11 @@ public class LimitedDataScanner extends DataScanner {
         Tuple result = wrapped.next();
         remaining--;
         return result;
+    }
+
+    @Override
+    public void close() throws DataScannerException {
+        wrapped.close();
     }
 
 }

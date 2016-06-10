@@ -19,9 +19,11 @@
  */
 package herddb.file;
 
+import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -72,10 +74,16 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path baseDirectory;
     private final Path tmpDirectory;
     private final AtomicLong newPageId = new AtomicLong();
+    private final int swapThreshold;
 
     public FileDataStorageManager(Path baseDirectory) {
+        this(baseDirectory, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
+    }
+
+    public FileDataStorageManager(Path baseDirectory, int swapThreshold) {
         this.baseDirectory = baseDirectory.resolve("data");
         this.tmpDirectory = baseDirectory.resolve("tmp");
+        this.swapThreshold = swapThreshold;
     }
 
     @Override
@@ -494,7 +502,7 @@ public class FileDataStorageManager extends DataStorageManager {
         private static final long serialVersionUID = 0;
 
         @Override
-        public void serialize(DataOutput arg0, Bytes arg1) throws IOException {                        
+        public void serialize(DataOutput arg0, Bytes arg1) throws IOException {
             arg0.writeInt(arg1.data.length);
             arg0.write(arg1.data);
         }
@@ -512,6 +520,11 @@ public class FileDataStorageManager extends DataStorageManager {
             return -1;
         }
 
+    }
+
+    @Override
+    public RecordSetFactory createRecordSetFactory() {
+        return new FileRecordSetFactory(tmpDirectory, swapThreshold);
     }
 
 }

@@ -164,7 +164,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 return new MemoryDataStorageManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                return new FileDataStorageManager(baseDirectory);
+                int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
+                return new FileDataStorageManager(baseDirectory, diskswapThreshold);
             default:
                 throw new RuntimeException();
         }

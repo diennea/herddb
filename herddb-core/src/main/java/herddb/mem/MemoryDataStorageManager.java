@@ -19,6 +19,7 @@
  */
 package herddb.mem;
 
+import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -196,6 +197,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
         if (keyToPage != null) {
             keyToPage.clear();
         }
+    }
+
+    @Override
+    public RecordSetFactory createRecordSetFactory() {
+        return new MemoryRecordSetFactory();
     }
 
 }

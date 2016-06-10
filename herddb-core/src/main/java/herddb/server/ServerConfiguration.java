@@ -72,12 +72,15 @@ public final class ServerConfiguration {
     public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
     public static final int PROPERTY_PORT_DEFAULT = 7000;
     public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
-    
+
     public static final String PROPERTY_USERS_FILE = "server.users.file";
     public static final String PROPERTY_USERS_FILE_DEFAULT = "";
-    
+
     public static final String PROPERTY_SERVER_TO_SERVER_USERNAME = "server.username";
     public static final String PROPERTY_SERVER_TO_SERVER_PASSWORD = "server.password";
+
+    public static final String PROPERTY_DISK_SWAP_MAX_RECORDS = "server.disk.swap.max.records";
+    public static final int PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT = 5000;
 
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();

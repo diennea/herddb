@@ -19,16 +19,21 @@
  */
 package herddb.core;
 
-import herddb.model.Column;
+import herddb.file.FileRecordSetFactory;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
 /**
- * Factory for RecordSets
- *
  * @author enrico.olivelli
  */
-public abstract class RecordSetFactory {
+public class FileRecordSetTest extends RecordSetSuite {
 
-    public abstract MaterializedRecordSet createRecordSet(Column[] columns);
+    @Rule
+    public TemporaryFolder folder = new TemporaryFolder();
 
-    public abstract MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns);
+    @Override
+    protected RecordSetFactory buildRecordSetFactory(int threshold) {
+        return new FileRecordSetFactory(folder.getRoot().toPath(), threshold);
+    }
+
 }

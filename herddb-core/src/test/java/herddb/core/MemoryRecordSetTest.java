@@ -19,16 +19,16 @@
  */
 package herddb.core;
 
-import herddb.model.Column;
+import herddb.mem.MemoryRecordSetFactory;
 
 /**
- * Factory for RecordSets
- *
  * @author enrico.olivelli
  */
-public abstract class RecordSetFactory {
+public class MemoryRecordSetTest extends RecordSetSuite {
 
-    public abstract MaterializedRecordSet createRecordSet(Column[] columns);
+    @Override
+    protected RecordSetFactory buildRecordSetFactory(int s) {
+        return new MemoryRecordSetFactory();
+    }
 
-    public abstract MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns);
 }

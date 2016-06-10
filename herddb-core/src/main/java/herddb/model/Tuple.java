@@ -19,6 +19,11 @@
  */
 package herddb.model;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -58,7 +63,8 @@ public class Tuple {
             values[i++] = entry.getValue();
         }
     }
-     public Tuple(Map<String, Object> record, Column[] columns) {
+
+    public Tuple(Map<String, Object> record, Column[] columns) {
         int size = columns.length;
         this.fieldNames = new String[size];
         this.values = new Object[size];
@@ -97,5 +103,25 @@ public class Tuple {
 
     public Object get(String name) {
         return toMap().get(name);
+    }
+
+    public byte[] serialize() throws IOException {
+        ByteArrayOutputStream oo = new ByteArrayOutputStream();
+        try (ObjectOutputStream oos = new ObjectOutputStream(oo)) {
+            oos.writeUnshared(fieldNames);
+            oos.writeUnshared(values);
+        }
+        return oo.toByteArray();
+    }
+
+    public static Tuple deserialize(byte[] data) throws IOException {
+        try {
+            ObjectInputStream oo = new ObjectInputStream(new ByteArrayInputStream(data));
+            String[] fieldNames = (String[]) oo.readUnshared();
+            Object[] values = (Object[]) oo.readUnshared();
+            return new Tuple(fieldNames, values);
+        } catch (ClassNotFoundException err) {
+            throw new IOException(err);
+        }
     }
 }

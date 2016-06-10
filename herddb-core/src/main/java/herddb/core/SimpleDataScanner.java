@@ -31,20 +31,21 @@ import java.util.Iterator;
  */
 public class SimpleDataScanner extends DataScanner {
 
-    private final MaterializedRecordSet keys;
+    private final MaterializedRecordSet recordSet;
     private final Iterator<Tuple> iterator;
     private Tuple next;
     private boolean finished;
 
     public SimpleDataScanner(MaterializedRecordSet recordSet) {
         super(recordSet.columns);
-        this.keys = recordSet;
-        this.iterator = this.keys.iterator();
+        this.recordSet = recordSet;
+        this.iterator = this.recordSet.iterator();
     }
 
     @Override
     public void close() throws DataScannerException {
         finished = true;
+        recordSet.close();
     }
 
     @Override

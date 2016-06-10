@@ -17,18 +17,35 @@
  under the License.
 
  */
-package herddb.core;
+package herddb.file;
 
+import herddb.core.MaterializedRecordSet;
+import herddb.core.RecordSetFactory;
 import herddb.model.Column;
+import java.nio.file.Path;
 
 /**
- * Factory for RecordSets
+ * Factory which holds RecordSet in Memory only
  *
  * @author enrico.olivelli
  */
-public abstract class RecordSetFactory {
+public class FileRecordSetFactory extends RecordSetFactory {
 
-    public abstract MaterializedRecordSet createRecordSet(Column[] columns);
+    Path tmpDirectory;
+    private final int swapThreshold;
 
-    public abstract MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns);
+    public FileRecordSetFactory(Path tmpDirectory, int swapThreshold) {
+        this.tmpDirectory = tmpDirectory;
+        this.swapThreshold = swapThreshold;
+    }
+
+    @Override
+    public MaterializedRecordSet createRecordSet(Column[] columns) {
+        return new FileRecordSet(-1, swapThreshold, columns, this);
+    }
+
+    @Override
+    public MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns) {
+        return new FileRecordSet(size, swapThreshold, columns, this);
+    }
 }

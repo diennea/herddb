@@ -143,7 +143,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
         this.tmpDirectory = tmpDirectory;
-        this.recordSetFactory = new RecordSetFactory(tmpDirectory);
+        this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
@@ -386,6 +386,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 scanResult.dataScanner.forEach(sortedSet::add);
                 sortedSet.writeFinished();
                 sortedSet.sort(plan.comparator);
+                scanResult.dataScanner.close();
                 scanResult = new ScanResult(new SimpleDataScanner(sortedSet));
             } catch (DataScannerException err) {
                 throw new StatementExecutionException(err);

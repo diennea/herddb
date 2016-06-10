@@ -17,18 +17,26 @@
  under the License.
 
  */
-package herddb.core;
+package herddb.mem;
 
+import herddb.core.MaterializedRecordSet;
+import herddb.core.RecordSetFactory;
 import herddb.model.Column;
 
 /**
- * Factory for RecordSets
+ * Factory which holds RecordSet in Memory only
  *
  * @author enrico.olivelli
  */
-public abstract class RecordSetFactory {
+public class MemoryRecordSetFactory extends RecordSetFactory {
 
-    public abstract MaterializedRecordSet createRecordSet(Column[] columns);
+    @Override
+    public MaterializedRecordSet createRecordSet(Column[] columns) {
+        return new MemoryRecordSet(columns, this);
+    }
 
-    public abstract MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns);
+    @Override
+    public MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns) {
+        return new MemoryRecordSet(size, columns, this);
+    }
 }

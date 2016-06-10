@@ -19,6 +19,7 @@
  */
 package herddb.storage;
 
+import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -127,5 +128,7 @@ public abstract class DataStorageManager {
     public abstract ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException;
 
     public abstract void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage);
+    
+    public abstract RecordSetFactory createRecordSetFactory();
 
 }
