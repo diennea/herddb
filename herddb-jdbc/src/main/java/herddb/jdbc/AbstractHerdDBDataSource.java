@@ -27,6 +27,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -41,6 +42,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     protected final Properties properties = new Properties();
     protected int loginTimeout;
 
+    private static final Logger LOGGER = Logger.getLogger(AbstractHerdDBDataSource.class.getName());
     protected String url;
 
     public String getUsername() {
@@ -95,6 +97,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     protected synchronized void ensureClient() throws SQLException {
         if (client == null) {
             ClientConfiguration clientConfiguration = new ClientConfiguration(properties);
+            LOGGER.log(Level.SEVERE, "Booting HerdDB Client, url:" + url + ", properties:" + properties + " clientConfig " + clientConfiguration);
             clientConfiguration.readJdbcUrl(url);
             client = new HDBClient(clientConfiguration);
         }

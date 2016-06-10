@@ -57,8 +57,9 @@
                         <goals>
                             <goal>shade</goal>
                         </goals>
-                        <configuration>
-                            <finalName>herddb-jdbcdriver</finalName>                                                     
+                        <configuration>                            
+                            <shadedArtifactAttached>true</shadedArtifactAttached>                               
+                            <shadedClassifierName>uber</shadedClassifierName>                            
                             <artifactSet>
                                 <excludes>
                                     <exclude>org.apache.bookkeeper:bookkeeper-server</exclude>
