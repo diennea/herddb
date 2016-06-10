@@ -42,7 +42,7 @@ public class HerdDBStatement implements java.sql.Statement {
     protected int maxRows;
     protected int fetchSize = 1000;
     protected ResultSet lastResultSet;
-    protected long lastUpdateCount;
+    protected long lastUpdateCount = -1;
     protected Object lastKey;
 
     public HerdDBStatement(HerdDBConnection parent) {
@@ -70,12 +70,12 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public int getMaxFieldSize() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return 0;
     }
 
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+
     }
 
     @Override
@@ -90,32 +90,32 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public void setEscapeProcessing(boolean enable) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+
     }
+
+    private int queryTimeout;
 
     @Override
     public int getQueryTimeout() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return queryTimeout;
     }
 
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        queryTimeout = seconds;
     }
 
     @Override
     public void cancel() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
@@ -123,15 +123,24 @@ public class HerdDBStatement implements java.sql.Statement {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
+    protected boolean moreResults = false;
+
     @Override
     public boolean execute(String sql) throws SQLException {
-        executeUpdate(sql);
-        // TODO: better return code
-        return false;
+        if (sql.toLowerCase().contains("select")) {
+            executeQuery(sql);
+            moreResults = true;
+            return true;
+        } else {
+            executeUpdate(sql);
+            moreResults = false;
+            return false;
+        }
     }
 
     @Override
     public ResultSet getResultSet() throws SQLException {
+        moreResults = false;
         return lastResultSet;
     }
 
@@ -142,17 +151,18 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public boolean getMoreResults() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        lastUpdateCount = -1;
+        return moreResults;
     }
 
     @Override
     public void setFetchDirection(int direction) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+
     }
 
     @Override
     public int getFetchDirection() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return ResultSet.FETCH_FORWARD;
     }
 
     @Override
@@ -167,12 +177,12 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public int getResultSetConcurrency() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return ResultSet.CONCUR_READ_ONLY;
     }
 
     @Override
     public int getResultSetType() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return ResultSet.TYPE_FORWARD_ONLY;
     }
 
     @Override

@@ -44,8 +44,6 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.Calendar;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * ResultSet implementation
@@ -329,12 +327,12 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+
     }
 
     @Override
@@ -352,72 +350,72 @@ public class HerdDBResultSet implements ResultSet {
 
             @Override
             public boolean isAutoIncrement(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return false;
             }
 
             @Override
             public boolean isCaseSensitive(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return true;
             }
 
             @Override
             public boolean isSearchable(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return true;
             }
 
             @Override
             public boolean isCurrency(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return false;
             }
 
             @Override
             public int isNullable(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return columnNullable;
             }
 
             @Override
             public boolean isSigned(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return true;
             }
 
             @Override
             public int getColumnDisplaySize(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 10;
             }
 
             @Override
             public String getColumnLabel(int column) throws SQLException {
-                return metadata.getColumnNames().get(column-1);
+                return metadata.getColumnNames().get(column - 1);
             }
 
             @Override
             public String getColumnName(int column) throws SQLException {
-                return metadata.getColumnNames().get(column-1);
+                return metadata.getColumnNames().get(column - 1);
             }
 
             @Override
             public String getSchemaName(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return null;
             }
 
             @Override
             public int getPrecision(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 0;
             }
 
             @Override
             public int getScale(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 0;
             }
 
             @Override
             public String getTableName(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return null;
             }
 
             @Override
             public String getCatalogName(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return null;
             }
 
             @Override
@@ -427,41 +425,41 @@ public class HerdDBResultSet implements ResultSet {
 
             @Override
             public String getColumnTypeName(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return null;
             }
 
             @Override
             public boolean isReadOnly(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return true;
             }
 
             @Override
             public boolean isWritable(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return false;
             }
 
             @Override
             public boolean isDefinitelyWritable(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return false;
             }
 
             @Override
             public String getColumnClassName(int column) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return java.lang.Object.class.getName();
             }
 
             @Override
             public <T> T unwrap(Class<T> iface) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return (T) this;
             }
 
             @Override
             public boolean isWrapperFor(Class<?> iface) throws SQLException {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return iface.isInstance(this);
             }
 
         };
-        
+
     }
 
     @Override

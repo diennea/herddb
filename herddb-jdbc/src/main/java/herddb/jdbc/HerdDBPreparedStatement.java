@@ -196,9 +196,11 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     public boolean execute() throws SQLException {
         if (sql.toLowerCase().contains("select")) {
             executeQuery();
+            moreResults = true;
             return true;
         } else {
             executeUpdate();
+            moreResults = false;
             return false;
         }
     }
