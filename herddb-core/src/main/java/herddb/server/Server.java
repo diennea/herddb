@@ -133,6 +133,19 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         this.networkServer = buildChannelAcceptor();
         this.networkServer.setAcceptor(this);
+
+        switch (mode) {
+            case ServerConfiguration.PROPERTY_MODE_LOCAL:
+                break;
+            case ServerConfiguration.PROPERTY_MODE_STANDALONE:
+                System.out.println("JDBC URL");
+                System.out.println("jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort());
+                break;
+            case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+                System.out.println("JDBC URL");
+                System.out.println("jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
+                break;
+        }
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {

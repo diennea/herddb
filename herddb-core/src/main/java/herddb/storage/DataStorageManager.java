@@ -63,7 +63,7 @@ public abstract class DataStorageManager {
      * @return
      * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract Long writePage(String tableSpace, String tableName, List<Record> newPage) throws DataStorageManagerException;
+    public abstract void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException;
 
     /**
      * Write current table status. This operations mark the actual set of pages

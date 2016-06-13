@@ -126,6 +126,8 @@ public class TableManager implements AbstractTableManager {
 
     private final AtomicInteger dirtyRecords = new AtomicInteger();
 
+    private final AtomicLong newPageId = new AtomicLong(1);
+
     /**
      * Local locks
      */
@@ -234,6 +236,7 @@ public class TableManager implements AbstractTableManager {
                 @Override
                 public void acceptTableStatus(TableStatus tableStatus) {
                     nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
+                    newPageId.set(tableStatus.nextPageId);
                 }
 
                 @Override
@@ -255,7 +258,7 @@ public class TableManager implements AbstractTableManager {
         } finally {
             pagesLock.writeLock().unlock();
         }
-        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}", new Object[]{keyToPage.size(), table.name});
+        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}", new Object[]{keyToPage.size(), table.name, newPageId.get(),nextPrimaryKeyValue.get()});
     }
 
     @Override
@@ -846,7 +849,7 @@ public class TableManager implements AbstractTableManager {
             activePages.removeAll(dirtyPages);
             dirtyPages.clear();
             dirtyRecords.set(0);
-            TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, activePages);
+            TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
             dataStorageManager.tableCheckpoint(table.tablespace, table.name, tableStatus);
 
         } finally {
@@ -856,8 +859,9 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void createNewPage(List<Record> newPage) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "createNewPage with " + newPage.size() + " records");
-        Long newPageId = dataStorageManager.writePage(table.tablespace, table.name, newPage);
+        long newPageId = this.newPageId.getAndIncrement();
+        LOGGER.log(Level.SEVERE, "createNewPage pageId=" + newPageId + " with " + newPage.size() + " records");
+        dataStorageManager.writePage(table.tablespace, table.name, newPageId, newPage);
         activePages.add(newPageId);
         for (Record record : newPage) {
             keyToPage.put(record.key, newPageId);

@@ -73,7 +73,6 @@ public class FileDataStorageManager extends DataStorageManager {
     private static final Logger LOGGER = Logger.getLogger(FileDataStorageManager.class.getName());
     private final Path baseDirectory;
     private final Path tmpDirectory;
-    private final AtomicLong newPageId = new AtomicLong();
     private final int swapThreshold;
 
     public FileDataStorageManager(Path baseDirectory) {
@@ -182,7 +181,7 @@ public class FileDataStorageManager extends DataStorageManager {
         LOGGER.log(Level.SEVERE, "readActualTableStatus " + tableSpace + "." + tableName + " from " + keys);
         if (!Files.isRegularFile(keys)) {
             LOGGER.log(Level.SEVERE, "readActualTableStatus " + tableSpace + "." + tableName + " from " + keys + ". file does not exist");
-            return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, new HashSet<>());
+            return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
         }
         TableStatus latestStatus = null;
         try (InputStream input = Files.newInputStream(keys, StandardOpenOption.READ);
@@ -288,9 +287,9 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public Long writePage(String tableSpace, String tableName, List<Record> newPage) throws DataStorageManagerException {
+    public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
-        long pageId = newPageId.incrementAndGet();
+
         Path tableDir = getTableDirectory(tableSpace, tableName);
         try {
             Files.createDirectories(tableDir);
@@ -308,8 +307,6 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-
-        return pageId;
     }
 
     @Override

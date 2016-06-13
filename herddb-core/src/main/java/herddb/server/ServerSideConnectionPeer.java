@@ -376,7 +376,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
         }
         openTransactions.clear();
-        LOGGER.log(Level.SEVERE, "closing scanners " + scanners.keySet());
+        LOGGER.log(Level.FINEST, "closing scanners " + scanners.keySet());
         scanners.values().forEach(s -> s.close());
         scanners.clear();
     }

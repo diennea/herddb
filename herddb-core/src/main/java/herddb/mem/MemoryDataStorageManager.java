@@ -70,7 +70,6 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<Bytes>> keysByPage = new ConcurrentHashMap<>();
-    private final AtomicLong newPageId = new AtomicLong();
     private final ConcurrentHashMap<String, List<Table>> tablesByTablespace = new ConcurrentHashMap<>();
 
     @Override
@@ -97,16 +96,14 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
-        consumer.acceptTableStatus(new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, new HashSet<>()));
+        consumer.acceptTableStatus(new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>()));
     }
 
     @Override
-    public Long writePage(String tableSpace, String tableName, List<Record> newPage) {
-        long pageId = newPageId.incrementAndGet();
+    public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) {
         Page page = new Page(new ArrayList<>(newPage));
         pages.put(tableName + "_" + pageId, page);
         LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
-        return pageId;
     }
 
     @Override
