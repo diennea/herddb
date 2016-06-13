@@ -35,6 +35,7 @@ import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.timeout.ReadTimeoutHandler;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
@@ -129,7 +130,6 @@ public class NettyConnector implements AutoCloseable {
         Bootstrap b = new Bootstrap();
         b.group(group)
                 .channel(channelType)
-                .option(ChannelOption.SO_TIMEOUT, socketTimeout)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
                 .handler(new ChannelInitializer<Channel>() {
                     @Override
@@ -138,6 +138,9 @@ public class NettyConnector implements AutoCloseable {
                         channel.setMessagesReceiver(receiver);
                         if (ssl) {
                             ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                        }
+                        if (socketTimeout > 0) {
+                            ch.pipeline().addLast("readTimeoutHandler", new ReadTimeoutHandler(socketTimeout));
                         }
                         ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
                         ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
@@ -150,7 +153,7 @@ public class NettyConnector implements AutoCloseable {
 
         LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address});
         ChannelFuture f = b.connect(address).sync();
-        socketchannel = f.channel();       
+        socketchannel = f.channel();
         return channel;
 
     }
