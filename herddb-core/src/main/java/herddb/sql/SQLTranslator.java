@@ -114,8 +114,8 @@ public class SQLTranslator {
         this.cache = new PlansCache();
     }
 
-    public TranslatedQuery translate(String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
-        String cacheKey = "scan:" + scan + ",query:" + query;
+    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
+        String cacheKey = "scan:" + scan + ",defaultTableSpace:" + defaultTableSpace + ", query:" + query;
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
@@ -126,19 +126,19 @@ public class SQLTranslator {
             ExecutionPlan result;
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
-                result = ExecutionPlan.simple(buildCreateTableStatement((CreateTable) stmt));
+                result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
             } else if (stmt instanceof Insert) {
-                result = ExecutionPlan.simple(buildInsertStatement((Insert) stmt));
+                result = ExecutionPlan.simple(buildInsertStatement(defaultTableSpace, (Insert) stmt));
             } else if (stmt instanceof Delete) {
-                result = buildDeleteStatement((Delete) stmt);
+                result = buildDeleteStatement(defaultTableSpace, (Delete) stmt);
             } else if (stmt instanceof Update) {
-                result = buildUpdateStatement((Update) stmt);
+                result = buildUpdateStatement(defaultTableSpace, (Update) stmt);
             } else if (stmt instanceof Select) {
-                result = buildSelectStatement((Select) stmt, scan);
+                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan);
             } else if (stmt instanceof Execute) {
-                result = ExecutionPlan.simple(buildExecuteStatement((Execute) stmt));
+                result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
             } else if (stmt instanceof Alter) {
-                result = ExecutionPlan.simple(buildAlterStatement((Alter) stmt));
+                result = ExecutionPlan.simple(buildAlterStatement(defaultTableSpace, (Alter) stmt));
             } else {
                 throw new StatementExecutionException("unable to execute query " + query + ", type " + stmt.getClass());
             }
@@ -152,11 +152,11 @@ public class SQLTranslator {
 
     }
 
-    private Statement buildCreateTableStatement(CreateTable s) throws StatementExecutionException {
+    private Statement buildCreateTableStatement(String defaultTableSpace, CreateTable s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
-            tableSpace = TableSpace.DEFAULT;
+            tableSpace = defaultTableSpace;
         }
         boolean foundPk = false;
         List<String> allColumnNames = new ArrayList<>();
@@ -248,11 +248,11 @@ public class SQLTranslator {
         return type;
     }
 
-    private Statement buildInsertStatement(Insert s) throws StatementExecutionException {
+    private Statement buildInsertStatement(String defaultTableSpace, Insert s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
-            tableSpace = TableSpace.DEFAULT;
+            tableSpace = defaultTableSpace;
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
@@ -336,12 +336,12 @@ public class SQLTranslator {
         }
     }
 
-    private ExecutionPlan buildDeleteStatement(Delete s) throws StatementExecutionException {
+    private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
-            tableSpace = TableSpace.DEFAULT;
+            tableSpace = defaultTableSpace;
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
@@ -373,12 +373,12 @@ public class SQLTranslator {
         }
     }
 
-    private ExecutionPlan buildUpdateStatement(Update s) throws StatementExecutionException {
+    private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName().toLowerCase();
         if (tableSpace == null) {
-            tableSpace = TableSpace.DEFAULT;
+            tableSpace = defaultTableSpace;
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
@@ -569,7 +569,7 @@ public class SQLTranslator {
         return result;
     }
 
-    private ExecutionPlan buildSelectStatement(Select s, boolean scan) throws StatementExecutionException, DataScannerException {
+    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan) throws StatementExecutionException, DataScannerException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
@@ -579,7 +579,7 @@ public class SQLTranslator {
             tableAlias = fromTable.getAlias().getName();
         }
         if (tableSpace == null) {
-            tableSpace = TableSpace.DEFAULT;
+            tableSpace = defaultTableSpace;
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
@@ -692,7 +692,7 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildExecuteStatement(Execute execute) throws StatementExecutionException {
+    private Statement buildExecuteStatement(String defaultTableSpace, Execute execute) throws StatementExecutionException {
         switch (execute.getName()) {
             case "BEGINTRANSACTION": {
                 if (execute.getExprList().getExpressions().size() != 1) {
@@ -799,14 +799,13 @@ public class SQLTranslator {
         }
     }
 
-    private Statement buildAlterStatement(Alter alter) throws StatementExecutionException {
-        System.out.println("buildAlterStatement " + alter);
+    private Statement buildAlterStatement(String defaultTableSpace, Alter alter) throws StatementExecutionException {
         if (alter.getTable() == null) {
             throw new StatementExecutionException("missing table name");
         }
         String tableSpace = alter.getTable().getSchemaName();
         if (tableSpace == null) {
-            tableSpace = TableSpace.DEFAULT;
+            tableSpace = defaultTableSpace;
         }
         List<Column> addColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();

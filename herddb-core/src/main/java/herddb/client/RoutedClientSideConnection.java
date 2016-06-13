@@ -207,14 +207,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    DMLResult executeUpdate(String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, query, tx, params);
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -237,14 +237,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    Map<String, Object> executeGet(String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, query, tx, params);
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -271,7 +271,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE BEGINTRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "EXECUTE BEGINTRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -295,7 +295,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE COMMITTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "EXECUTE COMMITTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -317,7 +317,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, "EXECUTE ROLLBACKTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "EXECUTE ROLLBACKTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -334,7 +334,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
 
-    ScanResultSet executeScan(String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
+    ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
         ensureOpen();
         Channel _channel = channel;
         if (_channel == null) {
@@ -342,7 +342,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
         try {
             String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
-            Message message = Message.OPEN_SCANNER(clientId, query, scannerId, tx, params, fetchSize, maxRows);
+            Message message = Message.OPEN_SCANNER(clientId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
             LOGGER.log(Level.FINEST, "open scanner{0} for query {1}, params {2}", new Object[]{scannerId, query, params});
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {

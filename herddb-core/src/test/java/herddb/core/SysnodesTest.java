@@ -19,16 +19,13 @@
  */
 package herddb.core;
 
+import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
-import herddb.model.ScanResult;
-import herddb.model.StatementExecutionException;
 import herddb.model.TableSpace;
-import herddb.model.TransactionContext;
 import herddb.model.Tuple;
-import herddb.sql.TranslatedQuery;
 import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
@@ -37,16 +34,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 
+ *
  *
  * @author enrico.olivelli
  */
 public class SysnodesTest {
-
-    private DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
-    }
 
     @Test
     public void listNodesTest() throws Exception {

@@ -44,9 +44,18 @@ public class StatementEvaluationContext {
     private DBManager manager;
     private TransactionContext transactionContext;
     private final Map<String, List<Tuple>> subqueryCache = new HashMap<>();
+    private String defaultTablespace = TableSpace.DEFAULT;
 
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
         return new StatementEvaluationContext();
+    }
+
+    public String getDefaultTablespace() {
+        return defaultTablespace;
+    }
+
+    public void setDefaultTablespace(String defaultTablespace) {
+        this.defaultTablespace = defaultTablespace;
     }
 
     public TransactionContext getTransactionContext() {
@@ -85,7 +94,7 @@ public class StatementEvaluationContext {
             return cached;
         }
 //        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
-        TranslatedQuery translated = manager.getTranslator().translate(subquery, Collections.emptyList(), true, true);
+        TranslatedQuery translated = manager.getTranslator().translate(defaultTablespace, subquery, Collections.emptyList(), true, true);
         try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext);) {
             List<Tuple> fullResult = result.dataScanner.consume();
 //            LOGGER.log(Level.SEVERE, "executing subquery " + subquery+" -> "+fullResult);

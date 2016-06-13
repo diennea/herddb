@@ -19,46 +19,27 @@
  */
 package herddb.core;
 
+import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.executeUpdate;
+import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.DMLStatementExecutionResult;
-import herddb.model.DataScanner;
-import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.sql.TranslatedQuery;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 /**
- * 
+ *
  *
  * @author enrico.olivelli
  */
 public class SimpleSubqueryTest {
-
-    private DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
-    }
-
-    private StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
-    }
-
-    private DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
-    }
 
     @Test
     public void tableAliasTest() throws Exception {
@@ -136,7 +117,7 @@ public class SimpleSubqueryTest {
     @Test
     public void subQueryOnWhereTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);

@@ -19,19 +19,15 @@
  */
 package herddb.core;
 
+import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
-import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.ScanResult;
-import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
-import herddb.model.TransactionContext;
 import herddb.model.Tuple;
-import herddb.sql.TranslatedQuery;
 import java.util.Collections;
 import java.util.List;
 import org.junit.Test;
@@ -41,26 +37,11 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
- * 
+ *
  *
  * @author enrico.olivelli
  */
 public class AlterTablespaceSQLTest {
-
-    private DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
-    }
-
-    private StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
-    }
-
-    private DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(query, parameters, true, true);
-        return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
-    }
 
     @Test
     public void createAlterTableSpace() throws Exception {
@@ -101,7 +82,7 @@ public class AlterTablespaceSQLTest {
                 List<Tuple> tuples = scan.consume();
                 assertEquals(1, tuples.size());
                 for (Tuple t : tuples) {
-                     System.out.println("tablespace: " + t.toMap());
+                    System.out.println("tablespace: " + t.toMap());
                     assertEquals(12, t.get("expectedreplicacount"));
                 }
             }

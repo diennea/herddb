@@ -57,20 +57,22 @@ public final class Message {
         return new Message(clientId, TYPE_CLIENT_SHUTDOWN, new HashMap<>());
     }
 
-    public static Message EXECUTE_STATEMENT(String clientId, String query, long tx, List<Object> params) {
+    public static Message EXECUTE_STATEMENT(String clientId, String tableSpace, String query, long tx, List<Object> params) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
+        data.put("tableSpace", tableSpace);
         data.put("tx", tx);
         data.put("query", query);
         data.put("params", params);
         return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
     }
 
-    public static Message OPEN_SCANNER(String clientId, String query, String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
+    public static Message OPEN_SCANNER(String clientId, String tableSpace, String query, String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
+        data.put("tableSpace", tableSpace);
         data.put("scannerId", scannerId);
         data.put("tx", tx);
         data.put("query", query);

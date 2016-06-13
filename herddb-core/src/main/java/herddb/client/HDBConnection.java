@@ -20,6 +20,7 @@
 package herddb.client;
 
 import herddb.client.impl.RetryRequestException;
+import static herddb.utils.QueryUtils.discoverTablespace;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -124,10 +125,11 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+        tableSpace = discoverTablespace(tableSpace, query);
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-                return route.executeUpdate(query, tx, params);
+                return route.executeUpdate(tableSpace, query, tx, params);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
                 sleepOnRetry();
@@ -137,10 +139,11 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+        tableSpace = discoverTablespace(tableSpace, query);
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-                return route.executeGet(query, tx, params);
+                return route.executeGet(tableSpace, query, tx, params);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
                 sleepOnRetry();
@@ -150,10 +153,11 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+        tableSpace = discoverTablespace(tableSpace, query);
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-                return route.executeScan(query, params, tx, maxRows, fetchSize);
+                return route.executeScan(tableSpace, query, params, tx, maxRows, fetchSize);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
                 sleepOnRetry();

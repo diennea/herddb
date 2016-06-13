@@ -303,6 +303,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        context.setDefaultTablespace(statement.getTableSpace());
         context.setManager(this);
         context.setTransactionContext(transactionContext);
         //LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
@@ -427,6 +428,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        context.setDefaultTablespace(statement.getTableSpace());
         context.setManager(this);
         context.setTransactionContext(transactionContext);
         String tableSpace = statement.getTableSpace();

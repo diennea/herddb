@@ -143,10 +143,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 Long tx = (Long) message.parameters.get("tx");
                 long txId = tx != null ? tx : 0;
                 String query = (String) message.parameters.get("query");
+                String tableSpace = (String) message.parameters.get("tableSpace");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     TransactionContext transactionContext = new TransactionContext(txId);
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, false, true);
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace,query, parameters, false, true);
                     Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
                     StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -227,6 +228,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     _channel.sendReplyMessage(message, error);
                     break;
                 }
+                String tableSpace = (String) message.parameters.get("tableSpace");
                 Long tx = (Long) message.parameters.get("tx");
                 long txId = tx != null ? tx : 0;
                 String query = (String) message.parameters.get("query");
@@ -241,7 +243,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(query, parameters, true, true);
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace,query, parameters, true, true);
                     Statement statement = translatedQuery.plan.mainStatement;
                     TransactionContext transactionContext = new TransactionContext(txId);
                     if (statement instanceof ScanStatement) {
