@@ -140,10 +140,11 @@ public final class Message {
         return new Message(null, TYPE_EXECUTE_STATEMENT_RESULT, data);
     }
 
-    public static Message SASL_TOKEN_MESSAGE_REQUEST() {
+    public static Message SASL_TOKEN_MESSAGE_REQUEST(String saslMech) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
+        data.put("mech", saslMech);
         return new Message(null, TYPE_SASL_TOKEN_MESSAGE_REQUEST, data);
     }
 

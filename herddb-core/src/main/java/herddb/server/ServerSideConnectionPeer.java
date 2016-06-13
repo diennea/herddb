@@ -98,8 +98,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         switch (message.type) {
             case Message.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
                 try {
+                    String mech = (String) message.parameters.get("mech");
                     if (saslNettyServer == null) {
-                        saslNettyServer = new SaslNettyServer(server);
+                        saslNettyServer = new SaslNettyServer(server, mech);
                     }
                     byte[] responseToken = saslNettyServer.response(new byte[0]);
                     Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
@@ -113,7 +114,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             case Message.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
                 try {
                     if (saslNettyServer == null) {
-                        saslNettyServer = new SaslNettyServer(server);
+                        Message error = Message.ERROR(null, new Exception("Authentication failed (SASL protocol error)"));
+                        _channel.sendReplyMessage(message, error);
+                        return;
                     }
                     byte[] token = (byte[]) message.parameters.get("token");
                     byte[] responseToken = saslNettyServer.response(token);
@@ -121,6 +124,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     _channel.sendReplyMessage(message, tokenChallenge);
                     if (saslNettyServer.isComplete()) {
                         authenticated = true;
+                        saslNettyServer = null;
                     }
                 } catch (Exception err) {
                     if (err instanceof javax.security.sasl.SaslException) {
@@ -147,7 +151,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     TransactionContext transactionContext = new TransactionContext(txId);
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace,query, parameters, false, true);
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace, query, parameters, false, true);
                     Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
                     StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -243,7 +247,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace,query, parameters, true, true);
+                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace, query, parameters, true, true);
                     Statement statement = translatedQuery.plan.mainStatement;
                     TransactionContext transactionContext = new TransactionContext(txId);
                     if (statement instanceof ScanStatement) {

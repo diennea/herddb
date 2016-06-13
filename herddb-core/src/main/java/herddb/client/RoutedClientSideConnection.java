@@ -40,6 +40,7 @@ import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
 import herddb.security.sasl.SaslNettyClient;
+import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.concurrent.atomic.AtomicLong;
@@ -85,21 +86,24 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT)
         );
         Channel _channel = channel;
-        Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(), timeout);
+        Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(SaslUtils.AUTH_DIGEST_MD5), timeout);
 
+        OUTER:
         while (true) {
             byte[] responseToSendToServer;
-            if (saslResponse.type == Message.TYPE_SASL_TOKEN_SERVER_RESPONSE) {
-                byte[] token = (byte[]) saslResponse.parameters.get("token");
-                responseToSendToServer = saslNettyClient.saslResponse(token);
-                if (saslNettyClient.isComplete()) {
-                    LOGGER.finest("SASL auth completed with success");
+            switch (saslResponse.type) {
+                case Message.TYPE_SASL_TOKEN_SERVER_RESPONSE:
+                    byte[] token = (byte[]) saslResponse.parameters.get("token");
+                    responseToSendToServer = saslNettyClient.saslResponse(token);
+                    if (saslNettyClient.isComplete()) {
+                        LOGGER.finest("SASL auth completed with success");
+                        break OUTER;
+                    }
                     break;
-                }
-            } else if (saslResponse.type == Message.TYPE_ERROR) {
-                throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + saslResponse.parameters + ")");
-            } else {
-                throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
+                case Message.TYPE_ERROR:
+                    throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + saslResponse.parameters + ")");
+                default:
+                    throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
             }
             saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_TOKEN(responseToSendToServer), timeout);
         }

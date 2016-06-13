@@ -44,11 +44,11 @@ public class SaslNettyServer {
     private SaslServer saslServer;
     private Server server;
 
-    public SaslNettyServer(Server server) throws IOException {
+    public SaslNettyServer(Server server, String mech) throws IOException {
         this.server = server;
         try {
             SaslDigestCallbackHandler ch = new SaslNettyServer.SaslDigestCallbackHandler();
-            saslServer = Sasl.createSaslServer(SaslUtils.AUTH_DIGEST_MD5, null,
+            saslServer = Sasl.createSaslServer(mech, null,
                     SaslUtils.DEFAULT_REALM, SaslUtils.getSaslProps(), ch);
             if (saslServer == null) {
                 throw new IOException("Cannot create JVM SASL Server");
@@ -134,8 +134,8 @@ public class SaslNettyServer {
      * @return token to send back to the server.
      */
     public byte[] response(byte[] token) throws SaslException {
-        try {            
-            byte[] retval = saslServer.evaluateResponse(token);            
+        try {
+            byte[] retval = saslServer.evaluateResponse(token);
             return retval;
         } catch (SaslException e) {
             LOG.severe("response: Failed to evaluate client token of length: "
