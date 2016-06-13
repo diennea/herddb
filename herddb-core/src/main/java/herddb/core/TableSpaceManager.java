@@ -186,7 +186,7 @@ public class TableSpaceManager {
 
     void apply(LogSequenceNumber position, LogEntry entry) throws DataStorageManagerException, DDLException {
         this.actualLogSequenceNumber = position;
-        LOGGER.log(Level.SEVERE, "apply entry {0} {1}", new Object[]{position, entry});
+        LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
         switch (entry.type) {
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
