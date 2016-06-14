@@ -37,6 +37,8 @@ import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
 import net.sf.jsqlparser.expression.operators.relational.Between;
@@ -145,6 +147,35 @@ public class SQLRecordPredicate extends Predicate {
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
+    public static Object add(Object a, Object b) throws StatementExecutionException {
+        if (a == null && b == null) {
+            return null;
+        }
+        if (a == null) {
+            a = 0;
+        }
+        if (b == null) {
+            b = 0;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).longValue() + ((Number) b).longValue();
+        }
+        throw new StatementExecutionException("cannot add " + a + " and " + b);
+    }
+
+    public static Object subtract(Object a, Object b) throws StatementExecutionException {
+        if (a == null) {
+            a = 0;
+        }
+        if (b == null) {
+            b = 0;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).longValue() - ((Number) b).longValue();
+        }
+        throw new StatementExecutionException("cannot add " + a + " and " + b);
+    }
+
     private boolean objectEquals(Object a, Object b) {
         if (Objects.equals(a, b)) {
             return true;
@@ -220,7 +251,7 @@ public class SQLRecordPredicate extends Predicate {
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), minorThan(left, right));
-        }
+        }        
         if (expression instanceof MinorThanEquals) {
             MinorThanEquals e = (MinorThanEquals) expression;
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
@@ -319,7 +350,7 @@ public class SQLRecordPredicate extends Predicate {
                         if (t.fieldNames.length > 1) {
                             throw new StatementExecutionException("subquery returned more than one column");
                         }
-                        Object tuple_value = t.get(0);                        
+                        Object tuple_value = t.get(0);
                         if (objectEquals(value, tuple_value)) {
                             return true;
                         }
@@ -336,7 +367,19 @@ public class SQLRecordPredicate extends Predicate {
             boolean result = value == null;
             return handleNot(e.isNot(), result);
         }
-        throw new StatementExecutionException("unsupported operand " + expression.getClass());
+        if (expression instanceof Addition) {
+            Addition e = (Addition) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
+            return add(left, right);
+        }
+        if (expression instanceof Subtraction) {
+            Subtraction e = (Subtraction) expression;
+            Object left = evaluateExpression(e.getLeftExpression(), bean, state);
+            Object right = evaluateExpression(e.getRightExpression(), bean, state);
+            return subtract(left, right);
+        }
+        throw new StatementExecutionException("unsupported operand " + expression.getClass() + ", expression is " + expression);
     }
 
     @Override

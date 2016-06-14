@@ -55,13 +55,12 @@ import static org.junit.Assert.fail;
 import static herddb.core.TestUtils.execute;
 
 /**
- * 
+ *
  *
  * @author enrico.olivelli
  */
 public class RawSQLTest {
 
-  
     @Test
     public void cacheStatement() throws Exception {
         String nodeId = "localhost";
@@ -87,6 +86,27 @@ public class RawSQLTest {
                 }
             }
 
+        }
+    }
+
+    @Test
+    public void atomicCounterTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get("n1"));
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=n1+1 where k1=?", Arrays.asList("mykey")).getUpdateCount());
+            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get("n1"));
+            assertEquals(Long.valueOf(1236), scan(manager, "SELECT n1+1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
+            assertEquals(Long.valueOf(1234), scan(manager, "SELECT n1-1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
+            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+1=1236", Collections.emptyList()).consume().get(0).get(0));
+            assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+n1=2470", Collections.emptyList()).consume().get(0).get(0));
         }
     }
 

@@ -23,12 +23,15 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
+import herddb.sql.SQLRecordPredicate;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
 
 /**
  * SQL aggregate functions
@@ -134,6 +137,16 @@ public class BuiltinFunctions {
         } else if (exp instanceof Function) {
             Function f = (Function) exp;
             value = computeFunction(f, record);
+        } else if (exp instanceof Addition) {
+            Addition add = (Addition) exp;
+            Object left = computeValue(add.getLeftExpression(), record);
+            Object right = computeValue(add.getRightExpression(), record);
+            return SQLRecordPredicate.add(left, right);
+        } else if (exp instanceof Subtraction) {
+            Subtraction add = (Subtraction) exp;
+            Object left = computeValue(add.getLeftExpression(), record);
+            Object right = computeValue(add.getRightExpression(), record);
+            return SQLRecordPredicate.subtract(left, right);
         } else {
             throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
         }

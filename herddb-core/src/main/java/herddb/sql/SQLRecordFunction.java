@@ -36,6 +36,7 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.schema.Column;
 
 /**
@@ -93,7 +94,8 @@ public class SQLRecordFunction extends RecordFunction {
                     bean.put(columnName, bean.get(c.getColumnName()));
                 }
             } else {
-                throw new StatementExecutionException("unsupported type " + e.getClass() + " " + e);
+                Object value = BuiltinFunctions.computeValue(e, bean);
+                bean.put(columnName, value);
             }
         }
         return RecordSerializer.toRecord(bean, table).value.data;
