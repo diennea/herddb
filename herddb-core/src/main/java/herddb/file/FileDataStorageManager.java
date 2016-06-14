@@ -138,14 +138,14 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve("checkpoints");
     }
 
-    private static final Provider provider = Security.getProvider("SUN");
+    private static final Provider DIGEST_PROVIDER = Security.getProvider("SUN");
 
-    private static MessageDigest createMD5() throws DataStorageManagerException {
+    static MessageDigest createMD5()  {
         try {
-            MessageDigest result = provider != null ? MessageDigest.getInstance("md5", provider) : MessageDigest.getInstance("md5");
+            MessageDigest result = DIGEST_PROVIDER != null ? MessageDigest.getInstance("md5", DIGEST_PROVIDER) : MessageDigest.getInstance("md5");
             return result;
         } catch (NoSuchAlgorithmException ex) {
-            throw new DataStorageManagerException(ex);
+            throw new IllegalStateException(ex);
         }
     }
 
