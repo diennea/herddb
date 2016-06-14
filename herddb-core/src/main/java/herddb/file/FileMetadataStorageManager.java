@@ -25,8 +25,8 @@ import herddb.model.DDLException;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -35,7 +35,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.DigestInputStream;
+import java.security.DigestOutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -133,8 +136,14 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
                 LOGGER.log(Level.SEVERE, "reading metadata file " + p.toAbsolutePath().toString());
                 if (filename.endsWith(".metadata")) {
                     try (InputStream in = Files.newInputStream(p);
-                            DataInputStream iin = new DataInputStream(in);) {
+                            DigestInputStream diin = new DigestInputStream(in, FileDataStorageManager.createMD5());
+                            ExtendedDataInputStream iin = new ExtendedDataInputStream(diin);) {
                         TableSpace ts = TableSpace.deserialize(iin, 0);
+                        byte[] computedDigest = diin.getMessageDigest().digest();
+                        byte[] storedDigest = iin.readArray();
+                        if (!Arrays.equals(computedDigest, storedDigest)) {
+                            throw new MetadataStorageManagerException("Corrupted metadata file " + p.toAbsolutePath().toString() + ", bad md5");
+                        }
                         if (filename.equals(ts.name + ".metadata")) {
                             tableSpaces.put(ts.name, ts);
                         }
@@ -151,8 +160,10 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         Path file_tmp = baseDirectory.resolve(tableSpace.name + "." + System.nanoTime() + ".tmpmetadata");
         Path file = baseDirectory.resolve(tableSpace.name + ".metadata");
         try (OutputStream out = Files.newOutputStream(file_tmp, StandardOpenOption.CREATE_NEW);
-                DataOutputStream dout = new DataOutputStream(out)) {
+                DigestOutputStream diout = new DigestOutputStream(out, FileDataStorageManager.createMD5());
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(diout)) {
             tableSpace.serialize(dout);
+            dout.writeArray(diout.getMessageDigest().digest());
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
         }
