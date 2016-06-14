@@ -38,6 +38,9 @@ public class LogEntryFactory {
         byte[] payload = table.serialize();
         return new LogEntry(System.currentTimeMillis(), LogEntryType.ALTER_TABLE, table.tablespace, transaction != null ? transaction.transactionId : 0, null, null, payload);
     }
+     public static LogEntry dropTable(String tableSpace, String table, Transaction transaction) {       
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_TABLE, tableSpace, transaction != null ? transaction.transactionId : 0, table, null, null);
+    }
 
     public static LogEntry beginTransaction(String tablespace, long transactionId) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, tablespace, transactionId, null, null, null);

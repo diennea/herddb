@@ -25,9 +25,11 @@ import herddb.utils.LockHandle;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
@@ -44,6 +46,7 @@ public class Transaction {
     public final Map<String, List<Record>> newRecords;
     public final Map<String, List<Bytes>> deletedRecords;
     public final Map<String, Table> newTables;
+    public final Set<String> droppedTables;
 
     public Transaction(long transactionId, String tableSpace) {
         this.transactionId = transactionId;
@@ -53,6 +56,7 @@ public class Transaction {
         this.newRecords = new HashMap<>();
         this.deletedRecords = new HashMap<>();
         this.newTables = new HashMap<>();
+        this.droppedTables = new HashSet<>();
     }
 
     public Map<String, Table> getNewTables() {
@@ -83,6 +87,7 @@ public class Transaction {
 
     public void registerNewTable(Table table) {
         newTables.put(table.name, table);
+        droppedTables.remove(table.name);
     }
 
     public void registerInsertOnTable(String tableName, Bytes key, Bytes value) {
@@ -211,6 +216,15 @@ public class Transaction {
     @Override
     public String toString() {
         return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + '}';
+    }
+
+    public void registerDropTable(String tableName) {
+        newTables.remove(tableName);
+        droppedTables.add(tableName);
+    }
+
+    public boolean isTableDropped(String tableName) {
+        return droppedTables.contains(tableName) && !newTables.containsKey(tableName);
     }
 
 }

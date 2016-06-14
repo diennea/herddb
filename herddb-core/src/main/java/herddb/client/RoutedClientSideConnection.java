@@ -275,7 +275,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "EXECUTE BEGINTRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "BEGIN TRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -299,7 +299,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "EXECUTE COMMITTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "COMMIT TRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -321,7 +321,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException("not connected to node " + nodeId);
         }
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "EXECUTE ROLLBACKTRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "ROLLBACK TRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;

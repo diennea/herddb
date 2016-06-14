@@ -168,4 +168,9 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         return new SimpleDataScanner(recordSet);
     }
 
+    @Override
+    public long getCreatedInTransaction() {
+        return 0;
+    }
+
 }

@@ -54,20 +54,23 @@ public interface AbstractTableManager extends AutoCloseable {
     void close();
 
     void dropTableData() throws DataStorageManagerException;
-    
-    void onTransactionRollback(Transaction transaction)  throws DataStorageManagerException;
-        
+
+    void onTransactionRollback(Transaction transaction) throws DataStorageManagerException;
+
     void onTransactionCommit(Transaction transaction) throws DataStorageManagerException;
-    
+
     void apply(LogEntry entry) throws DataStorageManagerException;
-            
+
     void dump(Consumer<Record> records) throws DataStorageManagerException;
-    
+
     void checkpoint() throws DataStorageManagerException;
-        
+
     long getNextPrimaryKeyValue();
-    
+
     boolean isSystemTable();
 
     public void tableAltered(Table table, Transaction transaction) throws DDLException;
+
+    long getCreatedInTransaction();
+
 }

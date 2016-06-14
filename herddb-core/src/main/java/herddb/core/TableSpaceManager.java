@@ -60,6 +60,7 @@ import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
@@ -159,7 +160,7 @@ public class TableSpaceManager {
             return t.name;
         }).collect(Collectors.joining()));
         for (Table table : tablesAtBoot) {
-            bootTable(table);
+            bootTable(table, 0);
         }
 
         LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
@@ -229,8 +230,18 @@ public class TableSpaceManager {
                 }
                 for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction);
+
                 }
-                if (!transaction.getNewTables().isEmpty()) {
+                for (String dropped : transaction.droppedTables) {
+                    for (AbstractTableManager manager : managers) {
+                        if (manager.getTable().name.equals(dropped)) {
+                            manager.dropTableData();
+                            manager.close();
+                            tables.remove(manager.getTable().name);
+                        }
+                    }
+                }
+                if (!transaction.getNewTables().isEmpty() || !transaction.droppedTables.isEmpty()) {
                     writeTablesOnDataStorageManager();
                 }
                 transactions.remove(transaction.transactionId);
@@ -244,7 +255,33 @@ public class TableSpaceManager {
                     transaction.registerNewTable(table);
                 }
 
-                bootTable(table);
+                bootTable(table, entry.transactionId);
+                if (entry.transactionId <= 0) {
+                    writeTablesOnDataStorageManager();
+                }
+            }
+            break;
+            case LogEntryType.DROP_TABLE: {
+                String tableName = entry.tableName;
+                if (entry.transactionId > 0) {
+                    long id = entry.transactionId;
+                    Transaction transaction = transactions.get(id);
+                    transaction.registerDropTable(tableName);
+                } else {
+                    AbstractTableManager manager;
+                    try {
+                        generalLock.writeLock().lock();
+                        manager = tables.get(tableName);
+                    } finally {
+                        generalLock.writeLock().unlock();
+                    }
+                    if (manager != null) {
+                        manager.dropTableData();
+                        manager.close();
+                        tables.remove(manager.getTable().name);
+                    }
+                }
+
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager();
                 }
@@ -258,7 +295,7 @@ public class TableSpaceManager {
             break;
         }
 
-        if (entry.tableName != null) {
+        if (entry.tableName != null && entry.type != LogEntryType.DROP_TABLE) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(entry);
         }
@@ -290,6 +327,11 @@ public class TableSpaceManager {
         }
         if (manager == null) {
             throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
+        }
+        if (manager.getCreatedInTransaction() > 0) {
+            if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
+                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
+            }
         }
         return manager.scan(statement, context, transaction);
     }
@@ -348,10 +390,10 @@ public class TableSpaceManager {
         return metadataStorageManager;
     }
 
-    public List<Table> getAllTables() {
+    public List<Table> getAllCommittedTables() {
         generalLock.readLock().lock();
         try {
-            return tables.values().stream().map(AbstractTableManager::getTable).collect(Collectors.toList());
+            return tables.values().stream().filter(s -> s.getCreatedInTransaction() == 0).map(AbstractTableManager::getTable).collect(Collectors.toList());
         } finally {
             generalLock.readLock().unlock();
         }
@@ -446,7 +488,7 @@ public class TableSpaceManager {
         public void beginTable(Table table) throws DataStorageManagerException {
             LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name);
             dataStorageManager.dropTable(tableSpaceName, table.name);
-            currentTable = bootTable(table);
+            currentTable = bootTable(table, 0);
         }
 
     }
@@ -609,6 +651,9 @@ public class TableSpaceManager {
         if (statement instanceof CreateTableStatement) {
             return createTable((CreateTableStatement) statement, transaction);
         }
+        if (statement instanceof DropTableStatement) {
+            return dropTable((DropTableStatement) statement, transaction);
+        }
         if (statement instanceof BeginTransactionStatement) {
             if (transaction != null) {
                 throw new IllegalArgumentException("transaction already started");
@@ -636,6 +681,11 @@ public class TableSpaceManager {
             }
             if (manager == null) {
                 throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
+            }
+            if (manager.getCreatedInTransaction() > 0) {
+                if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
+                    throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
+                }
             }
             return manager.executeStatement(statement, transaction, context);
         }
@@ -667,9 +717,39 @@ public class TableSpaceManager {
         }
     }
 
-    private TableManager bootTable(Table table) throws DataStorageManagerException {
+    private StatementExecutionResult dropTable(DropTableStatement statement, Transaction transaction) throws StatementExecutionException {
+        try {
+            generalLock.writeLock().lock();
+            if (!tables.containsKey(statement.getTable())) {
+                throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
+            }
+            if (transaction != null && transaction.isTableDropped(statement.getTable())) {
+                throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
+            }
+            LogEntry entry = LogEntryFactory.dropTable(statement.getTableSpace(), statement.getTable(), transaction);
+            LogSequenceNumber pos;
+            try {
+                pos = log.log(entry);
+            } catch (LogNotAvailableException ex) {
+                throw new StatementExecutionException(ex);
+            }
+
+            apply(pos, entry);
+
+            return new DDLStatementExecutionResult();
+        } catch (DataStorageManagerException err) {
+            throw new StatementExecutionException(err);
+        } finally {
+            generalLock.writeLock().unlock();
+        }
+    }
+
+    private TableManager bootTable(Table table, long transaction) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
-        TableManager tableManager = new TableManager(table, log, dataStorageManager, this);
+        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, transaction);
+        if (tables.containsKey(table.name)) {
+            throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
+        }
         tables.put(table.name, tableManager);
         tableManager.start();
         return tableManager;

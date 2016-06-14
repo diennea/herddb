@@ -20,10 +20,8 @@
 package herddb.jdbc;
 
 import herddb.client.ClientSideMetadataProviderException;
-import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
-import herddb.client.impl.EmptyScanResultSet;
 import herddb.model.TableSpace;
 import java.sql.Array;
 import java.sql.Blob;
@@ -33,8 +31,6 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.RowIdLifetime;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -47,7 +43,6 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.sql.rowset.serial.SerialClob;
 
 /**
  * JDBC Connection

@@ -153,11 +153,18 @@ public class TableManager implements AbstractTableManager {
     private final DataStorageManager dataStorageManager;
     private final TableSpaceManager tableSpaceManager;
 
-    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager) throws DataStorageManagerException {
+    /**
+     * This value is not empty until the transaction who creates the table does
+     * not commit
+     */
+    private long createdInTransaction;
+
+    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, long createdInTransaction) throws DataStorageManagerException {
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.log = log;
         this.dataStorageManager = dataStorageManager;
+        this.createdInTransaction = createdInTransaction;
 
         this.tableContext = buildTableContext();
         this.keyToPage = dataStorageManager.createKeyToPageMap(table.tablespace, table.name);
@@ -258,7 +265,7 @@ public class TableManager implements AbstractTableManager {
         } finally {
             pagesLock.writeLock().unlock();
         }
-        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}", new Object[]{keyToPage.size(), table.name, newPageId.get(),nextPrimaryKeyValue.get()});
+        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}", new Object[]{keyToPage.size(), table.name, newPageId.get(), nextPrimaryKeyValue.get()});
     }
 
     @Override
@@ -565,6 +572,12 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void onTransactionCommit(Transaction transaction) throws DataStorageManagerException {
+        if (createdInTransaction >0) {
+            if (transaction.transactionId != createdInTransaction) {
+                throw new DataStorageManagerException("this tableManager is available only on transaction "+createdInTransaction);
+            }
+            createdInTransaction = 0;
+        }
         List<Record> changedRecords = transaction.changedRecords.get(table.name);
         // transaction is still holding locks on each record, so we can change records
         if (changedRecords != null) {
@@ -1023,5 +1036,12 @@ public class TableManager implements AbstractTableManager {
             }
         }
     }
+
+    @Override
+    public long getCreatedInTransaction() {
+        return createdInTransaction;
+    }
+
+    
 
 }

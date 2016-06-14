@@ -54,7 +54,7 @@ public class SyscolumnsTableManager extends AbstractSystemTableManager {
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = tableSpaceManager.getAllTables();
+        List<Table> tables = tableSpaceManager.getAllCommittedTables();
         List<Record> result = new ArrayList<>();
         for (Table t : tables) {
             int pos = 1;

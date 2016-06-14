@@ -48,6 +48,7 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
@@ -83,6 +84,7 @@ import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.table.Index;
 import net.sf.jsqlparser.statement.delete.Delete;
+import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.select.AllColumns;
@@ -114,7 +116,24 @@ public class SQLTranslator {
         this.cache = new PlansCache();
     }
 
+    private static String rewriteExecuteSyntax(String query) {
+        if (query.startsWith("BEGIN TRANSACTION ")) {
+            return query.replace("BEGIN TRANSACTION", "EXECUTE begintransaction");
+        } else if (query.startsWith("COMMIT TRANSACTION ")) {
+            return query.replace("COMMIT TRANSACTION", "EXECUTE committransaction");
+        } else if (query.startsWith("ROLLBACK TRANSACTION ")) {
+            return query.replace("ROLLBACK TRANSACTION", "EXECUTE rollbacktransaction");
+        } else if (query.startsWith("CREATE TABLESPACE ")) {
+            return query.replace("CREATE TABLESPACE", "EXECUTE createtablespace");
+        } else if (query.startsWith("ALTER TABLESPACE ")) {
+            return query.replace("ALTER TABLESPACE", "EXECUTE altertablespace");
+        } else {
+            return query;
+        }
+    }
+
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
+        query = rewriteExecuteSyntax(query);
         String cacheKey = "scan:" + scan + ",defaultTableSpace:" + defaultTableSpace + ", query:" + query;
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
@@ -137,8 +156,13 @@ public class SQLTranslator {
                 result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan);
             } else if (stmt instanceof Execute) {
                 result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
+                allowCache = false;
             } else if (stmt instanceof Alter) {
                 result = ExecutionPlan.simple(buildAlterStatement(defaultTableSpace, (Alter) stmt));
+                allowCache = false;
+            } else if (stmt instanceof Drop) {
+                result = ExecutionPlan.simple(buildDropStatement(defaultTableSpace, (Drop) stmt));
+                allowCache = false;
             } else {
                 throw new StatementExecutionException("unable to execute query " + query + ", type " + stmt.getClass());
             }
@@ -693,7 +717,7 @@ public class SQLTranslator {
     }
 
     private Statement buildExecuteStatement(String defaultTableSpace, Execute execute) throws StatementExecutionException {
-        switch (execute.getName()) {
+        switch (execute.getName().toUpperCase()) {
             case "BEGINTRANSACTION": {
                 if (execute.getExprList().getExpressions().size() != 1) {
                     throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName");
@@ -822,6 +846,22 @@ public class SQLTranslator {
                 throw new StatementExecutionException("supported alter operation '" + alter.getOperation() + "'");
         }
         return new AlterTableStatement(addColumns, dropColumns, tableName, tableSpace);
+    }
+
+    private Statement buildDropStatement(String defaultTableSpace, Drop drop) throws StatementExecutionException {
+        if (!drop.getType().equalsIgnoreCase("table")) {
+            throw new StatementExecutionException("only DROP TABLE is supported, drop type=" + drop.getType() + " is not implemented");
+        }
+        if (drop.getName() == null) {
+            throw new StatementExecutionException("missing table name");
+        }
+
+        String tableSpace = drop.getName().getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        String tableName = drop.getName().getName();
+        return new DropTableStatement(tableSpace, tableName);
     }
 
     private boolean isAggregateFunction(Expression expression) throws StatementExecutionException {

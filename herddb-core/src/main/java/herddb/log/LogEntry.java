@@ -78,6 +78,9 @@ public class LogEntry {
                         // value contains the table definition
                         doo.writeArray(value);
                         break;
+                    case LogEntryType.DROP_TABLE:
+                        doo.writeUTF(tableName);
+                        break;
                     case LogEntryType.BEGINTRANSACTION:
                     case LogEntryType.COMMITTRANSACTION:
                     case LogEntryType.ROLLBACKTRANSACTION:
@@ -118,6 +121,9 @@ public class LogEntry {
                 case LogEntryType.DELETE:
                     tableName = dis.readUTF();
                     key = dis.readArray();
+                    break;
+                case LogEntryType.DROP_TABLE:
+                    tableName = dis.readUTF();
                     break;
                 case LogEntryType.CREATE_TABLE:
                 case LogEntryType.ALTER_TABLE:
