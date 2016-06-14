@@ -19,11 +19,14 @@
  */
 package herddb.jdbc;
 
+import herddb.server.ServerConfiguration;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Enumeration;
+import java.util.Properties;
+import org.apache.zookeeper.server.ServerConfig;
 import org.junit.After;
 import static org.junit.Assert.assertTrue;
 import org.junit.Before;
@@ -44,7 +47,9 @@ public class JdbcDriverLocalTest {
     @Test
     public void test() throws Exception {
 
-        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local");
+        Properties props = new Properties();
+        props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toString());
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local", props);
                 Statement statement = connection.createStatement();
                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
@@ -55,7 +60,7 @@ public class JdbcDriverLocalTest {
             assertTrue(count > 0);
         }
 
-        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local");
+        try (Connection connection = DriverManager.getConnection("jdbc:herddb:local", props);
                 Statement statement = connection.createStatement();
                 ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
             int count = 0;
