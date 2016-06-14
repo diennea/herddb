@@ -20,13 +20,15 @@
 package herddb.server;
 
 import herddb.client.ClientConfiguration;
-import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
-import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.Collections;
+import java.util.Properties;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -44,18 +46,28 @@ public class SimpleServerTest {
     @Test
     public void test() throws Exception {
         try {
+            File tmpConfFile = folder.newFile("test.server.properties");
+
+            try (InputStream in = SimpleServerTest.class.getResourceAsStream("/conf/test.server.properties")) {
+                Properties props = new Properties();
+                props.load(in);
+                props.put(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
+                try (FileOutputStream oo = new FileOutputStream(tmpConfFile)) {
+                    props.store(oo, "");
+                }
+            }
             Thread runner = new Thread(() -> {
-                ServerMain.main("src/test/resources/conf/test.server.properties");
+                ServerMain.main(tmpConfFile.getAbsolutePath());
             });
             runner.start();
-            while (ServerMain.getRunningInstance() == null                     
+            while (ServerMain.getRunningInstance() == null
                     || !ServerMain.getRunningInstance().isStarted()) {
                 Thread.sleep(1000);
                 System.out.println("waiting for boot");
             }
 
             ServerMain.getRunningInstance().getServer().waitForStandaloneBoot();
-            
+
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
                 client.setClientSideMetadataProvider(
                         new StaticClientSideMetadataProvider(ServerMain.getRunningInstance().getServer()
