@@ -22,16 +22,16 @@ package herddb.server;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
 import herddb.client.HDBClient;
+import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Level;
-import java.util.logging.SimpleFormatter;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
-import org.junit.Before;
+import static org.junit.Assert.assertNotNull;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -62,15 +62,17 @@ public class SimpleClientServerTest {
 //        java.util.logging.Logger.getLogger("").setLevel(level);
 //        java.util.logging.Logger.getLogger("").addHandler(ch);
 //    }
-    
+
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        Path baseDir = folder.newFolder().toPath();;
+        String _baseDir = baseDir.toString();
+        try (Server server = new Server(new ServerConfiguration(baseDir))) {
             server.start();
-            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());            
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
@@ -92,6 +94,27 @@ public class SimpleClientServerTest {
                 assertEquals("test", record.get("id"));
                 assertEquals(Long.valueOf(1), record.get("n1"));
                 assertEquals(Integer.valueOf(2), record.get("n2"));
+
+                try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", Collections.emptyList(), 0, 0, 10);) {
+                    List<Map<String, Object>> all = scan.consume();
+                    for (Map<String, Object> aa : all) {
+                        String name = (String) aa.get("name");
+                        assertEquals("server.baseDir", name);
+                        String value = (String) aa.get("value");
+                        assertEquals(_baseDir, value);
+                    }
+                }
+
+                try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", Collections.emptyList(), 0, 0, 10);) {
+                    List<Map<String, Object>> all = scan.consume();
+                    for (Map<String, Object> aa : all) {
+                        assertEquals("jvm-local", aa.get("address"));
+                        assertEquals("1", aa.get("id") + "");
+                        assertEquals(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT, aa.get("username"));
+                        assertNotNull(aa.get("connectionts"));
+                    }
+                    assertEquals(1, all.size());
+                }
 
             }
         }

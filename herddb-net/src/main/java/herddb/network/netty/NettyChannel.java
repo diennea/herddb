@@ -56,6 +56,7 @@ public class NettyChannel extends Channel {
     private final NettyConnector connector;
     private boolean ioErrors = false;
     private final long id = idGenerator.incrementAndGet();
+    private final String remoteAddress;
 
     @Override
     public String toString() {
@@ -67,6 +68,11 @@ public class NettyChannel extends Channel {
         this.socket = socket;
         this.callbackexecutor = callbackexecutor;
         this.connector = connector;
+        if (socket instanceof SocketChannel) {
+            this.remoteAddress = ((SocketChannel) socket).remoteAddress()+"";
+        } else {
+            this.remoteAddress = "jvm-local";
+        }
     }
 
     public void messageReceived(Message message) {
@@ -251,7 +257,7 @@ public class NettyChannel extends Channel {
     }
 
     void channelClosed() {
-        failPendingMessages(socket+"");
+        failPendingMessages(socket + "");
         submitCallback(() -> {
             if (this.messagesReceiver != null) {
                 this.messagesReceiver.channelClosed();
@@ -270,6 +276,11 @@ public class NettyChannel extends Channel {
                 LOGGER.log(Level.SEVERE, this + " error on rejected runnable " + runnable + ":" + error);
             }
         }
+    }
+
+    @Override
+    public String getRemoteAddress() {
+        return remoteAddress;
     }
 
     @Override

@@ -21,6 +21,7 @@ package herddb.server;
 
 import herddb.model.LimitedDataScanner;
 import herddb.codec.RecordSerializer;
+import herddb.core.stats.ConnectionsInfo;
 import herddb.model.Column;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatementExecutionResult;
@@ -76,11 +77,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     private final Map<String, ServerSideScannerPeer> scanners = new ConcurrentHashMap<>();
     private final Map<String, Set<Long>> openTransactions = new ConcurrentHashMap<>();
     private boolean authenticated;
+    private final String address;
+    private String username = "";
+    private final long connectionTs = System.currentTimeMillis();
 
     public ServerSideConnectionPeer(Channel channel, Server server) {
         this.channel = channel;
         this.channel.setMessagesReceiver(this);
         this.server = server;
+        this.address = channel.getRemoteAddress();
     }
 
     @Override
@@ -123,6 +128,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
                     _channel.sendReplyMessage(message, tokenChallenge);
                     if (saslNettyServer.isComplete()) {
+                        username = saslNettyServer.getUserName();
                         authenticated = true;
                         saslNettyServer = null;
                     }
@@ -379,6 +385,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         LOGGER.log(Level.FINEST, "closing scanners " + scanners.keySet());
         scanners.values().forEach(s -> s.close());
         scanners.clear();
+    }
+
+    ConnectionsInfo.ConnectionInfo toConnectionInfo() {
+        return new ConnectionsInfo.ConnectionInfo(id + "", connectionTs, username, address);
     }
 
 }

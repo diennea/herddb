@@ -20,6 +20,7 @@
 package herddb.core;
 
 import herddb.client.ClientConfiguration;
+import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
@@ -54,6 +55,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
+import herddb.server.ServerConfiguration;
 import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -93,6 +95,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final DataStorageManager dataStorageManager;
     private final CommitLogManager commitLogManager;
     private final String nodeId;
+    private final String virtualTableSpaceId;
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final Thread activator;
     private final AtomicBoolean stopped = new AtomicBoolean();
@@ -104,6 +107,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
     private boolean errorIfNotLeader = true;
+    private ServerConfiguration serverConfiguration = new ServerConfiguration();
+    private ConnectionsInfoProvider connectionsInfoProvider;
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -148,10 +153,27 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.dataStorageManager = dataStorageManager;
         this.commitLogManager = commitLogManager;
         this.nodeId = nodeId;
+        this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
         this.translator = new SQLTranslator(this);
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
+    }
+
+    public ServerConfiguration getServerConfiguration() {
+        return serverConfiguration;
+    }
+
+    public void setServerConfiguration(ServerConfiguration serverConfiguration) {
+        this.serverConfiguration = serverConfiguration;
+    }
+
+    public ConnectionsInfoProvider getConnectionsInfoProvider() {
+        return connectionsInfoProvider;
+    }
+
+    public void setConnectionsInfoProvider(ConnectionsInfoProvider connectionsInfoProvider) {
+        this.connectionsInfoProvider = connectionsInfoProvider;
     }
 
     public SQLTranslator getTranslator() {
@@ -176,6 +198,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 .ssl(hostData.isSsl())
                 .nodeId(nodeId)
                 .build());
+
+        try {
+            TableSpaceManager local_node_virtual_tables_manager = new TableSpaceManager(nodeId, virtualTableSpaceId, metadataStorageManager, dataStorageManager, null, this, true);
+            tablesSpaces.put(virtualTableSpaceId, local_node_virtual_tables_manager);
+            local_node_virtual_tables_manager.start();
+        } catch (DDLException | DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException error) {
+            throw new IllegalStateException("cannot boot local virtual tablespace manager");
+        }
 
         metadataStorageManager.ensureDefaultTableSpace(nodeId);
 
@@ -250,7 +280,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
             LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
-            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this);
+            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this, false);
             try {
                 manager.start();
                 tablesSpaces.put(tableSpaceName, manager);
@@ -516,6 +546,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return nodeId;
     }
 
+    public String getVirtualTableSpaceId() {
+        return virtualTableSpaceId;
+    }
+
     void submit(Runnable runnable) {
         try {
             threadPool.submit(runnable);
@@ -564,6 +598,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             LOGGER.log(Level.SEVERE, "error before dump", error);
             _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("internal error " + error, error)));
         }
+    }
+
+    private String makeVirtualTableSpaceManagerId(String nodeId) {
+        return nodeId.replace(":", "").replace(".", "").toLowerCase();
+    }
+
+    public ServerConfiguration getConfiguration() {
+        return serverConfiguration;
     }
 
     private class Activator implements Runnable {

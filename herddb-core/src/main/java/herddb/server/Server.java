@@ -1,3 +1,4 @@
+
 /*
  Licensed to Diennea S.r.l. under one
  or more contributor license agreements. See the NOTICE file
@@ -23,6 +24,9 @@ import herddb.client.ClientConfiguration;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.core.DBManager;
+import herddb.core.stats.ConnectionsInfo;
+import herddb.core.stats.ConnectionsInfo.ConnectionInfo;
+import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileBasedUserManager;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
@@ -44,18 +48,21 @@ import herddb.storage.DataStorageManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * HerdDB Server
  *
  * @author enrico.olivelli
  */
-public class Server implements AutoCloseable, ServerSideConnectionAcceptor<ServerSideConnection> {
+public class Server implements AutoCloseable, ServerSideConnectionAcceptor<ServerSideConnection>, ConnectionsInfoProvider {
 
     private static final Logger LOGGER = Logger.getLogger(Server.class.getName());
     private final DBManager manager;
@@ -125,6 +132,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 buildFileCommitLogManager(),
                 baseDirectory, serverHostData
         );
+        this.manager.setConnectionsInfoProvider(this);
+        this.manager.setServerConfiguration(configuration);
         this.manager.setServerToServerUsername(configuration.getString(ServerConfiguration.PROPERTY_SERVER_TO_SERVER_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT));
         this.manager.setServerToServerPassword(configuration.getString(ServerConfiguration.PROPERTY_SERVER_TO_SERVER_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT));
 
@@ -249,6 +258,17 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     public int getConnectionCount() {
         return connections.size();
+    }
+
+    @Override
+    public ConnectionsInfo getActualConnections() {
+        return new ConnectionsInfo(connections
+                .values()
+                .stream()
+                .map(c -> {
+                    return c.toConnectionInfo();
+                })
+                .collect(Collectors.toList()));
     }
 
 }

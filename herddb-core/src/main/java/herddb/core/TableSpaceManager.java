@@ -26,7 +26,9 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.TableSpaceDumpReceiver;
+import herddb.core.system.SysclientsTableManager;
 import herddb.core.system.SyscolumnsTableManager;
+import herddb.core.system.SysconfigTableManager;
 import herddb.core.system.SysnodesTableManager;
 import herddb.core.system.SystablesTableManager;
 import herddb.core.system.SystablespacesTableManager;
@@ -112,19 +114,26 @@ public class TableSpaceManager {
     private volatile boolean closed;
     private volatile boolean failed;
     private LogSequenceNumber actualLogSequenceNumber;
+    private boolean virtual;
 
-    public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager) {
+    public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager, boolean virtual) {
         this.nodeId = nodeId;
         this.manager = manager;
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.log = log;
         this.tableSpaceName = tableSpaceName;
+        this.virtual = virtual;
     }
 
     private void bootSystemTables() {
-        registerSystemTableManager(new SystablesTableManager(this));
-        registerSystemTableManager(new SyscolumnsTableManager(this));
+        if (virtual) {
+            registerSystemTableManager(new SysconfigTableManager(this));
+            registerSystemTableManager(new SysclientsTableManager(this));
+        } else {
+            registerSystemTableManager(new SystablesTableManager(this));
+            registerSystemTableManager(new SyscolumnsTableManager(this));
+        }
         registerSystemTableManager(new SystablespacesTableManager(this));
         registerSystemTableManager(new SysnodesTableManager(this));
     }
@@ -138,16 +147,19 @@ public class TableSpaceManager {
         TableSpace tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
 
         bootSystemTables();
-
-        recover(tableSpaceInfo);
-
-        LOGGER.log(Level.SEVERE, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
-
-        tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
-        if (tableSpaceInfo.leaderId.equals(nodeId)) {
+        if (virtual) {
             startAsLeader();
         } else {
-            startAsFollower();
+            recover(tableSpaceInfo);
+
+            LOGGER.log(Level.SEVERE, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
+
+            tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
+            if (tableSpaceInfo.leaderId.equals(nodeId)) {
+                startAsLeader();
+            } else {
+                startAsFollower();
+            }
         }
     }
 
@@ -626,17 +638,20 @@ public class TableSpaceManager {
     }
 
     void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
+        if (virtual) {
 
-        // every pending transaction MUST be rollback back
-        List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
-        log.startWriting();
-        LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, transactions.size()});
-        for (long tx : pending_transactions) {
-            LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
-            LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
-            // let followers see the rollback on the log
-            LogSequenceNumber pos = log.log(rollback);
-            apply(pos, rollback);
+        } else {
+            // every pending transaction MUST be rollback back
+            List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
+            log.startWriting();
+            LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, transactions.size()});
+            for (long tx : pending_transactions) {
+                LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
+                LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
+                // let followers see the rollback on the log
+                LogSequenceNumber pos = log.log(rollback);
+                apply(pos, rollback);
+            }
         }
         leader = true;
     }
@@ -644,6 +659,9 @@ public class TableSpaceManager {
     private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
     StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        if (virtual) {
+            throw new StatementExecutionException("executeStatement not available on virtual tablespaces");
+        }
         Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
@@ -764,18 +782,23 @@ public class TableSpaceManager {
 
     public void close() throws LogNotAvailableException {
         closed = true;
-        try {
-            generalLock.writeLock().lock();
-            for (AbstractTableManager table : tables.values()) {
-                table.close();
+        if (!virtual) {
+            try {
+                generalLock.writeLock().lock();
+                for (AbstractTableManager table : tables.values()) {
+                    table.close();
+                }
+                log.close();
+            } finally {
+                generalLock.writeLock().unlock();
             }
-            log.close();
-        } finally {
-            generalLock.writeLock().unlock();
         }
     }
 
     void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
+        if (virtual) {
+            return;
+        }
         generalLock.writeLock().lock();
         try {
 

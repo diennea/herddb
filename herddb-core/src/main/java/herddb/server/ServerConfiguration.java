@@ -20,7 +20,9 @@
 package herddb.server;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 /**
  * Server configuration
@@ -207,6 +209,10 @@ public final class ServerConfiguration {
                 set(param, "");
             }
         }
+    }
+    
+    public List<String> keys() {
+        return properties.keySet().stream().map(Object::toString).sorted().collect(Collectors.toList());
     }
 
 }
