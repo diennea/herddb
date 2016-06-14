@@ -75,6 +75,7 @@ public class TableSpace {
 
     public static TableSpace deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
         String name = in.readUTF();
+        int flags = in.readInt(); // for future implementations
         String leaderId = in.readUTF();
         int expectedReplicaCount = in.readInt();
         int numreplicas = in.readInt();
@@ -95,6 +96,7 @@ public class TableSpace {
 
     public void serialize(DataOutputStream out) throws IOException {
         out.writeUTF(name);
+        out.writeInt(0); // for future implementations
         out.writeUTF(leaderId);
         out.writeInt(expectedReplicaCount);
         out.writeInt(replicas.size());

@@ -62,10 +62,10 @@ public class SimpleDMLFileTest extends BaseTestcase {
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
-        assertNull(dataStorageManager.loadPage(tableSpace, tableName, 1L));
+        assertNull(dataStorageManager.readPage(tableSpace, tableName, 1L));
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.loadPage(tableSpace, tableName, 1L));
+        assertNotNull(dataStorageManager.readPage(tableSpace, tableName, 1L));
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {

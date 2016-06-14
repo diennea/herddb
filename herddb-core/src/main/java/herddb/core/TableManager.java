@@ -792,7 +792,7 @@ public class TableManager implements AbstractTableManager {
             if (to_unload > 0) {
                 unloadCleanPages(to_unload + UNLOAD_PAGES_MIN_BATCH);
             }
-            List<Record> page = dataStorageManager.loadPage(table.tablespace, table.name, pageId);
+            List<Record> page = dataStorageManager.readPage(table.tablespace, table.name, pageId);
             loadedPages.add(pageId);
             for (Record r : page) {
                 buffer.put(r.key, r);

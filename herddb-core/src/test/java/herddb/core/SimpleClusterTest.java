@@ -96,7 +96,7 @@ public class SimpleClusterTest extends BaseTestcase {
         }
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.loadPage(tableSpace, tableName, 1L));
+        assertNotNull(dataStorageManager.readPage(tableSpace, tableName, 1L));
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {
@@ -180,7 +180,7 @@ public class SimpleClusterTest extends BaseTestcase {
             }
         });
         for (long pageId : _tableStatus.value.activePages) {
-            List<Record> records = dataStorageManager.loadPage(tableSpace, tableName, pageId);
+            List<Record> records = dataStorageManager.readPage(tableSpace, tableName, pageId);
             System.out.println("PAGE #" + pageId + " records :" + records);
         }
 

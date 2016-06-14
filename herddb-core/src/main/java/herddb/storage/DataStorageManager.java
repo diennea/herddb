@@ -42,7 +42,7 @@ public abstract class DataStorageManager {
      * @param pageId
      * @return
      */
-    public abstract List<Record> loadPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException;
+    public abstract List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException;
 
     /**
      * Load the full data of a table

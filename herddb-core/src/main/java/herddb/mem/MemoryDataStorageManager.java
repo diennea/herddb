@@ -88,7 +88,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<Record> loadPage(String tableSpace, String tableName, Long pageId) {
+    public List<Record> readPage(String tableSpace, String tableName, Long pageId) {
         Page page = pages.get(tableName + "_" + pageId);
         LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         return page != null ? page.records : null;

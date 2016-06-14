@@ -49,13 +49,19 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.security.DigestInputStream;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.Provider;
+import java.security.Security;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.mapdb.DB;
@@ -132,18 +138,39 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve("checkpoints");
     }
 
+    private static final Provider provider = Security.getProvider("SUN");
+
+    private static MessageDigest createMD5() throws DataStorageManagerException {
+        try {
+            MessageDigest result = provider != null ? MessageDigest.getInstance("md5", provider) : MessageDigest.getInstance("md5");
+            return result;
+        } catch (NoSuchAlgorithmException ex) {
+            throw new DataStorageManagerException(ex);
+        }
+    }
+
     @Override
-    public List<Record> loadPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
+    public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
         try (InputStream input = Files.newInputStream(pageFile, StandardOpenOption.READ);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                DigestInputStream digest = new DigestInputStream(input, createMD5());
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
+            int flags = dataIn.readVInt(); // flags for future implementations
+            if (flags != 0) {
+                throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
+            }
             int numRecords = dataIn.readInt();
             List<Record> result = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
                 byte[] key = dataIn.readArray();
                 byte[] value = dataIn.readArray();
                 result.add(new Record(new Bytes(key), new Bytes(value)));
+            }
+            byte[] computedDigest = digest.getMessageDigest().digest();
+            byte[] writtenDigest = dataIn.readArray();
+            if (!Arrays.equals(computedDigest, writtenDigest)) {
+                throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", MD5 checksum failed");
             }
             return result;
         } catch (IOException err) {
@@ -159,7 +186,7 @@ public class FileDataStorageManager extends DataStorageManager {
         LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
         consumer.acceptTableStatus(latestStatus);
         for (long idpage : latestStatus.activePages) {
-            List<Record> records = loadPage(tableSpace, tableName, idpage);
+            List<Record> records = readPage(tableSpace, tableName, idpage);
             consumer.startPage(idpage);
             LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
             for (Record record : records) {
@@ -185,7 +212,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         TableStatus latestStatus = null;
         try (InputStream input = Files.newInputStream(keys, StandardOpenOption.READ);
-                DataInputStream dataIn = new DataInputStream(input)) {
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             while (true) {
                 int marker;
                 try {
@@ -223,7 +250,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path keys = getTableCheckPointsFile(tableDir);
         LOGGER.log(Level.SEVERE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + keys);
         try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-                DataOutputStream dataOutputKeys = new DataOutputStream(outputKeys)) {
+                ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
             dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
             tableStatus.serialize(dataOutputKeys);
         } catch (IOException err) {
@@ -298,12 +325,15 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         Path pageFile = getPageFile(tableDir, pageId);
         try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
-                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(output)) {
+                DigestOutputStream digest = new DigestOutputStream(output, createMD5());
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
+            dataOutput.writeVInt(0); // flags for future implementations
             dataOutput.writeInt(newPage.size());
             for (Record record : newPage) {
                 dataOutput.writeArray(record.key.data);
                 dataOutput.writeArray(record.value.data);
             }
+            dataOutput.writeArray(digest.getMessageDigest().digest());
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }

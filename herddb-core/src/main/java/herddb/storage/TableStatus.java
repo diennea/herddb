@@ -20,8 +20,8 @@
 package herddb.storage;
 
 import herddb.log.LogSequenceNumber;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
@@ -47,31 +47,28 @@ public class TableStatus {
         this.nextPageId = nextPageId;
     }
 
-    public void serialize(DataOutputStream output) throws IOException {
+    public void serialize(ExtendedDataOutputStream output) throws IOException {
         output.writeUTF(tableName);
         output.writeLong(sequenceNumber.ledgerId);
         output.writeLong(sequenceNumber.offset);
         output.writeLong(nextPageId);
-        output.writeInt(nextPrimaryKeyValue.length);
-        output.write(nextPrimaryKeyValue);
-        output.writeInt(activePages.size());
+        output.writeArray(nextPrimaryKeyValue);
+        output.writeVInt(activePages.size());
         for (long idpage : activePages) {
-            output.writeLong(idpage);
+            output.writeVLong(idpage);
         }
     }
 
-    public static TableStatus deserialize(DataInputStream in) throws IOException {
+    public static TableStatus deserialize(ExtendedDataInputStream in) throws IOException {
         String tableName = in.readUTF();
         long ledgerId = in.readLong();
         long offset = in.readLong();
         long nextPageId = in.readLong();
-        int len = in.readInt();
-        byte[] nextPrimaryKeyValue = new byte[len];
-        in.readFully(nextPrimaryKeyValue);
-        int numPages = in.readInt();
+        byte[] nextPrimaryKeyValue = in.readArray();
+        int numPages = in.readVInt();
         Set<Long> activePages = new HashSet<>();
         for (int i = 0; i < numPages; i++) {
-            activePages.add(in.readLong());
+            activePages.add(in.readVLong());
         }
         return new TableStatus(tableName, new LogSequenceNumber(ledgerId, offset), nextPrimaryKeyValue, nextPageId, activePages);
     }

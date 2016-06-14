@@ -20,10 +20,10 @@
 package herddb.model;
 
 import herddb.model.commands.AlterTableStatement;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,22 +81,24 @@ public class Table {
     public static Table deserialize(byte[] data) {
         try {
             ByteArrayInputStream ii = new ByteArrayInputStream(data);
-            DataInputStream dii = new DataInputStream(ii);
+            ExtendedDataInputStream dii = new ExtendedDataInputStream(ii);
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
             boolean auto_increment = dii.readByte() > 0;
-            int maxSerialPosition = dii.readInt();
+            int maxSerialPosition = dii.readVInt();
             byte pkcols = dii.readByte();
             String[] primaryKey = new String[pkcols];
             for (int i = 0; i < pkcols; i++) {
                 primaryKey[i] = dii.readUTF();
             }
-            int ncols = dii.readInt();
+            int tableFlags = dii.readVInt(); // for future implementations
+            int ncols = dii.readVInt();
             Column[] columns = new Column[ncols];
             for (int i = 0; i < ncols; i++) {
                 String cname = dii.readUTF();
-                int type = dii.readInt();
-                int serialPosition = dii.readInt();
+                int type = dii.readVInt();
+                int serialPosition = dii.readVInt();
+                int flags = dii.readVInt(); // for future implementations
                 columns[i] = Column.column(cname, type, serialPosition);
             }
             return new Table(name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
@@ -107,20 +109,22 @@ public class Table {
 
     public byte[] serialize() {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
-        try (DataOutputStream doo = new DataOutputStream(oo);) {
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo);) {
             doo.writeUTF(tablespace);
             doo.writeUTF(name);
             doo.writeByte(auto_increment ? 1 : 0);
-            doo.writeInt(maxSerialPosition);
-            doo.writeByte(primaryKey.length);
+            doo.writeVInt(maxSerialPosition);
+            doo.writeByte(primaryKey.length);            
             for (String primaryKeyColumn : primaryKey) {
                 doo.writeUTF(primaryKeyColumn);
             }
-            doo.writeInt(columns.length);
+            doo.writeVInt(0); // flags for future implementations
+            doo.writeVInt(columns.length);
             for (Column c : columns) {
                 doo.writeUTF(c.name);
-                doo.writeInt(c.type);
-                doo.writeInt(c.serialPosition);
+                doo.writeVInt(c.type);
+                doo.writeVInt(c.serialPosition);
+                doo.writeVInt(0); // flags for future implementations
             }
         } catch (IOException ee) {
             throw new RuntimeException(ee);
@@ -227,7 +231,7 @@ public class Table {
             if (this.columns.stream().filter(c -> (c.name.equals(name))).findAny().isPresent()) {
                 throw new IllegalArgumentException("column " + name + " already exists");
             }
-            this.columns.add(Column.column(name, type,maxSerialPosition++));
+            this.columns.add(Column.column(name, type, maxSerialPosition++));
             return this;
         }
 
