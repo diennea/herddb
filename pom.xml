@@ -227,5 +227,8 @@
                 </plugins>              
             </build>
         </profile>
-    </profiles>  
+    </profiles>
+    <modules>
+        <module>herddb-cli</module>
+    </modules>
 </project>
