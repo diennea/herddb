@@ -181,6 +181,9 @@ public class TableSpaceManager {
             log.recovery(logSequenceNumber, new BiConsumer<LogSequenceNumber, LogEntry>() {
                 @Override
                 public void accept(LogSequenceNumber t, LogEntry u) {
+                    if (LOGGER.isLoggable(Level.FINEST)) {
+                        LOGGER.log(Level.FINEST, "recovery {0} {1}", new Object[]{t, u});
+                    }
                     try {
                         apply(t, u);
                     } catch (Exception err) {
@@ -188,6 +191,7 @@ public class TableSpaceManager {
                     }
                 }
             }, false);
+            checkpoint();
             return;
         } catch (FullRecoveryNeededException fullRecoveryNeeded) {
             LOGGER.log(Level.SEVERE, "full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);

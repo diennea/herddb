@@ -19,6 +19,7 @@
  */
 package herddb.log;
 
+import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
@@ -145,7 +146,7 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" + type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + key + ", value=" + value + ", timestamp=" + timestamp + '}';
+        return "LogEntry{" + "type=" +type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + Bytes.from_array(key) + ", value=" + value + ", timestamp=" + timestamp + '}';
     }
 
 }

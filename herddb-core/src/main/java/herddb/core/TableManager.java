@@ -242,6 +242,7 @@ public class TableManager implements AbstractTableManager {
 
                 @Override
                 public void acceptTableStatus(TableStatus tableStatus) {
+                    LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
                     nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
                     newPageId.set(tableStatus.nextPageId);
                 }
@@ -253,7 +254,14 @@ public class TableManager implements AbstractTableManager {
 
                 @Override
                 public void acceptRecord(Record record) {
+                    if (LOGGER.isLoggable(Level.FINEST)) {
+                        LOGGER.log(Level.FINEST, "accept record key " + record.key + " page " + currentPage);
+                    }
+                    if (currentPage < 0) {
+                        throw new IllegalStateException();
+                    }
                     keyToPage.put(record.key, currentPage);
+                    activePages.add(currentPage);
                 }
 
                 @Override
@@ -265,7 +273,7 @@ public class TableManager implements AbstractTableManager {
         } finally {
             pagesLock.writeLock().unlock();
         }
-        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}", new Object[]{keyToPage.size(), table.name, newPageId.get(), nextPrimaryKeyValue.get()});
+        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}", new Object[]{keyToPage.size(), table.name, newPageId.get(), nextPrimaryKeyValue.get(), activePages + ""});
     }
 
     @Override
@@ -289,7 +297,7 @@ public class TableManager implements AbstractTableManager {
                 return executeDelete(delete, transaction, context);
             }
         } catch (DataStorageManagerException err) {
-            throw new StatementExecutionException("internal data error", err);
+            throw new StatementExecutionException("internal data error: " + err, err);
         } finally {
             pagesLock.readLock().unlock();
             if (transaction == null) {
@@ -572,11 +580,13 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void onTransactionCommit(Transaction transaction) throws DataStorageManagerException {
-        if (createdInTransaction >0) {
+        boolean forceFlushTableData = false;
+        if (createdInTransaction > 0) {
             if (transaction.transactionId != createdInTransaction) {
-                throw new DataStorageManagerException("this tableManager is available only on transaction "+createdInTransaction);
+                throw new DataStorageManagerException("this tableManager is available only on transaction " + createdInTransaction);
             }
             createdInTransaction = 0;
+            forceFlushTableData = true;
         }
         List<Record> changedRecords = transaction.changedRecords.get(table.name);
         // transaction is still holding locks on each record, so we can change records
@@ -598,6 +608,10 @@ public class TableManager implements AbstractTableManager {
             }
         }
         transaction.releaseLocksOnTable(table.name, locksManager);
+        if (forceFlushTableData) {
+            LOGGER.log(Level.SEVERE, "forcing local checkpoint, table will be visible to all transactions now");
+            checkpoint();
+        }
     }
 
     @Override
@@ -658,6 +672,9 @@ public class TableManager implements AbstractTableManager {
 
     private void applyDelete(Bytes key) {
         Long pageId = keyToPage.remove(key);
+        if (pageId == null) {
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
+        }
         deletedKeys.add(key);
         dirtyPages.add(pageId);
         buffer.remove(key);
@@ -666,6 +683,9 @@ public class TableManager implements AbstractTableManager {
 
     private void applyUpdate(Bytes key, Bytes value) {
         Long pageId = keyToPage.put(key, NO_PAGE);
+        if (pageId == null) {
+            throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
+        }
         buffer.put(key, new Record(key, value));
         dirtyPages.add(pageId);
         dirtyRecords.incrementAndGet();
@@ -818,6 +838,10 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void checkpoint() throws DataStorageManagerException {
+        if (createdInTransaction > 0) {
+            LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped, this table is created on transaction " + createdInTransaction + " which is not committed");
+            return;
+        }
         pagesLock.writeLock().lock();
         LogSequenceNumber sequenceNumber = log.getActualSequenceNumber();
 
@@ -830,7 +854,7 @@ public class TableManager implements AbstractTableManager {
                 rows scheduled to create a new page are arranged in a new set of pages which in turn are dumped to disk
              */
             List<Bytes> recordsOnDirtyPages = new ArrayList<>();
-            LOGGER.log(Level.SEVERE, "flush dirtyPages, {0} pages", new Object[]{dirtyPages.toString()});
+            LOGGER.log(Level.SEVERE, "checkpoint, flush dirtyPages, {0} pages, logpos {1}", new Object[]{dirtyPages.toString(), sequenceNumber});
             for (Bytes key : buffer.keySet()) {
                 Long pageId = keyToPage.get(key);
                 if (dirtyPages.contains(pageId)
@@ -887,17 +911,18 @@ public class TableManager implements AbstractTableManager {
         Predicate predicate = statement.getPredicate();
 
         MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
-        // TODO: swap on disk the resultset
+
         try {
-            if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
-                PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
-                GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
-                if (getResult.found()) {
-                    recordSet.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
-                }
-            } else {
-                pagesLock.readLock().lock();
-                try {
+            pagesLock.readLock().lock();
+            try {
+                if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
+                    PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
+                    GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
+                    if (getResult.found()) {
+                        recordSet.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
+                    }
+                } else {
+
                     // TODO: swap on disk the resultset
                     for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
                         Bytes key = entry.getKey();
@@ -947,9 +972,9 @@ public class TableManager implements AbstractTableManager {
                             }
                         }
                     }
-                } finally {
-                    pagesLock.readLock().unlock();
                 }
+            } finally {
+                pagesLock.readLock().unlock();
             }
             recordSet.writeFinished();
             recordSet.sort(statement.getComparator());
@@ -1041,7 +1066,5 @@ public class TableManager implements AbstractTableManager {
     public long getCreatedInTransaction() {
         return createdInTransaction;
     }
-
-    
 
 }
