@@ -29,7 +29,11 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -38,7 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -203,12 +207,19 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<Transaction> loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
-        return Collections.emptyList();
+    public void loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace, Consumer<Transaction> consumer) throws DataStorageManagerException {
     }
 
     @Override
-    public void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, List<Transaction> transactions) throws DataStorageManagerException {
+    public void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, Collection<Transaction> transactions) throws DataStorageManagerException {
+        try {
+            for (Transaction t : transactions) {
+                // test serialization
+                t.serialize(new ExtendedDataOutputStream(new ByteArrayOutputStream()));
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
 }

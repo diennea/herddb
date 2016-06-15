@@ -450,10 +450,10 @@ public class BookkeeperCommitLog extends CommitLog {
                                             lastLedgerId = ledgerId;
                                             lastSequenceNumber = entryId;
                                             if (number.after(snapshotSequenceNumber)) {
-                                                LOGGER.log(Level.SEVERE, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}", new Object[]{number, statusEdit});
+                                                LOGGER.log(Level.FINEST, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}", new Object[]{number, statusEdit});
                                                 consumer.accept(number, statusEdit);
                                             } else {
-                                                LOGGER.log(Level.SEVERE, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
+                                                LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
                                             }
                                             latch.countDown();
                                             localEntryCount++;

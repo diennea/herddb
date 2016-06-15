@@ -25,9 +25,11 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.utils.Bytes;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 
 /**
  * Physical storage of data
@@ -109,8 +111,8 @@ public abstract class DataStorageManager {
      * @throws DataStorageManagerException
      */
     public abstract List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException;
-    
-    public abstract List<Transaction> loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException;
+
+    public abstract void loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace, Consumer<Transaction> consumer) throws DataStorageManagerException;
 
     /**
      * Writes tables metadata
@@ -123,9 +125,9 @@ public abstract class DataStorageManager {
     public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException;
 
     public abstract void writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
-    
-    public abstract void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, List<Transaction> transactions) throws DataStorageManagerException;    
-    
+
+    public abstract void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, Collection<Transaction> transactions) throws DataStorageManagerException;
+
     public abstract LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException;
 
     public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;
@@ -133,7 +135,7 @@ public abstract class DataStorageManager {
     public abstract ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException;
 
     public abstract void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage);
-    
+
     public abstract RecordSetFactory createRecordSetFactory();
 
 }

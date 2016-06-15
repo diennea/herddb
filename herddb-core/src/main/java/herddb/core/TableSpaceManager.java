@@ -166,23 +166,36 @@ public class TableSpaceManager {
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceName);
         actualLogSequenceNumber = logSequenceNumber;
-        LOGGER.log(Level.SEVERE, nodeId+" recover " + tableSpaceName + ", logSequenceNumber from DataStorage: " + logSequenceNumber);
+        LOGGER.log(Level.SEVERE, nodeId + " recover " + tableSpaceName + ", logSequenceNumber from DataStorage: " + logSequenceNumber);
         List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceName);
-        LOGGER.log(Level.SEVERE, nodeId+" tablesAtBoot", tablesAtBoot.stream().map(t -> {
+        LOGGER.log(Level.SEVERE, nodeId + " tablesAtBoot", tablesAtBoot.stream().map(t -> {
             return t.name;
         }).collect(Collectors.joining()));
         for (Table table : tablesAtBoot) {
             bootTable(table, 0);
         }
+        dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceName, t -> {
+            transactions.put(t.transactionId, t);
+            try {
+                for (Table table : t.newTables.values()) {
+                    if (!tables.containsKey(table.name)) {
+                        bootTable(table, t.transactionId);
+                    }
+                }
+            } catch (Exception err) {
+                LOGGER.log(Level.SEVERE, "error while booting tmp tables " + err, err);
+                throw new RuntimeException(err);
+            }
+        });
 
-        LOGGER.log(Level.SEVERE, nodeId+ " recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
+        LOGGER.log(Level.SEVERE, nodeId + " recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
 
         try {
-            log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);            
+            log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
         } catch (FullRecoveryNeededException fullRecoveryNeeded) {
-            LOGGER.log(Level.SEVERE, nodeId+ " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+            LOGGER.log(Level.SEVERE, nodeId + " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
             downloadTableSpaceData();
-            log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);            
+            log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
         }
         checkpoint();
 
@@ -196,7 +209,9 @@ public class TableSpaceManager {
 
     void apply(LogSequenceNumber position, LogEntry entry) throws DataStorageManagerException, DDLException {
         this.actualLogSequenceNumber = position;
-        LOGGER.log(Level.SEVERE, "apply entry {0} {1}", new Object[]{position, entry});
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
+        }
         switch (entry.type) {
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
@@ -208,7 +223,7 @@ public class TableSpaceManager {
                 long id = entry.transactionId;
                 Transaction transaction = transactions.get(id);
                 if (transaction == null) {
-                    throw new DataStorageManagerException("invalid transaction id "+id);
+                    throw new DataStorageManagerException("invalid transaction id " + id);
                 }
                 List<AbstractTableManager> managers;
                 try {
@@ -234,7 +249,7 @@ public class TableSpaceManager {
                 long id = entry.transactionId;
                 Transaction transaction = transactions.get(id);
                 if (transaction == null) {
-                    throw new DataStorageManagerException("invalid transaction id "+id);
+                    throw new DataStorageManagerException("invalid transaction id " + id);
                 }
                 List<AbstractTableManager> managers;
                 try {
@@ -395,7 +410,6 @@ public class TableSpaceManager {
                 }
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
                 LOGGER.log(Level.SEVERE, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
-                
 
             } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
                 throw new DataStorageManagerException(networkError);
@@ -448,6 +462,7 @@ public class TableSpaceManager {
             throw new StatementExecutionException(err);
         }
         return new DDLStatementExecutionResult();
+
     }
 
     private class DumpReceiver extends TableSpaceDumpReceiver {
@@ -596,6 +611,7 @@ public class TableSpaceManager {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId);
         } finally {
             generalLock.readLock().unlock();
+
         }
 
     }
@@ -649,10 +665,10 @@ public class TableSpaceManager {
         if (virtual) {
 
         } else {
-            
+
             LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1}", new Object[]{nodeId, tableSpaceName});
             recoverForLeadership();
-            
+
             // every pending transaction MUST be rollback back
             List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
             log.startWriting();
@@ -830,9 +846,9 @@ public class TableSpaceManager {
                 }
             }
             writeTablesOnDataStorageManager();
-            
+
             dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceName, logSequenceNumber, transactions.values());
-            
+
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceName, logSequenceNumber);
             log.dropOldLedgers(logSequenceNumber);
 
@@ -905,6 +921,7 @@ public class TableSpaceManager {
 
     public Collection<Long> getOpenTransactions() {
         return new HashSet<>(this.transactions.keySet());
+
     }
 
     private class ApplyEntryOnRecovery implements BiConsumer<LogSequenceNumber, LogEntry> {

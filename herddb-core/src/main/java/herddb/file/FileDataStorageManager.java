@@ -58,11 +58,13 @@ import java.security.Provider;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.mapdb.DB;
@@ -127,6 +129,10 @@ public class FileDataStorageManager extends DataStorageManager {
         return getTablespaceDirectory(tablespace).resolve("tables." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".tablesmetadata");
     }
 
+    private Path getTablespaceTransactionsFile(String tablespace, LogSequenceNumber sequenceNumber) {
+        return getTablespaceDirectory(tablespace).resolve("transactions." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".tx");
+    }
+
     private Path getTableDirectory(String tableSpace, String tablename) {
         return getTablespaceDirectory(tableSpace).resolve(tablename + ".table");
     }
@@ -141,7 +147,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     private static final Provider DIGEST_PROVIDER = Security.getProvider("SUN");
 
-    static MessageDigest createMD5()  {
+    static MessageDigest createMD5() {
         try {
             MessageDigest result = DIGEST_PROVIDER != null ? MessageDigest.getInstance("md5", DIGEST_PROVIDER) : MessageDigest.getInstance("md5");
             return result;
@@ -387,9 +393,9 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {       
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
         if (sequenceNumber.isStartOfTime() && !tables.isEmpty()) {
-            throw new DataStorageManagerException("impossibile to write a non empty table list at start-of-time");
+            throw new DataStorageManagerException("impossible to write a non empty table list at start-of-time");
         }
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
@@ -556,14 +562,60 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<Transaction> loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public void loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace, Consumer<Transaction> consumer) throws DataStorageManagerException {
+        try {
+            Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
+            Files.createDirectories(tableSpaceDirectory);
+            Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
+            if (!Files.isRegularFile(file)) {
+                return;
+            }
+            try (InputStream in = Files.newInputStream(file);
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(in);) {
+                String readname = din.readUTF();
+                if (!readname.equals(tableSpace)) {
+                    throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
+                }
+                long ledgerId = din.readLong();
+                long offset = din.readLong();
+                if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
+                    throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for sequence number " + sequenceNumber);
+                }
+                int numTransactions = din.readInt();
+                for (int i = 0; i < numTransactions; i++) {
+                    Transaction tx = Transaction.deserialize(tableSpace, din);
+                    consumer.accept(tx);
+                }
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
     @Override
-    public void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, List<Transaction> transactions) throws DataStorageManagerException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, Collection<Transaction> transactions) throws DataStorageManagerException {
+        if (sequenceNumber.isStartOfTime() && !transactions.isEmpty()) {
+            throw new DataStorageManagerException("impossible to write a non empty transactions list at start-of-time");
+        }
+        try {
+            Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
+            Files.createDirectories(tableSpaceDirectory);
+            Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
+            Files.createDirectories(file.getParent());
+            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString());
+            try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                dout.writeUTF(tableSpace);
+                dout.writeLong(sequenceNumber.ledgerId);
+                dout.writeLong(sequenceNumber.offset);
+                dout.writeInt(transactions.size());
+                for (Transaction t : transactions) {
+                    t.serialize(dout);
+                }
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
-    
 }

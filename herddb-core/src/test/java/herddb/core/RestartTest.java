@@ -57,8 +57,7 @@ public class RestartTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    @Test
-    @Ignore
+    @Test    
     public void recoverTableCreatedInTransaction() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
@@ -122,8 +121,7 @@ public class RestartTest {
 
     }
 
-    @Test
-    @Ignore
+    @Test    
     public void recoverTableCreatedInTransaction2() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();

@@ -623,8 +623,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE,"applyTable "+table.name+" at "+pos+" "+entry);
+    public void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException {        
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records

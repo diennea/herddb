@@ -20,8 +20,11 @@
 package herddb.model;
 
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -225,6 +228,100 @@ public class Transaction {
 
     public boolean isTableDropped(String tableName) {
         return droppedTables.contains(tableName) && !newTables.containsKey(tableName);
+    }
+
+    public void serialize(ExtendedDataOutputStream out) throws IOException {
+        out.writeInt(0); // flags
+        out.writeLong(transactionId);
+        out.writeVInt(changedRecords.size());
+        for (Map.Entry<String, List<Record>> table : changedRecords.entrySet()) {
+            out.writeUTF(table.getKey());
+            out.writeVInt(table.getValue().size());
+            for (Record r : table.getValue()) {
+                out.writeArray(r.key.data);
+                out.writeArray(r.value.data);
+            }
+        }
+        out.writeVInt(newRecords.size());
+        for (Map.Entry<String, List<Record>> table : newRecords.entrySet()) {
+            out.writeUTF(table.getKey());
+            out.writeVInt(table.getValue().size());
+            for (Record r : table.getValue()) {
+                out.writeArray(r.key.data);
+                out.writeArray(r.value.data);
+            }
+        }
+        out.writeVInt(deletedRecords.size());
+        for (Map.Entry<String, List<Bytes>> table : deletedRecords.entrySet()) {
+            out.writeUTF(table.getKey());
+            out.writeVInt(table.getValue().size());
+            for (Bytes key : table.getValue()) {
+                out.writeArray(key.data);
+            }
+        }
+        out.writeVInt(newTables.size());
+        for (Table table : newTables.values()) {
+            out.writeArray(table.serialize());
+        }
+        out.writeVInt(droppedTables.size());
+        for (String table : droppedTables) {
+            out.writeUTF(table);
+        }
+    }
+
+    public static Transaction deserialize(String tableSpace, ExtendedDataInputStream in) throws IOException {
+        in.readInt(); // flags
+        long id = in.readLong();
+        Transaction t = new Transaction(id, tableSpace);
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            String table = in.readUTF();
+            int numRecords = in.readVInt();
+            List<Record> records = new ArrayList<>(numRecords);
+            for (int k = 0; k < numRecords; k++) {
+                byte[] key = in.readArray();
+                byte[] value = in.readArray();
+                records.add(new Record(Bytes.from_array(key), Bytes.from_array(value)));
+            }
+            t.changedRecords.put(table, records);
+        }
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            String table = in.readUTF();
+            int numRecords = in.readVInt();
+            List<Record> records = new ArrayList<>(numRecords);
+            for (int k = 0; k < numRecords; k++) {
+                byte[] key = in.readArray();
+                byte[] value = in.readArray();
+                records.add(new Record(Bytes.from_array(key), Bytes.from_array(value)));
+            }
+            t.newRecords.put(table, records);
+        }
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            String table = in.readUTF();
+            int numRecords = in.readVInt();
+            List<Bytes> records = new ArrayList<>(numRecords);
+            for (int k = 0; k < numRecords; k++) {
+                byte[] key = in.readArray();
+                records.add(Bytes.from_array(key));
+            }
+            t.deletedRecords.put(table, records);
+        }
+
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            byte[] data = in.readArray();
+            Table table = Table.deserialize(data);
+            t.newTables.put(table.name, table);
+        }
+
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            t.droppedTables.add(in.readUTF());
+        }
+        return t;
+
     }
 
 }
