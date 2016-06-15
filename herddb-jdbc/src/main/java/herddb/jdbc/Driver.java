@@ -19,17 +19,14 @@
  */
 package herddb.jdbc;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
 import java.sql.Connection;
-import java.sql.DriverAction;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -57,7 +54,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     public Driver() {
     }
 
-    private final Map<String, HerdDBEmbeddedDataSource> datasources = new HashMap<>();
+    private final HashMap<String, HerdDBEmbeddedDataSource> datasources = new HashMap<>();
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
@@ -95,8 +92,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
         return LOG;
     }
 
-    private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {
-        System.out.println("ensureDatasource:"+url+" "+info);
+    private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {        
         String key = url + "_" + info;
         HerdDBEmbeddedDataSource ds = datasources.get(key);
         if (ds != null) {
