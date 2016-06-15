@@ -408,8 +408,8 @@ public class TableManager implements AbstractTableManager {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
             }
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
-            log.log(entry);
-            apply(entry);
+            LogSequenceNumber pos = log.log(entry);
+            apply(pos, entry);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -490,9 +490,9 @@ public class TableManager implements AbstractTableManager {
                 throw new NullPointerException("new value cannot be null");
             }
             LogEntry entry = LogEntryFactory.update(table, key.data, newValue, transaction);
-            log.log(entry);
+            LogSequenceNumber pos = log.log(entry);
 
-            apply(entry);
+            apply(pos, entry);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -566,8 +566,8 @@ public class TableManager implements AbstractTableManager {
                 }
             }
             LogEntry entry = LogEntryFactory.delete(table, key.data, transaction);
-            log.log(entry);
-            apply(entry);
+            LogSequenceNumber pos = log.log(entry);
+            apply(pos, entry);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
@@ -580,6 +580,9 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void onTransactionCommit(Transaction transaction) throws DataStorageManagerException {
+        if (transaction == null) {
+            throw new DataStorageManagerException("transaction cannot be null");
+        }
         boolean forceFlushTableData = false;
         if (createdInTransaction > 0) {
             if (transaction.transactionId != createdInTransaction) {
@@ -589,16 +592,16 @@ public class TableManager implements AbstractTableManager {
             forceFlushTableData = true;
         }
         List<Record> changedRecords = transaction.changedRecords.get(table.name);
-        // transaction is still holding locks on each record, so we can change records
-        if (changedRecords != null) {
-            for (Record r : changedRecords) {
-                applyUpdate(r.key, r.value);
-            }
-        }
+        // transaction is still holding locks on each record, so we can change records        
         List<Record> newRecords = transaction.newRecords.get(table.name);
         if (newRecords != null) {
             for (Record record : newRecords) {
                 applyInsert(record.key, record.value);
+            }
+        }
+        if (changedRecords != null) {
+            for (Record r : changedRecords) {
+                applyUpdate(r.key, r.value);
             }
         }
         List<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
@@ -609,7 +612,7 @@ public class TableManager implements AbstractTableManager {
         }
         transaction.releaseLocksOnTable(table.name, locksManager);
         if (forceFlushTableData) {
-            LOGGER.log(Level.SEVERE, "forcing local checkpoint, table will be visible to all transactions now");
+            LOGGER.log(Level.SEVERE, "forcing local checkpoint, table "+table.name+" will be visible to all transactions now");
             checkpoint();
         }
     }
@@ -620,7 +623,8 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void apply(LogEntry entry) throws DataStorageManagerException {
+    public void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE,"applyTable "+table.name+" at "+pos+" "+entry);
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
@@ -843,7 +847,7 @@ public class TableManager implements AbstractTableManager {
             return;
         }
         pagesLock.writeLock().lock();
-        LogSequenceNumber sequenceNumber = log.getActualSequenceNumber();
+        LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
 
         try {
             /*
@@ -854,7 +858,7 @@ public class TableManager implements AbstractTableManager {
                 rows scheduled to create a new page are arranged in a new set of pages which in turn are dumped to disk
              */
             List<Bytes> recordsOnDirtyPages = new ArrayList<>();
-            LOGGER.log(Level.SEVERE, "checkpoint, flush dirtyPages, {0} pages, logpos {1}", new Object[]{dirtyPages.toString(), sequenceNumber});
+            LOGGER.log(Level.SEVERE, "checkpoint {0}, flush dirtyPages, {1} pages, logpos {2}", new Object[]{table.name, dirtyPages.toString(), sequenceNumber});
             for (Bytes key : buffer.keySet()) {
                 Long pageId = keyToPage.get(key);
                 if (dirtyPages.contains(pageId)

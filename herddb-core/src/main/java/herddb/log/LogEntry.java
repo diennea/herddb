@@ -146,7 +146,7 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" +type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + Bytes.from_array(key) + ", value=" + value + ", timestamp=" + timestamp + '}';
+        return "LogEntry{" + "type=" +type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key!=null?Bytes.from_array(key):null) + ", value=" + value + ", timestamp=" + timestamp + '}';
     }
 
 }

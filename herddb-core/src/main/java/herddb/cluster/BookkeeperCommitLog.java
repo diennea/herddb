@@ -67,6 +67,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private final String tableSpace;
     private volatile CommitFileWriter writer;
     private long currentLedgerId = 0;
+    private long lastLedgerId = -1;
     private long lastSequenceNumber = -1;
     private LedgersInfo actualLedgersList;
     private int ensemble = 1;
@@ -328,7 +329,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 try {
                     long newSequenceNumber = writer.writeEntry(edit);
                     lastSequenceNumber = newSequenceNumber;
-                    return new LogSequenceNumber(currentLedgerId, newSequenceNumber);
+                    lastLedgerId = currentLedgerId;
+                    return new LogSequenceNumber(lastLedgerId, newSequenceNumber);
                 } catch (BKException.BKLedgerClosedException closed) {
                     LOGGER.log(Level.SEVERE, "ledger has been closed, need to open a new ledger", closed);
                     Thread.sleep(1000);
@@ -374,11 +376,12 @@ public class BookkeeperCommitLog extends CommitLog {
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
         this.actualLedgersList = metadataManager.getActualLedgersList(tableSpace);
         LOGGER.log(Level.SEVERE, "Actual ledgers list:" + actualLedgersList);
+        this.lastLedgerId = snapshotSequenceNumber.ledgerId;
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
-        LOGGER.log(Level.SEVERE, "Latest snapshotSequenceNumber:" + snapshotSequenceNumber);
-        if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId)) {
+        LOGGER.log(Level.SEVERE, "recovery from latest snapshotSequenceNumber:" + snapshotSequenceNumber);
+        if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId) && !this.actualLedgersList.getActiveLedgers().isEmpty()) {
             // TODO: download snapshot from another remote broker
-            throw new FullRecoveryNeededException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + ". manual recoveryis needed (pickup a recent snapshot from a live broker please)"));
+            throw new FullRecoveryNeededException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId));
         }
         if (snapshotSequenceNumber.isStartOfTime() && !this.actualLedgersList.getActiveLedgers().isEmpty() && !this.actualLedgersList.getActiveLedgers().contains(this.actualLedgersList.getFirstLedger())) {
             throw new FullRecoveryNeededException(new Exception("Local data is absent, and actual ledger list " + this.actualLedgersList.getActiveLedgers() + " does not contain first ledger of ever: " + this.actualLedgersList.getFirstLedger()));
@@ -406,7 +409,8 @@ public class BookkeeperCommitLog extends CommitLog {
                         LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", starting from entry " + first);
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
-                    LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first, " lastAddConfirmed=" + lastAddConfirmed);
+                    LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
+
                     final int BATCH_SIZE = 10000;
                     if (lastAddConfirmed > 0) {
 
@@ -418,40 +422,54 @@ public class BookkeeperCommitLog extends CommitLog {
                             }
                             b = end + 1;
                             double percent = ((start - first) * 100.0 / (lastAddConfirmed + 1));
+                            int entriesToRead = (int) (end - start);
                             LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %)", new Object[]{start, end, percent});
                             long _start = System.currentTimeMillis();
-                            CountDownLatch latch = new CountDownLatch((int) (end - start));
-                            Holder<Exception> error = new Holder<>();
+                            CountDownLatch latch = new CountDownLatch(entriesToRead);
+                            Holder<Throwable> error = new Holder<>();
                             long size = end - start;
                             handle.asyncReadEntries(start, end, new AsyncCallback.ReadCallback() {
                                 @Override
                                 public void readComplete(int code, LedgerHandle lh, Enumeration<LedgerEntry> seq, Object o) {
-                                    LOGGER.log(Level.SEVERE, "readComplete" + code + " " + lh);
-                                    if (code != Code.OK) {
-                                        error.value = BKException.create(code);
-                                        LOGGER.log(Level.SEVERE, "readComplete error:" + error);
-                                        for (long k = 0; k < size; k++) {
+                                    try {
+                                        LOGGER.log(Level.SEVERE, "readComplete " + code + " " + lh);
+                                        if (code != Code.OK) {
+                                            error.value = BKException.create(code);
+                                            LOGGER.log(Level.SEVERE, "readComplete error:" + error);
+                                            for (long k = 0; k < size; k++) {
+                                                latch.countDown();
+                                            }
+                                            return;
+                                        }
+                                        int localEntryCount = 0;
+                                        while (seq.hasMoreElements()) {
+                                            LedgerEntry entry = seq.nextElement();
+                                            long entryId = entry.getEntryId();
+                                            LogSequenceNumber number = new LogSequenceNumber(ledgerId, entryId);
+                                            LogEntry statusEdit = LogEntry.deserialize(entry.getEntry());
+                                            lastLedgerId = ledgerId;
+                                            lastSequenceNumber = entryId;
+                                            if (number.after(snapshotSequenceNumber)) {
+                                                LOGGER.log(Level.SEVERE, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}", new Object[]{number, statusEdit});
+                                                consumer.accept(number, statusEdit);
+                                            } else {
+                                                LOGGER.log(Level.SEVERE, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
+                                            }
                                             latch.countDown();
+                                            localEntryCount++;
                                         }
-                                        return;
-                                    }
-                                    while (seq.hasMoreElements()) {
-                                        LedgerEntry entry = seq.nextElement();
-                                        LogSequenceNumber number = new LogSequenceNumber(ledgerId, entry.getEntryId());
-                                        LogEntry statusEdit = LogEntry.deserialize(entry.getEntry());
-                                        if (number.after(snapshotSequenceNumber)) {
-                                            LOGGER.log(Level.FINEST, "RECOVER ENTRY {0}, {1}", new Object[]{number, statusEdit});
-                                            consumer.accept(number, statusEdit);
-                                        } else {
-                                            LOGGER.log(Level.FINEST, "SKIP ENTRY {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
-                                        }
-                                        latch.countDown();
+                                        LOGGER.log(Level.SEVERE, "read " + localEntryCount + " entries from ledger " + ledgerId + ", expected " + entriesToRead);
+                                    } catch (Throwable t) {
+                                        LOGGER.log(Level.SEVERE, "error while processing data: " + t, t);
+                                        error.value = t;
                                     }
                                 }
                             }, null);
+                            LOGGER.log(Level.SEVERE, "waiting for " + entriesToRead + " entries to be read from ledger " + ledgerId);
                             latch.await();
+                            LOGGER.log(Level.SEVERE, "finished waiting for " + entriesToRead + " entries to be read from ledger " + ledgerId);
                             if (error.value != null) {
-                                throw error.value;
+                                throw new RuntimeException(error.value);
                             }
                             long _stop = System.currentTimeMillis();
                             LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %) read time {3}", new Object[]{start, end, percent, (_stop - _start) + " ms"});
@@ -481,21 +499,24 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public void dropOldLedgers() throws LogNotAvailableException {
+    public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
         if (ledgersRetentionPeriod > 0) {
+            LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber " + lastCheckPointSequenceNumber + ", ledgersRetentionPeriod:" + ledgersRetentionPeriod + " ,lastLedgerId: " + lastLedgerId + ", currentLedgerId: " + currentLedgerId);
             long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
             List<Long> oldLedgers;
             writeLock.lock();
             try {
                 oldLedgers = actualLedgersList.getOldLedgers(min_timestamp);
-                oldLedgers.remove(this.currentLedgerId);
             } finally {
                 writeLock.unlock();
             }
+            
+            LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: " + currentLedgerId + ", dropping ledgers before "+new java.sql.Timestamp(min_timestamp) + ": " + oldLedgers);
+            oldLedgers.remove(this.currentLedgerId);
+            oldLedgers.remove(this.lastLedgerId);
             if (oldLedgers.isEmpty()) {
                 return;
             }
-            LOGGER.log(Level.SEVERE, "currentLedgerId: " + currentLedgerId + ", dropping ledgers before ", new java.sql.Timestamp(min_timestamp) + ": " + oldLedgers);
             for (long ledgerId : oldLedgers) {
                 writeLock.lock();
                 try {
@@ -592,9 +613,9 @@ public class BookkeeperCommitLog extends CommitLog {
                         LogEntry statusEdit = LogEntry.deserialize(entryData);
                         LOGGER.log(Level.SEVERE, "" + tableSpace + " followentry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
                         LogSequenceNumber number = new LogSequenceNumber(previous, entryId);
-                        consumer.accept(number, statusEdit);
                         lastSequenceNumber = number.offset;
-                        currentLedgerId = number.ledgerId;
+                        lastLedgerId = number.ledgerId;
+                        consumer.accept(number, statusEdit);
                     }
                 } finally {
                     try {
@@ -614,8 +635,8 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public LogSequenceNumber getActualSequenceNumber() {
-        return new LogSequenceNumber(currentLedgerId, lastSequenceNumber);
+    public LogSequenceNumber getLastSequenceNumber() {
+        return new LogSequenceNumber(lastLedgerId, lastSequenceNumber);
     }
 
 }

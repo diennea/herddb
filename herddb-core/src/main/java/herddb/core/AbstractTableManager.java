@@ -21,6 +21,7 @@ package herddb.core;
 
 import herddb.core.stats.TableManagerStats;
 import herddb.log.LogEntry;
+import herddb.log.LogSequenceNumber;
 import herddb.model.DDLException;
 import herddb.model.DataScanner;
 import herddb.model.Record;
@@ -59,7 +60,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void onTransactionCommit(Transaction transaction) throws DataStorageManagerException;
 
-    void apply(LogEntry entry) throws DataStorageManagerException;
+    void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException;
 
     void dump(Consumer<Record> records) throws DataStorageManagerException;
 

@@ -23,6 +23,7 @@ import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -386,10 +387,10 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
-
-        writeCheckpointSequenceNumber(tableSpace, sequenceNumber);
-
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {       
+        if (sequenceNumber.isStartOfTime() && !tables.isEmpty()) {
+            throw new DataStorageManagerException("impossibile to write a non empty table list at start-of-time");
+        }
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
@@ -434,7 +435,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void dropTable(String tablespace, String tableName) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "dropTable " + tablespace + "." + tableName);
+        LOGGER.log(Level.SEVERE, "dropTable {0}.{1}", new Object[]{tablespace, tableName});
         Path tableDir = getTableDirectory(tablespace, tableName);
         try {
             deleteDirectory(tableDir);
@@ -554,4 +555,15 @@ public class FileDataStorageManager extends DataStorageManager {
         return new FileRecordSetFactory(tmpDirectory, swapThreshold);
     }
 
+    @Override
+    public List<Transaction> loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, List<Transaction> transactions) throws DataStorageManagerException {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    
 }

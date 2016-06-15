@@ -166,44 +166,37 @@ public class TableSpaceManager {
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceName);
         actualLogSequenceNumber = logSequenceNumber;
-        LOGGER.log(Level.SEVERE, "recover, logSequenceNumber from DataStorage: " + logSequenceNumber);
+        LOGGER.log(Level.SEVERE, nodeId+" recover " + tableSpaceName + ", logSequenceNumber from DataStorage: " + logSequenceNumber);
         List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceName);
-        LOGGER.log(Level.SEVERE, "tablesAtBoot", tablesAtBoot.stream().map(t -> {
+        LOGGER.log(Level.SEVERE, nodeId+" tablesAtBoot", tablesAtBoot.stream().map(t -> {
             return t.name;
         }).collect(Collectors.joining()));
         for (Table table : tablesAtBoot) {
             bootTable(table, 0);
         }
 
-        LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
+        LOGGER.log(Level.SEVERE, nodeId+ " recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
 
         try {
-            log.recovery(logSequenceNumber, new BiConsumer<LogSequenceNumber, LogEntry>() {
-                @Override
-                public void accept(LogSequenceNumber t, LogEntry u) {
-                    if (LOGGER.isLoggable(Level.FINEST)) {
-                        LOGGER.log(Level.FINEST, "recovery {0} {1}", new Object[]{t, u});
-                    }
-                    try {
-                        apply(t, u);
-                    } catch (Exception err) {
-                        throw new RuntimeException(err);
-                    }
-                }
-            }, false);
-            checkpoint();
-            return;
+            log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);            
         } catch (FullRecoveryNeededException fullRecoveryNeeded) {
-            LOGGER.log(Level.SEVERE, "full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+            LOGGER.log(Level.SEVERE, nodeId+ " full recovery of data is needed for tableSpace " + tableSpaceName, fullRecoveryNeeded);
+            downloadTableSpaceData();
+            log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);            
         }
-        downloadTableSpaceData();
-        log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
+        checkpoint();
 
+    }
+
+    void recoverForLeadership() throws DataStorageManagerException, LogNotAvailableException {
+        actualLogSequenceNumber = log.getLastSequenceNumber();
+        LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + actualLogSequenceNumber + ", with fencing");
+        log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), true);
     }
 
     void apply(LogSequenceNumber position, LogEntry entry) throws DataStorageManagerException, DDLException {
         this.actualLogSequenceNumber = position;
-        LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
+        LOGGER.log(Level.SEVERE, "apply entry {0} {1}", new Object[]{position, entry});
         switch (entry.type) {
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
@@ -214,6 +207,9 @@ public class TableSpaceManager {
             case LogEntryType.ROLLBACKTRANSACTION: {
                 long id = entry.transactionId;
                 Transaction transaction = transactions.get(id);
+                if (transaction == null) {
+                    throw new DataStorageManagerException("invalid transaction id "+id);
+                }
                 List<AbstractTableManager> managers;
                 try {
                     generalLock.writeLock().lock();
@@ -237,6 +233,9 @@ public class TableSpaceManager {
             case LogEntryType.COMMITTRANSACTION: {
                 long id = entry.transactionId;
                 Transaction transaction = transactions.get(id);
+                if (transaction == null) {
+                    throw new DataStorageManagerException("invalid transaction id "+id);
+                }
                 List<AbstractTableManager> managers;
                 try {
                     generalLock.writeLock().lock();
@@ -311,21 +310,25 @@ public class TableSpaceManager {
             break;
         }
 
-        if (entry.tableName != null && entry.type != LogEntryType.DROP_TABLE) {
+        if (entry.tableName != null
+                && entry.type != LogEntryType.CREATE_TABLE
+                && entry.type != LogEntryType.ALTER_TABLE
+                && entry.type != LogEntryType.DROP_TABLE) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
-            tableManager.apply(entry);
+            tableManager.apply(position, entry);
         }
 
     }
 
     private void writeTablesOnDataStorageManager() throws DataStorageManagerException {
+        LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
         List<Table> tablelist = new ArrayList<>();
         for (AbstractTableManager tableManager : tables.values()) {
             if (!tableManager.isSystemTable()) {
                 tablelist.add(tableManager.getTable());
             }
         }
-        dataStorageManager.writeTables(tableSpaceName, actualLogSequenceNumber, tablelist);
+        dataStorageManager.writeTables(tableSpaceName, logSequenceNumber, tablelist);
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
@@ -392,7 +395,7 @@ public class TableSpaceManager {
                 }
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
                 LOGGER.log(Level.SEVERE, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
-                checkpoint();
+                
 
             } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
                 throw new DataStorageManagerException(networkError);
@@ -520,8 +523,9 @@ public class TableSpaceManager {
 
             Map<String, Object> startData = new HashMap<>();
             startData.put("command", "start");
-            startData.put("ledgerid", actualLogSequenceNumber.ledgerId);
-            startData.put("offset", actualLogSequenceNumber.offset);
+            LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
+            startData.put("ledgerid", logSequenceNumber.ledgerId);
+            startData.put("offset", logSequenceNumber.offset);
             Message response_to_start = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, startData), timeout);
             if (response_to_start.type != Message.TYPE_ACK) {
                 LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.parameters);
@@ -645,6 +649,10 @@ public class TableSpaceManager {
         if (virtual) {
 
         } else {
+            
+            LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1}", new Object[]{nodeId, tableSpaceName});
+            recoverForLeadership();
+            
             // every pending transaction MUST be rollback back
             List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
             log.startWriting();
@@ -805,8 +813,13 @@ public class TableSpaceManager {
         }
         generalLock.writeLock().lock();
         try {
+            LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
 
-            LOGGER.log(Level.SEVERE, nodeId + " checkpoint at " + actualLogSequenceNumber);
+            if (logSequenceNumber.isStartOfTime()) {
+                LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
+                return;
+            }
+            LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber);
             if (actualLogSequenceNumber == null) {
                 throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
             }
@@ -817,8 +830,11 @@ public class TableSpaceManager {
                 }
             }
             writeTablesOnDataStorageManager();
-            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceName, actualLogSequenceNumber);
-            log.dropOldLedgers();
+            
+            dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceName, logSequenceNumber, transactions.values());
+            
+            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceName, logSequenceNumber);
+            log.dropOldLedgers(logSequenceNumber);
 
         } finally {
             generalLock.writeLock().unlock();

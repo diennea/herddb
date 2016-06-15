@@ -48,7 +48,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
             }
 
             @Override
-            public LogSequenceNumber getActualSequenceNumber() {
+            public LogSequenceNumber getLastSequenceNumber() {
                 return new LogSequenceNumber(1, offset.get());
             }
 

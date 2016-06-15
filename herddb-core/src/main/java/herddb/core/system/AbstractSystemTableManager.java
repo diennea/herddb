@@ -25,6 +25,7 @@ import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
 import herddb.log.LogEntry;
+import herddb.log.LogSequenceNumber;
 import herddb.model.DDLException;
 import herddb.model.DataScanner;
 import herddb.model.InvalidTableException;
@@ -123,7 +124,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void apply(LogEntry entry) throws DataStorageManagerException {
+    public void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException {
     }
 
     @Override

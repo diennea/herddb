@@ -77,7 +77,7 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
-        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());        
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
@@ -177,8 +177,8 @@ public class MultiServerTest {
         }
     }
 
-    @Test    
-    public void test_leader_offline_log_no_more_available() throws Exception {
+    @Test
+    public void test_leader_online_log_no_more_available() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -194,15 +194,15 @@ public class MultiServerTest {
                 .set(ServerConfiguration.PROPERTY_NODEID, "server2")
                 .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
                 .set(ServerConfiguration.PROPERTY_PORT, 7868);
-
+        Table table = Table.builder()
+                .name("t1")
+                .column("c", ColumnTypes.INTEGER)
+                .primaryKey("c")
+                .build();
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
-            Table table = Table.builder()
-                    .name("t1")
-                    .column("c", ColumnTypes.INTEGER)
-                    .primaryKey("c")
-                    .build();
+
             server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -221,13 +221,33 @@ public class MultiServerTest {
                 LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", TableSpace.DEFAULT);
                 assertEquals(2, ledgersList.getActiveLedgers().size());
             }
-            // let the first ledger be dropped out
-            Thread.sleep(1000);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);            
             server_1.getManager().checkpoint();
+        }
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
             {
                 ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
                 LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", TableSpace.DEFAULT);
-                assertEquals(1, ledgersList.getActiveLedgers().size());
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);            
+             {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", TableSpace.DEFAULT);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().checkpoint();
+        }
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", TableSpace.DEFAULT);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+                assertTrue(!ledgersList.getActiveLedgers().contains(ledgersList.getFirstLedger()));
             }
 
             // data will be downloaded from the other server

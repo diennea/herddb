@@ -23,6 +23,7 @@ import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import herddb.utils.Bytes;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +109,8 @@ public abstract class DataStorageManager {
      * @throws DataStorageManagerException
      */
     public abstract List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException;
+    
+    public abstract List<Transaction> loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException;
 
     /**
      * Writes tables metadata
@@ -120,7 +123,9 @@ public abstract class DataStorageManager {
     public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException;
 
     public abstract void writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
-
+    
+    public abstract void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, List<Transaction> transactions) throws DataStorageManagerException;    
+    
     public abstract LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException;
 
     public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;

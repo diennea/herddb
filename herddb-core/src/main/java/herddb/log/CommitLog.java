@@ -29,7 +29,7 @@ import java.util.function.BiConsumer;
  *
  * @author enrico.olivelli
  */
-public abstract class CommitLog {
+public abstract class CommitLog implements AutoCloseable {
 
     /**
      * Log a single entry and returns only when the entry has been safely
@@ -62,17 +62,18 @@ public abstract class CommitLog {
     
     public abstract void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException;
 
-    public abstract LogSequenceNumber getActualSequenceNumber();
+    public abstract LogSequenceNumber getLastSequenceNumber();
 
     public abstract void startWriting() throws LogNotAvailableException;
 
     public abstract void clear() throws LogNotAvailableException;
 
+    @Override
     public abstract void close() throws LogNotAvailableException;
 
     public abstract boolean isClosed();
 
-    public void dropOldLedgers() throws LogNotAvailableException {
+    public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
 
     }
 

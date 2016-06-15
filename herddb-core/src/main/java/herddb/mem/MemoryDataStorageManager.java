@@ -23,6 +23,7 @@ import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -199,6 +200,15 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public RecordSetFactory createRecordSetFactory() {
         return new MemoryRecordSetFactory();
+    }
+
+    @Override
+    public List<Transaction> loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, List<Transaction> transactions) throws DataStorageManagerException {
     }
 
 }

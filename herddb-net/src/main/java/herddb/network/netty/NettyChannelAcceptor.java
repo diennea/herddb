@@ -233,8 +233,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
             b.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
                     .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128)
-                    .childOption(ChannelOption.SO_KEEPALIVE, true);
+                    .option(ChannelOption.SO_BACKLOG, 128);                    
 
             ChannelFuture f = b.bind(address).sync();
             this.channel = f.channel();
@@ -245,8 +244,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
             b_local.group(bossGroup, workerGroup)
                     .channel(LocalServerChannel.class)
                     .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128)
-                    .childOption(ChannelOption.SO_KEEPALIVE, true);
+                    .option(ChannelOption.SO_BACKLOG, 128);                    
 
             String hostAddress = NetworkUtils.getAddress(address);
             LocalServerRegistry.registerLocalServer(hostAddress, port, ssl);
