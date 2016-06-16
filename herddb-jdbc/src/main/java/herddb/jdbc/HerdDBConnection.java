@@ -33,6 +33,7 @@ import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLWarning;
 import java.sql.SQLXML;
 import java.sql.Savepoint;
@@ -86,24 +87,22 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public Statement createStatement() throws SQLException {
-        ensureTransaction();
         return new HerdDBStatement(this);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
-        ensureTransaction();
         return new HerdDBPreparedStatement(this, sql);
     }
 
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public String nativeSQL(String sql) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return sql;
     }
 
     @Override
@@ -180,17 +179,17 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+
     }
 
     @Override
     public boolean isReadOnly() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return false;
     }
 
     @Override
     public void setCatalog(String catalog) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+
     }
 
     @Override
@@ -222,12 +221,12 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return createStatement();
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return prepareStatement(sql);
     }
 
     @Override
@@ -242,37 +241,37 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public void setHoldability(int holdability) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public int getHoldability() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public Savepoint setSavepoint() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public Savepoint setSavepoint(String name) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public void rollback(Savepoint savepoint) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public void releaseSavepoint(Savepoint savepoint) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
@@ -287,7 +286,7 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        throw new SQLFeatureNotSupportedException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
@@ -327,27 +326,29 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public boolean isValid(int timeout) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return true;
     }
+
+    private Properties clientInfo = new Properties();
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        clientInfo.put(name, value);
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        clientInfo.putAll(properties);
     }
 
     @Override
     public String getClientInfo(String name) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return clientInfo.getProperty(name);
     }
 
     @Override
     public Properties getClientInfo() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return clientInfo;
     }
 
     @Override
@@ -377,12 +378,12 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return 0;
     }
 
     @Override
