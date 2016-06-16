@@ -47,7 +47,7 @@ public class FileCommitLogTest {
         final long _startWrite = System.currentTimeMillis();
         try (CommitLog log = manager.createCommitLog("tt");) {
             log.startWriting();
-            for (int i = 0; i < 100000; i++) {
+            for (int i = 0; i < 1_000_000; i++) {
                 log.log(LogEntryFactory.beginTransaction("tt", 0), false);
                 writeCount++;
             }

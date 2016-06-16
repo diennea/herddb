@@ -43,7 +43,7 @@ public class FileCommitLogManager extends CommitLogManager {
         try {
             Path folder = baseDirectory.resolve(tableSpace + ".txlog");
             Files.createDirectories(folder);
-            return new FileCommitLog(folder, 1024 * 1024);
+            return new FileCommitLog(folder, 64 * 1024 * 1024);
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
