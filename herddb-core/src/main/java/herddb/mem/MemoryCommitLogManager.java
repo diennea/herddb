@@ -38,10 +38,10 @@ public class MemoryCommitLogManager extends CommitLogManager {
     public CommitLog createCommitLog(String tableSpace) {
         return new CommitLog() {
 
-            AtomicLong offset = new AtomicLong(0);
+            AtomicLong offset = new AtomicLong(-1);
 
             @Override
-            public LogSequenceNumber log(LogEntry entry) throws LogNotAvailableException {
+            public LogSequenceNumber log(LogEntry entry, boolean synch) throws LogNotAvailableException {
                 // NOOP
                 entry.serialize();
                 return new LogSequenceNumber(1, offset.incrementAndGet());

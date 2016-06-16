@@ -270,7 +270,7 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public List<LogSequenceNumber> log(List<LogEntry> edits) throws LogNotAvailableException {
+    public List<LogSequenceNumber> log(List<LogEntry> edits, boolean synch) throws LogNotAvailableException {
         if (edits.isEmpty()) {
             return Collections.emptyList();
         }
@@ -315,7 +315,7 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public LogSequenceNumber log(LogEntry edit) throws LogNotAvailableException {
+    public LogSequenceNumber log(LogEntry edit, boolean synch) throws LogNotAvailableException {
 //        LOGGER.log(Level.SEVERE, "log {0}", new Object[]{edit});
         while (true) {
             if (closed) {

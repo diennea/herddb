@@ -52,54 +52,61 @@ public class LogEntry {
     }
 
     public byte[] serialize() {
-        try {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(out)) {
-                doo.writeLong(timestamp);
-                doo.writeShort(type);
-                doo.writeLong(transactionId);
-                doo.writeUTF(tableSpace);
-                switch (type) {
-                    case LogEntryType.UPDATE:
-                        doo.writeUTF(tableName);
-                        doo.writeArray(key);
-                        doo.writeArray(value);
-                        break;
-                    case LogEntryType.INSERT:
-                        doo.writeUTF(tableName);
-                        doo.writeArray(key);
-                        doo.writeArray(value);
-                        break;
-                    case LogEntryType.DELETE:
-                        doo.writeUTF(tableName);
-                        doo.writeArray(key);
-                        break;
-                    case LogEntryType.CREATE_TABLE:
-                    case LogEntryType.ALTER_TABLE:
-                        // value contains the table definition
-                        doo.writeArray(value);
-                        break;
-                    case LogEntryType.DROP_TABLE:
-                        doo.writeUTF(tableName);
-                        break;
-                    case LogEntryType.BEGINTRANSACTION:
-                    case LogEntryType.COMMITTRANSACTION:
-                    case LogEntryType.ROLLBACKTRANSACTION:
-                        break;
-                    default:
-                        throw new IllegalArgumentException("unsupported type " + type);
-                }
-            }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(out)) {
+            serialize(doo);
             return out.toByteArray();
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
     }
 
+    public int serialize(ExtendedDataOutputStream doo) throws IOException {
+        doo.writeLong(timestamp); // 8
+        doo.writeShort(type);  // 2
+        doo.writeLong(transactionId); // 8
+        doo.writeUTF(tableSpace); // var
+        switch (type) {
+            case LogEntryType.UPDATE:
+                doo.writeUTF(tableName);
+                doo.writeArray(key);
+                doo.writeArray(value);
+                return 18 + key.length + value.length + tableSpace.length() + tableName.length();
+            case LogEntryType.INSERT:
+                doo.writeUTF(tableName);
+                doo.writeArray(key);
+                doo.writeArray(value);
+                return 18 + key.length + value.length + tableSpace.length() + tableName.length();
+            case LogEntryType.DELETE:
+                doo.writeUTF(tableName);
+                doo.writeArray(key);
+                return 18 + key.length + tableSpace.length() + tableName.length();
+            case LogEntryType.CREATE_TABLE:
+            case LogEntryType.ALTER_TABLE:
+                // value contains the table definition
+                doo.writeUTF(tableName);
+                doo.writeArray(value);
+                return 18 + value.length + tableSpace.length() + tableName.length();
+            case LogEntryType.DROP_TABLE:
+                doo.writeUTF(tableName);
+                return 18 + tableSpace.length() + tableName.length();
+            case LogEntryType.BEGINTRANSACTION:
+            case LogEntryType.COMMITTRANSACTION:
+            case LogEntryType.ROLLBACKTRANSACTION:
+                return 18 + tableSpace.length();
+            default:
+                throw new IllegalArgumentException("unsupported type " + type);
+        }
+    }
+
     public static LogEntry deserialize(byte[] data) {
+        ByteArrayInputStream in = new ByteArrayInputStream(data);
+        ExtendedDataInputStream dis = new ExtendedDataInputStream(in);
+        return deserialize(dis);
+    }
+
+    public static LogEntry deserialize(ExtendedDataInputStream dis) {
         try {
-            ByteArrayInputStream in = new ByteArrayInputStream(data);
-            ExtendedDataInputStream dis = new ExtendedDataInputStream(in);
             long timestamp = dis.readLong();
             short type = dis.readShort();
             long transactionId = dis.readLong();
@@ -129,6 +136,7 @@ public class LogEntry {
                 case LogEntryType.CREATE_TABLE:
                 case LogEntryType.ALTER_TABLE:
                     // value contains the table definition                                        
+                    tableName = dis.readUTF();
                     value = dis.readArray();
                     break;
                 case LogEntryType.BEGINTRANSACTION:
@@ -146,7 +154,7 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" +type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key!=null?Bytes.from_array(key):null) + ", value=" + value + ", timestamp=" + timestamp + '}';
+        return "LogEntry{" + "type=" + type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key != null ? Bytes.from_array(key) : null) + ", value=" + value + ", timestamp=" + timestamp + '}';
     }
 
 }

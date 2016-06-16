@@ -408,7 +408,7 @@ public class TableManager implements AbstractTableManager {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
             }
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
-            LogSequenceNumber pos = log.log(entry);
+            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
@@ -490,7 +490,7 @@ public class TableManager implements AbstractTableManager {
                 throw new NullPointerException("new value cannot be null");
             }
             LogEntry entry = LogEntryFactory.update(table, key.data, newValue, transaction);
-            LogSequenceNumber pos = log.log(entry);
+            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
 
             apply(pos, entry);
             return new DMLStatementExecutionResult(1, key);
@@ -566,7 +566,7 @@ public class TableManager implements AbstractTableManager {
                 }
             }
             LogEntry entry = LogEntryFactory.delete(table, key.data, transaction);
-            LogSequenceNumber pos = log.log(entry);
+            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry);
             return new DMLStatementExecutionResult(1, key);
         } catch (LogNotAvailableException err) {
@@ -612,7 +612,7 @@ public class TableManager implements AbstractTableManager {
         }
         transaction.releaseLocksOnTable(table.name, locksManager);
         if (forceFlushTableData) {
-            LOGGER.log(Level.SEVERE, "forcing local checkpoint, table "+table.name+" will be visible to all transactions now");
+            LOGGER.log(Level.SEVERE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
             checkpoint();
         }
     }
@@ -623,7 +623,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException {        
+    public void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records

@@ -36,10 +36,11 @@ public abstract class CommitLog implements AutoCloseable {
      * written to the log
      *
      * @param entry
+     * @param synch
      * @return 
      * @throws LogNotAvailableException
      */
-    public abstract LogSequenceNumber log(LogEntry entry) throws LogNotAvailableException;
+    public abstract LogSequenceNumber log(LogEntry entry, boolean synch) throws LogNotAvailableException;
 
     /**
      * Log a batch of entries and returns only when the batch has been safely
@@ -47,13 +48,14 @@ public abstract class CommitLog implements AutoCloseable {
      * possible to know which entries have been written.
      *
      * @param entries
+     * @param synch
      * @return
      * @throws LogNotAvailableException
      */
-    public List<LogSequenceNumber> log(List<LogEntry> entries) throws LogNotAvailableException {
+    public List<LogSequenceNumber> log(List<LogEntry> entries, boolean synch) throws LogNotAvailableException {
         List<LogSequenceNumber> res = new ArrayList<>();
         for (LogEntry entry : entries) {
-            res.add(log(entry));
+            res.add(log(entry, false));
         }
         return res;
     }

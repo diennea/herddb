@@ -29,6 +29,7 @@ import herddb.utils.FileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -69,41 +70,35 @@ public class FileCommitLog extends CommitLog {
 
         ExtendedDataOutputStream out;
         Path filename;
+        FileOutputStream fOut;
 
         private CommitFileWriter(long ledgerId) throws IOException {
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
             LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
-            this.out = new ExtendedDataOutputStream(
-                    new SimpleBufferedOutputStream(
-                            Files.newOutputStream(filename, StandardOpenOption.CREATE_NEW, StandardOpenOption.DSYNC)
-                    )
-            );
+            this.fOut = new FileOutputStream(filename.toFile(), false);
+            this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(this.fOut));
             writtenBytes = 0;
         }
 
-        public void writeEntry(long seqnumber, LogEntry edit) throws IOException {
-            byte[] serialize = edit.serialize();
+        public void writeEntry(long seqnumber, LogEntry edit, boolean synch) throws IOException {
+
             this.out.writeByte(ENTRY_START);
             this.out.writeLong(seqnumber);
-            this.out.writeArray(serialize);
+            int written = edit.serialize(this.out);
             this.out.writeByte(ENTRY_END);
-            this.out.flush();
-            // this is an approximation, because varint is 'var'
-            writtenBytes += (1 + 8 + 4 + serialize.length + 1);
-        }
-
-        public void flush() throws LogNotAvailableException {
-            try {
+            if (synch) {
                 this.out.flush();
-            } catch (IOException err) {
-                throw new LogNotAvailableException(err);
+                this.fOut.getFD().sync();
             }
+            writtenBytes += (1 + 8 + written + 1);
         }
 
+        @Override
         public void close() throws LogNotAvailableException {
             try {
                 out.close();
+                fOut.close();
             } catch (IOException err) {
                 throw new LogNotAvailableException(err);
             }
@@ -131,7 +126,7 @@ public class FileCommitLog extends CommitLog {
             this.ledgerId = ledgerId;
             Path filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION);
             // in case of IOException the stream is not opened, not need to close it
-            this.in = new ExtendedDataInputStream(new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ),64*1024));
+            this.in = new ExtendedDataInputStream(new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ), 64 * 1024));
         }
 
         public LogEntryWithSequenceNumber nextEntry() throws IOException {
@@ -145,12 +140,12 @@ public class FileCommitLog extends CommitLog {
                 throw new IOException("corrupted txlog file");
             }
             long seqNumber = this.in.readLong();
-            byte[] data = this.in.readArray();
+            LogEntry edit = LogEntry.deserialize(this.in);
             int entryEnd = this.in.readByte();
             if (entryEnd != ENTRY_END) {
                 throw new IOException("corrupted txlog file");
             }
-            LogEntry edit = LogEntry.deserialize(data);
+
             return new LogEntryWithSequenceNumber(new LogSequenceNumber(ledgerId, seqNumber), edit);
         }
 
@@ -185,15 +180,15 @@ public class FileCommitLog extends CommitLog {
     }
 
     @Override
-    public LogSequenceNumber log(LogEntry edit) throws LogNotAvailableException {
-        LOGGER.log(Level.SEVERE,"log "+edit);
+    public LogSequenceNumber log(LogEntry edit, boolean synch) throws LogNotAvailableException {
+        LOGGER.log(Level.SEVERE, "log " + edit);
         writeLock.lock();
         try {
             if (writer == null) {
                 throw new LogNotAvailableException(new Exception("not yet writable"));
             }
             long newSequenceNumber = ++lastSequenceNumber;
-            writer.writeEntry(newSequenceNumber, edit);
+            writer.writeEntry(newSequenceNumber, edit, synch);
             if (writtenBytes > maxLogFileSize) {
                 openNewLedger();
             }
@@ -203,6 +198,17 @@ public class FileCommitLog extends CommitLog {
         } finally {
             writeLock.unlock();
         }
+    }
+
+    @Override
+    public List<LogSequenceNumber> log(List<LogEntry> entries, boolean synch) throws LogNotAvailableException {
+        List<LogSequenceNumber> res = new ArrayList<>();
+        int size = entries.size();
+        for (int i = 0; i < size; i++) {
+            boolean synchLast = i == size - 1;
+            res.add(log(entries.get(i), synchLast));
+        }
+        return res;
     }
 
     @Override
@@ -239,7 +245,7 @@ public class FileCommitLog extends CommitLog {
                         } else {
                             LOGGER.log(Level.FINE, "SKIP ENTRY {0}, {1}", new Object[]{n.logSequenceNumber, n.entry});
                         }
-                        n = reader.nextEntry();                        
+                        n = reader.nextEntry();
                     }
                 }
             }

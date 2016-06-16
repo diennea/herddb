@@ -48,7 +48,7 @@ public class FileCommitLogTest {
         try (CommitLog log = manager.createCommitLog("tt");) {
             log.startWriting();
             for (int i = 0; i < 100000; i++) {
-                log.log(LogEntryFactory.beginTransaction("tt", 0));
+                log.log(LogEntryFactory.beginTransaction("tt", 0), false);
                 writeCount++;
             }
         }

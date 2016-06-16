@@ -456,7 +456,7 @@ public class TableSpaceManager {
         }
         LogEntry entry = LogEntryFactory.alterTable(newTable, null);
         try {
-            LogSequenceNumber pos = log.log(entry);
+            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -677,7 +677,7 @@ public class TableSpaceManager {
                 LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
                 LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
                 // let followers see the rollback on the log
-                LogSequenceNumber pos = log.log(rollback);
+                LogSequenceNumber pos = log.log(rollback, true);
                 apply(pos, rollback);
             }
         }
@@ -748,7 +748,7 @@ public class TableSpaceManager {
             LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
             LogSequenceNumber pos;
             try {
-                pos = log.log(entry);
+                pos = log.log(entry, entry.transactionId <= 0);
             } catch (LogNotAvailableException ex) {
                 throw new StatementExecutionException(ex);
             }
@@ -775,7 +775,7 @@ public class TableSpaceManager {
             LogEntry entry = LogEntryFactory.dropTable(statement.getTableSpace(), statement.getTable(), transaction);
             LogSequenceNumber pos;
             try {
-                pos = log.log(entry);
+                pos = log.log(entry, entry.transactionId <= 0);
             } catch (LogNotAvailableException ex) {
                 throw new StatementExecutionException(ex);
             }
@@ -864,7 +864,7 @@ public class TableSpaceManager {
         LogEntry entry = LogEntryFactory.beginTransaction(tableSpaceName, id);
         LogSequenceNumber pos;
         try {
-            pos = log.log(entry);
+            pos = log.log(entry, false);
             apply(pos, entry);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -879,9 +879,8 @@ public class TableSpaceManager {
             throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
         }
         LogEntry entry = LogEntryFactory.rollbackTransaction(tableSpaceName, tx.transactionId);
-        LogSequenceNumber pos;
         try {
-            pos = log.log(entry);
+            LogSequenceNumber pos = log.log(entry, true);
             apply(pos, entry);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -898,7 +897,7 @@ public class TableSpaceManager {
         LogEntry entry = LogEntryFactory.commitTransaction(tableSpaceName, tx.transactionId);
 
         try {
-            LogSequenceNumber pos = log.log(entry);
+            LogSequenceNumber pos = log.log(entry, true);
             apply(pos, entry);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
