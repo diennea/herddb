@@ -50,7 +50,7 @@ public class ClientConfiguration {
     public static final String PROPERTY_BASEDIR = "client.baseDir";
     public static final String PROPERTY_TIMEOUT = "client.timeout";
     public static final String PROPERTY_CLIENTID = "client.clientId";
-    public static final long PROPERTY_TIMEOUT_DEFAULT = 1000L * 60 * 5;
+    public static final int PROPERTY_TIMEOUT_DEFAULT = 1000 * 60 * 5;
     public static final String PROPERTY_CLIENTID_DEFAULT = "localhost";
 
     public static final String PROPERTY_MODE = "client.mode";

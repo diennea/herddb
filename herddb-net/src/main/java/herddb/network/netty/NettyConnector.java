@@ -25,7 +25,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.EventLoopGroup;
 import io.netty.channel.local.LocalAddress;
 import io.netty.channel.local.LocalChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -36,158 +35,81 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.xml.ws.Holder;
 
 /**
  * Worker-side connector
  *
  * @author enrico.olivelli
  */
-public class NettyConnector implements AutoCloseable {
+public class NettyConnector {
 
     private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
 
-    private int port = 7000;
-    private String host = "localhost";
-    private NettyChannel channel;
-    private Channel socketchannel;
-    private EventLoopGroup group;
-    private SslContext sslCtx;
-    private boolean ssl;
-    protected int connectTimeout = 60000;
-    protected int socketTimeout = 240000;
-    private final ExecutorService callbackExecutor = Executors.newCachedThreadPool();
+    public static NettyChannel connect(String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
+            ChannelEventListener receiver, final ExecutorService callbackExecutor, final NioEventLoopGroup group) throws IOException {
+        try {
+            final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
-    public int getConnectTimeout() {
-        return connectTimeout;
-    }
+            Class<? extends Channel> channelType;
 
-    public void setConnectTimeout(int connectTimeout) {
-        this.connectTimeout = connectTimeout;
-    }
+            InetSocketAddress inet = new InetSocketAddress(host, port);
+            SocketAddress address;
+            String hostAddress = NetworkUtils.getAddress(inet);
 
-    public int getSocketTimeout() {
-        return socketTimeout;
-    }
+            if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
+                channelType = LocalChannel.class;
+                address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
+                LOGGER.log(Level.SEVERE, "connecting to local in-JVM server " + address);
+            } else {
+                channelType = NioSocketChannel.class;
+                address = inet;
+                LOGGER.log(Level.SEVERE, "connecting to remote server " + address);
+            }
 
-    public void setSocketTimeout(int socketTimeout) {
-        this.socketTimeout = socketTimeout;
-    }
+            Bootstrap b = new Bootstrap();
+            Holder<NettyChannel> result = new Holder<>();
 
-    public int getPort() {
-        return port;
-    }
-
-    public void setPort(int port) {
-        this.port = port;
-    }
-
-    public String getHost() {
-        return host;
-    }
-
-    public boolean isSsl() {
-        return ssl;
-    }
-
-    public void setSsl(boolean ssl) {
-        this.ssl = ssl;
-    }
-
-    private ChannelEventListener receiver;
-
-    public NettyConnector(ChannelEventListener receiver) {
-        this.receiver = receiver;
-    }
-
-    public NettyChannel connect() throws Exception {
-        if (ssl) {
-            this.sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
-        }
-        group = new NioEventLoopGroup();
-
-        Class<? extends Channel> channelType;
-
-        InetSocketAddress inet = new InetSocketAddress(host, port);
-        SocketAddress address;
-        String hostAddress = NetworkUtils.getAddress(inet);
-
-        if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
-            channelType = LocalChannel.class;
-            address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
-            LOGGER.log(Level.SEVERE, "connecting to local in-JVM server " + address);
-        } else {
-            channelType = NioSocketChannel.class;
-            address = inet;
-            LOGGER.log(Level.SEVERE, "connecting to remote server " + address);
-        }
-
-        Bootstrap b = new Bootstrap();
-        b.group(group)
-                .channel(channelType)
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
-                .handler(new ChannelInitializer<Channel>() {
-                    @Override
-                    public void initChannel(Channel ch) throws Exception {
-                        channel = new NettyChannel(host + ":" + port, ch, callbackExecutor, NettyConnector.this);
-                        channel.setMessagesReceiver(receiver);
-                        if (ssl) {
-                            ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
-                        }
-                        if (socketTimeout > 0) {
-                            ch.pipeline().addLast("readTimeoutHandler", new ReadTimeoutHandler(socketTimeout));
-                        }
-                        ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
-                        ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
+            b.group(group)
+                    .channel(channelType)
+                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
+                    .handler(new ChannelInitializer<Channel>() {
+                        @Override
+                        public void initChannel(Channel ch) throws Exception {
+                            NettyChannel channel = new NettyChannel(host + ":" + port, ch, callbackExecutor);
+                            result.value = channel;
+                            channel.setMessagesReceiver(receiver);
+                            if (ssl) {
+                                ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                            }
+                            if (socketTimeout > 0) {
+                                ch.pipeline().addLast("readTimeoutHandler", new ReadTimeoutHandler(socketTimeout));
+                            }
+                            ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
+                            ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
 //
-                        ch.pipeline().addLast("messageencoder", new DataMessageEncoder());
-                        ch.pipeline().addLast("messagedecoder", new DataMessageDecoder());
-                        ch.pipeline().addLast(new InboundMessageHandler(channel));
+                            ch.pipeline().addLast("messageencoder", new DataMessageEncoder());
+                            ch.pipeline().addLast("messagedecoder", new DataMessageDecoder());
+                            ch.pipeline().addLast(new InboundMessageHandler(channel));
+                        }
                     }
-                });
+                    );
 
-        LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address});
-        ChannelFuture f = b.connect(address).sync();
-        socketchannel = f.channel();
-        return channel;
-
-    }
-
-    public NettyChannel getChannel() {
-        return channel;
-    }
-
-    @Override
-    public void close() {
-        LOGGER.log(Level.SEVERE, "close channel {0}", channel);
-        if (socketchannel != null) {
-            try {
-                socketchannel.close().await();
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-            } finally {
-                socketchannel = null;
+            LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address
             }
+            );
+            ChannelFuture f = b.connect(address).sync();
+            return result.value;
+        } catch (InterruptedException ex) {
+            throw new IOException(ex);
         }
-        if (group != null) {
-            try {
-                group.shutdownGracefully();
-            } finally {
-                group = null;
-            }
-        }
-        if (callbackExecutor != null) {
-            callbackExecutor.shutdown();
-        }
-    }
 
-    public void setHost(String host) {
-        this.host = host;
     }
 
 }

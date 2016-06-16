@@ -53,7 +53,6 @@ public class NettyChannel extends Channel {
     private final Map<String, Message> pendingReplyMessagesSource = new ConcurrentHashMap<>();
     private final Map<String, Long> pendingReplyMessagesDeadline = new ConcurrentHashMap<>();
     private final ExecutorService callbackexecutor;
-    private final NettyConnector connector;
     private boolean ioErrors = false;
     private final long id = idGenerator.incrementAndGet();
     private final String remoteAddress;
@@ -63,11 +62,10 @@ public class NettyChannel extends Channel {
         return "NettyChannel{name=" + name + ", id=" + id + ", socket=" + socket + " pending " + pendingReplyMessages.size() + " msgs}";
     }
 
-    public NettyChannel(String name, io.netty.channel.Channel socket, ExecutorService callbackexecutor, NettyConnector connector) {
+    public NettyChannel(String name, io.netty.channel.Channel socket, ExecutorService callbackexecutor) {
         this.name = name;
         this.socket = socket;
         this.callbackexecutor = callbackexecutor;
-        this.connector = connector;
         if (socket instanceof SocketChannel) {
             this.remoteAddress = ((SocketChannel) socket).remoteAddress() + "";
         } else {
@@ -228,12 +226,7 @@ public class NettyChannel extends Channel {
                 socket = null;
             }
         }
-
         failPendingMessages(socketDescription);
-
-        if (connector != null) {
-            connector.close();
-        }
     }
 
     private void failPendingMessages(String socketDescription) {

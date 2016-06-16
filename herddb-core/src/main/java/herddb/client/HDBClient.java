@@ -19,11 +19,20 @@
  */
 package herddb.client;
 
+import herddb.network.Channel;
+import herddb.network.ChannelEventListener;
+import herddb.network.ServerHostData;
+import herddb.network.netty.NettyConnector;
 import herddb.server.StaticClientSideMetadataProvider;
+import io.netty.channel.nio.NioEventLoopGroup;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * HerdDB Client
@@ -35,6 +44,8 @@ public class HDBClient implements AutoCloseable {
     private final ClientConfiguration configuration;
     private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();
     private ClientSideMetadataProvider clientSideMetadataProvider;
+    private ExecutorService thredpool;
+    private NioEventLoopGroup group;
 
     public HDBClient(ClientConfiguration configuration) {
         this.configuration = configuration;
@@ -42,6 +53,15 @@ public class HDBClient implements AutoCloseable {
     }
 
     private void init() {
+        this.thredpool = Executors.newCachedThreadPool(new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "hdb-client");
+                t.setDaemon(true);
+                return t;
+            }
+        });
+        this.group = new NioEventLoopGroup(0, thredpool);
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
@@ -81,6 +101,12 @@ public class HDBClient implements AutoCloseable {
         for (HDBConnection connection : connectionsAtClose) {
             connection.close();
         }
+        if (group != null) {
+            group.shutdownGracefully();
+        }
+        if (thredpool != null) {
+            thredpool.shutdown();
+        }
     }
 
     public HDBConnection openConnection() {
@@ -91,6 +117,11 @@ public class HDBClient implements AutoCloseable {
 
     void releaseConnection(HDBConnection connection) {
         connections.remove(connection.getId());
+    }
+
+    Channel createChannelTo(ServerHostData server, ChannelEventListener eventReceiver) throws IOException {
+        int timeout = configuration.getInt(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
+        return NettyConnector.connect(server.getHost(), server.getPort(), server.isSsl(), timeout, timeout, eventReceiver, thredpool, group);
     }
 
 }

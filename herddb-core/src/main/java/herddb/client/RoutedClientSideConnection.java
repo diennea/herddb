@@ -53,10 +53,10 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class RoutedClientSideConnection implements AutoCloseable, ChannelEventListener {
 
     private Logger LOGGER = Logger.getLogger(RoutedClientSideConnection.class.getName());
-    private final NettyConnector connector;
     private final HDBConnection connection;
     private final String nodeId;
     private final long timeout;
+    private final ServerHostData server;
     private final String clientId;
     private final ReentrantReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private volatile Channel channel;
@@ -67,13 +67,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         this.connection = connection;
         this.nodeId = nodeId;
 
-        this.connector = new NettyConnector(this);
-
-        final ServerHostData server = connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
-
-        this.connector.setHost(server.getHost());
-        this.connector.setPort(server.getPort());
-        this.connector.setSsl(server.isSsl());
+        server = connection.getClient().getClientSideMetadataProvider().getServerHostData(nodeId);
 
         this.timeout = connection.getClient().getConfiguration().getLong(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
@@ -87,16 +81,15 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         );
         Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(SaslUtils.AUTH_DIGEST_MD5), timeout);
 
-        OUTER:
-        while (true) {
+        for (int i = 0; i < 100; i++) {
             byte[] responseToSendToServer;
             switch (saslResponse.type) {
                 case Message.TYPE_SASL_TOKEN_SERVER_RESPONSE:
                     byte[] token = (byte[]) saslResponse.parameters.get("token");
                     responseToSendToServer = saslNettyClient.saslResponse(token);
                     if (saslNettyClient.isComplete()) {
-                        LOGGER.finest("SASL auth completed with success");
-                        break OUTER;
+                        LOGGER.severe("SASL auth completed with success");
+                        return;
                     }
                     break;
                 case Message.TYPE_ERROR:
@@ -106,6 +99,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             }
             saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_TOKEN(responseToSendToServer), timeout);
         }
+        throw new Exception("SASL negotiation took too many steps");
     }
 
     @Override
@@ -183,7 +177,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     @Override
     public void close() {
         LOGGER.log(Level.SEVERE, "{0} - close", this);
-        this.connector.close();
+
         this.connection.releaseRoute(nodeId);
         connectionLock.writeLock().lock();
         try {
@@ -210,7 +204,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     return channel;
                 }
                 LOGGER.log(Level.SEVERE, "{0} - connect", this);
-                Channel _channel = connector.connect();
+                Channel _channel = this.connection.getClient().createChannelTo(server, this);
                 try {
                     performAuthentication(_channel);
                     channel = _channel;

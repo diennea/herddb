@@ -205,11 +205,11 @@ public class NettyChannelAcceptor implements AutoCloseable {
         bossGroup = new NioEventLoopGroup(workerThreads);
         workerGroup = new NioEventLoopGroup(workerThreads);
         InetSocketAddress address = new InetSocketAddress(host, port);
-        LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port+""});
+        LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {
             @Override
             public void initChannel(io.netty.channel.Channel ch) throws Exception {
-                NettyChannel session = new NettyChannel("unnamed", ch, callbackExecutor, null);
+                NettyChannel session = new NettyChannel("unnamed", ch, callbackExecutor);
                 if (acceptor != null) {
                     acceptor.createConnection(session);
                 }
@@ -233,7 +233,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
             b.group(bossGroup, workerGroup)
                     .channel(NioServerSocketChannel.class)
                     .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128);                    
+                    .option(ChannelOption.SO_BACKLOG, 128);
 
             ChannelFuture f = b.bind(address).sync();
             this.channel = f.channel();
@@ -244,7 +244,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
             b_local.group(bossGroup, workerGroup)
                     .channel(LocalServerChannel.class)
                     .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128);                    
+                    .option(ChannelOption.SO_BACKLOG, 128);
 
             String hostAddress = NetworkUtils.getAddress(address);
             LocalServerRegistry.registerLocalServer(hostAddress, port, ssl);

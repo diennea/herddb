@@ -76,9 +76,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
      */
     private final Map<String, ServerSideScannerPeer> scanners = new ConcurrentHashMap<>();
     private final Map<String, Set<Long>> openTransactions = new ConcurrentHashMap<>();
-    private boolean authenticated;
+    private volatile boolean authenticated;
     private final String address;
-    private String username = "";
+    private volatile String username = "";
     private final long connectionTs = System.currentTimeMillis();
 
     public ServerSideConnectionPeer(Channel channel, Server server) {
@@ -129,7 +129,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (saslNettyServer.isComplete()) {
                         username = saslNettyServer.getUserName();
                         authenticated = true;
+                        LOGGER.severe("client "+channel+" completed SASL authentication");
                         saslNettyServer = null;
+                    } else {
+                        LOGGER.severe("client "+channel+" SASL authentication not yet complete");
                     }
                 } catch (Exception err) {
                     if (err instanceof javax.security.sasl.SaslException) {

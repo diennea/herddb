@@ -1,8 +1,11 @@
 package herddb.network;
 
 import herddb.network.netty.NettyChannelAcceptor;
-import herddb.network.netty.NettyServerLocator;
+import herddb.network.netty.NettyConnector;
+import io.netty.channel.nio.NioEventLoopGroup;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
@@ -38,38 +41,27 @@ public class NetworkChannelTest {
                 }
             });
             acceptor.start();
-            try (NettyServerLocator locator = new NettyServerLocator("localhost", 1111, true)) {
-                try (Channel client = locator.connect(new ChannelEventListener() {
+            ExecutorService executor = Executors.newCachedThreadPool();
+            try (Channel client = NettyConnector.connect("localhost", 1111, true, 0, 0, new ChannelEventListener() {
 
-                    @Override
-                    public void messageReceived(Message message, Channel channel) {
-                        System.out.println("client messageReceived " + message);
-                    }
-
-                    @Override
-                    public void channelClosed(Channel channel) {
-                        System.out.println("client channelClosed");
-
-                    }
-                }, new ConnectionRequestInfo() {
-
-                    @Override
-                    public String getClientId() {
-                        return "myclient";
-                    }
-
-                    @Override
-                    public String getSharedSecret() {
-                        return "secret";
-                    }
-
-                });) {
-                    for (int i = 0; i < 100; i++) {
-                        Message result = client.sendMessageWithReply(Message.ACK("clientId"), 10000);
-                        assertEquals(Message.TYPE_ACK,result.type);
-//                        System.out.println("result:" + result);
-                    }
+                @Override
+                public void messageReceived(Message message, Channel channel) {
+                    System.out.println("client messageReceived " + message);
                 }
+
+                @Override
+                public void channelClosed(Channel channel) {
+                    System.out.println("client channelClosed");
+
+                }
+            }, executor, new NioEventLoopGroup(10, executor))) {
+                for (int i = 0; i < 100; i++) {
+                    Message result = client.sendMessageWithReply(Message.ACK("clientId"), 10000);
+                    assertEquals(Message.TYPE_ACK, result.type);
+//                        System.out.println("result:" + result);
+                }
+            } finally {
+                executor.shutdown();
             }
         }
     }
