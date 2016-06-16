@@ -24,6 +24,7 @@ import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A message (from broker to worker or from worker to broker)
@@ -238,6 +239,12 @@ public final class Message {
 
     public String getMessageId() {
         return messageId;
+    }
+
+    private static final AtomicLong MESSAGE_ID_GENERATOR = new AtomicLong();
+
+    public void assignMessageId() {
+        this.messageId = MESSAGE_ID_GENERATOR.incrementAndGet() + "";
     }
 
     public Message setMessageId(String messageId) {
