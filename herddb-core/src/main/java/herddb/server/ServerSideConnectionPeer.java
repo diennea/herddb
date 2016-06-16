@@ -320,7 +320,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         }
                         boolean last = false;
                         if (dataScanner.isFinished()) {
-                            LOGGER.log(Level.SEVERE, "unregistering scanner " + scannerId + ", resultset is finished");
+                            LOGGER.log(Level.FINEST, "unregistering scanner " + scannerId + ", resultset is finished");
                             scanners.remove(scannerId);
                             last = true;
                         }
