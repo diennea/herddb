@@ -52,7 +52,7 @@ public class BuiltinFunctions {
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
 
     public static Column toAggregatedOutputColumn(String fieldName, Function f) {
-        if (f.isAllColumns() && f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
+        if (f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
             return Column.column(fieldName, ColumnTypes.LONG);
         }
         if (f.getName().equalsIgnoreCase(BuiltinFunctions.SUM) && f.getParameters() != null && f.getParameters().getExpressions() != null && f.getParameters().getExpressions().size() == 1) {
