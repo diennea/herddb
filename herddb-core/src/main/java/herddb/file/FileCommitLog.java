@@ -181,7 +181,9 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public LogSequenceNumber log(LogEntry edit, boolean synch) throws LogNotAvailableException {
-        LOGGER.log(Level.SEVERE, "log " + edit);
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "log {0}", edit);
+        }
         writeLock.lock();
         try {
             if (writer == null) {
