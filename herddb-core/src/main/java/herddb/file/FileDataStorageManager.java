@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -505,14 +506,13 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException {
         try {
-            File temporarySwapFile = File.createTempFile("keysswap", ".bin", tmpDirectory.toFile());
+            File temporarySwapFile = File.createTempFile("keysswap."+tablespace+"."+name, ".bin", tmpDirectory.toFile());
             DB db = DBMaker
                     .newFileDB(temporarySwapFile)
-                    .asyncWriteEnable()
-                    .cacheHardRefEnable()
-                    .mmapFileEnableIfSupported()
+                    .cacheLRUEnable()
+                    .asyncWriteEnable()                    
                     .transactionDisable()
-                    .commitFileSyncDisable()
+                    .commitFileSyncDisable()                    
                     .deleteFilesAfterClose()
                     .make();
             return db.createHashMap("keys")
