@@ -96,9 +96,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     private SaslNettyServer saslNettyServer;
 
     @Override
-    public void messageReceived(Message message) {
+    public void messageReceived(Message message, Channel _channel) {
         LOGGER.log(Level.FINEST, "messageReceived {0}", message);
-        Channel _channel = channel;
 
         switch (message.type) {
             case Message.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
@@ -361,7 +360,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     @Override
-    public void channelClosed() {
+    public void channelClosed(Channel channel) {
         LOGGER.log(Level.SEVERE, "channelClosed {0}", this);
         freeResources();
         this.server.connectionClosed(this);

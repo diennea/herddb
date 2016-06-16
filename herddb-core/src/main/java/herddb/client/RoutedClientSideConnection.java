@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -44,6 +43,7 @@ import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * A real connection to a server
@@ -58,7 +58,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private final String nodeId;
     private final long timeout;
     private final String clientId;
-    private final ReentrantLock connectionLock = new ReentrantLock(true);
+    private final ReentrantReadWriteLock connectionLock = new ReentrantReadWriteLock(true);
     private volatile Channel channel;
 
     private final Map<String, TableSpaceDumpReceiver> dumpReceivers = new ConcurrentHashMap<>();
@@ -79,13 +79,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
     }
 
-    private void performAuthentication() throws Exception {
+    private void performAuthentication(Channel _channel) throws Exception {
 
         SaslNettyClient saslNettyClient = new SaslNettyClient(
                 connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
                 connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT)
         );
-        Channel _channel = channel;
         Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(SaslUtils.AUTH_DIGEST_MD5), timeout);
 
         OUTER:
@@ -110,9 +109,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     @Override
-    public void messageReceived(Message message) {
+    public void messageReceived(Message message, Channel _channel) {
         LOGGER.log(Level.SEVERE, "{0} - received {1}", new Object[]{nodeId, message.toString()});
-        Channel _channel = channel;
         switch (message.type) {
             case Message.TYPE_TABLESPACE_DUMP_DATA: {
                 String dumpId = (String) message.parameters.get("dumpId");
@@ -176,8 +174,10 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     @Override
-    public void channelClosed() {
-        channel = null;
+    public void channelClosed(Channel channel) {
+        if (channel == this.channel) {
+            this.channel = null;
+        }
     }
 
     @Override
@@ -185,38 +185,55 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         LOGGER.log(Level.SEVERE, "{0} - close", this);
         this.connector.close();
         this.connection.releaseRoute(nodeId);
-        connectionLock.lock();
+        connectionLock.writeLock().lock();
         try {
             if (channel != null) {
                 channel.close();
             }
         } finally {
             channel = null;
-            connectionLock.unlock();
+            connectionLock.writeLock().unlock();;
         }
     }
 
-    private void ensureOpen() throws HDBException {
-        connectionLock.lock();
+    private Channel ensureOpen() throws HDBException {
+        connectionLock.readLock().lock();
         try {
-            if (channel == null) {
+            if (channel != null) {
+                return channel;
+            }
+            connectionLock.readLock().unlock();
+
+            connectionLock.writeLock().lock();
+            try {
+                if (channel != null) {
+                    return channel;
+                }
                 LOGGER.log(Level.SEVERE, "{0} - connect", this);
-                channel = connector.connect();
-                performAuthentication();
+                Channel _channel = connector.connect();
+                try {
+                    performAuthentication(_channel);
+                    channel = _channel;
+                    return channel;
+                } catch (Exception err) {
+                    if (_channel != null) {
+                        _channel.close();
+                    }
+                    throw err;
+                }
+            } finally {
+                connectionLock.writeLock().unlock();
+                connectionLock.readLock().lock();
             }
         } catch (Exception err) {
             throw new HDBException(err);
         } finally {
-            connectionLock.unlock();
+            connectionLock.readLock().unlock();
         }
     }
 
     DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
-        ensureOpen();
-        Channel _channel = channel;
-        if (_channel == null) {
-            throw new HDBException("not connected to node " + nodeId);
-        }
+        Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
@@ -242,11 +259,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
-        ensureOpen();
-        Channel _channel = channel;
-        if (_channel == null) {
-            throw new HDBException("not connected to node " + nodeId);
-        }
+        Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
@@ -269,11 +282,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
-        ensureOpen();
-        Channel _channel = channel;
-        if (_channel == null) {
-            throw new HDBException("not connected to node " + nodeId);
-        }
+        Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "BEGIN TRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
@@ -293,11 +302,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
-        ensureOpen();
-        Channel _channel = channel;
-        if (_channel == null) {
-            throw new HDBException("not connected to node " + nodeId);
-        }
+        Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "COMMIT TRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
@@ -315,11 +320,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
-        ensureOpen();
-        Channel _channel = channel;
-        if (_channel == null) {
-            throw new HDBException("not connected to node " + nodeId);
-        }
+        Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "ROLLBACK TRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
             Message reply = _channel.sendMessageWithReply(message, timeout);
@@ -339,11 +340,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private static final AtomicLong SCANNERID_GENERATOR = new AtomicLong();
 
     ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
-        ensureOpen();
-        Channel _channel = channel;
-        if (_channel == null) {
-            throw new HDBException("not connected to node " + nodeId);
-        }
+        Channel _channel = ensureOpen();
         try {
             String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
             Message message = Message.OPEN_SCANNER(clientId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
@@ -370,11 +367,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     void dumpTableSpace(String tableSpace, int fetchSize, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
-        ensureOpen();
-        Channel _channel = channel;
-        if (_channel == null) {
-            throw new HDBException("not connected to node " + nodeId);
-        }
+        Channel _channel = ensureOpen();
         try {
             String dumpId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
             Message message = Message.REQUEST_TABLESPACE_DUMP(clientId, tableSpace, dumpId, fetchSize);
@@ -450,11 +443,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 return;
             }
             fetchBuffer.clear();
-            ensureOpen();
-            Channel _channel = channel;
-            if (_channel == null) {
-                throw new HDBException("not connected to node " + nodeId);
-            }
+            Channel _channel = ensureOpen();
             try {
                 Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(clientId, scannerId, fetchSize), 10000);
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);

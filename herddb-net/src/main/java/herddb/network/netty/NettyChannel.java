@@ -56,7 +56,7 @@ public class NettyChannel extends Channel {
     private final NettyConnector connector;
     private boolean ioErrors = false;
     private final long id = idGenerator.incrementAndGet();
-    private final String remoteAddress;    
+    private final String remoteAddress;
 
     @Override
     public String toString() {
@@ -69,7 +69,7 @@ public class NettyChannel extends Channel {
         this.callbackexecutor = callbackexecutor;
         this.connector = connector;
         if (socket instanceof SocketChannel) {
-            this.remoteAddress = ((SocketChannel) socket).remoteAddress()+"";
+            this.remoteAddress = ((SocketChannel) socket).remoteAddress() + "";
         } else {
             this.remoteAddress = "jvm-local";
         }
@@ -81,7 +81,7 @@ public class NettyChannel extends Channel {
         } else {
             submitCallback(() -> {
                 try {
-                    messagesReceiver.messageReceived(message);
+                    messagesReceiver.messageReceived(message, this);
                 } catch (Throwable t) {
                     LOGGER.log(Level.SEVERE, this + ": error " + t, t);
                     close();
@@ -260,7 +260,7 @@ public class NettyChannel extends Channel {
         failPendingMessages(socket + "");
         submitCallback(() -> {
             if (this.messagesReceiver != null) {
-                this.messagesReceiver.channelClosed();
+                this.messagesReceiver.channelClosed(this);
             }
         });
     }

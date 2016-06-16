@@ -28,13 +28,13 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport</artifactId>
-            <version>4.0.31.Final</version>
+            <version>${libs.netty4}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-handler</artifactId>
-            <version>4.0.31.Final</version>
+            <version>${libs.netty4}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>            

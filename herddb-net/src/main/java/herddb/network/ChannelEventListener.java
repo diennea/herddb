@@ -33,10 +33,10 @@ public interface ChannelEventListener {
      *
      * @param message
      */
-    public default void messageReceived(Message message) {
+    public default void messageReceived(Message message, Channel channel) {
     }
 
-    public default void channelClosed() {
+    public default void channelClosed(Channel channel) {
     }
 
 }

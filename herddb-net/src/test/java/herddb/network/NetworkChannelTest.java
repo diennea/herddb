@@ -20,12 +20,12 @@ public class NetworkChannelTest {
                     channel.setMessagesReceiver(new ChannelEventListener() {
 
                         @Override
-                        public void messageReceived(Message message) {
+                        public void messageReceived(Message message, Channel channel) {
                             channel.sendReplyMessage(message, Message.ACK("ciao"));
                         }
 
                         @Override
-                        public void channelClosed() {
+                        public void channelClosed(Channel channel) {
 
                         }
                     });
@@ -42,12 +42,12 @@ public class NetworkChannelTest {
                 try (Channel client = locator.connect(new ChannelEventListener() {
 
                     @Override
-                    public void messageReceived(Message message) {
+                    public void messageReceived(Message message, Channel channel) {
                         System.out.println("client messageReceived " + message);
                     }
 
                     @Override
-                    public void channelClosed() {
+                    public void channelClosed(Channel channel) {
                         System.out.println("client channelClosed");
 
                     }
