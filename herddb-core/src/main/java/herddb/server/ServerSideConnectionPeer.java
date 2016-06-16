@@ -278,7 +278,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         if (!last) {
                             scanners.put(scannerId, scanner);
                         }
-                        this.channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last));
+                        _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last));
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
                     }
