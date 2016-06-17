@@ -242,11 +242,11 @@ public class MultiServerTest {
         }
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
-            server_1.waitForStandaloneBoot();
+            server_1.waitForStandaloneBoot();                        
             {
                 ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
                 LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", TableSpace.DEFAULT);
-                assertEquals(2, ledgersList.getActiveLedgers().size());
+                assertEquals(2, ledgersList.getActiveLedgers().size());                
                 assertTrue(!ledgersList.getActiveLedgers().contains(ledgersList.getFirstLedger()));
             }
 

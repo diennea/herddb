@@ -25,6 +25,7 @@ import herddb.log.LogNotAvailableException;
 
 /**
  * CommitLog on Apache BookKeeper
+ *
  * @author enrico.olivelli
  */
 public class BookkeeperCommitLogManager extends CommitLogManager {
@@ -34,7 +35,6 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private int writeQuorumSize = 1;
     private int ackQuorumSize = 1;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
-    private long maxLogicalLogFileSize = 1024 * 1024 * 256;
 
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager) {
         this.metadataStorageManager = metadataStorageManager;
@@ -72,21 +72,12 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         this.ledgersRetentionPeriod = ledgersRetentionPeriod;
     }
 
-    public long getMaxLogicalLogFileSize() {
-        return maxLogicalLogFileSize;
-    }
-
-    public void setMaxLogicalLogFileSize(long maxLogicalLogFileSize) {
-        this.maxLogicalLogFileSize = maxLogicalLogFileSize;
-    }
-
     @Override
     public CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException {
         BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpace, metadataStorageManager);
         res.setAckQuorumSize(ackQuorumSize);
         res.setEnsemble(ensemble);
         res.setLedgersRetentionPeriod(ledgersRetentionPeriod);
-        res.setMaxLogicalLogFileSize(maxLogicalLogFileSize);
         res.setWriteQuorumSize(writeQuorumSize);
         return res;
     }

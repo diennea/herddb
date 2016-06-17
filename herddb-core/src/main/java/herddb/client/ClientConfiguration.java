@@ -171,7 +171,7 @@ public class ClientConfiguration {
         } else if (before.startsWith("jdbc:herddb:local:")) {
             set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
         }
-        String qs = url.substring(questionMark);
+        String qs = url.substring(questionMark+1);
         String[] params = qs.split("&");
         for (String param : params) {
             // TODO: URLDecoder??

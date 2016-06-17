@@ -154,7 +154,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        throw new SQLFeatureNotSupportedException();
+        return LOGGER;
     }
 
     @Override

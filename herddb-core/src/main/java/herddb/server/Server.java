@@ -22,10 +22,10 @@ package herddb.server;
 
 import herddb.client.ClientConfiguration;
 import herddb.cluster.BookkeeperCommitLogManager;
+import herddb.cluster.EmbeddedBookie;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.core.DBManager;
 import herddb.core.stats.ConnectionsInfo;
-import herddb.core.stats.ConnectionsInfo.ConnectionInfo;
 import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileBasedUserManager;
 import herddb.file.FileCommitLogManager;
@@ -48,9 +48,7 @@ import herddb.storage.DataStorageManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -74,6 +72,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final String mode;
     private final MetadataStorageManager metadataStorageManager;
     private UserManager userManager;
+    private EmbeddedBookie embeddedBookie;
 
     public UserManager getUserManager() {
         return userManager;
@@ -99,6 +98,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         this.configuration = configuration;
 
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
+
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
         String usersfile = configuration.getString(ServerConfiguration.PROPERTY_USERS_FILE, ServerConfiguration.PROPERTY_USERS_FILE_DEFAULT);
@@ -147,14 +147,14 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 break;
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                System.out.println("JDBC URL");
-                System.out.println("jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort());
+                LOGGER.severe("JDBC URL: jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort());
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                System.out.println("JDBC URL");
-                System.out.println("jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
+                LOGGER.severe("JDBC URL: jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
+                this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration);
                 break;
         }
+
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {
@@ -206,7 +206,6 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 bkmanager.setEnsemble(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT));
                 bkmanager.setWriteQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT));
                 bkmanager.setLedgersRetentionPeriod(configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD, ServerConfiguration.PROPERTY_LOG_RETENTION_PERIOD_DEFAULT));
-                bkmanager.setMaxLogicalLogFileSize(configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE_DEFAULT));
                 return bkmanager;
             default:
                 throw new RuntimeException();
@@ -214,6 +213,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public void start() throws Exception {
+        boolean startBookie = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_START, ServerConfiguration.PROPERTY_BOOKKEEPER_START_DEFAULT);
+        if (startBookie) {
+            this.embeddedBookie.start();
+        }
         this.manager.start();
         this.networkServer.start();
     }

@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import com.sun.webkit.plugin.Plugin;
 import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.network.ServerHostData;
@@ -26,7 +27,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
@@ -40,9 +45,12 @@ import org.apache.zookeeper.data.Stat;
  */
 public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataProvider {
 
+    private static final Logger LOG = Logger.getLogger(ZookeeperClientSideMetadataProvider.class.getName());
+
     private final String basePath;
     private final Supplier<ZooKeeper> zookeeperSupplier;
     private boolean ownZooKeeper;
+    private static final int MAX_TRIALS = 20;
 
     public ZookeeperClientSideMetadataProvider(String basePath, Supplier<ZooKeeper> zookeeper) {
         this.basePath = basePath;
@@ -53,12 +61,23 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
     public ZookeeperClientSideMetadataProvider(String zkAddress, int zkSessionTimeout, String basePath) {
         this(basePath, () -> {
             try {
-                return new ZooKeeper(zkAddress, zkSessionTimeout, new Watcher() {
+                CountDownLatch waitForConnection = new CountDownLatch(1);
+                ZooKeeper zk = new ZooKeeper(zkAddress, zkSessionTimeout, new Watcher() {
                     @Override
                     public void process(WatchedEvent event) {
+                        LOG.log(Level.SEVERE, "zk client event " + event);
+                        switch (event.getState()) {
+                            case SyncConnected:
+                            case ConnectedReadOnly:
+                                waitForConnection.countDown();
+                                break;
+                        }
                     }
                 });
+                waitForConnection.await(zkSessionTimeout * 2, TimeUnit.SECONDS);
+                return zk;
             } catch (Exception err) {
+                LOG.log(Level.SEVERE, "zk client error " + err, err);
                 return null;
             }
         });
@@ -82,15 +101,26 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
         }
         ZooKeeper zooKeeper = getZooKeeper();
         try {
-            Stat stat = new Stat();
-            byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + tableSpace, false, stat);
-            String leader = TableSpace.deserialize(result, stat.getVersion()).leaderId;
-            tableSpaceLeaders.put(tableSpace, leader);
-            return leader;
-        } catch (KeeperException.NoNodeException ex) {
-            return null;
-        } catch (KeeperException | InterruptedException | IOException ex) {
-            throw new ClientSideMetadataProviderException(ex);
+            for (int i = 0; i < MAX_TRIALS; i++) {
+                try {
+                    Stat stat = new Stat();
+                    byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + tableSpace, false, stat);
+                    String leader = TableSpace.deserialize(result, stat.getVersion()).leaderId;
+                    tableSpaceLeaders.put(tableSpace, leader);
+                    return leader;
+                } catch (KeeperException.NoNodeException ex) {
+                    return null;
+                } catch (KeeperException.ConnectionLossException ex) {
+                    LOG.log(Level.SEVERE, "tmp error getTableSpaceLeader for " + tableSpace + ": " + ex);
+                    try {
+                        Thread.sleep(i * 500 + 1000);
+                    } catch (InterruptedException exit) {
+                        throw new ClientSideMetadataProviderException(exit);
+                    }
+                } catch (KeeperException | InterruptedException | IOException ex) {
+                    throw new ClientSideMetadataProviderException(ex);
+                }
+            }
         } finally {
             if (ownZooKeeper) {
                 try {
@@ -100,6 +130,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                 }
             }
         }
+        throw new ClientSideMetadataProviderException("Could not find a leader for tablespace " + tableSpace + " in time");
     }
 
     @Override
@@ -110,16 +141,35 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
         }
         ZooKeeper zooKeeper = getZooKeeper();
         try {
-            Stat stat = new Stat();
-            byte[] node = zooKeeper.getData(basePath + "/nodes/" + nodeId, null, stat);
-            NodeMetadata nodeMetadata = NodeMetadata.deserialize(node, stat.getVersion());
-            ServerHostData result = new ServerHostData(nodeMetadata.host, nodeMetadata.port, "?", nodeMetadata.ssl, new HashMap<>());
-            servers.put(nodeId, result);
-            return result;
-        } catch (KeeperException.NoNodeException ex) {
-            return null;
-        } catch (KeeperException | InterruptedException | IOException ex) {
-            throw new ClientSideMetadataProviderException(ex);
+            for (int i = 0; i < MAX_TRIALS; i++) {
+                try {
+                    Stat stat = new Stat();
+                    byte[] node = zooKeeper.getData(basePath + "/nodes/" + nodeId, null, stat);
+                    NodeMetadata nodeMetadata = NodeMetadata.deserialize(node, stat.getVersion());
+                    ServerHostData result = new ServerHostData(nodeMetadata.host, nodeMetadata.port, "?", nodeMetadata.ssl, new HashMap<>());
+                    servers.put(nodeId, result);
+                    return result;
+                } catch (KeeperException.NoNodeException ex) {
+                    return null;
+                } catch (KeeperException.ConnectionLossException ex) {
+                    LOG.log(Level.SEVERE, "tmp error getServerHostData for " + nodeId + ": " + ex);
+                    try {
+                        Thread.sleep(i * 500 + 1000);
+                    } catch (InterruptedException exit) {
+                        throw new ClientSideMetadataProviderException(exit);
+                    }
+                } catch (KeeperException | InterruptedException | IOException ex) {
+                    throw new ClientSideMetadataProviderException(ex);
+                } finally {
+                    if (ownZooKeeper) {
+                        try {
+                            zooKeeper.close();
+                        } catch (InterruptedException ex) {
+                            throw new ClientSideMetadataProviderException(ex);
+                        }
+                    }
+                }
+            }
         } finally {
             if (ownZooKeeper) {
                 try {
@@ -129,6 +179,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                 }
             }
         }
+        throw new ClientSideMetadataProviderException("Could not find a server info for node " + nodeId + " in time");
     }
 
     private ZooKeeper getZooKeeper() throws ClientSideMetadataProviderException {

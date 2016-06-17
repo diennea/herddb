@@ -20,8 +20,11 @@
 package herddb.server;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -56,6 +59,12 @@ public final class ServerConfiguration {
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.sessiontimeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
 
+    public static final String PROPERTY_BOOKKEEPER_START = "server.bookkeeper.start";
+    public static final boolean PROPERTY_BOOKKEEPER_START_DEFAULT = false;
+
+    public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "bookie.port";
+    public static final int PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT = 3181;
+
     public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble";
     public static final int PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE = "server.bookkeeper.writequorumsize";
@@ -63,12 +72,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_ACKQUORUMSIZE = "server.bookkeeper.ackquorumsize";
     public static final int PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD = "server.bookkeeper.logretentionperiod";
-    public static final String PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE = "server.bookkeeper.maxlogfilesize";
 
     public static final String PROPERTY_LOG_RETENTION_PERIOD = "server.log.retention.period";
     public static final long PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000L * 10 * 60 * 24 * 2;
-
-    public static final int PROPERTY_BOOKKEEPER_MAX_LOGICAL_LOG_FILESIZE_DEFAULT = 1024 * 1024 * 256;
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
     public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
@@ -196,8 +202,9 @@ public final class ServerConfiguration {
         } else if (before.startsWith("jdbc:herddb:local:")) {
             set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
         }
-        String qs = url.substring(questionMark);
+        String qs = url.substring(questionMark + 1);
         String[] params = qs.split("&");
+        LOG.log(Level.SEVERE, "url " + url + " qs " + qs + " params " + Arrays.toString(params));
         for (String param : params) {
             // TODO: URLDecoder??
             int pos = param.indexOf('=');
@@ -210,7 +217,8 @@ public final class ServerConfiguration {
             }
         }
     }
-    
+    private static final Logger LOG = Logger.getLogger(ServerConfiguration.class.getName());
+
     public List<String> keys() {
         return properties.keySet().stream().map(Object::toString).sorted().collect(Collectors.toList());
     }

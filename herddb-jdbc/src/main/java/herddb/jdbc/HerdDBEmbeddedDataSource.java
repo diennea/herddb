@@ -39,6 +39,16 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
     private Server server;
     private volatile boolean serverInitialized;
 
+    private boolean startServer;
+
+    public boolean isStartServer() {
+        return startServer;
+    }
+
+    public void setStartServer(boolean startServer) {
+        this.startServer = startServer;
+    }
+
     public HerdDBEmbeddedDataSource() {
     }
 
@@ -56,11 +66,19 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
         super.ensureClient();
 
         if (!serverInitialized) {
-            ServerConfiguration serverConfiguration = new ServerConfiguration(properties);            
+            ServerConfiguration serverConfiguration = new ServerConfiguration(properties);
             serverConfiguration.readJdbcUrl(url);
-            String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);            
-            if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
-                LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB, url:"+url+", properties:"+properties);
+            String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);
+            if (startServer) {
+                LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB Server, url:" + url + ", properties:" + serverConfiguration);
+                server = new Server(serverConfiguration);
+                try {
+                    server.start();
+                } catch (Exception ex) {
+                    throw new SQLException("Cannot boot embedded server " + ex, ex);
+                }
+            } else if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
+                LOGGER.log(Level.SEVERE, "Booting Local Embedded HerdDB, url:" + url + ", properties:" + serverConfiguration);
                 server = new Server(serverConfiguration);
                 try {
                     server.start();
