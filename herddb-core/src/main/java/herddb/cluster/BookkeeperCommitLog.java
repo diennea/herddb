@@ -212,6 +212,7 @@ public class BookkeeperCommitLog extends CommitLog {
         this.metadataManager = metadataStorageManager;
         this.tableSpace = tableSpace;
         ClientConfiguration config = new ClientConfiguration();
+        config.setThrottleValue(0);
         try {
             this.bookKeeper = new BookKeeper(config, metadataManager.getZooKeeper());
         } catch (IOException | InterruptedException | KeeperException t) {
