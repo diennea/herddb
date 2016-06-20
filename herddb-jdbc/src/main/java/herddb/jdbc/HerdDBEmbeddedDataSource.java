@@ -112,7 +112,7 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
                     LOGGER.log(Level.SEVERE, "Waiting for boot of tablespace " + waitForTableSpace + ". Witing at max " + waitForTableSpaceTimeout + " ms");
                     server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
                 } catch (Exception ex) {
-                    throw new SQLException("Cannot boot wait for tableSpace " + defaultSchema + " to boot: " + ex, ex);
+                    throw new SQLException("Cannot wait for tableSpace " + defaultSchema + " to boot: " + ex, ex);
                 }
             }
             serverInitialized = true;
