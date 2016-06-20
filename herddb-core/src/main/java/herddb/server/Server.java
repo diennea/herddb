@@ -226,7 +226,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public void waitForTableSpaceBoot(String tableSpace, boolean leader) throws Exception {
-        if (!this.manager.waitForTablespace(tableSpace, 10000, leader)) {
+        waitForTableSpaceBoot(tableSpace, 10000, leader);
+    }
+
+    public void waitForTableSpaceBoot(String tableSpace, int timeout, boolean leader) throws Exception {
+        if (!this.manager.waitForTablespace(tableSpace, timeout, leader)) {
             throw new Exception("TableSpace " + tableSpace + " not started");
         }
     }

@@ -57,8 +57,8 @@ public class HerdDBConnection implements java.sql.Connection {
     private boolean autocommit = true;
     private String tableSpace;
 
-    public HerdDBConnection(HDBConnection connection) throws SQLException {
-        this.tableSpace = TableSpace.DEFAULT;
+    public HerdDBConnection(HDBConnection connection, String defaultTablespace) throws SQLException {
+        this.tableSpace = defaultTablespace;
         this.connection = connection;
     }
 

@@ -22,6 +22,7 @@ package herddb.jdbc;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
+import herddb.model.TableSpace;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -44,6 +45,15 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     private static final Logger LOGGER = Logger.getLogger(AbstractHerdDBDataSource.class.getName());
     protected String url;
+    protected String defaultSchema = TableSpace.DEFAULT;
+
+    public String getDefaultSchema() {
+        return defaultSchema;
+    }
+
+    public void setDefaultSchema(String defaultSchema) {
+        this.defaultSchema = defaultSchema;
+    }
 
     public String getUsername() {
         if (client != null) {
@@ -127,7 +137,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
         ensureConnection();
-        return new HerdDBConnection(connection);
+        return new HerdDBConnection(connection, defaultSchema);
     }
 
     private PrintWriter logWriter;

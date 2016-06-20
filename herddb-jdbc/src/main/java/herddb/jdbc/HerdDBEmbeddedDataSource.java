@@ -40,6 +40,24 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
     private volatile boolean serverInitialized;
 
     private boolean startServer;
+    private String waitForTableSpace = "";
+    private int waitForTableSpaceTimeout = 60000;
+
+    public int getWaitForTableSpaceTimeout() {
+        return waitForTableSpaceTimeout;
+    }
+
+    public void setWaitForTableSpaceTimeout(int waitForTableSpaceTimeout) {
+        this.waitForTableSpaceTimeout = waitForTableSpaceTimeout;
+    }
+
+    public String getWaitForTableSpace() {
+        return waitForTableSpace;
+    }
+
+    public void setWaitForTableSpace(String waitForTableSpace) {
+        this.waitForTableSpace = waitForTableSpace;
+    }
 
     public boolean isStartServer() {
         return startServer;
@@ -87,6 +105,14 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
                     client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 } catch (Exception ex) {
                     throw new SQLException("Cannot boot embedded server " + ex, ex);
+                }
+            }
+            if (server != null && waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
+                try {
+                    LOGGER.log(Level.SEVERE, "Waiting for boot of tablespace " + waitForTableSpace + ". Witing at max " + waitForTableSpaceTimeout + " ms");
+                    server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
+                } catch (Exception ex) {
+                    throw new SQLException("Cannot boot wait for tableSpace " + defaultSchema + " to boot: " + ex, ex);
                 }
             }
             serverInitialized = true;
