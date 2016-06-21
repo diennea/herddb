@@ -33,6 +33,7 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import java.io.BufferedInputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.DataOutput;
@@ -161,7 +162,7 @@ public class FileDataStorageManager extends DataStorageManager {
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
-        try (InputStream input = Files.newInputStream(pageFile, StandardOpenOption.READ);
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(pageFile, StandardOpenOption.READ), 4 * 1024 * 1024);
                 DigestInputStream digest = new DigestInputStream(input, createMD5());
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
             int flags = dataIn.readVInt(); // flags for future implementations
@@ -219,7 +220,7 @@ public class FileDataStorageManager extends DataStorageManager {
             return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
         }
         TableStatus latestStatus = null;
-        try (InputStream input = Files.newInputStream(keys, StandardOpenOption.READ);
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(keys, StandardOpenOption.READ), 4 * 1024 * 1024);
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             while (true) {
                 int marker;
@@ -368,8 +369,8 @@ public class FileDataStorageManager extends DataStorageManager {
                     throw new DataStorageManagerException("local table data not available, recovering from sequenceNumber " + sequenceNumber);
                 }
             }
-            try (InputStream in = Files.newInputStream(file);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(in);) {
+            try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
@@ -461,8 +462,8 @@ public class FileDataStorageManager extends DataStorageManager {
             if (!Files.isRegularFile(checkPointFile)) {
                 return LogSequenceNumber.START_OF_TIME;
             }
-            try (InputStream in = Files.newInputStream(checkPointFile);
-                    DataInputStream din = new DataInputStream(in);) {
+            try (InputStream input = new BufferedInputStream(Files.newInputStream(checkPointFile, StandardOpenOption.READ), 4 * 1024 * 1024);
+                    DataInputStream din = new DataInputStream(input);) {
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + checkPointFile.toAbsolutePath() + " is not for spablespace " + tableSpace);
@@ -506,13 +507,13 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException {
         try {
-            File temporarySwapFile = File.createTempFile("keysswap."+tablespace+"."+name, ".bin", tmpDirectory.toFile());
+            File temporarySwapFile = File.createTempFile("keysswap." + tablespace + "." + name, ".bin", tmpDirectory.toFile());
             DB db = DBMaker
                     .newFileDB(temporarySwapFile)
                     .cacheLRUEnable()
-                    .asyncWriteEnable()                    
+                    .asyncWriteEnable()
                     .transactionDisable()
-                    .commitFileSyncDisable()                    
+                    .commitFileSyncDisable()
                     .deleteFilesAfterClose()
                     .make();
             return db.createHashMap("keys")
@@ -570,8 +571,8 @@ public class FileDataStorageManager extends DataStorageManager {
             if (!Files.isRegularFile(file)) {
                 return;
             }
-            try (InputStream in = Files.newInputStream(file);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(in);) {
+            try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);

@@ -51,7 +51,7 @@ public class EmbeddedBookie implements AutoCloseable {
         org.apache.bookkeeper.conf.ServerConfiguration conf = new org.apache.bookkeeper.conf.ServerConfiguration();
         conf.setZkTimeout(configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT));
         conf.setZkServers(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT));
-        conf.setBookiePort(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT,ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT));
+        conf.setBookiePort(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT));
         conf.setUseHostNameAsBookieID(true);
         Path bookie_dir = baseDirectory.resolve("bookie");
         Files.createDirectories(bookie_dir);
@@ -61,7 +61,7 @@ public class EmbeddedBookie implements AutoCloseable {
         Files.createDirectories(bookie_journal_dir);
         conf.setLedgerDirNames(new String[]{bookie_data_dir.toString()});
         conf.setJournalDirName(bookie_journal_dir.toString());
-        conf.setFlushInterval(1000);        
+        conf.setFlushInterval(1000);
         conf.setMaxBackupJournals(5);
         conf.setMaxJournalSizeMB(1048);
         conf.setEnableLocalTransport(true);
@@ -78,7 +78,8 @@ public class EmbeddedBookie implements AutoCloseable {
                 LOGGER.log(Level.CONFIG, "config {0} remapped to {1}={2}", new Object[]{key, bookieConf, value});
             }
         }
-        System.out.println("Booting Apache Bookkeeper");
+        long _start = System.currentTimeMillis();
+        LOGGER.severe("Booting Apache Bookkeeper");
 
         boolean forcemetaformat = configuration.getBoolean("bookie.forcemetaformat", false);
         LOGGER.log(Level.CONFIG, "bookie.forcemetaformat={0}", forcemetaformat);
@@ -111,6 +112,8 @@ public class EmbeddedBookie implements AutoCloseable {
             }
             Thread.sleep(500);
         }
+        long _stop = System.currentTimeMillis();
+        LOGGER.severe("Booting Apache Bookkeeper finished. Time " + (_stop - _start) + " ms");
     }
 
     @Override

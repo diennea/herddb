@@ -672,7 +672,7 @@ public class TableSpaceManager {
             // every pending transaction MUST be rollback back
             List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
             log.startWriting();
-            LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, transactions.size()});
+            LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, pending_transactions.size()});
             for (long tx : pending_transactions) {
                 LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
                 LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
