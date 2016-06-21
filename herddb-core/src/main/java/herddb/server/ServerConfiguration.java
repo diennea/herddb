@@ -74,7 +74,10 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD = "server.bookkeeper.logretentionperiod";
 
     public static final String PROPERTY_LOG_RETENTION_PERIOD = "server.log.retention.period";
-    public static final long PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000L * 10 * 60 * 24 * 2;
+    public static final long PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
+
+    public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
+    public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
     public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
