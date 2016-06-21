@@ -19,6 +19,8 @@
  */
 package herddb.client;
 
+import java.util.Map;
+
 /**
  * Result of a DMS statement
  *
@@ -28,10 +30,12 @@ public class DMLResult {
 
     public final long updateCount;
     public final Object key;
+    public final Map<String, Object> newvalue;
 
-    public DMLResult(long updateCount, Object key) {
+    public DMLResult(long updateCount, Object key, Map<String, Object> newvalue) {
         this.updateCount = updateCount;
         this.key = key;
+        this.newvalue = newvalue;
     }
 
 }

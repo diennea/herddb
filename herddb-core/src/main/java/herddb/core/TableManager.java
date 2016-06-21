@@ -410,7 +410,7 @@ public class TableManager implements AbstractTableManager {
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry);
-            return new DMLStatementExecutionResult(1, key);
+            return new DMLStatementExecutionResult(1, key, Bytes.from_array(value));
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -437,7 +437,7 @@ public class TableManager implements AbstractTableManager {
             if (transaction != null) {
                 if (transaction.recordDeleted(table.name, key)) {
                     // UPDATE on a deleted record
-                    return new DMLStatementExecutionResult(0, key);
+                    return new DMLStatementExecutionResult(0, key, null);
                 }
                 // UPDATE on a updated record
                 Record actual = transaction.recordUpdated(table.name, key);
@@ -448,7 +448,7 @@ public class TableManager implements AbstractTableManager {
                 if (actual != null) {
                     if (predicate != null && !predicate.evaluate(actual, context)) {
                         // record does not match predicate
-                        return new DMLStatementExecutionResult(0, key);
+                        return new DMLStatementExecutionResult(0, key, null);
                     }
                     newValue = function.computeNewValue(actual, context, tableContext);
                 } else {
@@ -456,7 +456,7 @@ public class TableManager implements AbstractTableManager {
                     Long pageId = keyToPage.get(key);
                     if (pageId == null) {
                         // no record at that key
-                        return new DMLStatementExecutionResult(0, key);
+                        return new DMLStatementExecutionResult(0, key, null);
                     }
                     actual = buffer.get(key);
                     if (actual == null) {
@@ -465,7 +465,7 @@ public class TableManager implements AbstractTableManager {
                     }
                     if (predicate != null && !predicate.evaluate(actual, context)) {
                         // record does not match predicate
-                        return new DMLStatementExecutionResult(0, key);
+                        return new DMLStatementExecutionResult(0, key, null);
                     }
                     newValue = function.computeNewValue(actual, context, tableContext);
                 }
@@ -473,7 +473,7 @@ public class TableManager implements AbstractTableManager {
                 Long pageId = keyToPage.get(key);
                 if (pageId == null) {
                     // no record at that key
-                    return new DMLStatementExecutionResult(0, key);
+                    return new DMLStatementExecutionResult(0, key, null);
                 }
                 Record actual = buffer.get(key);
                 if (actual == null) {
@@ -482,7 +482,7 @@ public class TableManager implements AbstractTableManager {
                 }
                 if (predicate != null && !predicate.evaluate(actual, context)) {
                     // record does not match predicate
-                    return new DMLStatementExecutionResult(0, key);
+                    return new DMLStatementExecutionResult(0, key, null);
                 }
                 newValue = function.computeNewValue(actual, context, tableContext);
             }
@@ -493,7 +493,7 @@ public class TableManager implements AbstractTableManager {
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
 
             apply(pos, entry);
-            return new DMLStatementExecutionResult(1, key);
+            return new DMLStatementExecutionResult(1, key, Bytes.from_array(newValue));
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -516,7 +516,7 @@ public class TableManager implements AbstractTableManager {
             if (transaction != null) {
                 if (transaction.recordDeleted(table.name, key)) {
                     // delete on a deleted record inside this transaction
-                    return new DMLStatementExecutionResult(0, key);
+                    return new DMLStatementExecutionResult(0, key, null);
                 }
 
                 // delete on a updated record inside this transaction
@@ -528,14 +528,14 @@ public class TableManager implements AbstractTableManager {
                 if (actual != null) {
                     if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
                         // record does not match predicate
-                        return new DMLStatementExecutionResult(0, key);
+                        return new DMLStatementExecutionResult(0, key, null);
                     }
                 } else {
                     // matching a record untouched by the transaction till now
                     Long pageId = keyToPage.get(key);
                     if (pageId == null) {
                         // no record at that key
-                        return new DMLStatementExecutionResult(0, key);
+                        return new DMLStatementExecutionResult(0, key, null);
                     }
                     actual = buffer.get(key);
                     if (actual == null) {
@@ -545,14 +545,14 @@ public class TableManager implements AbstractTableManager {
                     }
                     if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
                         // record does not match predicate
-                        return new DMLStatementExecutionResult(0, key);
+                        return new DMLStatementExecutionResult(0, key, null);
                     }
                 }
             } else {
                 Long pageId = keyToPage.get(key);
                 if (pageId == null) {
                     // no record at that key
-                    return new DMLStatementExecutionResult(0, key);
+                    return new DMLStatementExecutionResult(0, key, null);
                 }
                 Record actual = buffer.get(key);
                 if (actual == null) {
@@ -562,13 +562,13 @@ public class TableManager implements AbstractTableManager {
                 }
                 if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
                     // record does not match predicate
-                    return new DMLStatementExecutionResult(0, key);
+                    return new DMLStatementExecutionResult(0, key, null);
                 }
             }
             LogEntry entry = LogEntryFactory.delete(table, key.data, transaction);
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry);
-            return new DMLStatementExecutionResult(1, key);
+            return new DMLStatementExecutionResult(1, key, null);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {

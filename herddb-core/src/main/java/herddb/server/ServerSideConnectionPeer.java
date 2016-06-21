@@ -29,6 +29,7 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.GetResult;
 import herddb.model.NotLeaderException;
+import herddb.model.Record;
 import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.Statement;
@@ -93,7 +94,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     public long getConnectionId() {
         return id;
     }
-   
+
     @Override
     public void messageReceived(Message message, Channel _channel) {
         LOGGER.log(Level.FINEST, "messageReceived {0}", message);
@@ -127,10 +128,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (saslNettyServer.isComplete()) {
                         username = saslNettyServer.getUserName();
                         authenticated = true;
-                        LOGGER.severe("client "+channel+" completed SASL authentication");
+                        LOGGER.severe("client " + channel + " completed SASL authentication");
                         saslNettyServer = null;
                     }
-                    _channel.sendReplyMessage(message, tokenChallenge);                    
+                    _channel.sendReplyMessage(message, tokenChallenge);
                 } catch (Exception err) {
                     if (err instanceof javax.security.sasl.SaslException) {
                         LOGGER.log(Level.SEVERE, "SASL error " + err, err);
@@ -145,7 +146,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             case Message.TYPE_EXECUTE_STATEMENT: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client "+channel+")"));
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
                     _channel.sendReplyMessage(message, error);
                     break;
                 }
@@ -170,6 +171,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
                             otherData = new HashMap<>();
                             otherData.put("key", key);
+                            if (dml.getNewvalue() != null) {
+                                Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
+                                otherData.put("newvalue", newvalue);
+                            }
                         }
                         _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData));
                     } else if (result instanceof GetResult) {
@@ -217,7 +222,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             break;
             case Message.TYPE_REQUEST_TABLESPACE_DUMP: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client "+channel+")"));
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
                     _channel.sendReplyMessage(message, error);
                     break;
                 }
@@ -233,7 +238,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             break;
             case Message.TYPE_OPENSCANNER: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client "+channel+")"));
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
                     _channel.sendReplyMessage(message, error);
                     break;
                 }
@@ -298,7 +303,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             case Message.TYPE_FETCHSCANNERDATA: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client "+channel+")"));
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
                     _channel.sendReplyMessage(message, error);
                     break;
                 }
@@ -338,7 +343,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             case Message.TYPE_CLOSESCANNER: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client "+channel+")"));
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
                     _channel.sendReplyMessage(message, error);
                     break;
                 }

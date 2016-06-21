@@ -30,20 +30,26 @@ public class DMLStatementExecutionResult extends StatementExecutionResult {
 
     private final int updateCount;
     private final Bytes key;
+    private final Bytes newvalue;
 
     public DMLStatementExecutionResult(int updateCount) {
         this.updateCount = updateCount;
         this.key = null;
-
+        this.newvalue = null;
     }
 
-    public DMLStatementExecutionResult(int updateCount, Bytes key) {
+    public DMLStatementExecutionResult(int updateCount, Bytes key, Bytes newvalue) {
         this.updateCount = updateCount;
         this.key = key;
+        this.newvalue = newvalue;
     }
 
     public int getUpdateCount() {
         return updateCount;
+    }
+
+    public Bytes getNewvalue() {
+        return newvalue;
     }
 
     public Bytes getKey() {

@@ -242,11 +242,13 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             long updateCount = (Long) reply.parameters.get("updateCount");
 
             Object key = null;
+            Map<String, Object> newvalue = null;
             Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
             if (data != null) {
                 key = data.get("key");
+                newvalue = (Map<String, Object>) data.get("newvalue");
             }
-            return new DMLResult(updateCount, key);
+            return new DMLResult(updateCount, key, newvalue);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
