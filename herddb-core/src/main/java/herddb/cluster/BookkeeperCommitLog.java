@@ -91,7 +91,7 @@ public class BookkeeperCommitLog extends CommitLog {
         private CommitFileWriter() throws LogNotAvailableException {
             try {
                 this.out = bookKeeper.createLedger(ensemble, writeQuorumSize, ackQuorumSize, BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));
-                this.ledgerId=this.out.getId();
+                this.ledgerId = this.out.getId();
             } catch (Exception err) {
                 throw new LogNotAvailableException(err);
             }
@@ -481,7 +481,11 @@ public class BookkeeperCommitLog extends CommitLog {
                 try {
                     LOGGER.log(Level.SEVERE, "dropping ledger {0}", ledgerId);
                     actualLedgersList.removeLedger(ledgerId);
-                    bookKeeper.deleteLedger(ledgerId);
+                    try {
+                        bookKeeper.deleteLedger(ledgerId);
+                    } catch (BKException.BKNoSuchLedgerExistsException error) {
+                        LOGGER.log(Level.SEVERE, "error while dropping ledger " + ledgerId, error);
+                    }
                     metadataManager.saveActualLedgersList(tableSpace, actualLedgersList);
                     LOGGER.log(Level.SEVERE, "dropping ledger {0}, finished", ledgerId);
                 } catch (BKException | InterruptedException error) {
