@@ -44,7 +44,7 @@ public class Transaction {
 
     public final long transactionId;
     public final String tableSpace;
-    public final Map<String, List<LockHandle>> locks;
+    public final Map<String, Map<Bytes, LockHandle>> locks;
     public final Map<String, List<Record>> changedRecords;
     public final Map<String, List<Record>> newRecords;
     public final Map<String, List<Bytes>> deletedRecords;
@@ -67,25 +67,20 @@ public class Transaction {
     }
 
     public LockHandle lookupLock(String tableName, Bytes key) {
-        List<LockHandle> ll = locks.get(tableName);
+        Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll == null) {
             return null;
         }
-        for (LockHandle l : ll) {
-            if (l.key.equals(key)) {
-                return l;
-            }
-        }
-        return null;
+        return ll.get(key);
     }
 
     public void registerLockOnTable(String tableName, LockHandle handle) {
-        List<LockHandle> ll = locks.get(tableName);
+        Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll == null) {
-            ll = new ArrayList<>();
+            ll = new HashMap<>();
             locks.put(tableName, ll);
         }
-        ll.add(handle);
+        ll.put(handle.key, handle);
     }
 
     public void registerNewTable(Table table) {
@@ -109,20 +104,20 @@ public class Transaction {
     }
 
     public void releaseLocksOnTable(String tableName, LocalLockManager lockManager) {
-        List<LockHandle> ll = locks.get(tableName);
+        Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll != null) {
-            for (LockHandle l : ll) {
+            for (LockHandle l : ll.values()) {
                 lockManager.releaseLock(l);
             }
         }
     }
 
     public void unregisterUpgradedLocksOnTable(String tableName, LockHandle lock) {
-        List<LockHandle> ll = locks.get(tableName);
+        Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll != null) {
-            for (Iterator<LockHandle> it = ll.iterator(); it.hasNext();) {
-                LockHandle next = it.next();
-                if (next == lock) {
+            for (Iterator<Map.Entry<Bytes, LockHandle>> it = ll.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<Bytes, LockHandle> next = it.next();
+                if (next.getValue() == lock) {
                     it.remove();
                     break;
                 }
@@ -180,7 +175,6 @@ public class Transaction {
             }
         }
         ll.add(key);
-
     }
 
     public boolean recordDeleted(String tableName, Bytes key) {
@@ -322,6 +316,16 @@ public class Transaction {
         }
         return t;
 
+    }
+
+    public void releaseLockOnKey(String tableName, Bytes key, LocalLockManager locksManager) {
+        Map<Bytes, LockHandle> ll = locks.get(tableName);
+        if (ll != null) {
+            LockHandle lock = ll.remove(key);
+            if (lock != null) {
+                locksManager.releaseLock(lock);
+            }
+        }
     }
 
 }

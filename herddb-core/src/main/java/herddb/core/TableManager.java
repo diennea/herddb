@@ -926,9 +926,11 @@ public class TableManager implements AbstractTableManager {
                     }
                 } else {
 
-                    // TODO: swap on disk the resultset
+                    // TODO: swap on disk the resultset                    
                     for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
                         Bytes key = entry.getKey();
+                        boolean keep_lock = false;
+                        boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                         LockHandle lock = lockForRead(key, transaction);
                         try {
                             if (transaction != null) {
@@ -941,6 +943,7 @@ public class TableManager implements AbstractTableManager {
                                     // use current transaction version of the record
                                     if (predicate == null || predicate.evaluate(record, context)) {
                                         recordSet.add(new Tuple(record.toBean(table), table.columns));
+                                        keep_lock = true;
                                     }
                                     continue;
                                 }
@@ -959,11 +962,15 @@ public class TableManager implements AbstractTableManager {
                                 }
                                 if (predicate == null || predicate.evaluate(record, context)) {
                                     recordSet.add(new Tuple(record.toBean(table), table.columns));
+                                    keep_lock = true;
                                 }
                             }
                         } finally {
+                            // release the lock on the key if it did not match scan criteria
                             if (transaction == null) {
                                 locksManager.releaseReadLockForKey(key, lock);
+                            } else if (!keep_lock && !already_locked) {
+                                transaction.releaseLockOnKey(table.name, key, locksManager);
                             }
                         }
                     }
