@@ -103,6 +103,16 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
+    public void dropTableSpace(String name, TableSpace previous) throws DDLException, MetadataStorageManagerException {
+        lock.writeLock().lock();
+        try {
+            tableSpaces.remove(name);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    @Override
     public boolean updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();

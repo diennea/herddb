@@ -48,6 +48,7 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -127,6 +128,8 @@ public class SQLTranslator {
             return query.replace("CREATE TABLESPACE", "EXECUTE createtablespace");
         } else if (query.startsWith("ALTER TABLESPACE ")) {
             return query.replace("ALTER TABLESPACE", "EXECUTE altertablespace");
+        } else if (query.startsWith("DROP TABLESPACE ")) {
+            return query.replace("DROP TABLESPACE", "EXECUTE droptablespace");
         } else {
             return query;
         }
@@ -782,7 +785,7 @@ public class SQLTranslator {
                 return new CreateTableSpaceStatement(tableSpaceName + "", Collections.singleton(leaderId), leaderId, 1);
             }
             case "ALTERTABLESPACE": {
-                if (execute.getExprList().getExpressions().size() < 3) {
+                if (execute.getExprList().getExpressions().size() != 3) {
                     throw new StatementExecutionException("ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName property value)");
                 }
                 String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
@@ -814,6 +817,21 @@ public class SQLTranslator {
                             }
                     }
                     return new AlterTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount);
+                } catch (MetadataStorageManagerException err) {
+                    throw new StatementExecutionException(err);
+                }
+            }
+            case "DROPTABLESPACE": {
+                if (execute.getExprList().getExpressions().size() != 1) {
+                    throw new StatementExecutionException("DROPTABLESPACE syntax (EXECUTE DROPTABLESPACE tableSpaceName)");
+                }
+                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
+                try {
+                    TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
+                    if (tableSpace == null) {
+                        throw new TableSpaceDoesNotExistException(tableSpaceName);
+                    }
+                    return new DropTableSpaceStatement(tableSpaceName + "");
                 } catch (MetadataStorageManagerException err) {
                     throw new StatementExecutionException(err);
                 }

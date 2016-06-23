@@ -221,6 +221,18 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         }
     }
 
+    private boolean deleteTableSpaceNode(String tableSpaceName, int metadataStorageVersion) throws KeeperException, InterruptedException, IOException, TableSpaceDoesNotExistException {
+        try {
+            zooKeeper.delete(basePath + "/tableSpaces/" + tableSpaceName, metadataStorageVersion);
+            notifyMetadataChanged();
+            return true;
+        } catch (KeeperException.BadVersionException changed) {
+            return false;
+        } catch (KeeperException.NoNodeException changed) {
+            throw new TableSpaceDoesNotExistException(tableSpaceName);
+        }
+    }
+
     @Override
     public void ensureDefaultTableSpace(String localNodeId) throws MetadataStorageManagerException {
         try {
@@ -290,6 +302,21 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                 notifyMetadataChanged();
             }
             return result;
+        } catch (KeeperException | InterruptedException | IOException ex) {
+            throw new MetadataStorageManagerException(ex);
+        }
+    }
+
+    @Override
+    public void dropTableSpace(String name, TableSpace previous) throws DDLException, MetadataStorageManagerException {
+        if (previous.metadataStorageVersion == null) {
+            throw new MetadataStorageManagerException("metadataStorageVersion not read from ZK");
+        }
+        try {
+            boolean result = deleteTableSpaceNode(name, (Integer) previous.metadataStorageVersion);
+            if (result) {
+                notifyMetadataChanged();
+            }
         } catch (KeeperException | InterruptedException | IOException ex) {
             throw new MetadataStorageManagerException(ex);
         }

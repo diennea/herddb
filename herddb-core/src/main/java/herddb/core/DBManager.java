@@ -50,6 +50,7 @@ import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
@@ -358,6 +359,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 }
                 return alterTableSpace((AlterTableSpaceStatement) statement);
             }
+            if (statement instanceof DropTableSpaceStatement) {
+                if (transactionContext.transactionId > 0) {
+                    throw new StatementExecutionException("DROP TABLESPACE cannot be issued inside a transaction");
+                }
+                return dropTableSpace((DropTableSpaceStatement) statement);
+            }
 
             TableSpaceManager manager;
             generalLock.readLock().lock();
@@ -587,6 +594,20 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
+    private StatementExecutionResult dropTableSpace(DropTableSpaceStatement dropTableSpaceStatement) throws StatementExecutionException {
+        try {
+            TableSpace previous = metadataStorageManager.describeTableSpace(dropTableSpaceStatement.getTableSpace());
+            if (previous == null) {
+                throw new TableSpaceDoesNotExistException(dropTableSpaceStatement.getTableSpace());
+            }
+            metadataStorageManager.dropTableSpace(dropTableSpaceStatement.getTableSpace(), previous);
+            triggerActivator();
+            return new DDLStatementExecutionResult();
+        } catch (Exception err) {
+            throw new StatementExecutionException(err);
+        }
+    }
+
     public void dumpTableSpace(String tableSpace, String dumpId, Message message, Channel _channel, int fetchSize) {
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
@@ -657,8 +678,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     private void processTableSpaces() {
         generalLock.writeLock().lock();
+        Collection<String> actualTablesSpaces;
         try {
-            Collection<String> actualTablesSpaces = metadataStorageManager.listTableSpaces();
+            actualTablesSpaces = metadataStorageManager.listTableSpaces();
 
             for (String tableSpace : actualTablesSpaces) {
                 TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);
@@ -670,12 +692,16 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         } catch (MetadataStorageManagerException error) {
             LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
+            return;
         } finally {
             generalLock.writeLock().unlock();
         }
         Set<String> failedTableSpaces = new HashSet<>();
         for (Map.Entry<String, TableSpaceManager> entry : tablesSpaces.entrySet()) {
             if (entry.getValue().isFailed()) {
+                failedTableSpaces.add(entry.getKey());
+            }
+            if (!actualTablesSpaces.contains(entry.getKey())) {
                 failedTableSpaces.add(entry.getKey());
             }
         }

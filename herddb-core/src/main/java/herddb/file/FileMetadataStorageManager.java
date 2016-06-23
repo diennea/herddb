@@ -113,6 +113,21 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
+    public void dropTableSpace(String name, TableSpace previous) throws DDLException, MetadataStorageManagerException {
+
+        lock.writeLock().lock();
+        try {
+            if (!tableSpaces.containsKey(name)) {
+                throw new TableSpaceDoesNotExistException("a tablespace named " + name + " does not exist");
+            }
+            removeTableSpaceFromDisk(name);
+            tableSpaces.remove(name);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    @Override
     public boolean updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
@@ -171,6 +186,15 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             Files.move(file_tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
+        }
+    }
+
+    private void removeTableSpaceFromDisk(String tableSpace) throws MetadataStorageManagerException {
+        try {
+            Path file = baseDirectory.resolve(tableSpace + ".metadata");
+            Files.deleteIfExists(file);
+        } catch (IOException error) {
+            throw new MetadataStorageManagerException(error);
         }
     }
 

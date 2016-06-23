@@ -20,51 +20,59 @@
 package herddb.core;
 
 import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
-import herddb.model.Table;
+import herddb.model.TableDoesNotExistException;
 import herddb.model.TransactionContext;
-import herddb.model.TransactionResult;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.commands.DropTableSpaceStatement;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
- * Tests about statement rewriting for EXECUTE syntax
+ * Drop Tablespace Tests
  *
  * @author enrico.olivelli
  */
-public class BetterExecuteSyntaxTest {
+public class DropTablespaceTest {
 
     @Test
-    public void betterSyntax() throws Exception {
-
+    public void test() throws Exception {
+        String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
-            execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
-
-            execute(manager, "ALTER TABLESPACE 'tblspace1','expectedreplicacount',2", Collections.emptyList());
-            long tx = ((TransactionResult) execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList())).getTransactionId();
-            execute(manager, "COMMIT TRANSACTION 'tblspace1'," + tx, Collections.emptyList());
-
-            long tx2 = ((TransactionResult) execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList())).getTransactionId();
-            execute(manager, "ROLLBACK TRANSACTION 'tblspace1'," + tx2, Collections.emptyList());
-
-            execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
-            
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+                Number count = (Number) scan.consume().get(0).get(0);
+                assertEquals(0, count.intValue());
+            }
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"));) {
+                Number count = (Number) scan.consume().get(0).get(0);
+                assertEquals(1, count.intValue());
+            }
+            manager.executeStatement(new DropTableSpaceStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"));) {
                 Number count = (Number) scan.consume().get(0).get(0);
                 assertEquals(0, count.intValue());
             }
+            boolean ok = false;
+            for (int i = 0; i < 100; i++) {
+                try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+                    Thread.sleep(200);
+                } catch (herddb.model.StatementExecutionException expected) {
+                    ok = true;
+                }
+            }
+            assertTrue(ok);
 
         }
     }

@@ -66,6 +66,15 @@ public abstract class MetadataStorageManager implements AutoCloseable {
     public abstract void registerTableSpace(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException;
 
     /**
+     * Drop a tablespace
+     * @param name
+     * @param previous
+     * @throws DDLException
+     * @throws MetadataStorageManagerException 
+     */
+    public abstract void dropTableSpace(String name, TableSpace previous) throws DDLException, MetadataStorageManagerException;
+    
+    /**
      * Updates table space metadata on the metadata storage
      *
      * @param tableSpace
