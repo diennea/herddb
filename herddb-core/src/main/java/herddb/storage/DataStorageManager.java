@@ -19,6 +19,7 @@
  */
 package herddb.storage;
 
+import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
@@ -77,7 +78,7 @@ public abstract class DataStorageManager {
      * @param tableStatus
      * @throws DataStorageManagerException
      */
-    public abstract void tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
+    public abstract List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
 
     /**
      * Return the actual number of pages presents on disk

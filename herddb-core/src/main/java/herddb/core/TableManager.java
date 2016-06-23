@@ -60,6 +60,7 @@ import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -840,11 +841,12 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void checkpoint() throws DataStorageManagerException {
+    public List<PostCheckpointAction> checkpoint() throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped, this table is created on transaction " + createdInTransaction + " which is not committed");
-            return;
+            return Collections.emptyList();
         }
+        List<PostCheckpointAction> result = new ArrayList<>();
         pagesLock.writeLock().lock();
         LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
 
@@ -890,12 +892,12 @@ public class TableManager implements AbstractTableManager {
             dirtyPages.clear();
             dirtyRecords.set(0);
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
-            dataStorageManager.tableCheckpoint(table.tablespace, table.name, tableStatus);
-
+            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(table.tablespace, table.name, tableStatus);
+            result.addAll(actions);
         } finally {
             pagesLock.writeLock().unlock();
         }
-
+        return result;
     }
 
     private void createNewPage(List<Record> newPage) throws DataStorageManagerException {

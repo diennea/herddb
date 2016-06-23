@@ -59,6 +59,7 @@
         <libs.curator>2.8.0</libs.curator>
         <libs.guava>19.0</libs.guava>
         <libs.mapdb>1.0.9</libs.mapdb>
+        <libs.slf4j>1.7.21</libs.slf4j>        
         <libs.bookkeeper>4.4.0</libs.bookkeeper>
     </properties>
         

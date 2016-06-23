@@ -223,7 +223,7 @@ public class TableSpaceManager {
                 long id = entry.transactionId;
                 Transaction transaction = transactions.get(id);
                 if (transaction == null) {
-                    throw new DataStorageManagerException("invalid transaction id " + id);
+                    throw new DataStorageManagerException("invalid transaction id " + id + ", only " + transactions.keySet());
                 }
                 List<AbstractTableManager> managers;
                 try {
@@ -839,17 +839,26 @@ public class TableSpaceManager {
             if (actualLogSequenceNumber == null) {
                 throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
             }
+            List<PostCheckpointAction> actions = new ArrayList<>();
             // we checkpoint all data to disk and save the actual log sequence number            
             for (AbstractTableManager tableManager : tables.values()) {
                 if (!tableManager.isSystemTable()) {
-                    tableManager.checkpoint();
+                    actions.addAll(tableManager.checkpoint());
                 }
             }
             writeTablesOnDataStorageManager();
 
             dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceName, logSequenceNumber, transactions.values());
-
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceName, logSequenceNumber);
+
+            for (PostCheckpointAction action : actions) {
+                try {
+                    action.run();
+                } catch (Throwable error) {
+                    LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
+                }
+            }
+
             log.dropOldLedgers(logSequenceNumber);
 
         } finally {

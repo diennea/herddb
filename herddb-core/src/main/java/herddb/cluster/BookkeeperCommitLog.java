@@ -336,6 +336,7 @@ public class BookkeeperCommitLog extends CommitLog {
         LOGGER.log(Level.SEVERE, "Actual ledgers list:" + actualLedgersList);
         this.lastLedgerId = snapshotSequenceNumber.ledgerId;
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
+        this.lastSequenceNumber = snapshotSequenceNumber.offset;
         LOGGER.log(Level.SEVERE, "recovery from latest snapshotSequenceNumber:" + snapshotSequenceNumber);
         if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId) && !this.actualLedgersList.getActiveLedgers().isEmpty()) {
             // TODO: download snapshot from another remote broker
@@ -430,6 +431,8 @@ public class BookkeeperCommitLog extends CommitLog {
                             if (error.value != null) {
                                 throw new RuntimeException(error.value);
                             }
+                            lastLedgerId = ledgerId;
+                            lastSequenceNumber = end;
                             long _stop = System.currentTimeMillis();
                             LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %) read time {3}", new Object[]{start, end, percent, (_stop - _start) + " ms"});
                         }
@@ -438,6 +441,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     handle.close();
                 }
             }
+            LOGGER.severe("After recovery of " + tableSpace + " lastSequenceNumber " + getLastSequenceNumber());
         } catch (Exception err) {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery", err);
             signalBrokerFailed();

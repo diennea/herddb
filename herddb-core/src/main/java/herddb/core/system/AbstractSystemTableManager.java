@@ -21,6 +21,7 @@ package herddb.core.system;
 
 import herddb.core.AbstractTableManager;
 import herddb.core.MaterializedRecordSet;
+import herddb.core.PostCheckpointAction;
 import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
@@ -40,6 +41,8 @@ import herddb.model.Transaction;
 import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -132,8 +135,8 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void checkpoint() throws DataStorageManagerException {
-
+    public List<PostCheckpointAction> checkpoint() throws DataStorageManagerException {
+        return Collections.emptyList();
     }
 
     @Override

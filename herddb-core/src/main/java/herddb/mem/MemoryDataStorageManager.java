@@ -19,6 +19,7 @@
  */
 package herddb.mem;
 
+import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
@@ -112,7 +113,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
 
         List<Long> pagesForTable = new ArrayList<>();
         String prefix = tableName + "_";
@@ -122,11 +123,20 @@ public class MemoryDataStorageManager extends DataStorageManager {
                 pagesForTable.add(pageId);
             }
         }
-        pagesForTable.removeAll(tableStatus.activePages);
-        for (long pageId : pagesForTable) {
-            pages.remove(prefix + pageId);
-        }
 
+        pagesForTable.removeAll(tableStatus.activePages);
+        List<PostCheckpointAction> result = new ArrayList<>();
+
+        for (long pageId : pagesForTable) {
+            result.add(new PostCheckpointAction() {
+                @Override
+                public void run() {
+                    // remove only after checkpoint completed
+                    pages.remove(prefix + pageId);
+                }
+            });            
+        }
+        return result;
     }
 
     @Override

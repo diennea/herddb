@@ -19,6 +19,7 @@
  */
 package herddb.file;
 
+import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
@@ -249,7 +250,7 @@ public class FileDataStorageManager extends DataStorageManager {
     private static final int TABLE_STATUS_MARKER = 1233;
 
     @Override
-    public void tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, tableName);
         try {
             Files.createDirectories(tableDir);
@@ -266,20 +267,27 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
+        List<PostCheckpointAction> result = new ArrayList<>();
         // we can drop old page files now
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
         for (Path p : pageFiles) {
             long pageId = getPageId(p);
             LOGGER.log(Level.INFO, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId);
             if (pageId > 0 && !tableStatus.activePages.contains(pageId)) {
-                LOGGER.log(Level.SEVERE, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". to be deleted");
-                try {
-                    Files.deleteIfExists(p);
-                } catch (IOException err) {
-                    LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
-                }
+                LOGGER.log(Level.SEVERE, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
+                result.add(new PostCheckpointAction() {
+                    @Override
+                    public void run() {
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException err) {
+                            LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
+                        }
+                    }
+                });
             }
         }
+        return result;
     }
 
     private static long getPageId(Path p) {

@@ -33,6 +33,7 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -64,7 +65,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void dump(Consumer<Record> records) throws DataStorageManagerException;
 
-    void checkpoint() throws DataStorageManagerException;
+    List<PostCheckpointAction> checkpoint() throws DataStorageManagerException;
 
     long getNextPrimaryKeyValue();
 

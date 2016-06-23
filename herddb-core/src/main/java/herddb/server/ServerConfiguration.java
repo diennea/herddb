@@ -205,18 +205,20 @@ public final class ServerConfiguration {
         } else if (before.startsWith("jdbc:herddb:local:")) {
             set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
         }
-        String qs = url.substring(questionMark + 1);
-        String[] params = qs.split("&");
-        LOG.log(Level.SEVERE, "url " + url + " qs " + qs + " params " + Arrays.toString(params));
-        for (String param : params) {
-            // TODO: URLDecoder??
-            int pos = param.indexOf('=');
-            if (pos > 0) {
-                String key = param.substring(0, pos);
-                String value = param.substring(pos + 1);
-                set(key, value);
-            } else {
-                set(param, "");
+        if (questionMark < url.length()) {
+            String qs = url.substring(questionMark + 1);
+            String[] params = qs.split("&");
+            LOG.log(Level.SEVERE, "url " + url + " qs " + qs + " params " + Arrays.toString(params));
+            for (String param : params) {
+                // TODO: URLDecoder??
+                int pos = param.indexOf('=');
+                if (pos > 0) {
+                    String key = param.substring(0, pos);
+                    String value = param.substring(pos + 1);
+                    set(key, value);
+                } else {
+                    set(param, "");
+                }
             }
         }
     }
