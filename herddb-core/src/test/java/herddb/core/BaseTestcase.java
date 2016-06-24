@@ -44,6 +44,7 @@ public class BaseTestcase {
 
     protected String nodeId = "localhost";
     protected String tableSpace = "tblspace1";
+    protected String tableSpaceUUID;
     protected Table table;
     protected String tableName;
     protected DBManager manager;
@@ -93,6 +94,7 @@ public class BaseTestcase {
         CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
         manager.executeStatement(st1,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
         assertTrue(manager.waitForTablespace(tableSpace, 10000));
+        tableSpaceUUID = metadataStorageManager.describeTableSpace(tableSpace).uuid;
         tableName = "t1";
         table = createTable();
 

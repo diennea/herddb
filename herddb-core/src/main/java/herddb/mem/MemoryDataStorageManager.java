@@ -162,12 +162,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
-
-        tables.forEach((t) -> {
-            if (!t.tablespace.equals(tableSpace)) {
-                throw new IllegalArgumentException("illegal tablespace " + t.tablespace + " for " + t.name + " <> " + tableSpace);
-            }
-        });
+        
         List<Table> res = tablesByTablespace.get(tableSpace);
         if (res == null) {
             this.tablesByTablespace.put(tableSpace, new ArrayList<>(tables));

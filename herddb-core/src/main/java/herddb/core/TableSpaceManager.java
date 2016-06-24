@@ -105,6 +105,7 @@ public class TableSpaceManager {
     private final DataStorageManager dataStorageManager;
     private final CommitLog log;
     private final String tableSpaceName;
+    private final String tableSpaceUUID;
     private final String nodeId;
     private final Map<String, AbstractTableManager> tables = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
@@ -116,13 +117,14 @@ public class TableSpaceManager {
     private LogSequenceNumber actualLogSequenceNumber;
     private boolean virtual;
 
-    public TableSpaceManager(String nodeId, String tableSpaceName, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager, boolean virtual) {
+    public TableSpaceManager(String nodeId, String tableSpaceName, String tableSpaceUUID, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager, boolean virtual) {
         this.nodeId = nodeId;
         this.manager = manager;
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.log = log;
         this.tableSpaceName = tableSpaceName;
+        this.tableSpaceUUID = tableSpaceUUID;
         this.virtual = virtual;
     }
 
@@ -164,17 +166,17 @@ public class TableSpaceManager {
     }
 
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
-        LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceName);
+        LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceUUID);
         actualLogSequenceNumber = logSequenceNumber;
         LOGGER.log(Level.SEVERE, nodeId + " recover " + tableSpaceName + ", logSequenceNumber from DataStorage: " + logSequenceNumber);
-        List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceName);
+        List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceUUID);
         LOGGER.log(Level.SEVERE, nodeId + " tablesAtBoot", tablesAtBoot.stream().map(t -> {
             return t.name;
         }).collect(Collectors.joining()));
         for (Table table : tablesAtBoot) {
             bootTable(table, 0);
         }
-        dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceName, t -> {
+        dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
             try {
                 for (Table table : t.newTables.values()) {
@@ -343,7 +345,7 @@ public class TableSpaceManager {
                 tablelist.add(tableManager.getTable());
             }
         }
-        dataStorageManager.writeTables(tableSpaceName, logSequenceNumber, tablelist);
+        dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist);
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
@@ -521,7 +523,7 @@ public class TableSpaceManager {
         @Override
         public void beginTable(Table table) throws DataStorageManagerException {
             LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name);
-            dataStorageManager.dropTable(tableSpaceName, table.name);
+            dataStorageManager.dropTable(tableSpaceUUID, table.name);
             currentTable = bootTable(table, 0);
         }
 
@@ -792,7 +794,7 @@ public class TableSpaceManager {
 
     private TableManager bootTable(Table table, long transaction) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
-        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, transaction);
+        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID, transaction);
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
@@ -848,8 +850,8 @@ public class TableSpaceManager {
             }
             writeTablesOnDataStorageManager();
 
-            dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceName, logSequenceNumber, transactions.values());
-            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceName, logSequenceNumber);
+            dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, transactions.values());
+            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
 
             for (PostCheckpointAction action : actions) {
                 try {

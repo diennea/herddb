@@ -30,6 +30,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
+import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.AlterTableSpaceStatement;
@@ -64,7 +65,7 @@ public class ClientMultiServerTest {
 
     @Before
     public void beforeSetup() throws Exception {
-        testEnv = new ZKTestEnv(folder.newFolder().toPath());
+        testEnv = new ZKTestEnv(folder.newFolder("zkdata").toPath());
         testEnv.startBookie();
     }
 
@@ -137,7 +138,7 @@ public class ClientMultiServerTest {
 
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", Collections.emptyList(), 0, 0, 10);) {
                         assertEquals(1, scan.consume().size());
-                    }                    
+                    }
                     // switch leader to server2
                     server_2.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
                             new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);

@@ -27,6 +27,7 @@ import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.FileUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -186,6 +187,21 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             Files.move(file_tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public void clear() throws MetadataStorageManagerException {
+        lock.writeLock().lock();
+        try {
+            FileUtils.cleanDirectory(baseDirectory);
+            Files.createDirectories(baseDirectory);
+            tableSpaces.clear();
+        } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "cannot clear local data", err);
+            throw new MetadataStorageManagerException(err);
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 

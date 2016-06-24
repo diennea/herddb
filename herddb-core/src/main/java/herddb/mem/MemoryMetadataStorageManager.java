@@ -46,6 +46,17 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
     private final List<NodeMetadata> nodes = new ArrayList<>();
 
     @Override
+    public void clear() {
+        lock.writeLock().lock();
+        try {
+            tableSpaces.clear();
+            nodes.clear();
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+        
+    @Override
     public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
         lock.readLock().lock();
         try {

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * A set of Tables. All tables in the same TableSpace are handled by the same
@@ -39,6 +40,9 @@ import java.util.Set;
 public class TableSpace {
 
     public static final String DEFAULT = "default";
+
+    public final String uuid;
+
     public final String name;
     /**
      * Leader Node for the TableSpace
@@ -57,8 +61,9 @@ public class TableSpace {
 
     public final Object metadataStorageVersion;
 
-    private TableSpace(String name, String leaderId, Set<String> replicas, int expectedReplicaCount, Object metadataStorageVersion) {
+    private TableSpace(String uuid, String name, String leaderId, Set<String> replicas, int expectedReplicaCount, Object metadataStorageVersion) {
         this.name = name;
+        this.uuid = uuid;
         this.leaderId = leaderId;
         this.replicas = replicas;
         this.expectedReplicaCount = expectedReplicaCount;
@@ -74,8 +79,9 @@ public class TableSpace {
     }
 
     public static TableSpace deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
+        String uuid = in.readUTF();
         String name = in.readUTF();
-        int flags = in.readInt(); // for future implementations
+        int flags = in.readInt(); // for future implementations        
         String leaderId = in.readUTF();
         int expectedReplicaCount = in.readInt();
         int numreplicas = in.readInt();
@@ -83,7 +89,7 @@ public class TableSpace {
         for (int i = 0; i < numreplicas; i++) {
             replicas.add(in.readUTF());
         }
-        return new TableSpace(name, leaderId, replicas, expectedReplicaCount, metadataStorageVersion);
+        return new TableSpace(uuid, name, leaderId, replicas, expectedReplicaCount, metadataStorageVersion);
     }
 
     public byte[] serialize() throws IOException {
@@ -95,6 +101,7 @@ public class TableSpace {
     }
 
     public void serialize(DataOutputStream out) throws IOException {
+        out.writeUTF(uuid);
         out.writeUTF(name);
         out.writeInt(0); // for future implementations
         out.writeUTF(leaderId);
@@ -109,6 +116,7 @@ public class TableSpace {
 
         private final Set<String> replicas = new HashSet<>();
         private String name;
+        private String uuid;
         private String leaderId;
         private int expectedReplicaCount = 1;
 
@@ -116,11 +124,17 @@ public class TableSpace {
         }
 
         public Builder cloning(TableSpace tableSpace) {
+            this.uuid = tableSpace.uuid;
             this.name = tableSpace.name;
             this.replicas.clear();
             this.replicas.addAll(tableSpace.replicas);
             this.leaderId = tableSpace.leaderId;
             this.expectedReplicaCount = tableSpace.expectedReplicaCount;
+            return this;
+        }
+
+        public Builder uuid(String uuid) {
+            this.uuid = uuid;
             return this;
         }
 
@@ -150,6 +164,12 @@ public class TableSpace {
         }
 
         public TableSpace build() {
+            if (uuid == null) {
+                uuid = UUID.randomUUID().toString().replace("-", "");
+            }
+            if (uuid.isEmpty()) {
+                throw new IllegalArgumentException("uuid is not defined");
+            }
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException("name is not defined");
             }
@@ -165,7 +185,7 @@ public class TableSpace {
             if (expectedReplicaCount <= 0) {
                 throw new IllegalArgumentException("expectedReplicaCount must be > 0");
             }
-            return new TableSpace(name, leaderId, Collections.unmodifiableSet(replicas), expectedReplicaCount, null);
+            return new TableSpace(uuid, name, leaderId, Collections.unmodifiableSet(replicas), expectedReplicaCount, null);
         }
 
     }

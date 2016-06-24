@@ -43,6 +43,7 @@ public class SystablespacesTableManager extends AbstractSystemTableManager {
             .builder()
             .name("systablespaces")
             .column("tablespace_name", ColumnTypes.STRING)
+            .column("uuid", ColumnTypes.STRING)
             .column("leader", ColumnTypes.STRING)
             .column("replica", ColumnTypes.STRING)
             .column("expectedreplicacount", ColumnTypes.INTEGER)
@@ -64,6 +65,7 @@ public class SystablespacesTableManager extends AbstractSystemTableManager {
                     result.add(RecordSerializer.makeRecord(
                             table,
                             "tablespace_name", t.name,
+                            "uuid", t.uuid,
                             "leader", t.leaderId,
                             "expectedreplicacount", t.expectedReplicaCount,
                             "replica", t.replicas.stream().collect(Collectors.joining(","))

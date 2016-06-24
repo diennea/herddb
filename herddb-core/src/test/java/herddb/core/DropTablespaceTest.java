@@ -74,6 +74,15 @@ public class DropTablespaceTest {
             }
             assertTrue(ok);
 
+            // create again the table space, all data should be lost
+            CreateTableSpaceStatement st1_2 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1);
+            manager.executeStatement(st1_2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
+                Number count = (Number) scan.consume().get(0).get(0);
+                assertEquals(0, count.intValue());
+            }
         }
     }
 }

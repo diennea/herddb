@@ -121,4 +121,8 @@ public abstract class MetadataStorageManager implements AutoCloseable {
         }
     }
 
+    public void clear() throws MetadataStorageManagerException {
+        
+    }
+
 }

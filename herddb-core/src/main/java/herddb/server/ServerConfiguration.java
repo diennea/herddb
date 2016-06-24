@@ -86,6 +86,9 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_USERS_FILE = "server.users.file";
     public static final String PROPERTY_USERS_FILE_DEFAULT = "";
+    
+    public static final String PROPERTY_CLEAR_AT_BOOT = "server.clear.at.boot";
+    public static final boolean PROPERTY_CLEAR_AT_BOOT_DEFAULT = false;
 
     public static final String PROPERTY_SERVER_TO_SERVER_USERNAME = "server.username";
     public static final String PROPERTY_SERVER_TO_SERVER_PASSWORD = "server.password";

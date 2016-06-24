@@ -62,13 +62,13 @@ public class DropOldPagesTest extends BaseTestcase {
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
-        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
-        assertEquals(0, fileDataStorageManager.getTablePageFiles(tableSpace, tableName).size());
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(0, fileDataStorageManager.getTablePageFiles(tableSpaceUUID, tableName).size());
         
         manager.checkpoint();
 
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
-        assertEquals(1, fileDataStorageManager.getTablePageFiles(tableSpace, tableName).size());
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, fileDataStorageManager.getTablePageFiles(tableSpaceUUID, tableName).size());
         {
             Record record = new Record(Bytes.from_string("key2"), Bytes.from_string("0"));
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
@@ -78,8 +78,8 @@ public class DropOldPagesTest extends BaseTestcase {
         }
         manager.checkpoint();
 
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
-        assertEquals(1, fileDataStorageManager.getTablePageFiles(tableSpace, tableName).size());
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, fileDataStorageManager.getTablePageFiles(tableSpaceUUID, tableName).size());
 
     }
 

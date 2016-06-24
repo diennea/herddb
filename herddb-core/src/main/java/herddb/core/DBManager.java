@@ -112,6 +112,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private ServerConfiguration serverConfiguration = new ServerConfiguration();
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
+    private boolean clearAtBoot = false;
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
@@ -194,6 +195,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
 
         metadataStorageManager.start();
+
+        if (clearAtBoot) {
+            metadataStorageManager.clear();
+        }
+
         metadataStorageManager.setMetadataChangeListener(this);
         metadataStorageManager.registerNode(NodeMetadata
                 .builder()
@@ -204,7 +210,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 .build());
 
         try {
-            TableSpaceManager local_node_virtual_tables_manager = new TableSpaceManager(nodeId, virtualTableSpaceId, metadataStorageManager, dataStorageManager, null, this, true);
+            TableSpaceManager local_node_virtual_tables_manager = new TableSpaceManager(nodeId, virtualTableSpaceId, virtualTableSpaceId, metadataStorageManager, dataStorageManager, null, this, true);
             tablesSpaces.put(virtualTableSpaceId, local_node_virtual_tables_manager);
             local_node_virtual_tables_manager.start();
         } catch (DDLException | DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException error) {
@@ -282,9 +288,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
-            LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
-            CommitLog commitLog = commitLogManager.createCommitLog(tableSpaceName);
-            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, metadataStorageManager, dataStorageManager, commitLog, this, false);
+            LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid});
+            CommitLog commitLog = commitLogManager.createCommitLog(tableSpace.uuid);
+            TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, tableSpace.uuid, metadataStorageManager, dataStorageManager, commitLog, this, false);
             try {
                 manager.start();
                 tablesSpaces.put(tableSpaceName, manager);
@@ -570,21 +576,22 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     private StatementExecutionResult alterTableSpace(AlterTableSpaceStatement alterTableSpaceStatement) throws StatementExecutionException {
         TableSpace tableSpace;
-        try {
-            tableSpace = TableSpace.builder().leader(
-                    alterTableSpaceStatement.getLeaderId())
-                    .name(alterTableSpaceStatement.getTableSpace())
-                    .replicas(alterTableSpaceStatement.getReplicas())
-                    .expectedReplicaCount(alterTableSpaceStatement.getExpectedReplicaCount())
-                    .build();
-        } catch (IllegalArgumentException invalid) {
-            throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);
-        }
 
         try {
             TableSpace previous = metadataStorageManager.describeTableSpace(alterTableSpaceStatement.getTableSpace());
             if (previous == null) {
                 throw new TableSpaceDoesNotExistException(alterTableSpaceStatement.getTableSpace());
+            }
+            try {
+                tableSpace = TableSpace.builder()
+                        .cloning(previous)
+                        .leader(alterTableSpaceStatement.getLeaderId())
+                        .name(alterTableSpaceStatement.getTableSpace())
+                        .replicas(alterTableSpaceStatement.getReplicas())
+                        .expectedReplicaCount(alterTableSpaceStatement.getExpectedReplicaCount())
+                        .build();
+            } catch (IllegalArgumentException invalid) {
+                throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);
             }
             metadataStorageManager.updateTableSpace(tableSpace, previous);
             triggerActivator();
@@ -701,7 +708,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (entry.getValue().isFailed()) {
                 failedTableSpaces.add(entry.getKey());
             }
-            if (!actualTablesSpaces.contains(entry.getKey())) {
+            if (!entry.getKey().equals(virtualTableSpaceId) && !actualTablesSpaces.contains(entry.getKey())) {
                 failedTableSpaces.add(entry.getKey());
             }
         }
@@ -761,6 +768,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public void metadataChanged() {
         LOGGER.log(Level.SEVERE, "metadata changed");
         triggerActivator();
+    }
+
+    public boolean isClearAtBoot() {
+        return clearAtBoot;
+    }
+
+    public void setClearAtBoot(boolean clearAtBoot) {
+        this.clearAtBoot = clearAtBoot;
     }
 
 }

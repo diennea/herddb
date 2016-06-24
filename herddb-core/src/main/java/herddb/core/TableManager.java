@@ -147,6 +147,11 @@ public class TableManager implements AbstractTableManager {
     private final TableContext tableContext;
 
     /**
+     * Phisical ID of the TableSpace
+     */
+    private final String tableSpaceUUID;
+
+    /**
      * Definition of the table
      */
     private Table table;
@@ -160,15 +165,15 @@ public class TableManager implements AbstractTableManager {
      */
     private long createdInTransaction;
 
-    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, long createdInTransaction) throws DataStorageManagerException {
+    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long createdInTransaction) throws DataStorageManagerException {
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.log = log;
         this.dataStorageManager = dataStorageManager;
         this.createdInTransaction = createdInTransaction;
-
+        this.tableSpaceUUID = tableSpaceUUID;
         this.tableContext = buildTableContext();
-        this.keyToPage = dataStorageManager.createKeyToPageMap(table.tablespace, table.name);
+        this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.name);
 
     }
 
@@ -236,7 +241,7 @@ public class TableManager implements AbstractTableManager {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
         pagesLock.writeLock().lock();
         try {
-            dataStorageManager.fullTableScan(table.tablespace, table.name,
+            dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
                     new FullTableScanConsumer() {
 
                 long currentPage;
@@ -698,13 +703,13 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void dropTableData() throws DataStorageManagerException {
-        dataStorageManager.dropTable(table.tablespace, table.name);
+        dataStorageManager.dropTable(tableSpaceUUID, table.name);
     }
 
     @Override
     public void dump(Consumer<Record> records) throws DataStorageManagerException {
 
-        dataStorageManager.fullTableScan(table.tablespace, table.name, new FullTableScanConsumer() {
+        dataStorageManager.fullTableScan(tableSpaceUUID, table.name, new FullTableScanConsumer() {
             @Override
             public void acceptTableStatus(TableStatus tableStatus) {
 
@@ -758,7 +763,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     public void close() {
-        dataStorageManager.releaseKeyToPageMap(table.tablespace, table.name, keyToPage);
+        dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.name, keyToPage);
     }
 
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
@@ -829,7 +834,7 @@ public class TableManager implements AbstractTableManager {
             if (to_unload > 0) {
                 unloadCleanPages(to_unload + UNLOAD_PAGES_MIN_BATCH);
             }
-            List<Record> page = dataStorageManager.readPage(table.tablespace, table.name, pageId);
+            List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
             loadedPages.add(pageId);
             for (Record r : page) {
                 buffer.put(r.key, r);
@@ -892,7 +897,7 @@ public class TableManager implements AbstractTableManager {
             dirtyPages.clear();
             dirtyRecords.set(0);
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
-            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(table.tablespace, table.name, tableStatus);
+            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
             result.addAll(actions);
         } finally {
             pagesLock.writeLock().unlock();
@@ -903,7 +908,7 @@ public class TableManager implements AbstractTableManager {
     private void createNewPage(List<Record> newPage) throws DataStorageManagerException {
         long newPageId = this.newPageId.getAndIncrement();
         LOGGER.log(Level.SEVERE, "createNewPage pageId=" + newPageId + " with " + newPage.size() + " records");
-        dataStorageManager.writePage(table.tablespace, table.name, newPageId, newPage);
+        dataStorageManager.writePage(tableSpaceUUID, table.name, newPageId, newPage);
         activePages.add(newPageId);
         for (Record record : newPage) {
             keyToPage.put(record.key, newPageId);
