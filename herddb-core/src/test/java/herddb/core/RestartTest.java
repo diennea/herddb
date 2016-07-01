@@ -69,7 +69,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 
@@ -95,7 +95,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 
@@ -109,7 +109,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 
@@ -133,7 +133,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 
@@ -161,7 +161,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 
@@ -175,7 +175,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 
@@ -199,7 +199,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 
@@ -243,7 +243,7 @@ public class RestartTest {
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
 

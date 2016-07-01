@@ -38,6 +38,12 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -60,8 +66,10 @@ public class FileCommitLog extends CommitLog {
     private long writtenBytes = 0;
 
     private volatile CommitFileWriter writer;
-
-    private final ReentrantLock writeLock = new ReentrantLock();
+    private Thread spool;
+    private final BlockingQueue<LogEntryHolderFuture> writeQueue = new ArrayBlockingQueue<>(100000, true);
+    private final int MAX_UNSYNCHED_BATCH = 1000;
+    private final int MAX_SYNCH_TIME = 5;
 
     private final static byte ENTRY_START = 13;
     private final static byte ENTRY_END = 25;
@@ -81,17 +89,18 @@ public class FileCommitLog extends CommitLog {
             writtenBytes = 0;
         }
 
-        public void writeEntry(long seqnumber, LogEntry edit, boolean synch) throws IOException {
+        public void writeEntry(long seqnumber, LogEntry edit) throws IOException {
 
             this.out.writeByte(ENTRY_START);
             this.out.writeLong(seqnumber);
             int written = edit.serialize(this.out);
-            this.out.writeByte(ENTRY_END);
-            if (synch) {
-                this.out.flush();
-                this.fOut.getFD().sync();
-            }
+            this.out.writeByte(ENTRY_END);            
             writtenBytes += (1 + 8 + written + 1);
+        }
+
+        public void synch() throws IOException {
+            this.out.flush();
+            this.fOut.getFD().sync();
         }
 
         @Override
@@ -156,7 +165,7 @@ public class FileCommitLog extends CommitLog {
     }
 
     private void openNewLedger() throws LogNotAvailableException {
-        writeLock.lock();
+
         try {
             if (writer != null) {
                 LOGGER.log(Level.SEVERE, "closing actual file {0}", writer.filename);
@@ -168,15 +177,113 @@ public class FileCommitLog extends CommitLog {
             writer = new CommitFileWriter(currentLedgerId);
         } catch (IOException err) {
             throw new LogNotAvailableException(err);
-        } finally {
-            writeLock.unlock();
         }
     }
 
     public FileCommitLog(Path logDirectory, long maxLogFileSize) {
         this.maxLogFileSize = maxLogFileSize;
         this.logDirectory = logDirectory.toAbsolutePath();
+        this.spool = new Thread(new SpoolTask(), "commitlog-" + logDirectory);
+        this.spool.setDaemon(true);
         LOGGER.log(Level.SEVERE, "logdirectory: {0}, maxLogFileSize {1} bytes", new Object[]{logDirectory, maxLogFileSize});
+    }
+
+    private class SpoolTask implements Runnable {
+
+        @Override
+        public void run() {
+            try {
+                openNewLedger();
+                int count = 0;
+                List<LogEntryHolderFuture> doneEntries = new ArrayList<>();
+                while (!closed || !writeQueue.isEmpty()) {
+                    LogEntryHolderFuture entry = writeQueue.poll(MAX_SYNCH_TIME, TimeUnit.MILLISECONDS);
+                    boolean timedOut = false;
+                    if (entry != null) {
+                        writeEntry(entry);
+                        doneEntries.add(entry);
+                        count++;
+                    } else {
+                        timedOut = true;
+                    }
+                    if (timedOut || count >= MAX_UNSYNCHED_BATCH) {
+                        synch();
+                        for (LogEntryHolderFuture e : doneEntries) {
+                            if (e.synch) {
+                                e.synchDone();
+                            }
+                        }
+                        doneEntries.clear();
+                    }
+                }
+            } catch (Throwable t) {
+                LOGGER.log(Level.SEVERE, "general commit log failure on " + FileCommitLog.this.logDirectory);
+            }
+        }
+
+    }
+
+    private static class LogEntryHolderFuture {
+
+        final CompletableFuture<LogSequenceNumber> ack = new CompletableFuture<>();
+        final LogEntry entry;
+        LogSequenceNumber sequenceNumber;
+        Throwable error;
+        final boolean synch;
+
+        public LogEntryHolderFuture(LogEntry entry, boolean synch) {
+            this.entry = entry;
+            this.synch = synch;
+        }
+
+        public void error(Throwable error) {
+            this.error = error;
+            if (!synch) {
+                synchDone();
+            }
+        }
+
+        public void done(LogSequenceNumber sequenceNumber) {
+            this.sequenceNumber = sequenceNumber;
+            if (!synch) {
+                synchDone();
+            }
+        }
+
+        private void synchDone() {
+            if (sequenceNumber == null && error == null) {
+                throw new IllegalStateException();
+            }
+            if (error != null) {
+                ack.completeExceptionally(error);
+            } else {
+                ack.complete(sequenceNumber);
+            }
+        }
+
+    }
+
+    private void writeEntry(LogEntryHolderFuture entry) {
+        try {
+            if (writer == null) {
+                throw new IOException("not yet writable");
+            }
+            long newSequenceNumber = ++lastSequenceNumber;
+            writer.writeEntry(newSequenceNumber, entry.entry);
+            if (writtenBytes > maxLogFileSize) {
+                openNewLedger();
+            }
+            entry.done(new LogSequenceNumber(currentLedgerId, newSequenceNumber));
+        } catch (IOException | LogNotAvailableException err) {
+            entry.error(err);
+        }
+    }
+
+    private void synch() throws IOException {
+        if (writer == null) {
+            return;
+        }
+        writer.synch();
     }
 
     @Override
@@ -184,22 +291,17 @@ public class FileCommitLog extends CommitLog {
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "log {0}", edit);
         }
-        writeLock.lock();
+        LogEntryHolderFuture future = new LogEntryHolderFuture(edit, synch);
+        writeQueue.add(future);
         try {
-            if (writer == null) {
-                throw new LogNotAvailableException(new Exception("not yet writable"));
-            }
-            long newSequenceNumber = ++lastSequenceNumber;
-            writer.writeEntry(newSequenceNumber, edit, synch);
-            if (writtenBytes > maxLogFileSize) {
-                openNewLedger();
-            }
-            return new LogSequenceNumber(currentLedgerId, newSequenceNumber);
-        } catch (IOException err) {
+            return future.ack.get();
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
-        } finally {
-            writeLock.unlock();
+        } catch (ExecutionException err) {
+            throw new LogNotAvailableException(err.getCause());
         }
+
     }
 
     @Override
@@ -260,7 +362,7 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public void startWriting() throws LogNotAvailableException {
-        openNewLedger();
+        this.spool.start();
     }
 
     private void ensureDirectories() throws LogNotAvailableException {
@@ -280,6 +382,13 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public void close() throws LogNotAvailableException {
+        closed = true;
+        try {
+            spool.join();
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new LogNotAvailableException(err);
+        }
         if (writer != null) {
             try {
                 writer.close();

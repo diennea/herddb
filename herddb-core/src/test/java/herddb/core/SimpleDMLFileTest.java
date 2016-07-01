@@ -51,7 +51,7 @@ public class SimpleDMLFileTest extends BaseTestcase {
 
     @Override
     protected CommitLogManager makeCommitLogManager() throws Exception {
-        return new FileCommitLogManager(folder.newFolder().toPath());
+        return new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);
     }
 
     @Test

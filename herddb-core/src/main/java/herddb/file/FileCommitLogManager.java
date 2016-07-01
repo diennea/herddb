@@ -33,17 +33,19 @@ import java.nio.file.Path;
 public class FileCommitLogManager extends CommitLogManager {
 
     private final Path baseDirectory;
+    private final long maxLogFileSize;
 
-    public FileCommitLogManager(Path baseDirectory) {
+    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize) {
         this.baseDirectory = baseDirectory.resolve("txlog");
+        this.maxLogFileSize = maxLogFileSize;
     }
 
     @Override
-    public CommitLog createCommitLog(String tableSpace) {
+    public FileCommitLog createCommitLog(String tableSpace) {
         try {
             Path folder = baseDirectory.resolve(tableSpace + ".txlog");
             Files.createDirectories(folder);
-            return new FileCommitLog(folder, 64 * 1024 * 1024);
+            return new FileCommitLog(folder, maxLogFileSize);
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
