@@ -69,7 +69,7 @@ public class FileCommitLog extends CommitLog {
     private Thread spool;
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new ArrayBlockingQueue<>(100000, true);
     private final int MAX_UNSYNCHED_BATCH = 1000;
-    private final int MAX_SYNCH_TIME = 5;
+    private final int MAX_SYNCH_TIME = 10;
 
     private final static byte ENTRY_START = 13;
     private final static byte ENTRY_END = 25;
@@ -94,7 +94,7 @@ public class FileCommitLog extends CommitLog {
             this.out.writeByte(ENTRY_START);
             this.out.writeLong(seqnumber);
             int written = edit.serialize(this.out);
-            this.out.writeByte(ENTRY_END);            
+            this.out.writeByte(ENTRY_END);
             writtenBytes += (1 + 8 + written + 1);
         }
 
@@ -207,13 +207,17 @@ public class FileCommitLog extends CommitLog {
                         timedOut = true;
                     }
                     if (timedOut || count >= MAX_UNSYNCHED_BATCH) {
-                        synch();
-                        for (LogEntryHolderFuture e : doneEntries) {
-                            if (e.synch) {
-                                e.synchDone();
+                        count = 0;
+                        if (!doneEntries.isEmpty()) {
+                            synch();
+                            for (LogEntryHolderFuture e : doneEntries) {
+                                if (e.synch) {
+                                    e.synchDone();
+                                }
                             }
+                            doneEntries.clear();
                         }
-                        doneEntries.clear();
+
                     }
                 }
             } catch (Throwable t) {
