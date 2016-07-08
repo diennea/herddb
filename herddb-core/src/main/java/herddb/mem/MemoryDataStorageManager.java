@@ -128,13 +128,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
         List<PostCheckpointAction> result = new ArrayList<>();
 
         for (long pageId : pagesForTable) {
-            result.add(new PostCheckpointAction() {
+            result.add(new PostCheckpointAction(tableName, "drop page " + pageId) {
                 @Override
                 public void run() {
                     // remove only after checkpoint completed
                     pages.remove(prefix + pageId);
                 }
-            });            
+            });
         }
         return result;
     }
@@ -162,7 +162,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
-        
+
         List<Table> res = tablesByTablespace.get(tableSpace);
         if (res == null) {
             this.tablesByTablespace.put(tableSpace, new ArrayList<>(tables));

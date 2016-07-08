@@ -75,4 +75,6 @@ public interface AbstractTableManager extends AutoCloseable {
 
     long getCreatedInTransaction();
 
+    public void executePostCheckpointAction(PostCheckpointAction action) throws Exception;
+    
 }

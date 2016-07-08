@@ -177,4 +177,9 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         return 0;
     }
 
+    @Override
+    public void executePostCheckpointAction(PostCheckpointAction action) throws Exception {
+
+    }
+
 }

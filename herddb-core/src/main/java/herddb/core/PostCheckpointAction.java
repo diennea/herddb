@@ -21,8 +21,22 @@ package herddb.core;
 
 /**
  * Action to be executed after a checkpoint has been committed
+ *
  * @author enrico.olivelli
  */
-public interface PostCheckpointAction extends Runnable {
-    
+public abstract class PostCheckpointAction implements Runnable {
+
+    public final String tableName;
+    public final String description;
+
+    public PostCheckpointAction(String tableName, String description) {
+        this.tableName = tableName;
+        this.description = description;
+    }
+
+    @Override
+    public String toString() {
+        return "PostCheckpointAction on " + tableName + ": " + description;
+    }
+
 }

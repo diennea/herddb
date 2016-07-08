@@ -762,6 +762,18 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
+    @Override
+    public void executePostCheckpointAction(PostCheckpointAction action) throws Exception {
+        // these kind of actions MUST be executes inside the pagesLock lock, because they MUST not modify data if a scan or other statement is running
+        LOGGER.log(Level.SEVERE, "executePostCheckpointAction "+action);
+        pagesLock.writeLock().lock();
+        try {
+            action.run();
+        } finally {
+            pagesLock.writeLock().unlock();
+        }
+    }
+
     public void close() {
         dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.name, keyToPage);
     }

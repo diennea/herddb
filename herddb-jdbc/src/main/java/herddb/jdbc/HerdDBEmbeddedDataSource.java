@@ -19,6 +19,7 @@
  */
 package herddb.jdbc;
 
+import herddb.model.TableSpace;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
@@ -100,8 +101,8 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
                 server = new Server(serverConfiguration);
                 try {
                     server.start();
-                    // single machine, local mode, boot the 'default' tablespace
-                    server.waitForStandaloneBoot();
+                    // single machine, local mode, boot the 'default' tablespace                    
+                    server.waitForTableSpaceBoot(TableSpace.DEFAULT, waitForTableSpaceTimeout, true);
                     client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 } catch (Exception ex) {
                     throw new SQLException("Cannot boot embedded server " + ex, ex);

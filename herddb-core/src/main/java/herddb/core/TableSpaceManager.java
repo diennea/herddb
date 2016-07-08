@@ -467,6 +467,10 @@ public class TableSpaceManager {
 
     }
 
+    private void executePostCheckpointAction(PostCheckpointAction action) throws Exception {
+
+    }
+
     private class DumpReceiver extends TableSpaceDumpReceiver {
 
         private TableManager currentTable;
@@ -855,8 +859,9 @@ public class TableSpaceManager {
 
             for (PostCheckpointAction action : actions) {
                 try {
-                    action.run();
-                } catch (Throwable error) {
+                    AbstractTableManager tableManager = tables.get(action.tableName);
+                    tableManager.executePostCheckpointAction(action);
+                } catch (Exception error) {
                     LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
                 }
             }
