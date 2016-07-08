@@ -685,7 +685,9 @@ public class TableManager implements AbstractTableManager {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
         deletedKeys.add(key);
-        dirtyPages.add(pageId);
+        if (!NO_PAGE.equals(pageId)) {
+            dirtyPages.add(pageId);
+        }
         buffer.remove(key);
         dirtyRecords.incrementAndGet();
     }
@@ -765,7 +767,7 @@ public class TableManager implements AbstractTableManager {
     @Override
     public void executePostCheckpointAction(PostCheckpointAction action) throws Exception {
         // these kind of actions MUST be executes inside the pagesLock lock, because they MUST not modify data if a scan or other statement is running
-        LOGGER.log(Level.SEVERE, "executePostCheckpointAction "+action);
+        LOGGER.log(Level.SEVERE, "executePostCheckpointAction " + action);
         pagesLock.writeLock().lock();
         try {
             action.run();
@@ -846,10 +848,14 @@ public class TableManager implements AbstractTableManager {
             if (to_unload > 0) {
                 unloadCleanPages(to_unload + UNLOAD_PAGES_MIN_BATCH);
             }
-            List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
-            loadedPages.add(pageId);
-            for (Record r : page) {
-                buffer.put(r.key, r);
+            try {
+                List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+                loadedPages.add(pageId);
+                for (Record r : page) {
+                    buffer.put(r.key, r);
+                }
+            } catch (DataStorageManagerException error) {
+                throw new DataStorageManagerException("error loading page " + pageId + ", active pages " + activePages + ", dirtyPages " + dirtyPages, error);
             }
         } finally {
             pagesLock.writeLock().unlock();
@@ -865,9 +871,8 @@ public class TableManager implements AbstractTableManager {
         }
         List<PostCheckpointAction> result = new ArrayList<>();
         pagesLock.writeLock().lock();
-        LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
-
         try {
+            LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
             /*
                 When the size of loaded data in the memory reaches a maximum value the rows on memory are dumped back to disk creating new pages
                 for each page:
@@ -884,7 +889,7 @@ public class TableManager implements AbstractTableManager {
                     recordsOnDirtyPages.add(key);
                 }
             }
-            LOGGER.log(Level.SEVERE, "flush recordsOnDirtyPages, {0} records", new Object[]{recordsOnDirtyPages.size()});
+            LOGGER.log(Level.SEVERE, "flush {0} recordsOnDirtyPages, {0} records", new Object[]{table.name, recordsOnDirtyPages.size()});
             List<Record> newPage = new ArrayList<>();
             int count = 0;
             for (Bytes key : recordsOnDirtyPages) {

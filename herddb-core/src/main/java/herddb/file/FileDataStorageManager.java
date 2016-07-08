@@ -275,7 +275,7 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.INFO, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId);
             if (pageId > 0 && !tableStatus.activePages.contains(pageId)) {
                 LOGGER.log(Level.SEVERE, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
-                result.add(new PostCheckpointAction(tableName, "delete " + pageId + " file") {
+                result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file "+p.toAbsolutePath()) {
 
                     @Override
                     public void run() {

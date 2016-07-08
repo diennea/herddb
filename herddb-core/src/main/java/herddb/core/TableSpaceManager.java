@@ -229,10 +229,10 @@ public class TableSpaceManager {
                 }
                 List<AbstractTableManager> managers;
                 try {
-                    generalLock.writeLock().lock();
+                    generalLock.readLock().lock();
                     managers = new ArrayList<>(tables.values());
                 } finally {
-                    generalLock.writeLock().unlock();
+                    generalLock.readLock().unlock();
                 }
                 for (AbstractTableManager manager : managers) {
                     if (transaction.getNewTables().containsKey(manager.getTable().name)) {
@@ -255,22 +255,29 @@ public class TableSpaceManager {
                 }
                 List<AbstractTableManager> managers;
                 try {
-                    generalLock.writeLock().lock();
+                    generalLock.readLock().lock();
                     managers = new ArrayList<>(tables.values());
                 } finally {
-                    generalLock.writeLock().unlock();
+                    generalLock.readLock().unlock();
                 }
                 for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction);
 
                 }
-                for (String dropped : transaction.droppedTables) {
-                    for (AbstractTableManager manager : managers) {
-                        if (manager.getTable().name.equals(dropped)) {
-                            manager.dropTableData();
-                            manager.close();
-                            tables.remove(manager.getTable().name);
+                if (!transaction.droppedTables.isEmpty()) {
+                    try {
+                        generalLock.writeLock().lock();
+                        for (String dropped : transaction.droppedTables) {
+                            for (AbstractTableManager manager : managers) {
+                                if (manager.getTable().name.equals(dropped)) {
+                                    manager.dropTableData();
+                                    manager.close();
+                                    tables.remove(manager.getTable().name);
+                                }
+                            }
                         }
+                    } finally {
+                        generalLock.writeLock().unlock();
                     }
                 }
                 if (!transaction.getNewTables().isEmpty() || !transaction.droppedTables.isEmpty()) {
@@ -300,17 +307,16 @@ public class TableSpaceManager {
                     Transaction transaction = transactions.get(id);
                     transaction.registerDropTable(tableName);
                 } else {
-                    AbstractTableManager manager;
                     try {
                         generalLock.writeLock().lock();
-                        manager = tables.get(tableName);
+                        AbstractTableManager manager = tables.get(tableName);
+                        if (manager != null) {
+                            manager.dropTableData();
+                            manager.close();
+                            tables.remove(manager.getTable().name);
+                        }
                     } finally {
                         generalLock.writeLock().unlock();
-                    }
-                    if (manager != null) {
-                        manager.dropTableData();
-                        manager.close();
-                        tables.remove(manager.getTable().name);
                     }
                 }
 
@@ -446,7 +452,6 @@ public class TableSpaceManager {
             if (manager == null) {
                 throw new TableDoesNotExistException("no table " + alterTableStatement.getTable() + " in tablespace " + tableSpaceName);
             }
-            manager = tables.get(alterTableStatement.getTable());
         } finally {
             generalLock.writeLock().unlock();
         }
@@ -746,8 +751,8 @@ public class TableSpaceManager {
     }
 
     private StatementExecutionResult createTable(CreateTableStatement statement, Transaction transaction) throws StatementExecutionException {
+        generalLock.writeLock().lock();
         try {
-            generalLock.writeLock().lock();
             if (tables.containsKey(statement.getTableDefinition().name)) {
                 throw new TableAlreadyExistsException(statement.getTableDefinition().name);
             }
@@ -833,6 +838,7 @@ public class TableSpaceManager {
         if (virtual) {
             return;
         }
+        List<PostCheckpointAction> actions = new ArrayList<>();
         generalLock.writeLock().lock();
         try {
             LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
@@ -845,7 +851,7 @@ public class TableSpaceManager {
             if (actualLogSequenceNumber == null) {
                 throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
             }
-            List<PostCheckpointAction> actions = new ArrayList<>();
+
             // we checkpoint all data to disk and save the actual log sequence number            
             for (AbstractTableManager tableManager : tables.values()) {
                 if (!tableManager.isSystemTable()) {
@@ -857,19 +863,21 @@ public class TableSpaceManager {
             dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, transactions.values());
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
 
-            for (PostCheckpointAction action : actions) {
-                try {
-                    AbstractTableManager tableManager = tables.get(action.tableName);
-                    tableManager.executePostCheckpointAction(action);
-                } catch (Exception error) {
-                    LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
-                }
-            }
-
             log.dropOldLedgers(logSequenceNumber);
 
         } finally {
             generalLock.writeLock().unlock();
+        }
+
+        for (PostCheckpointAction action : actions) {
+            try {
+                AbstractTableManager tableManager = tables.get(action.tableName);
+                if (tableManager != null) {
+                    tableManager.executePostCheckpointAction(action);
+                }
+            } catch (Exception error) {
+                LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
+            }
         }
 
     }
