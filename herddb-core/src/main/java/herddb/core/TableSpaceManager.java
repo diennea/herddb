@@ -262,7 +262,6 @@ public class TableSpaceManager {
                 }
                 for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction);
-
                 }
                 if (!transaction.droppedTables.isEmpty()) {
                     try {
@@ -338,7 +337,7 @@ public class TableSpaceManager {
                 && entry.type != LogEntryType.ALTER_TABLE
                 && entry.type != LogEntryType.DROP_TABLE) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
-            tableManager.apply(position, entry);
+            tableManager.apply(position, entry, true);
         }
 
     }
@@ -871,15 +870,11 @@ public class TableSpaceManager {
 
         for (PostCheckpointAction action : actions) {
             try {
-                AbstractTableManager tableManager = tables.get(action.tableName);
-                if (tableManager != null) {
-                    tableManager.executePostCheckpointAction(action);
-                }
+                action.run();
             } catch (Exception error) {
                 LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
             }
         }
-
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {

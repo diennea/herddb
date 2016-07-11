@@ -61,7 +61,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void onTransactionCommit(Transaction transaction) throws DataStorageManagerException;
 
-    void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException;
+    void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
 
     void dump(Consumer<Record> records) throws DataStorageManagerException;
 
@@ -74,7 +74,5 @@ public interface AbstractTableManager extends AutoCloseable {
     public void tableAltered(Table table, Transaction transaction) throws DDLException;
 
     long getCreatedInTransaction();
-
-    public void executePostCheckpointAction(PostCheckpointAction action) throws Exception;
     
 }

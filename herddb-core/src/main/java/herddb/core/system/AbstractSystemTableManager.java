@@ -127,7 +127,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void apply(LogSequenceNumber pos, LogEntry entry) throws DataStorageManagerException {
+    public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
     }
 
     @Override
@@ -175,11 +175,6 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     @Override
     public long getCreatedInTransaction() {
         return 0;
-    }
-
-    @Override
-    public void executePostCheckpointAction(PostCheckpointAction action) throws Exception {
-
     }
 
 }

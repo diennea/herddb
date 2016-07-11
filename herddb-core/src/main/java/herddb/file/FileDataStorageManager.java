@@ -195,7 +195,9 @@ public class FileDataStorageManager extends DataStorageManager {
 
         LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
         consumer.acceptTableStatus(latestStatus);
-        for (long idpage : latestStatus.activePages) {
+        List<Long> activePages = new ArrayList<>(latestStatus.activePages);
+        activePages.sort(null);
+        for (long idpage : activePages) {
             List<Record> records = readPage(tableSpace, tableName, idpage);
             consumer.startPage(idpage);
             LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
@@ -275,7 +277,7 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.INFO, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId);
             if (pageId > 0 && !tableStatus.activePages.contains(pageId)) {
                 LOGGER.log(Level.SEVERE, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
-                result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file "+p.toAbsolutePath()) {
+                result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath()) {
 
                     @Override
                     public void run() {
