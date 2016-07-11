@@ -290,10 +290,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
         if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
             LOGGER.log(Level.SEVERE, "Booting tablespace {0} on {1}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid});
+            long _start = System.currentTimeMillis();
             CommitLog commitLog = commitLogManager.createCommitLog(tableSpace.uuid);
             TableSpaceManager manager = new TableSpaceManager(nodeId, tableSpaceName, tableSpace.uuid, metadataStorageManager, dataStorageManager, commitLog, this, false);
             try {
                 manager.start();
+                LOGGER.log(Level.SEVERE, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + ""});
                 tablesSpaces.put(tableSpaceName, manager);
             } catch (DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException | DDLException t) {
                 LOGGER.log(Level.SEVERE, "Error Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});

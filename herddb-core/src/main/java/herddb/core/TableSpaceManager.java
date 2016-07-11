@@ -255,7 +255,7 @@ public class TableSpaceManager {
                 }
                 List<AbstractTableManager> managers;
                 generalLock.readLock().lock();
-                try {                    
+                try {
                     managers = new ArrayList<>(tables.values());
                 } finally {
                     generalLock.readLock().unlock();
@@ -265,7 +265,7 @@ public class TableSpaceManager {
                 }
                 if (!transaction.droppedTables.isEmpty()) {
                     generalLock.writeLock().lock();
-                    try {                        
+                    try {
                         for (String dropped : transaction.droppedTables) {
                             for (AbstractTableManager manager : managers) {
                                 if (manager.getTable().name.equals(dropped)) {
@@ -801,6 +801,7 @@ public class TableSpaceManager {
     }
 
     private TableManager bootTable(Table table, long transaction) throws DataStorageManagerException {
+        long _start = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID, this.manager.getMaxLogicalPageSize(), transaction);
         if (tables.containsKey(table.name)) {
@@ -808,6 +809,7 @@ public class TableSpaceManager {
         }
         tables.put(table.name, tableManager);
         tableManager.start();
+        LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
         return tableManager;
     }
 
