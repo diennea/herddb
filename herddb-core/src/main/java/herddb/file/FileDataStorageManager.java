@@ -634,7 +634,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
             Files.createDirectories(file.getParent());
-            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString());
+            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString()+", active transactions "+transactions.size());
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                     ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeUTF(tableSpace);

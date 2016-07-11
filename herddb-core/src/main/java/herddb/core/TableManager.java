@@ -117,7 +117,7 @@ public class TableManager implements AbstractTableManager {
 
     private final Set<Long> dirtyPages = new ConcurrentSkipListSet<>();
 
-    private final Set<Long> activePages = new HashSet<>();
+    private final Set<Long> activePages = new ConcurrentSkipListSet<>();
 
     private final AtomicInteger dirtyRecords = new AtomicInteger();
 
@@ -286,7 +286,7 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
-        pagesLock.readLock().lock();
+//        pagesLock.readLock().lock();
         try {
             if (statement instanceof UpdateStatement) {
                 UpdateStatement update = (UpdateStatement) statement;
@@ -307,7 +307,7 @@ public class TableManager implements AbstractTableManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException("internal data error: " + err, err);
         } finally {
-            pagesLock.readLock().unlock();
+//            pagesLock.readLock().unlock();
             if (transaction == null) {
                 try {
                     autoFlush();
@@ -610,26 +610,20 @@ public class TableManager implements AbstractTableManager {
         List<Record> newRecords = transaction.newRecords.get(table.name);
         if (newRecords != null) {
             for (Record record : newRecords) {
-                if (recovery) {
-                    ensurePageLoadedOnApply(record.key);
-                }
+                ensurePageLoadedOnApply(record.key);
                 applyInsert(record.key, record.value);
             }
         }
         if (changedRecords != null) {
             for (Record r : changedRecords) {
-                if (recovery) {
-                    ensurePageLoadedOnApply(r.key);
-                }
+                ensurePageLoadedOnApply(r.key);
                 applyUpdate(r.key, r.value);
             }
         }
         List<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
         if (deletedRecords != null) {
             for (Bytes key : deletedRecords) {
-                if (recovery) {
-                    ensurePageLoadedOnApply(key);
-                }
+                ensurePageLoadedOnApply(key);
                 applyDelete(key);
             }
         }
@@ -859,11 +853,11 @@ public class TableManager implements AbstractTableManager {
         if (loadedPages.contains(pageId)) {
             return;
         }
-        pagesLock.readLock().unlock();
+//        pagesLock.readLock().unlock();
         try {
             loadPageToMemory(pageId);
         } finally {
-            pagesLock.readLock().lock();
+//            pagesLock.readLock().lock();
         }
     }
 
@@ -872,6 +866,9 @@ public class TableManager implements AbstractTableManager {
         try {
             if (loadedPages.contains(pageId)) {
                 return;
+            }
+            if (dirtyPages.contains(pageId)) {
+                throw new DataStorageManagerException("page " + pageId + " is marked as dirty, it cannot be loaded from disk, dirtyPages " + dirtyPages + ", active " + activePages);
             }
             int to_unload = loadedPages.size() - MAX_LOADED_PAGES;
             if (to_unload > 0) {
@@ -883,7 +880,7 @@ public class TableManager implements AbstractTableManager {
                 for (Record r : page) {
                     Long actualPage = keyToPage.get(r.key);
                     if (actualPage == null || !actualPage.equals(pageId)) {
-                        LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages);
+                        LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages + ", dirtyPages " + dirtyPages);
                         throw new DataStorageManagerException("inconsistency at page " + pageId + ": key " + r.key + " is mapped to page " + actualPage + ", not to " + pageId);
                     }
                     buffer.put(r.key, r);
@@ -936,7 +933,6 @@ public class TableManager implements AbstractTableManager {
             LOGGER.log(Level.SEVERE, "flush {0} recordsOnDirtyPages, {1} records", new Object[]{table.name, recordsOnDirtyPages.size()});
             List<Record> newPage = new ArrayList<>();
             long newPageSize = 0;
-            int count = 0;
             for (Bytes key : recordsOnDirtyPages) {
                 Record toKeep = buffer.get(key);
                 if (toKeep != null) {
@@ -946,7 +942,6 @@ public class TableManager implements AbstractTableManager {
                         createNewPage(newPage, newPageSize);
                         newPageSize = 0;
                         newPage.clear();
-                        count = 0;
                     }
                 }
 
@@ -989,7 +984,7 @@ public class TableManager implements AbstractTableManager {
 
         MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
         try {
-            pagesLock.readLock().lock();
+//            pagesLock.readLock().lock();
             try {
                 if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
                     PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
@@ -1031,7 +1026,8 @@ public class TableManager implements AbstractTableManager {
                                     record = buffer.get(key);
                                 }
                                 if (record == null) {
-                                    throw new DataStorageManagerException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId);
+                                    LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages);
+                                    throw new DataStorageManagerException("inconsistency! no record in memory for " + entry.getKey() + " page " + pageId + ", activePages " + activePages);
                                 }
                                 if (predicate == null || predicate.evaluate(record, context)) {
                                     recordSet.add(new Tuple(record.toBean(table), table.columns));
@@ -1057,7 +1053,7 @@ public class TableManager implements AbstractTableManager {
                     }
                 }
             } finally {
-                pagesLock.readLock().unlock();
+//                pagesLock.readLock().unlock();
             }
             recordSet.writeFinished();
             recordSet.sort(statement.getComparator());
@@ -1128,14 +1124,14 @@ public class TableManager implements AbstractTableManager {
 
         this.table = table;
         if (!droppedColumns.isEmpty()) {
-            pagesLock.readLock().lock();
+//            pagesLock.readLock().lock();
             try {
                 for (Record record : buffer.values()) {
                     // table structure changed
                     record.clearCache();
                 }
             } finally {
-                pagesLock.readLock().unlock();
+//                pagesLock.readLock().unlock();
             }
         }
     }

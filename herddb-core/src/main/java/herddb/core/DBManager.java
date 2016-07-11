@@ -775,6 +775,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.checkpointPeriod = checkpointPeriod;
     }
 
+    public long getLastCheckPointTs() {
+        return lastCheckPointTs.get();
+    }
+
     @Override
     public void metadataChanged() {
         LOGGER.log(Level.SEVERE, "metadata changed");
