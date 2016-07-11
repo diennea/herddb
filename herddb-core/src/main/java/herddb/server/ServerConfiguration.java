@@ -86,7 +86,7 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_USERS_FILE = "server.users.file";
     public static final String PROPERTY_USERS_FILE_DEFAULT = "";
-    
+
     public static final String PROPERTY_CLEAR_AT_BOOT = "server.clear.at.boot";
     public static final boolean PROPERTY_CLEAR_AT_BOOT_DEFAULT = false;
 
@@ -95,6 +95,9 @@ public final class ServerConfiguration {
 
     public static final String PROPERTY_DISK_SWAP_MAX_RECORDS = "server.disk.swap.max.records";
     public static final int PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT = 5000;
+
+    public static final String PROPERTY_MAX_LOGICAL_PAGE_SIZE = "server.maxlogicalpagesize";
+    public static final long PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT = 64 * 1024 * 1024;
 
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();

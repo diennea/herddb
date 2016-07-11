@@ -84,8 +84,6 @@ public class TableManager implements AbstractTableManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
-    private static final int MAX_RECORDS_PER_PAGE = 10000;
-
     private static final int MAX_LOADED_PAGES = 1000;
 
     private static final int MAX_DIRTY_RECORDS = 10000;
@@ -156,12 +154,17 @@ public class TableManager implements AbstractTableManager {
     private final TableSpaceManager tableSpaceManager;
 
     /**
+     * Max logical size of a page (raw key size + raw value size)
+     */
+    private final long maxLogicalPageSize;
+
+    /**
      * This value is not empty until the transaction who creates the table does
      * not commit
      */
     private long createdInTransaction;
 
-    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long createdInTransaction) throws DataStorageManagerException {
+    TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long maxLogicalPageSize, long createdInTransaction) throws DataStorageManagerException {
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.log = log;
@@ -169,6 +172,7 @@ public class TableManager implements AbstractTableManager {
         this.createdInTransaction = createdInTransaction;
         this.tableSpaceUUID = tableSpaceUUID;
         this.tableContext = buildTableContext();
+        this.maxLogicalPageSize = maxLogicalPageSize;
         this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.name);
     }
 
@@ -271,7 +275,7 @@ public class TableManager implements AbstractTableManager {
                     currentPage = -1;
                 }
             });
-            dataStorageManager.cleanupAfterBoot(tableSpaceUUID,table.name, activePagesAtBoot);
+            dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.name, activePagesAtBoot);
         } finally {
             pagesLock.writeLock().unlock();
         }
@@ -589,7 +593,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void onTransactionCommit(Transaction transaction) throws DataStorageManagerException {
+    public void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
         if (transaction == null) {
             throw new DataStorageManagerException("transaction cannot be null");
         }
@@ -606,19 +610,26 @@ public class TableManager implements AbstractTableManager {
         List<Record> newRecords = transaction.newRecords.get(table.name);
         if (newRecords != null) {
             for (Record record : newRecords) {
+                if (recovery) {
+                    ensurePageLoadedOnApply(record.key);
+                }
                 applyInsert(record.key, record.value);
             }
         }
         if (changedRecords != null) {
             for (Record r : changedRecords) {
-                ensurePageLoadedOnApply(r.key);
+                if (recovery) {
+                    ensurePageLoadedOnApply(r.key);
+                }
                 applyUpdate(r.key, r.value);
             }
         }
         List<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
         if (deletedRecords != null) {
             for (Bytes key : deletedRecords) {
-                ensurePageLoadedOnApply(key);
+                if (recovery) {
+                    ensurePageLoadedOnApply(key);
+                }
                 applyDelete(key);
             }
         }
@@ -635,7 +646,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {        
+    public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
@@ -907,7 +918,7 @@ public class TableManager implements AbstractTableManager {
             List<Bytes> recordsOnDirtyPages = new ArrayList<>();
             LOGGER.log(Level.SEVERE, "checkpoint {0}, flush dirtyPages, {1} pages, logpos {2}", new Object[]{table.name, dirtyPages.toString(), sequenceNumber});
             for (Bytes key : buffer.keySet()) {
-                Long pageId = keyToPage.get(key);                
+                Long pageId = keyToPage.get(key);
                 if (dirtyPages.contains(pageId)
                         || Objects.equals(pageId, NO_PAGE)) {
                     recordsOnDirtyPages.add(key);
@@ -931,8 +942,8 @@ public class TableManager implements AbstractTableManager {
                 if (toKeep != null) {
                     newPage.add(toKeep);
                     newPageSize += key.data.length + toKeep.value.data.length;
-                    if (++count == MAX_RECORDS_PER_PAGE) {
-                        createNewPage(newPage);
+                    if (newPageSize >= maxLogicalPageSize) {
+                        createNewPage(newPage, newPageSize);
                         newPageSize = 0;
                         newPage.clear();
                         count = 0;
@@ -941,7 +952,7 @@ public class TableManager implements AbstractTableManager {
 
             }
             if (!newPage.isEmpty()) {
-                createNewPage(newPage);
+                createNewPage(newPage, newPageSize);
             }
 
             buffer.clear();
@@ -961,9 +972,9 @@ public class TableManager implements AbstractTableManager {
         return result;
     }
 
-    private void createNewPage(List<Record> newPage) throws DataStorageManagerException {
+    private void createNewPage(List<Record> newPage, long newPageSize) throws DataStorageManagerException {
         long pageId = this.newPageId.getAndIncrement();
-        LOGGER.log(Level.SEVERE, "createNewPage table {0}, pageId={1} with {2} records", new Object[]{table.name, pageId, newPage.size()});
+        LOGGER.log(Level.SEVERE, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size", new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
         activePages.add(pageId);
         for (Record record : newPage) {
@@ -1071,11 +1082,6 @@ public class TableManager implements AbstractTableManager {
         @Override
         public long getTablesize() {
             return keyToPage.size();
-        }
-
-        @Override
-        public int getMaxrecordsperpage() {
-            return MAX_RECORDS_PER_PAGE;
         }
 
         @Override

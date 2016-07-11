@@ -28,13 +28,11 @@ public interface TableManagerStats {
 
     public int getLoadedpages();
 
-    public int getMaxrecordsperpage();
-    
     public int getMaxloadedpages();
 
     public long getTablesize();
-    
+
     public int getDirtypages();
-    
-    public int getDirtyrecords();        
+
+    public int getDirtyrecords();
 }

@@ -133,6 +133,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 baseDirectory, serverHostData
         );
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
+        this.manager.setMaxLogicalPageSize(configuration.getLong(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT));
         this.manager.setConnectionsInfoProvider(this);
         this.manager.setServerConfiguration(configuration);
         this.manager.setServerToServerUsername(configuration.getString(ServerConfiguration.PROPERTY_SERVER_TO_SERVER_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT));
@@ -233,7 +234,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     public void waitForTableSpaceBoot(String tableSpace, int timeout, boolean leader) throws Exception {
         if (!this.manager.waitForTablespace(tableSpace, timeout, leader)) {
-            throw new Exception("TableSpace " + tableSpace + " not started within "+timeout+" ms");
+            throw new Exception("TableSpace " + tableSpace + " not started within " + timeout + " ms");
         }
     }
 

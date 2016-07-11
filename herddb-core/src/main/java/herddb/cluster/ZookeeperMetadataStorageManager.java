@@ -133,8 +133,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
                 byte[] actualLedgers = zooKeeper.getData(ledgersPath + "/" + tableSpaceUUID, false, stat);
                 return LedgersInfo.deserialize(actualLedgers, stat.getVersion());
             } catch (KeeperException.NoNodeException firstboot) {
-                LOGGER.log(Level.SEVERE, "node " + ledgersPath + "/" + tableSpaceUUID + " not found");
-                new Exception().printStackTrace();
+                LOGGER.log(Level.SEVERE, "node " + ledgersPath + "/" + tableSpaceUUID + " not found");                
                 return LedgersInfo.deserialize(null, -1); // -1 is a special ZK version
             } catch (KeeperException.ConnectionLossException error) {
                 LOGGER.log(Level.SEVERE, "error while loading actual ledgers list at " + ledgersPath + "/" + tableSpaceUUID, error);

@@ -209,7 +209,7 @@ public class TableSpaceManager {
         log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), true);
     }
 
-    void apply(LogSequenceNumber position, LogEntry entry) throws DataStorageManagerException, DDLException {
+    void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
         this.actualLogSequenceNumber = position;
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
@@ -254,18 +254,18 @@ public class TableSpaceManager {
                     throw new DataStorageManagerException("invalid transaction id " + id);
                 }
                 List<AbstractTableManager> managers;
-                try {
-                    generalLock.readLock().lock();
+                generalLock.readLock().lock();
+                try {                    
                     managers = new ArrayList<>(tables.values());
                 } finally {
                     generalLock.readLock().unlock();
                 }
                 for (AbstractTableManager manager : managers) {
-                    manager.onTransactionCommit(transaction);
+                    manager.onTransactionCommit(transaction, recovery);
                 }
                 if (!transaction.droppedTables.isEmpty()) {
-                    try {
-                        generalLock.writeLock().lock();
+                    generalLock.writeLock().lock();
+                    try {                        
                         for (String dropped : transaction.droppedTables) {
                             for (AbstractTableManager manager : managers) {
                                 if (manager.getTable().name.equals(dropped)) {
@@ -337,7 +337,7 @@ public class TableSpaceManager {
                 && entry.type != LogEntryType.ALTER_TABLE
                 && entry.type != LogEntryType.DROP_TABLE) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
-            tableManager.apply(position, entry, true);
+            tableManager.apply(position, entry, recovery);
         }
 
     }
@@ -463,7 +463,7 @@ public class TableSpaceManager {
         LogEntry entry = LogEntryFactory.alterTable(newTable, null);
         try {
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
-            apply(pos, entry);
+            apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -643,7 +643,7 @@ public class TableSpaceManager {
                         ) {
                             LOGGER.log(Level.SEVERE, "follow " + num + ", " + u.toString());
                             try {
-                                apply(num, u);
+                                apply(num, u, false);
                             } catch (Throwable t) {
                                 throw new RuntimeException(t);
                             }
@@ -688,7 +688,7 @@ public class TableSpaceManager {
                 LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
                 // let followers see the rollback on the log
                 LogSequenceNumber pos = log.log(rollback, true);
-                apply(pos, rollback);
+                apply(pos, rollback, false);
             }
         }
         leader = true;
@@ -763,7 +763,7 @@ public class TableSpaceManager {
                 throw new StatementExecutionException(ex);
             }
 
-            apply(pos, entry);
+            apply(pos, entry, false);
 
             return new DDLStatementExecutionResult();
         } catch (DataStorageManagerException err) {
@@ -790,7 +790,7 @@ public class TableSpaceManager {
                 throw new StatementExecutionException(ex);
             }
 
-            apply(pos, entry);
+            apply(pos, entry, false);
 
             return new DDLStatementExecutionResult();
         } catch (DataStorageManagerException err) {
@@ -802,7 +802,7 @@ public class TableSpaceManager {
 
     private TableManager bootTable(Table table, long transaction) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
-        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID, transaction);
+        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID, this.manager.getMaxLogicalPageSize(), transaction);
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
@@ -884,7 +884,7 @@ public class TableSpaceManager {
         LogSequenceNumber pos;
         try {
             pos = log.log(entry, false);
-            apply(pos, entry);
+            apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -900,7 +900,7 @@ public class TableSpaceManager {
         LogEntry entry = LogEntryFactory.rollbackTransaction(tableSpaceName, tx.transactionId);
         try {
             LogSequenceNumber pos = log.log(entry, true);
-            apply(pos, entry);
+            apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -917,7 +917,7 @@ public class TableSpaceManager {
 
         try {
             LogSequenceNumber pos = log.log(entry, true);
-            apply(pos, entry);
+            apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -950,7 +950,7 @@ public class TableSpaceManager {
         @Override
         public void accept(LogSequenceNumber t, LogEntry u) {
             try {
-                apply(t, u);
+                apply(t, u, true);
             } catch (Exception err) {
                 throw new RuntimeException(err);
             }

@@ -112,6 +112,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private ServerConfiguration serverConfiguration = new ServerConfiguration();
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
+    private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
     private boolean clearAtBoot = false;
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
@@ -637,6 +638,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public ServerConfiguration getConfiguration() {
         return serverConfiguration;
+    }
+
+    public long getMaxLogicalPageSize() {
+        return maxLogicalPageSize;
+    }
+
+    public void setMaxLogicalPageSize(long maxLogicalPageSize) {
+        this.maxLogicalPageSize = maxLogicalPageSize;
     }
 
     private class Activator implements Runnable {

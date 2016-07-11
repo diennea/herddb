@@ -75,32 +75,27 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         return new TableManagerStats() {
             @Override
             public int getLoadedpages() {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-            }
-
-            @Override
-            public int getMaxrecordsperpage() {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 0;
             }
 
             @Override
             public int getMaxloadedpages() {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 0;
             }
 
             @Override
             public long getTablesize() {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 0;
             }
 
             @Override
             public int getDirtypages() {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 0;
             }
 
             @Override
             public int getDirtyrecords() {
-                throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                return 0;
             }
         };
     }
@@ -123,7 +118,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void onTransactionCommit(Transaction transaction) throws DataStorageManagerException {
+    public void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
     }
 
     @Override

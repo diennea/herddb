@@ -59,7 +59,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void onTransactionRollback(Transaction transaction) throws DataStorageManagerException;
 
-    void onTransactionCommit(Transaction transaction) throws DataStorageManagerException;
+    void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException;
 
     void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
 
