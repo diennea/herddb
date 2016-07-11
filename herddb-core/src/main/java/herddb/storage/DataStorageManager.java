@@ -29,6 +29,7 @@ import herddb.utils.Bytes;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 
@@ -76,6 +77,7 @@ public abstract class DataStorageManager {
      * @param tableSpace
      * @param tableName
      * @param tableStatus
+     * @return
      * @throws DataStorageManagerException
      */
     public abstract List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
@@ -138,5 +140,7 @@ public abstract class DataStorageManager {
     public abstract void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage);
 
     public abstract RecordSetFactory createRecordSetFactory();
+
+    public abstract void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot) throws DataStorageManagerException;
 
 }

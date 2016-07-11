@@ -65,6 +65,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
@@ -331,6 +332,24 @@ public class FileDataStorageManager extends DataStorageManager {
             return result;
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public void cleanupAfterBoot(String tableSpace, String tableName, Set<Long> activePagesAtBoot) throws DataStorageManagerException {
+        // we have to drop old page files or page files partially written by checkpoint interrupted at JVM crash/reboot
+        List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
+        for (Path p : pageFiles) {
+            long pageId = getPageId(p);
+            LOGGER.log(Level.INFO, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
+            if (pageId > 0 && !activePagesAtBoot.contains(pageId)) {
+                LOGGER.log(Level.SEVERE, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
+            }
         }
     }
 

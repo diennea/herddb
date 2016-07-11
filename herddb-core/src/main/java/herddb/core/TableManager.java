@@ -262,7 +262,7 @@ public class TableManager implements AbstractTableManager {
                     if (currentPage < 0) {
                         throw new IllegalStateException();
                     }
-                    keyToPage.put(record.key, currentPage);                    
+                    keyToPage.put(record.key, currentPage);
                     activePagesAtBoot.add(currentPage);
                 }
 
@@ -271,7 +271,7 @@ public class TableManager implements AbstractTableManager {
                     currentPage = -1;
                 }
             });
-
+            dataStorageManager.cleanupAfterBoot(tableSpaceUUID,table.name, activePagesAtBoot);
         } finally {
             pagesLock.writeLock().unlock();
         }
@@ -635,7 +635,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
+    public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {        
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
@@ -674,6 +674,9 @@ public class TableManager implements AbstractTableManager {
             case LogEntryType.INSERT: {
                 Bytes key = new Bytes(entry.key);
                 Bytes value = new Bytes(entry.value);
+                if (recovery) {
+                    ensurePageLoadedOnApply(key);
+                }
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -694,7 +697,7 @@ public class TableManager implements AbstractTableManager {
         Long pageId = keyToPage.remove(key);
         if (pageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
-        }        
+        }
         deletedKeys.add(key);
         buffer.remove(key);
         if (!NO_PAGE.equals(pageId)) {
@@ -704,7 +707,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void applyUpdate(Bytes key, Bytes value) {
-        Long pageId = keyToPage.put(key, NO_PAGE);        
+        Long pageId = keyToPage.put(key, NO_PAGE);
         if (pageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
@@ -770,7 +773,7 @@ public class TableManager implements AbstractTableManager {
             if (!NO_PAGE.equals(pageId)) {
                 dirtyPages.add(pageId);
             }
-        }        
+        }
         buffer.put(key, new Record(key, value));
         deletedKeys.remove(key);
         dirtyRecords.incrementAndGet();
@@ -869,7 +872,7 @@ public class TableManager implements AbstractTableManager {
                 for (Record r : page) {
                     Long actualPage = keyToPage.get(r.key);
                     if (actualPage == null || !actualPage.equals(pageId)) {
-                        LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages + ", keyToPage: " + keyToPage);
+                        LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages);
                         throw new DataStorageManagerException("inconsistency at page " + pageId + ": key " + r.key + " is mapped to page " + actualPage + ", not to " + pageId);
                     }
                     buffer.put(r.key, r);
@@ -904,8 +907,7 @@ public class TableManager implements AbstractTableManager {
             List<Bytes> recordsOnDirtyPages = new ArrayList<>();
             LOGGER.log(Level.SEVERE, "checkpoint {0}, flush dirtyPages, {1} pages, logpos {2}", new Object[]{table.name, dirtyPages.toString(), sequenceNumber});
             for (Bytes key : buffer.keySet()) {
-                Long pageId = keyToPage.get(key);
-                LOGGER.log(Level.SEVERE, "checkpoint " + table.name + " key " + key + " page " + pageId);
+                Long pageId = keyToPage.get(key);                
                 if (dirtyPages.contains(pageId)
                         || Objects.equals(pageId, NO_PAGE)) {
                     recordsOnDirtyPages.add(key);
@@ -965,7 +967,7 @@ public class TableManager implements AbstractTableManager {
         dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
         activePages.add(pageId);
         for (Record record : newPage) {
-            keyToPage.put(record.key, pageId);            
+            keyToPage.put(record.key, pageId);
         }
     }
 

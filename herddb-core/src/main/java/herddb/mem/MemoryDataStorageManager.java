@@ -212,6 +212,10 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot) {        
+    }
+
+    @Override
     public void loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace, Consumer<Transaction> consumer) throws DataStorageManagerException {
     }
 
