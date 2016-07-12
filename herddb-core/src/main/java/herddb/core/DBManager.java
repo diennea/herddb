@@ -136,6 +136,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return metadataStorageManager;
     }
 
+    public DataStorageManager getDataStorageManager() {
+        return dataStorageManager;
+    }
+
     public String getServerToServerUsername() {
         return serverToServerUsername;
     }

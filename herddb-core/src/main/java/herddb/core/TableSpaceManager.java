@@ -280,7 +280,7 @@ public class TableSpaceManager {
                     }
                 }
                 if (!transaction.getNewTables().isEmpty() || !transaction.droppedTables.isEmpty()) {
-                    writeTablesOnDataStorageManager();
+                    writeTablesOnDataStorageManager(position);
                 }
                 transactions.remove(transaction.transactionId);
             }
@@ -295,7 +295,7 @@ public class TableSpaceManager {
 
                 bootTable(table, entry.transactionId);
                 if (entry.transactionId <= 0) {
-                    writeTablesOnDataStorageManager();
+                    writeTablesOnDataStorageManager(position);
                 }
             }
             break;
@@ -320,14 +320,14 @@ public class TableSpaceManager {
                 }
 
                 if (entry.transactionId <= 0) {
-                    writeTablesOnDataStorageManager();
+                    writeTablesOnDataStorageManager(position);
                 }
             }
             break;
             case LogEntryType.ALTER_TABLE: {
                 Table table = Table.deserialize(entry.value);
                 alterTable(table, null);
-                writeTablesOnDataStorageManager();
+                writeTablesOnDataStorageManager(position);
             }
             break;
         }
@@ -342,8 +342,7 @@ public class TableSpaceManager {
 
     }
 
-    private void writeTablesOnDataStorageManager() throws DataStorageManagerException {
-        LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
+    private void writeTablesOnDataStorageManager(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
         List<Table> tablelist = new ArrayList<>();
         for (AbstractTableManager tableManager : tables.values()) {
             if (!tableManager.isSystemTable()) {
@@ -468,10 +467,6 @@ public class TableSpaceManager {
             throw new StatementExecutionException(err);
         }
         return new DDLStatementExecutionResult();
-
-    }
-
-    private void executePostCheckpointAction(PostCheckpointAction action) throws Exception {
 
     }
 
@@ -848,7 +843,7 @@ public class TableSpaceManager {
                 LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
                 return;
             }
-            LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber);
+            LOGGER.log(Level.SEVERE, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
             if (actualLogSequenceNumber == null) {
                 throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
             }
@@ -856,16 +851,19 @@ public class TableSpaceManager {
             // we checkpoint all data to disk and save the actual log sequence number            
             for (AbstractTableManager tableManager : tables.values()) {
                 if (!tableManager.isSystemTable()) {
-                    actions.addAll(tableManager.checkpoint());
+                    List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(logSequenceNumber);
+                    actions.addAll(postCheckPointActions);
                 }
             }
-            writeTablesOnDataStorageManager();
+            writeTablesOnDataStorageManager(logSequenceNumber);
 
             dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, transactions.values());
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
 
             log.dropOldLedgers(logSequenceNumber);
 
+            LogSequenceNumber _logSequenceNumber = log.getLastSequenceNumber();
+            LOGGER.log(Level.SEVERE, nodeId + " checkpoint finish " + tableSpaceName + " started at " + logSequenceNumber + ", finished at " + _logSequenceNumber);
         } finally {
             generalLock.writeLock().unlock();
         }

@@ -397,7 +397,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString() + " not found");
                     return Collections.emptyList();
                 } else {
-                    throw new DataStorageManagerException("local table data not available, recovering from sequenceNumber " + sequenceNumber);
+                    throw new DataStorageManagerException("local table data not available for tableSpace "+tableSpace+", recovering from sequenceNumber " + sequenceNumber);
                 }
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
