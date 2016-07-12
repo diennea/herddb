@@ -67,6 +67,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final NettyChannelAcceptor networkServer;
     private final ServerConfiguration configuration;
     private final Path baseDirectory;
+    private final Path dataDirectory;
+    private final Path tmpDirectory;
     private final ServerHostData serverHostData;
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
     private final String mode;
@@ -101,6 +103,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
+        this.dataDirectory = this.baseDirectory.resolve("dbdata");
+        this.tmpDirectory = this.baseDirectory.resolve("dbtmp");
         String usersfile = configuration.getString(ServerConfiguration.PROPERTY_USERS_FILE, ServerConfiguration.PROPERTY_USERS_FILE_DEFAULT);
         if (usersfile.isEmpty()) {
             this.userManager = new SimpleSingleUserManager(configuration);
@@ -125,12 +129,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         if (nodeId.isEmpty()) {
             nodeId = host + ":" + port;
         }
-        LOGGER.log(Level.SEVERE, "local nodeID is " + nodeId);
+        LOGGER.log(Level.SEVERE, "local nodeID is {0}", nodeId);
         this.manager = new DBManager(nodeId,
                 metadataStorageManager,
                 buildDataStorageManager(),
                 buildFileCommitLogManager(),
-                baseDirectory, serverHostData
+                tmpDirectory, serverHostData
         );
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
         this.manager.setMaxLogicalPageSize(configuration.getLong(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT));
@@ -173,7 +177,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 return new MemoryMetadataStorageManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                return new FileMetadataStorageManager(baseDirectory);
+                return new FileMetadataStorageManager(dataDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 return new ZookeeperMetadataStorageManager(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
                         configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
@@ -190,7 +194,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
-                return new FileDataStorageManager(baseDirectory, diskswapThreshold);
+                return new FileDataStorageManager(dataDirectory, diskswapThreshold);
             default:
                 throw new RuntimeException();
         }
@@ -202,7 +206,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 return new MemoryCommitLogManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                return new FileCommitLogManager(baseDirectory, 64 * 1024 * 1024);
+                return new FileCommitLogManager(dataDirectory, 64 * 1024 * 1024);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
