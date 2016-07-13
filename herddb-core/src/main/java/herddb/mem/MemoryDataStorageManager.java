@@ -21,6 +21,8 @@ package herddb.mem;
 
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
+import herddb.index.ConcurrentMapKeyToPageIndex;
+import herddb.index.KeyToPageIndex;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -42,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -195,14 +196,15 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) {
-        return new ConcurrentHashMap<>();
+    public KeyToPageIndex createKeyToPageMap(String tablespace, String name) {
+        return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
     }
 
     @Override
-    public void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage) {
+    public void releaseKeyToPageMap(String tablespace, String name, KeyToPageIndex keyToPage) {
         if (keyToPage != null) {
-            keyToPage.clear();
+            ConcurrentMapKeyToPageIndex impl = (ConcurrentMapKeyToPageIndex) keyToPage;
+            impl.getMap().clear();
         }
     }
 
@@ -212,7 +214,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot) {        
+    public void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot
+    ) {
     }
 
     @Override

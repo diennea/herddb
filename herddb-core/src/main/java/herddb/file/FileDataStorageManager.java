@@ -21,6 +21,8 @@ package herddb.file;
 
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
+import herddb.index.ConcurrentMapKeyToPageIndex;
+import herddb.index.KeyToPageIndex;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -35,16 +37,12 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import java.io.BufferedInputStream;
-import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -64,17 +62,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.HTreeMap;
-import org.mapdb.Serializer;
 
 /**
  * Data Storage on local filesystem
@@ -397,7 +389,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString() + " not found");
                     return Collections.emptyList();
                 } else {
-                    throw new DataStorageManagerException("local table data not available for tableSpace "+tableSpace+", recovering from sequenceNumber " + sequenceNumber);
+                    throw new DataStorageManagerException("local table data not available for tableSpace " + tableSpace + ", recovering from sequenceNumber " + sequenceNumber);
                 }
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
@@ -536,56 +528,20 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public ConcurrentMap<Bytes, Long> createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException {
-        try {
-            File temporarySwapFile = File.createTempFile("keysswap." + tablespace + "." + name, ".bin", tmpDirectory.toFile());
-            DB db = DBMaker
-                    .newFileDB(temporarySwapFile)
-                    .cacheLRUEnable()
-                    .asyncWriteEnable()
-                    .transactionDisable()
-                    .commitFileSyncDisable()
-                    .deleteFilesAfterClose()
-                    .make();
-            return db.createHashMap("keys")
-                    .keySerializer(new BytesSerializer())
-                    .make();
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
+    public KeyToPageIndex createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException {
+        return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
+//        try {            
+//              return new MapDBKeyToPageIndex(tmpDirectory, tablespace + "." + name);
+//        } catch (IOException err) {
+//            throw new DataStorageManagerException(err);
+//        }
     }
 
     @Override
-    public void releaseKeyToPageMap(String tablespace, String name, Map<Bytes, Long> keyToPage) {
+    public void releaseKeyToPageMap(String tablespace, String name, KeyToPageIndex keyToPage) {
         if (keyToPage != null) {
-            HTreeMap treeMap = (HTreeMap) keyToPage;
-            treeMap.close();
+            keyToPage.close();
         }
-    }
-
-    private static final class BytesSerializer implements Serializable, Serializer<Bytes> {
-
-        private static final long serialVersionUID = 0;
-
-        @Override
-        public void serialize(DataOutput arg0, Bytes arg1) throws IOException {
-            arg0.writeInt(arg1.data.length);
-            arg0.write(arg1.data);
-        }
-
-        @Override
-        public Bytes deserialize(DataInput arg0, int arg1) throws IOException {
-            int len = arg0.readInt();
-            byte[] data = new byte[len];
-            arg0.readFully(data);
-            return Bytes.from_array(data);
-        }
-
-        @Override
-        public int fixedSize() {
-            return -1;
-        }
-
     }
 
     @Override
@@ -634,7 +590,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
             Files.createDirectories(file.getParent());
-            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString()+", active transactions "+transactions.size());
+            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString() + ", active transactions " + transactions.size());
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                     ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeUTF(tableSpace);

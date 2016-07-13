@@ -113,7 +113,7 @@
             <groupId>org.mapdb</groupId>
             <artifactId>mapdb</artifactId>
             <version>${libs.mapdb}</version>
-        </dependency>
+        </dependency>        
     </dependencies>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

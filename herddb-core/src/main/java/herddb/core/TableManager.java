@@ -21,6 +21,7 @@ package herddb.core;
 
 import herddb.utils.EnsureIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
+import herddb.index.KeyToPageIndex;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -103,7 +104,7 @@ public class TableManager implements AbstractTableManager {
      * keyToPage: a structure which maps each key to the ID of the page
      * (map<byte[], long>) (this can be quite large)
      */
-    private final Map<Bytes, Long> keyToPage;
+    private final KeyToPageIndex keyToPage;
 
     /**
      * Keys deleted since the last checkpoint
@@ -344,8 +345,8 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void unloadPage(Long pageId) {
-        List<Bytes> keys = this.keyToPage.entrySet().stream().filter(entry -> pageId.equals(entry.getValue())).map(Map.Entry::getKey).collect(Collectors.toList());
-        LOGGER.log(Level.SEVERE, "table " + table.name + " unloadpage " + pageId + ", " + keys.size() + " records");
+        Iterable<Bytes> keys = this.keyToPage.getKeysMappedToPage(pageId);
+        LOGGER.log(Level.SEVERE, "table " + table.name + " unloadpage " + pageId);
         for (Bytes key : keys) {
             buffer.remove(key);
         }
@@ -874,7 +875,7 @@ public class TableManager implements AbstractTableManager {
             return Collections.emptyList();
         }
         List<PostCheckpointAction> result = new ArrayList<>();
-        pagesLock.lock();        
+        pagesLock.lock();
         try {
             checkPointRunning = true;
             /*
@@ -893,7 +894,7 @@ public class TableManager implements AbstractTableManager {
                     recordsOnDirtyPages.add(key);
                 }
             }
-            for (Map.Entry<Bytes, Long> recordToPage : keyToPage.entrySet()) {
+            for (Map.Entry<Bytes, Long> recordToPage : keyToPage.scanner()) {
                 Long pageId = recordToPage.getValue();
                 if (dirtyPages.contains(pageId)) {
                     Bytes key = recordToPage.getKey();
@@ -931,8 +932,7 @@ public class TableManager implements AbstractTableManager {
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
             List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
             result.addAll(actions);
-            Set<Long> expectedActivePagesAfterCheckPoint = new HashSet<>(keyToPage.values());
-            LOGGER.log(Level.SEVERE, "checkpoint {0} finished, now activePages {1}, on data {2}", new Object[]{table.name, activePages + "", expectedActivePagesAfterCheckPoint});
+            LOGGER.log(Level.SEVERE, "checkpoint {0} finished, now activePages {1}", new Object[]{table.name, activePages + ""});
             checkPointRunning = false;
             checkPointRunningCondition.signalAll();
         } finally {
@@ -965,7 +965,7 @@ public class TableManager implements AbstractTableManager {
                     recordSet.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
                 }
             } else {
-                for (Map.Entry<Bytes, Long> entry : keyToPage.entrySet()) {
+                for (Map.Entry<Bytes, Long> entry : keyToPage.scanner()) {
                     Bytes key = entry.getKey();
                     boolean keep_lock = false;
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
