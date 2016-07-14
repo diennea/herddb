@@ -208,7 +208,7 @@ public final class ServerConfiguration {
             }
             set(PROPERTY_HOST, host);
             set(PROPERTY_PORT, port);
-        } else if (before.startsWith("jdbc:herddb:local:")) {
+        } else if (before.startsWith("jdbc:herddb:local")) {
             set(PROPERTY_MODE, PROPERTY_MODE_LOCAL);
         }
         if (questionMark < url.length()) {
