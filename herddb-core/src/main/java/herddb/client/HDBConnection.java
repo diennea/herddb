@@ -43,9 +43,18 @@ public class HDBConnection implements AutoCloseable {
     private final HDBClient client;
     private final ReentrantLock routesLock = new ReentrantLock(true);
     private volatile boolean closed;
+    private boolean discoverTablespaceFromSql = true;
 
     public HDBConnection(HDBClient client) {
         this.client = client;
+    }
+
+    public boolean isDiscoverTablespaceFromSql() {
+        return discoverTablespaceFromSql;
+    }
+
+    public void setDiscoverTablespaceFromSql(boolean discoverTablespaceFromSql) {
+        this.discoverTablespaceFromSql = discoverTablespaceFromSql;
     }
 
     public long getId() {
@@ -125,7 +134,9 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
-        tableSpace = discoverTablespace(tableSpace, query);
+        if (discoverTablespaceFromSql) {
+            tableSpace = discoverTablespace(tableSpace, query);
+        }
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
@@ -139,7 +150,9 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
-        tableSpace = discoverTablespace(tableSpace, query);
+        if (discoverTablespaceFromSql) {
+            tableSpace = discoverTablespace(tableSpace, query);
+        }
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
@@ -153,7 +166,9 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
-        tableSpace = discoverTablespace(tableSpace, query);
+        if (discoverTablespaceFromSql) {
+            tableSpace = discoverTablespace(tableSpace, query);
+        }
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);

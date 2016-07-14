@@ -52,6 +52,7 @@ public class HerdDBStatement implements java.sql.Statement {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         try {
+            parent.discoverTableSpace(sql);
             ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList(), parent.ensureTransaction(), maxRows, fetchSize);
             return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
@@ -237,6 +238,7 @@ public class HerdDBStatement implements java.sql.Statement {
     @Override
     public long executeLargeUpdate(String sql) throws SQLException {
         try {
+            parent.discoverTableSpace(sql);
             DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), Collections.emptyList());
             lastUpdateCount = result.updateCount;
             lastKey = result.key;

@@ -118,6 +118,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
         if (this.connection == null) {
             this.connection = client.openConnection();
+            this.connection.setDiscoverTablespaceFromSql(false);            
         }
     }
 

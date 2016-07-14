@@ -23,6 +23,7 @@ import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.model.TableSpace;
+import herddb.utils.QueryUtils;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -40,6 +41,7 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.logging.Level;
@@ -363,6 +365,9 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void setSchema(String schema) throws SQLException {
+        if (transactionId > 0 && !Objects.equals(schema, tableSpace)) {
+            throw new SQLException("cannot switch to schema " + schema + ", transaction (ID " + transactionId + ") is already started on tableSpace " + tableSpace);
+        }
         this.tableSpace = schema;
     }
 
@@ -399,6 +404,10 @@ public class HerdDBConnection implements java.sql.Connection {
     @Override
     public String toString() {
         return "HerdDBConnection{connection=" + connection + ", transactionId=" + transactionId + ", autocommit=" + autocommit + ", tableSpace=" + tableSpace + '}';
+    }
+
+    void discoverTableSpace(String sql) throws SQLException {
+        setSchema(QueryUtils.discoverTablespace(tableSpace, sql));
     }
 
 }

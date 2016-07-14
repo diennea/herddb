@@ -66,6 +66,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     @Override
     public ResultSet executeQuery() throws SQLException {
         try {
+            parent.discoverTableSpace(sql);
             ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, parameters, parent.ensureTransaction(), maxRows, fetchSize);
             return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
@@ -450,6 +451,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         try {
+            parent.discoverTableSpace(sql);
             ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList(), parent.ensureTransaction(), maxRows, fetchSize);
             return new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
@@ -469,6 +471,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     private long doExecuteLargeUpdate(List<Object> actualParameters) throws SQLException {
         try {
+            parent.discoverTableSpace(sql);
             DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), actualParameters);
             lastUpdateCount = result.updateCount;
             lastKey = result.key;
