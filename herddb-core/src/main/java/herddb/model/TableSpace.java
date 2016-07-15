@@ -154,7 +154,8 @@ public class TableSpace {
         }
 
         public Builder replicas(Set<String> replicas) {
-            this.replicas.addAll(replicas);
+            this.replicas.clear();
+            this.replicas.addAll(replicas);           
             return this;
         }
 

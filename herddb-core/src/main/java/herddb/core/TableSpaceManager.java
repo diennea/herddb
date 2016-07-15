@@ -31,6 +31,7 @@ import herddb.core.system.SyscolumnsTableManager;
 import herddb.core.system.SysconfigTableManager;
 import herddb.core.system.SysnodesTableManager;
 import herddb.core.system.SystablesTableManager;
+import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
 import herddb.log.CommitLog;
 import herddb.log.FullRecoveryNeededException;
@@ -117,6 +118,14 @@ public class TableSpaceManager {
     private LogSequenceNumber actualLogSequenceNumber;
     private boolean virtual;
 
+    public String getTableSpaceName() {
+        return tableSpaceName;
+    }
+
+    public String getTableSpaceUUID() {
+        return tableSpaceUUID;
+    }
+
     public TableSpaceManager(String nodeId, String tableSpaceName, String tableSpaceUUID, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager, boolean virtual) {
         this.nodeId = nodeId;
         this.manager = manager;
@@ -137,6 +146,7 @@ public class TableSpaceManager {
             registerSystemTableManager(new SyscolumnsTableManager(this));
         }
         registerSystemTableManager(new SystablespacesTableManager(this));
+        registerSystemTableManager(new SystablespacereplicastateTableManager(this));
         registerSystemTableManager(new SysnodesTableManager(this));
     }
 

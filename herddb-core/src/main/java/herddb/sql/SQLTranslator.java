@@ -772,39 +772,30 @@ public class SQLTranslator {
             }
             case "CREATETABLESPACE": {
                 if (execute.getExprList().getExpressions().size() < 1) {
-                    throw new StatementExecutionException("CREATETABLESPACE syntax (EXECUTE CREATETABLESPACE tableSpaceName [LEDAERID])");
+                    throw new StatementExecutionException("CREATETABLESPACE syntax (EXECUTE CREATETABLESPACE tableSpaceName ['leader:LEADERID'],['wait:TIMEOUT'] )");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
-                String leaderId = null;
-                if (execute.getExprList().getExpressions().size() > 1) {
-                    leaderId = (String) resolveValue(execute.getExprList().getExpressions().get(1));
-                }
-                if (leaderId == null) {
-                    leaderId = this.manager.getNodeId();
-                }
-                return new CreateTableSpaceStatement(tableSpaceName + "", Collections.singleton(leaderId), leaderId, 1);
-            }
-            case "ALTERTABLESPACE": {
-                if (execute.getExprList().getExpressions().size() != 3) {
-                    throw new StatementExecutionException("ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName property value)");
-                }
-                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
-                String property = (String) resolveValue(execute.getExprList().getExpressions().get(1));
-                String value = resolveValue(execute.getExprList().getExpressions().get(2)) + "";
-                try {
-                    TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
-                    if (tableSpace == null) {
-                        throw new TableSpaceDoesNotExistException(tableSpaceName);
+                String leader = null;
+                Set<String> replica = new HashSet<>();
+                int expectedreplicacount = 1;
+                int wait = 0;
+                for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
+                    String property = (String) resolveValue(execute.getExprList().getExpressions().get(i));
+                    int colon = property.indexOf(':');
+                    if (colon <= 0) {
+                        throw new StatementExecutionException("bad property " + property + " in " + execute + " statement");
                     }
-                    Set<String> replica = tableSpace.replicas;
-                    String leader = tableSpace.leaderId;
-                    int expectedreplicacount = tableSpace.expectedReplicaCount;
-                    switch (property.toLowerCase()) {
+                    String pName = property.substring(0, colon);
+                    String value = property.substring(colon + 1);
+                    switch (pName.toLowerCase()) {
+                        case "leader":
+                            leader = value;
+                            break;
                         case "replica":
                             replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
                             break;
-                        case "leader":
-                            leader = value;
+                        case "wait":
+                            wait = Integer.parseInt(value);
                             break;
                         case "expectedreplicacount":
                             try {
@@ -815,6 +806,59 @@ public class SQLTranslator {
                             } catch (NumberFormatException err) {
                                 throw new StatementExecutionException("invalid expectedreplicacount " + value + ": " + err);
                             }
+                        default:
+                            throw new StatementExecutionException("bad property " + pName);
+                    }
+                }
+                if (leader == null) {
+                    leader = this.manager.getNodeId();
+                }
+                if (replica.isEmpty()) {
+                    replica.add(leader);
+                }
+                return new CreateTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, wait);
+            }
+            case "ALTERTABLESPACE": {
+                if (execute.getExprList().getExpressions().size() < 2) {
+                    throw new StatementExecutionException("ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName,'property:value','property2:value2')");
+                }
+                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
+                try {
+                    TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
+                    if (tableSpace == null) {
+                        throw new TableSpaceDoesNotExistException(tableSpaceName);
+                    }
+                    Set<String> replica = tableSpace.replicas;
+                    String leader = tableSpace.leaderId;
+                    int expectedreplicacount = tableSpace.expectedReplicaCount;
+                    for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
+                        String property = (String) resolveValue(execute.getExprList().getExpressions().get(i));
+                        int colon = property.indexOf(':');
+                        if (colon <= 0) {
+                            throw new StatementExecutionException("bad property " + property + " in " + execute + " statement");
+                        }
+                        String pName = property.substring(0, colon);
+                        String value = property.substring(colon + 1);
+                        switch (pName.toLowerCase()) {
+                            case "leader":
+                                leader = value;
+                                break;
+                            case "replica":
+                                replica = Arrays.asList(value.split(",")).stream().map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+                                break;
+                            case "expectedreplicacount":
+                                try {
+                                    expectedreplicacount = Integer.parseInt(value.trim());
+                                    if (expectedreplicacount <= 0) {
+                                        throw new StatementExecutionException("invalid expectedreplicacount " + value + " must be positive");
+                                    }
+                                } catch (NumberFormatException err) {
+                                    throw new StatementExecutionException("invalid expectedreplicacount " + value + ": " + err);
+                                }
+                                break;
+                            default:
+                                throw new StatementExecutionException("bad property " + pName);
+                        }
                     }
                     return new AlterTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount);
                 } catch (MetadataStorageManagerException err) {

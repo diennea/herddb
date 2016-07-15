@@ -32,12 +32,18 @@ public class CreateTableSpaceStatement extends DDLStatement {
     private final Set<String> replicas;
     private final String leaderId;
     private final int expectedReplicaCount;
+    private final int waitForTableSpaceTimeout;
 
-    public CreateTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount) {
+    public CreateTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount, int waitForTableSpaceTimeout) {
         super(tableSpace);
         this.replicas = replicas;
         this.leaderId = leaderId;
         this.expectedReplicaCount = expectedReplicaCount;
+        this.waitForTableSpaceTimeout = waitForTableSpaceTimeout;
+    }
+
+    public int getWaitForTableSpaceTimeout() {
+        return waitForTableSpaceTimeout;
     }
 
     public Set<String> getReplicas() {

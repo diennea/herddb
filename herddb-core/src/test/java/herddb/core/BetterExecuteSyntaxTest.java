@@ -52,7 +52,7 @@ public class BetterExecuteSyntaxTest {
             execute(manager, "CREATE TABLESPACE 'tblspace1'", Collections.emptyList());
             manager.waitForTablespace("tblspace1", 10000);
 
-            execute(manager, "ALTER TABLESPACE 'tblspace1','expectedreplicacount',2", Collections.emptyList());
+            execute(manager, "ALTER TABLESPACE 'tblspace1','expectedreplicacount:2'", Collections.emptyList());
             long tx = ((TransactionResult) execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList())).getTransactionId();
             execute(manager, "COMMIT TRANSACTION 'tblspace1'," + tx, Collections.emptyList());
 

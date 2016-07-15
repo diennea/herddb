@@ -46,6 +46,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TableSpaceReplicaState;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
@@ -278,18 +279,17 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     private void handleTableSpace(TableSpace tableSpace) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException, DDLException {
-
         String tableSpaceName = tableSpace.name;
 
         TableSpaceManager actual_manager = tablesSpaces.get(tableSpaceName);
         if (actual_manager != null && actual_manager.isLeader() && !tableSpace.leaderId.equals(nodeId)) {
             LOGGER.log(Level.SEVERE, "Tablespace {0} leader is no more {1}, it changed to {2}", new Object[]{tableSpaceName, nodeId, tableSpace.leaderId});
-            stopTableSpace(tableSpaceName);
+            stopTableSpace(tableSpaceName, tableSpace.uuid);
         }
 
         if (actual_manager != null && !actual_manager.isLeader() && tableSpace.leaderId.equals(nodeId)) {
             LOGGER.log(Level.SEVERE, "Tablespace {0} need to switch to leadership on node {1}", new Object[]{tableSpaceName, nodeId});
-            stopTableSpace(tableSpaceName);
+            stopTableSpace(tableSpaceName, tableSpace.uuid);
         }
 
         if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
@@ -315,7 +315,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         if (tablesSpaces.containsKey(tableSpaceName) && !tableSpace.replicas.contains(nodeId)) {
-            stopTableSpace(tableSpaceName);
+            LOGGER.log(Level.SEVERE, "Tablespace {0} on {1} is not more in replica list {3}, uuid {2}", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, tableSpace.replicas + ""});
+            stopTableSpace(tableSpaceName, tableSpace.uuid);
             return;
         }
 
@@ -527,6 +528,29 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         try {
             metadataStorageManager.registerTableSpace(tableSpace);
             triggerActivator();
+
+            if (createTableSpaceStatement.getWaitForTableSpaceTimeout() > 0) {
+                boolean okWait = false;
+                LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up withint " + createTableSpaceStatement.getWaitForTableSpaceTimeout() + " ms");
+                for (int i = 0; i < createTableSpaceStatement.getWaitForTableSpaceTimeout(); i += 100) {
+                    List<TableSpaceReplicaState> replicateStates = metadataStorageManager.getTableSpaceReplicaState(tableSpace.uuid);
+                    for (TableSpaceReplicaState ts : replicateStates) {
+                        LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up, replica state node: " + ts.nodeId + ", state: " + ts.modeToSQLString(ts.mode) + ", ts " + new java.sql.Timestamp(ts.timestamp));
+                        if (ts.mode == TableSpaceReplicaState.MODE_LEADER) {
+                            okWait = true;
+                            break;
+                        }
+                    }
+                    if (okWait) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                }
+                if (!okWait) {
+                    throw new StatementExecutionException("tablespace " + tableSpace.name + ", uuid " + tableSpace.uuid + " has been created but leader " + tableSpace.leaderId + " did not start within " + createTableSpaceStatement.getWaitForTableSpaceTimeout() + " ms");
+                }
+            }
+
             return new DDLStatementExecutionResult();
         } catch (StatementExecutionException err) {
             throw err;
@@ -713,26 +737,54 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 }
             }
         } catch (MetadataStorageManagerException error) {
-            LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
+            LOGGER.log(Level.SEVERE, "cannot access tablespaces metadata", error);
             return;
         } finally {
             generalLock.writeLock().unlock();
         }
         Set<String> failedTableSpaces = new HashSet<>();
         for (Map.Entry<String, TableSpaceManager> entry : tablesSpaces.entrySet()) {
-            if (entry.getValue().isFailed()) {
-                failedTableSpaces.add(entry.getKey());
-            }
-            if (!entry.getKey().equals(virtualTableSpaceId) && !actualTablesSpaces.contains(entry.getKey())) {
-                failedTableSpaces.add(entry.getKey());
+            try {
+                String tableSpaceUuid = entry.getValue().getTableSpaceUUID();
+                if (entry.getValue().isFailed()) {
+                    failedTableSpaces.add(entry.getKey());
+                } else if (!entry.getKey().equals(virtualTableSpaceId) && !actualTablesSpaces.contains(entry.getKey())) {
+                    failedTableSpaces.add(entry.getKey());
+                } else if (entry.getValue().isLeader()) {
+                    metadataStorageManager.updateTableSpaceReplicaState(
+                            TableSpaceReplicaState
+                            .builder()
+                            .mode(TableSpaceReplicaState.MODE_LEADER)
+                            .nodeId(nodeId)
+                            .uuid(tableSpaceUuid)
+                            .timestamp(System.currentTimeMillis())
+                            .build()
+                    );
+                } else {
+                    metadataStorageManager.updateTableSpaceReplicaState(
+                            TableSpaceReplicaState
+                            .builder()
+                            .mode(TableSpaceReplicaState.MODE_FOLLOWER)
+                            .nodeId(nodeId)
+                            .uuid(tableSpaceUuid)
+                            .timestamp(System.currentTimeMillis())
+                            .build()
+                    );
+                }
+            } catch (MetadataStorageManagerException error) {
+                LOGGER.log(Level.SEVERE, "cannot access tablespace " + entry.getKey() + " metadata", error);
+                return;
             }
         }
         if (!failedTableSpaces.isEmpty()) {
             generalLock.writeLock().lock();
             try {
                 for (String tableSpace : failedTableSpaces) {
-                    stopTableSpace(tableSpace);
+                    stopTableSpace(tableSpace, null);
                 }
+            } catch (MetadataStorageManagerException error) {
+                LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
+                return;
             } finally {
                 generalLock.writeLock().unlock();
             }
@@ -749,14 +801,25 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     }
 
-    private void stopTableSpace(String tableSpace) {
-        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " on " + nodeId);
+    private void stopTableSpace(String tableSpace, String uuid) throws MetadataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " uuid " + uuid + ", on " + nodeId);
         try {
             tablesSpaces.get(tableSpace).close();
         } catch (LogNotAvailableException err) {
             LOGGER.log(Level.SEVERE, "node " + nodeId + " cannot close for reboot tablespace " + tableSpace, err);
         }
         tablesSpaces.remove(tableSpace);
+        if (uuid != null) {
+            metadataStorageManager.updateTableSpaceReplicaState(
+                    TableSpaceReplicaState
+                    .builder()
+                    .mode(TableSpaceReplicaState.MODE_STOPPED)
+                    .nodeId(nodeId)
+                    .uuid(uuid)
+                    .timestamp(System.currentTimeMillis())
+                    .build()
+            );
+        }
     }
 
     public TableSpaceManager getTableSpaceManager(String tableSpace) {

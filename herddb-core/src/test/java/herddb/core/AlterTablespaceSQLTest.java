@@ -50,17 +50,19 @@ public class AlterTablespaceSQLTest {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
             execute(manager, "EXECUTE CREATETABLESPACE 'ttt'", Collections.emptyList());
-            execute(manager, "EXECUTE CREATETABLESPACE 'ttt2','" + nodeId + "'", Collections.emptyList());
+            execute(manager, "CREATE TABLESPACE 'ttt2','leader:" + nodeId + "'", Collections.emptyList());
             try {
-                execute(manager, "EXECUTE CREATETABLESPACE 'ttt2','othernode'", Collections.emptyList());
+                execute(manager, "EXECUTE CREATETABLESPACE 'ttt2','leader:othernode'", Collections.emptyList());
                 fail();
             } catch (TableSpaceAlreadyExistsException err) {
             }
-            execute(manager, "EXECUTE CREATETABLESPACE 'ttt3','othernode'", Collections.emptyList());
+            execute(manager, "EXECUTE CREATETABLESPACE 'ttt3','leader:othernode'", Collections.emptyList());
 
-            execute(manager, "EXECUTE ALTERTABLESPACE 'ttt3','replica','" + nodeId + ",othernode'", Collections.emptyList());
-            execute(manager, "EXECUTE ALTERTABLESPACE 'ttt3','leader','othernode'", Collections.emptyList());
-            execute(manager, "EXECUTE ALTERTABLESPACE 'ttt3','expectedReplicaCount','12'", Collections.emptyList());
+            execute(manager, "EXECUTE CREATETABLESPACE 'ttt4','leader:othernode','replica:" + nodeId + ",othernode'", Collections.emptyList());
+
+            execute(manager, "EXECUTE ALTERTABLESPACE 'ttt3','replica:" + nodeId + ",othernode','expectedReplicaCount:2'", Collections.emptyList());
+            execute(manager, "EXECUTE ALTERTABLESPACE 'ttt3','leader:othernode'", Collections.emptyList());
+            execute(manager, "EXECUTE ALTERTABLESPACE 'ttt3','expectedReplicaCount:12'", Collections.emptyList());
             TableSpace ttt3 = manager.getMetadataStorageManager().describeTableSpace("ttt3");
             assertEquals("othernode", ttt3.leaderId);
             assertEquals(12, ttt3.expectedReplicaCount);
@@ -69,7 +71,7 @@ public class AlterTablespaceSQLTest {
 
             try (DataScanner scan = scan(manager, "SELECT * FROM SYSTABLESPACES", Collections.emptyList());) {
                 List<Tuple> tuples = scan.consume();
-                assertEquals(4, tuples.size());
+                assertEquals(5, tuples.size());
                 for (Tuple t : tuples) {
                     System.out.println("tablespace: " + t.toMap());
                     assertNotNull(t.get("expectedreplicacount"));

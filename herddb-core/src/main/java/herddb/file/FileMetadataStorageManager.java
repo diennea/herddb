@@ -25,6 +25,7 @@ import herddb.model.DDLException;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TableSpaceReplicaState;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
@@ -41,8 +42,12 @@ import java.security.DigestOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -58,6 +63,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     private final Map<String, TableSpace> tableSpaces = new HashMap<>();
     private final static Logger LOGGER = Logger.getLogger(FileMetadataStorageManager.class.getName());
+    private final ConcurrentMap<String, Map<String, TableSpaceReplicaState>> statesForTableSpace = new ConcurrentHashMap<>();
 
     public FileMetadataStorageManager(Path baseDirectory) {
         this.baseDirectory = baseDirectory.resolve("metadata");
@@ -233,6 +239,29 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    @Override
+    public List<TableSpaceReplicaState> getTableSpaceReplicaState(String tableSpaceUuid) throws MetadataStorageManagerException {
+        Map<String, TableSpaceReplicaState> result = statesForTableSpace.get(tableSpaceUuid);
+        if (result == null) {
+            return Collections.emptyList();
+        } else {
+            return new ArrayList<>(result.values());
+        }
+    }
+
+    @Override
+    public void updateTableSpaceReplicaState(TableSpaceReplicaState state) throws MetadataStorageManagerException {
+        Map<String, TableSpaceReplicaState> result = statesForTableSpace.get(state.uuid);
+        if (result == null) {
+            result = new ConcurrentHashMap<>();
+            Map<String, TableSpaceReplicaState> failed = statesForTableSpace.putIfAbsent(state.uuid, result);
+            if (failed != null) {
+                throw new MetadataStorageManagerException("concurrent modification to " + state.uuid + " tableSpace");
+            }
+        }
+        result.put(state.nodeId, state);
     }
 
 }

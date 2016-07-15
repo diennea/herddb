@@ -23,6 +23,7 @@ import herddb.model.DDLException;
 import herddb.model.InvalidTableException;
 import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
+import herddb.model.TableSpaceReplicaState;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -67,13 +68,14 @@ public abstract class MetadataStorageManager implements AutoCloseable {
 
     /**
      * Drop a tablespace
+     *
      * @param name
      * @param previous
      * @throws DDLException
-     * @throws MetadataStorageManagerException 
+     * @throws MetadataStorageManagerException
      */
     public abstract void dropTableSpace(String name, TableSpace previous) throws DDLException, MetadataStorageManagerException;
-    
+
     /**
      * Updates table space metadata on the metadata storage
      *
@@ -96,6 +98,17 @@ public abstract class MetadataStorageManager implements AutoCloseable {
      */
     public void registerNode(NodeMetadata nodeMetadata) throws MetadataStorageManagerException {
     }
+
+    /**
+     * Notifies on metadata storage manage the state of the node against a given
+     * tablespace
+     *
+     * @param state
+     * @throws MetadataStorageManagerException
+     */
+    public abstract void updateTableSpaceReplicaState(TableSpaceReplicaState state) throws MetadataStorageManagerException;
+
+    public abstract List<TableSpaceReplicaState> getTableSpaceReplicaState(String tableSpaceUuid) throws MetadataStorageManagerException;
 
     /**
      * Enumerates all known nodes
@@ -122,7 +135,7 @@ public abstract class MetadataStorageManager implements AutoCloseable {
     }
 
     public void clear() throws MetadataStorageManagerException {
-        
+
     }
 
 }
