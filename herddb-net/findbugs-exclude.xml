@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<FindBugsFilter>
+  <And>
+    <Class name="herddb.network.KeyValue"/>
+    <Bug code="EI2"/>
+  </And>
+</FindBugsFilter>

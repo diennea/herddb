@@ -22,8 +22,8 @@ package herddb.network;
  */
 public class KeyValue {
 
-    public byte[] key;
-    public byte[] value;
+    public final byte[] key;
+    public final byte[] value;
 
     public KeyValue(byte[] key, byte[] value) {
         this.key = key;

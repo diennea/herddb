@@ -104,7 +104,7 @@ public class NettyConnector {
             LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address
             }
             );
-            ChannelFuture f = b.connect(address).sync();
+            b.connect(address).sync();
             return result.value;
         } catch (InterruptedException ex) {
             throw new IOException(ex);
