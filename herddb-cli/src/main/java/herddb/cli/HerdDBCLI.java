@@ -74,6 +74,7 @@ public class HerdDBCLI {
         options.addOption("g", "script", true, "Groovy Script to execute");
         options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
         options.addOption("d", "dump", true, "Dump tablespace");
+        options.addOption("r", "restore", true, "Restore tablespace");
         org.apache.commons.cli.CommandLine commandLine;
         try {
             commandLine = parser.parse(options, args);
@@ -102,7 +103,7 @@ public class HerdDBCLI {
         String query = commandLine.getOptionValue("query", "");
         String file = commandLine.getOptionValue("file", "");
         String dump = commandLine.getOptionValue("dump", "");
-        println("dump:" + dump);
+        String restore = commandLine.getOptionValue("restore", "");
         String script = commandLine.getOptionValue("script", "");
         boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         try (HerdDBDataSource datasource = new HerdDBDataSource()) {
@@ -135,7 +136,7 @@ public class HerdDBCLI {
                     shell.evaluate(new File(script));
                 } else if (!dump.isEmpty()) {
                     List<String> tablesToDump = new ArrayList<>();
-                    try (ResultSet rs = statement.executeQuery("SELECT table_name FROM " + schema + ".systables")) {
+                    try (ResultSet rs = statement.executeQuery("SELECT table_name FROM " + schema + ".systables WHERE systemtable='false'")) {
                         while (rs.next()) {
                             String tablename = rs.getString(1).toLowerCase();
                             tablesToDump.add(tablename);
@@ -148,6 +149,21 @@ public class HerdDBCLI {
                             SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout);
                             ExtendedDataOutputStream out = new ExtendedDataOutputStream(fout)) {
                         dumpTablespace(schema, connection, out);
+                    }
+                } else if (!restore.isEmpty()) {
+
+                    Path inputfile = Paths.get(dump).toAbsolutePath();
+                    println("Restoring tablespace" + schema + " from file " + inputfile);
+
+                    List<String> tablesToDrop = new ArrayList<>();
+                    try (ResultSet rs = statement.executeQuery("SELECT table_name,systemtable FROM " + schema + ".systables WHERE systemtable='false'")) {
+                        while (rs.next()) {
+                            String tablename = rs.getString(1).toLowerCase();
+                            tablesToDrop.add(tablename);
+                        }
+                    }
+                    for (String table : tablesToDrop) {
+                        statement.execute("DROP TABLE " + schema + "." + table);
                     }
                 } else {
                     HelpFormatter formatter = new HelpFormatter();

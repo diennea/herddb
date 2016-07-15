@@ -37,7 +37,8 @@ public class SystablesTableManager extends AbstractSystemTableManager {
     private final static Table TABLE = Table
             .builder()
             .name("systables")
-            .column("table_name", ColumnTypes.STRING)            
+            .column("table_name", ColumnTypes.STRING)
+            .column("systemtable", ColumnTypes.STRING)
             .primaryKey("table_name", false)
             .build();
 
@@ -50,7 +51,9 @@ public class SystablesTableManager extends AbstractSystemTableManager {
         List<Table> tables = tableSpaceManager.getAllCommittedTables();
         return tables
                 .stream()
-                .map(r -> RecordSerializer.makeRecord(table, "table_name", r.name))
+                .map(r -> RecordSerializer.makeRecord(table, "table_name", r.name, "systemtable",
+                        r.name.startsWith("sys") ? "true" : "false"
+                ))
                 .collect(Collectors.toList());
     }
 
