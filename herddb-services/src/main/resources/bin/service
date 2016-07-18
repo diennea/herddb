@@ -50,7 +50,7 @@ case "$SERVICE" in
    
       
   *)
-    echo $"Usage: $0 [broker|worker] {start|stop|restart|console|kill|stacktrace|status}"
+    echo $"Usage: $0 server {start|stop|restart|console|kill|stacktrace|status}"
     RETVAL=1
     exit $RETVAL
 esac
