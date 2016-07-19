@@ -65,6 +65,7 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.SQLUtils;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
@@ -141,181 +142,248 @@ public class SQLTranslator {
     
     private static String rewriteExecuteSyntax(String query)
     {
-        int idx = 0;
-        int max = query.length();
+        int idx = SQLUtils.findQueryStart(query);
         
-        int state = REWRITE_STATE_NORMAL;
+        //* No match at all. Only ignorable charaters and comments */
+        if (idx == -1)
+            return query;
         
-        while( idx < max )
+        char ch = query.charAt(idx);
+        
+        /* "empty" data skipped now we must recognize instructions to rewrite */
+        switch (ch)
         {
-            char ch = query.charAt(idx);
-            
-            switch (state)
-            {
-                case REWRITE_STATE_SINGLE_LINE_COMMENT_IN:
-                    
-                    switch( ch )
-                    {
-                        case '-':
-                            state = REWRITE_STATE_SINGLE_LINE_COMMENT;
-                            break;
-                        
-                        default:
-                            
-                            /* Back to previous character */
-                            idx--;
-                            
-                            state = REWRITE_STATE_CHECK;
-                            
-                            /* Continue loop execution without idx increment */
-                            continue;
-    
-                    }
-                    
-                    break;
-                    
-                case REWRITE_STATE_SINGLE_LINE_COMMENT:
-                    
-                    if ( ch == '\n' )
-                        state = REWRITE_STATE_NORMAL;
-                    
-                    break;
+            /* ALTER */
+            case 'A':
+                if ( query.regionMatches(idx, "ALTER TABLESPACE ", 0, 17) )
+                    return "EXECUTE altertablespace " + query.substring( idx + 17 );
                 
-                case REWRITE_STATE_MULTILINE_COMMENT_IN:
-                    
-                    switch( ch )
-                    {
-                        case '*':
-                            state = REWRITE_STATE_MULTILINE_COMMENT;
-                            break;
-                        
-                        default:
-                            
-                            state = REWRITE_STATE_CHECK;
-                            
-                            /* Back to previous character */
-                            idx--;
-                            
-                            /* Continue loop execution without idx increment */
-                            continue;
-
-                    }
-                    
-                    break;
+                return query;
                 
-                case REWRITE_STATE_MULTILINE_COMMENT:
-                    
-                    if ( ch == '*' )
-                        state = REWRITE_STATE_MULTILINE_COMMENT_OUT;
-                    
-                    break;
-                    
-                case REWRITE_STATE_MULTILINE_COMMENT_OUT:
-                    
-                    if ( ch == '/' )
-                        state = REWRITE_STATE_NORMAL;
-                    else
-                        state = REWRITE_STATE_MULTILINE_COMMENT;
-                    
-                    break;
-                    
-                case REWRITE_STATE_NORMAL:
-                    
-                    switch (ch)
-                    {
-                        case '-':
-                            state = REWRITE_STATE_SINGLE_LINE_COMMENT_IN;
-                            break;
+            /* BEGIN */
+            case 'B':
+                if ( query.regionMatches(idx, "BEGIN TRANSACTION", 0, 17) )
+                    return "EXECUTE begintransaction" + query.substring( idx + 17 );
+                
+                return query;
+                
+            /* COMMIT / CREATE */
+            case 'C':
+                ch = query.charAt(idx +1);
+                switch ( ch )
+                {
+                    case 'O':
+                        if ( query.regionMatches(idx, "COMMIT TRANSACTION", 0, 18) )
+                            return "EXECUTE committransaction" + query.substring( idx + 18 );
                         
-                        case '/':
-                            state = REWRITE_STATE_MULTILINE_COMMENT_IN;
-                            break;
-    
-                        case '\n':
-                        case '\r':
-                        case '\t':
-                        case ' ':
-                            state = REWRITE_STATE_NORMAL;
-                            break;
-                            
-                        default:
-                            
-                            state = REWRITE_STATE_CHECK;
-                            
-                            /* Continue loop execution without idx increment */
-                            continue;
-                    }
-                    
-                    break;
-                    
-                case REWRITE_STATE_CHECK:
-                    
-                    /* "empty" data skipped now we must recognize instructions to rewrite */
-                    
-                    switch (ch)
-                    {
-                        /* ALTER */
-                        case 'A':
-                            if ( query.regionMatches(idx, "ALTER TABLESPACE ", 0, 17) )
-                                return "EXECUTE altertablespace " + query.substring( idx + 17 );
-                            
-                            return query;
-                            
-                        /* BEGIN */
-                        case 'B':
-                            if ( query.regionMatches(idx, "BEGIN TRANSACTION", 0, 17) )
-                                return "EXECUTE begintransaction" + query.substring( idx + 17 );
-                            
-                            return query;
-                            
-                        /* COMMIT / CREATE */
-                        case 'C':
-                            ch = query.charAt(idx +1);
-                            switch ( ch )
-                            {
-                                case 'O':
-                                    if ( query.regionMatches(idx, "COMMIT TRANSACTION", 0, 18) )
-                                        return "EXECUTE committransaction" + query.substring( idx + 18 );
-                                    
-                                    break;
-                                    
-                                case 'R':
-                                    if ( query.regionMatches(idx, "CREATE TABLESPACE ", 0, 18) )
-                                        return "EXECUTE createtablespace " + query.substring( idx + 18 );
-                                    
-                                    break;
-                            }
-                            
-                            return query;
-                            
-                        /* DROP */
-                        case 'D':
-                            if ( query.regionMatches(idx, "DROP TABLESPACE ", 0, 16) )
-                                return "EXECUTE droptablespace " + query.substring( idx + 16 );
-                            
-                            return query;
-                            
-                        /* ROLLBACK */
-                        case 'R':
-                            if ( query.regionMatches(idx, "ROLLBACK TRANSACTION", 0, 20) )
-                                return "EXECUTE rollbacktransaction" + query.substring( idx + 20 );
-                            
-                            return query;
-                            
-                        default:
-                            
-                            return query;
-                    }
-                    
-            }
-            
-            ++idx;
-            
+                        break;
+                        
+                    case 'R':
+                        if ( query.regionMatches(idx, "CREATE TABLESPACE ", 0, 18) )
+                            return "EXECUTE createtablespace " + query.substring( idx + 18 );
+                        
+                        break;
+                }
+                
+                return query;
+                
+            /* DROP */
+            case 'D':
+                if ( query.regionMatches(idx, "DROP TABLESPACE ", 0, 16) )
+                    return "EXECUTE droptablespace " + query.substring( idx + 16 );
+                
+                return query;
+                
+            /* ROLLBACK */
+            case 'R':
+                if ( query.regionMatches(idx, "ROLLBACK TRANSACTION", 0, 20) )
+                    return "EXECUTE rollbacktransaction" + query.substring( idx + 20 );
+                
+                return query;
+                
+            default:
+                
+                return query;
         }
-        
-        /* No match at all. Only ignorable charaters and comments */
-        return query;
     }
+    
+//    private static String rewriteExecuteSyntax(String query)
+//    {
+//        int idx = 0;
+//        int max = query.length();
+//        
+//        int state = REWRITE_STATE_NORMAL;
+//        
+//        while( idx < max )
+//        {
+//            char ch = query.charAt(idx);
+//            
+//            switch (state)
+//            {
+//                case REWRITE_STATE_SINGLE_LINE_COMMENT_IN:
+//                    
+//                    switch( ch )
+//                    {
+//                        case '-':
+//                            state = REWRITE_STATE_SINGLE_LINE_COMMENT;
+//                            break;
+//                        
+//                        default:
+//                            
+//                            /* Back to previous character */
+//                            idx--;
+//                            
+//                            state = REWRITE_STATE_CHECK;
+//                            
+//                            /* Continue loop execution without idx increment */
+//                            continue;
+//    
+//                    }
+//                    
+//                    break;
+//                    
+//                case REWRITE_STATE_SINGLE_LINE_COMMENT:
+//                    
+//                    if ( ch == '\n' )
+//                        state = REWRITE_STATE_NORMAL;
+//                    
+//                    break;
+//                
+//                case REWRITE_STATE_MULTILINE_COMMENT_IN:
+//                    
+//                    switch( ch )
+//                    {
+//                        case '*':
+//                            state = REWRITE_STATE_MULTILINE_COMMENT;
+//                            break;
+//                        
+//                        default:
+//                            
+//                            state = REWRITE_STATE_CHECK;
+//                            
+//                            /* Back to previous character */
+//                            idx--;
+//                            
+//                            /* Continue loop execution without idx increment */
+//                            continue;
+//
+//                    }
+//                    
+//                    break;
+//                
+//                case REWRITE_STATE_MULTILINE_COMMENT:
+//                    
+//                    if ( ch == '*' )
+//                        state = REWRITE_STATE_MULTILINE_COMMENT_OUT;
+//                    
+//                    break;
+//                    
+//                case REWRITE_STATE_MULTILINE_COMMENT_OUT:
+//                    
+//                    if ( ch == '/' )
+//                        state = REWRITE_STATE_NORMAL;
+//                    else
+//                        state = REWRITE_STATE_MULTILINE_COMMENT;
+//                    
+//                    break;
+//                    
+//                case REWRITE_STATE_NORMAL:
+//                    
+//                    switch (ch)
+//                    {
+//                        case '-':
+//                            state = REWRITE_STATE_SINGLE_LINE_COMMENT_IN;
+//                            break;
+//                        
+//                        case '/':
+//                            state = REWRITE_STATE_MULTILINE_COMMENT_IN;
+//                            break;
+//    
+//                        case '\n':
+//                        case '\r':
+//                        case '\t':
+//                        case ' ':
+//                            state = REWRITE_STATE_NORMAL;
+//                            break;
+//                            
+//                        default:
+//                            
+//                            state = REWRITE_STATE_CHECK;
+//                            
+//                            /* Continue loop execution without idx increment */
+//                            continue;
+//                    }
+//                    
+//                    break;
+//                    
+//                case REWRITE_STATE_CHECK:
+//                    
+//                    /* "empty" data skipped now we must recognize instructions to rewrite */
+//                    
+//                    switch (ch)
+//                    {
+//                        /* ALTER */
+//                        case 'A':
+//                            if ( query.regionMatches(idx, "ALTER TABLESPACE ", 0, 17) )
+//                                return "EXECUTE altertablespace " + query.substring( idx + 17 );
+//                            
+//                            return query;
+//                            
+//                        /* BEGIN */
+//                        case 'B':
+//                            if ( query.regionMatches(idx, "BEGIN TRANSACTION", 0, 17) )
+//                                return "EXECUTE begintransaction" + query.substring( idx + 17 );
+//                            
+//                            return query;
+//                            
+//                        /* COMMIT / CREATE */
+//                        case 'C':
+//                            ch = query.charAt(idx +1);
+//                            switch ( ch )
+//                            {
+//                                case 'O':
+//                                    if ( query.regionMatches(idx, "COMMIT TRANSACTION", 0, 18) )
+//                                        return "EXECUTE committransaction" + query.substring( idx + 18 );
+//                                    
+//                                    break;
+//                                    
+//                                case 'R':
+//                                    if ( query.regionMatches(idx, "CREATE TABLESPACE ", 0, 18) )
+//                                        return "EXECUTE createtablespace " + query.substring( idx + 18 );
+//                                    
+//                                    break;
+//                            }
+//                            
+//                            return query;
+//                            
+//                        /* DROP */
+//                        case 'D':
+//                            if ( query.regionMatches(idx, "DROP TABLESPACE ", 0, 16) )
+//                                return "EXECUTE droptablespace " + query.substring( idx + 16 );
+//                            
+//                            return query;
+//                            
+//                        /* ROLLBACK */
+//                        case 'R':
+//                            if ( query.regionMatches(idx, "ROLLBACK TRANSACTION", 0, 20) )
+//                                return "EXECUTE rollbacktransaction" + query.substring( idx + 20 );
+//                            
+//                            return query;
+//                            
+//                        default:
+//                            
+//                            return query;
+//                    }
+//                    
+//            }
+//            
+//            ++idx;
+//            
+//        }
+//        
+//        /* No match at all. Only ignorable charaters and comments */
+//        return query;
+//    }
 
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
         query = rewriteExecuteSyntax(query);
