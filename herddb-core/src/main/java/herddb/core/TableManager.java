@@ -244,10 +244,13 @@ public class TableManager implements AbstractTableManager {
         return table;
     }
 
+    private LogSequenceNumber bootSequenceNumber;
+
     @Override
     public void start() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
         Set<Long> activePagesAtBoot = new HashSet<>();
+        bootSequenceNumber = log.getLastSequenceNumber();
 
         dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
                 new FullTableScanConsumer() {
@@ -259,6 +262,7 @@ public class TableManager implements AbstractTableManager {
                 LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
                 nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
                 newPageId.set(tableStatus.nextPageId);
+                bootSequenceNumber = tableStatus.sequenceNumber;
             }
 
             @Override
@@ -627,6 +631,10 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
+        if (recovery && !pos.after(bootSequenceNumber)) {
+            LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry+" at "+pos+", table booted at "+bootSequenceNumber);
+            return;
+        }
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
@@ -773,8 +781,12 @@ public class TableManager implements AbstractTableManager {
     private void autoFlush() throws DataStorageManagerException {
         if (dirtyRecords.get() >= MAX_DIRTY_RECORDS) {
             LOGGER.log(Level.SEVERE, "autoflush");
-            checkpoint(log.getLastSequenceNumber());
+            flush();
         }
+    }
+
+    public void flush() throws DataStorageManagerException {
+        checkpoint(log.getLastSequenceNumber());
     }
 
     public void close() {

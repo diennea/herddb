@@ -858,18 +858,21 @@ public class TableSpaceManager {
                 throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
             }
 
+            // TODO: transactions checkpoint is not atomic
+            dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values()));
+            writeTablesOnDataStorageManager(logSequenceNumber);
+            // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
+            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
+            
             // we checkpoint all data to disk and save the actual log sequence number            
             for (AbstractTableManager tableManager : tables.values()) {
-                if (!tableManager.isSystemTable()) {
-                    List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(logSequenceNumber);
-                    actions.addAll(postCheckPointActions);
-                }
+                // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
+                // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
+                LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
+                List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(sequenceNumber);
+                actions.addAll(postCheckPointActions);
             }
-            writeTablesOnDataStorageManager(logSequenceNumber);
-
-            dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, transactions.values());
-            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
-
+            
             log.dropOldLedgers(logSequenceNumber);
 
             LogSequenceNumber _logSequenceNumber = log.getLastSequenceNumber();

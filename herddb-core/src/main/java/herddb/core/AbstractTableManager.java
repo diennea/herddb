@@ -67,6 +67,8 @@ public interface AbstractTableManager extends AutoCloseable {
 
     List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
 
+    void flush() throws DataStorageManagerException;
+    
     long getNextPrimaryKeyValue();
 
     boolean isSystemTable();

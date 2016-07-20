@@ -135,6 +135,10 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
+    public void flush() throws DataStorageManagerException {
+    }
+
+    @Override
     public long getNextPrimaryKeyValue() {
         return -1;
     }
