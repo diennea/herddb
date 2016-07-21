@@ -114,7 +114,7 @@ public class Table {
             doo.writeUTF(name);
             doo.writeByte(auto_increment ? 1 : 0);
             doo.writeVInt(maxSerialPosition);
-            doo.writeByte(primaryKey.length);            
+            doo.writeByte(primaryKey.length);
             for (String primaryKeyColumn : primaryKey) {
                 doo.writeUTF(primaryKeyColumn);
             }
@@ -267,6 +267,16 @@ public class Table {
             }
 
             return new Table(name, columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]), tablespace, auto_increment, maxSerialPosition);
+        }
+
+        public Builder cloning(Table tableSchema) {
+            this.columns.addAll(Arrays.asList(tableSchema.columns));
+            this.name = tableSchema.name;
+            this.primaryKey.addAll(Arrays.asList(tableSchema.primaryKey));
+            this.tablespace = tableSchema.tablespace;
+            this.auto_increment = tableSchema.auto_increment;
+            this.maxSerialPosition = tableSchema.maxSerialPosition;
+            return this;
         }
 
     }

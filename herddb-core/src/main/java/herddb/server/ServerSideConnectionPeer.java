@@ -41,14 +41,20 @@ import herddb.model.TableAwareStatement;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
+import herddb.model.commands.BeginTransactionStatement;
+import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
+import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.network.ServerSideConnection;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
+import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -234,6 +240,61 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 String tableSpace = (String) message.parameters.get("tableSpace");
                 server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize);
 
+            }
+            break;
+            case Message.TYPE_REQUEST_TABLE_RESTORE: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
+                try {
+                    String tableSpace = (String) message.parameters.get("tableSpace");
+                    byte[] table = (byte[]) message.parameters.get("table");
+                    Table tableSchema = Table.deserialize(table);
+                    tableSchema = Table
+                            .builder()
+                            .cloning(tableSchema)
+                            .tablespace(tableSpace)
+                            .build();
+                    CreateTableStatement createTableStatement = new CreateTableStatement(tableSchema);
+                    server.getManager().executeStatement(createTableStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    _channel.sendReplyMessage(message, Message.ACK(null));
+                } catch (StatementExecutionException err) {
+                    Message error = Message.ERROR(null, err);
+                    if (err instanceof NotLeaderException) {
+                        error.setParameter("notLeader", "true");
+                    }
+                    _channel.sendReplyMessage(message, error);
+                }
+            }
+            break;
+            case Message.TYPE_PUSH_TABLE_DATA: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
+                try {
+                    String tableSpace = (String) message.parameters.get("tableSpace");
+                    String table = (String) message.parameters.get("table");
+                    List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
+                    BeginTransactionStatement bt = new BeginTransactionStatement(tableSpace);
+                    long txId = ((TransactionResult) server.getManager().executeStatement(bt, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+                    TransactionContext transactionContext = new TransactionContext(txId);
+                    for (KeyValue kv : data) {
+                        InsertStatement insertStatement = new InsertStatement(tableSpace, table, new Record(Bytes.from_array(kv.key), Bytes.from_array(kv.value)));
+                        server.getManager().executeStatement(insertStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
+                    }
+                    server.getManager().executeStatement(new CommitTransactionStatement(tableSpace, txId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    _channel.sendReplyMessage(message, Message.ACK(null));
+                } catch (StatementExecutionException err) {
+                    Message error = Message.ERROR(null, err);
+                    if (err instanceof NotLeaderException) {
+                        error.setParameter("notLeader", "true");
+                    }
+                    _channel.sendReplyMessage(message, error);
+                }
             }
             break;
             case Message.TYPE_OPENSCANNER: {

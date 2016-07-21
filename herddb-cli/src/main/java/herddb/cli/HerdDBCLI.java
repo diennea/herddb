@@ -17,20 +17,15 @@ package herddb.cli;
 
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
+import herddb.backup.BackupUtils;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
-import herddb.client.TableSpaceDumpReceiver;
 import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
-import herddb.log.LogSequenceNumber;
-import herddb.model.Record;
-import herddb.model.Table;
 import herddb.model.TableSpace;
-import herddb.storage.DataStorageManagerException;
-import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleBufferedOutputStream;
 import java.io.File;
-import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -46,10 +41,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
-import javax.xml.ws.Holder;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
@@ -104,6 +97,7 @@ public class HerdDBCLI {
         String file = commandLine.getOptionValue("file", "");
         String dump = commandLine.getOptionValue("dump", "");
         String restore = commandLine.getOptionValue("restore", "");
+        String restoreto = commandLine.getOptionValue("restoreto", "");
         String script = commandLine.getOptionValue("script", "");
         boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         try (HerdDBDataSource datasource = new HerdDBDataSource()) {
@@ -146,25 +140,21 @@ public class HerdDBCLI {
                     println("Dumping tables " + tablesToDump + " from tablespace " + schema + " to " + outputfile);
 
                     try (OutputStream fout = Files.newOutputStream(outputfile, StandardOpenOption.CREATE_NEW);
-                            SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout);
-                            ExtendedDataOutputStream out = new ExtendedDataOutputStream(fout)) {
-                        dumpTablespace(schema, connection, out);
+                            SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout);) {
+                        HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
+                        HDBConnection hdbconnection = hcon.getConnection();
+                        BackupUtils.dumpTableSpace(schema, hdbconnection, oo);
                     }
+                    println("Dumping finished");
                 } else if (!restore.isEmpty()) {
-
                     Path inputfile = Paths.get(dump).toAbsolutePath();
-                    println("Restoring tablespace" + schema + " from file " + inputfile);
-
-                    List<String> tablesToDrop = new ArrayList<>();
-                    try (ResultSet rs = statement.executeQuery("SELECT table_name,systemtable FROM " + schema + ".systables WHERE systemtable='false'")) {
-                        while (rs.next()) {
-                            String tablename = rs.getString(1).toLowerCase();
-                            tablesToDrop.add(tablename);
-                        }
+                    println("Restoring tablespace" + schema + " on server " + restoreto + " from file " + inputfile);
+                    try (InputStream fin = Files.newInputStream(inputfile)) {
+                        HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
+                        HDBConnection hdbconnection = hcon.getConnection();
+                        BackupUtils.restoreTableSpace(schema, restoreto, hdbconnection, fin);
                     }
-                    for (String table : tablesToDrop) {
-                        statement.execute("DROP TABLE " + schema + "." + table);
-                    }
+                    println("Restore finished");
                 } else {
                     HelpFormatter formatter = new HelpFormatter();
                     formatter.printHelp("herddb", options, true);
@@ -225,73 +215,6 @@ public class HerdDBCLI {
                 throw err;
             }
         }
-    }
-
-    private static void dumpTablespace(String schema, Connection connection, ExtendedDataOutputStream out) throws Exception {
-        HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
-        HDBConnection hdbconnection = hcon.getConnection();
-        Holder<Throwable> errorHolder = new Holder<>();
-        CountDownLatch waiter = new CountDownLatch(1);
-        hdbconnection.dumpTableSpace(schema, new TableSpaceDumpReceiver() {
-
-            long tableCount;
-
-            @Override
-            public void onError(Throwable error) throws DataStorageManagerException {
-                errorHolder.value = error;
-                waiter.countDown();
-            }
-
-            @Override
-            public void finish() throws DataStorageManagerException {
-                waiter.countDown();
-            }
-
-            @Override
-            public void endTable() throws DataStorageManagerException {
-                println("endTable, records " + tableCount);
-                try {
-                    out.writeVInt(Integer.MIN_VALUE); // EndOfTableMarker
-                } catch (IOException err) {
-                    throw new DataStorageManagerException(err);
-                }
-            }
-
-            @Override
-            public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {
-                try {
-                    out.writeVInt(record.size());
-                    for (Record r : record) {
-                        out.writeArray(r.key.data);
-                        out.writeArray(r.value.data);
-                    }
-                    tableCount += record.size();
-                } catch (IOException err) {
-                    throw new DataStorageManagerException(err);
-                }
-            }
-
-            @Override
-            public void beginTable(Table table) throws DataStorageManagerException {
-                println("beginTable " + table.name);
-                tableCount = 0;
-                try {
-                    out.writeArray(table.serialize());
-                } catch (IOException err) {
-                    throw new DataStorageManagerException(err);
-                }
-            }
-
-            @Override
-            public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-                println("Backup at log position: " + logSequenceNumber);
-            }
-
-        }, 64 * 1024);
-        if (errorHolder.value != null) {
-            throw new Exception(errorHolder.value);
-        }
-        waiter.await();
     }
 
     private static void println(Object msg) {

@@ -385,6 +385,35 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
+    void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws HDBException, ClientSideMetadataProviderException {
+        try {
+            Table table = source.nextTable();
+            while (table != null) {
+
+                Channel _channel = ensureOpen();
+                Message message_create_table = Message.REQUEST_TABLE_RESTORE(clientId, tableSpace, table.serialize());
+                Message reply_create_table = _channel.sendMessageWithReply(message_create_table, timeout);
+                if (reply_create_table.type == Message.TYPE_ERROR) {
+                    throw new HDBException(reply_create_table + "");
+                }
+
+                List<KeyValue> chunk = source.nextTableDataChunk();
+                while (chunk != null) {
+                    Message message = Message.PUSH_TABLE_DATA(clientId, tableSpace, table.name, chunk);
+                    Message reply = _channel.sendMessageWithReply(message, timeout);
+                    if (reply.type == Message.TYPE_ERROR) {
+                        throw new HDBException(reply + "");
+                    }
+                    chunk = source.nextTableDataChunk();
+                }
+
+                table = source.nextTable();
+            }
+        } catch (InterruptedException | TimeoutException | DataStorageManagerException err) {
+            throw new HDBException(err);
+        }
+    }
+
     private class ScanResultSetImpl extends ScanResultSet {
 
         private final String scannerId;

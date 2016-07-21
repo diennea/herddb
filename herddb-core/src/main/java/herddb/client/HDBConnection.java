@@ -229,4 +229,9 @@ public class HDBConnection implements AutoCloseable {
         client.getClientSideMetadataProvider().requestMetadataRefresh();
     }
 
+    public void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws ClientSideMetadataProviderException, HDBException {
+        RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+        route.restoreTableSpace(tableSpace, source);
+    }
+
 }
