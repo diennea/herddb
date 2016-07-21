@@ -19,7 +19,6 @@
  */
 package herddb.client;
 
-import com.sun.webkit.plugin.Plugin;
 import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.network.ServerHostData;
