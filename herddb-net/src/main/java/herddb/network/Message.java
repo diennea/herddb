@@ -165,6 +165,25 @@ public final class Message {
         return new Message(null, TYPE_SASL_TOKEN_MESSAGE_TOKEN, data);
     }
 
+    public static Message REQUEST_TABLE_RESTORE(String clientId, String tableSpace, byte[] table) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("table", table);
+        data.put("tableSpace", tableSpace);
+        return new Message(clientId, TYPE_REQUEST_TABLE_RESTORE, data);
+    }
+
+    public static Message PUSH_TABLE_DATA(String clientId, String tableSpace, String name, List<KeyValue> chunk) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("table", name);
+        data.put("tableSpace", tableSpace);
+        data.put("data", chunk);
+        return new Message(clientId, TYPE_PUSH_TABLE_DATA, data);
+    }
+
     public final String clientId;
     public final int type;
     public final Map<String, Object> parameters;
@@ -189,6 +208,8 @@ public final class Message {
     public static final int TYPE_FETCHSCANNERDATA = 10;
     public static final int TYPE_REQUEST_TABLESPACE_DUMP = 11;
     public static final int TYPE_TABLESPACE_DUMP_DATA = 12;
+    public static final int TYPE_REQUEST_TABLE_RESTORE = 13;
+    public static final int TYPE_PUSH_TABLE_DATA = 14;
 
     public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;
@@ -231,8 +252,8 @@ public final class Message {
         }
     }
 
-    public Message(String workerProcessId, int type, Map<String, Object> parameters) {
-        this.clientId = workerProcessId;
+    public Message(String clientId, int type, Map<String, Object> parameters) {
+        this.clientId = clientId;
         this.type = type;
         this.parameters = parameters;
     }

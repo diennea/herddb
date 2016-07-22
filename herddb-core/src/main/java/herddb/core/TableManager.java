@@ -632,7 +632,7 @@ public class TableManager implements AbstractTableManager {
     @Override
     public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
         if (recovery && !pos.after(bootSequenceNumber)) {
-            LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry+" at "+pos+", table booted at "+bootSequenceNumber);
+            LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry + " at " + pos + ", table booted at " + bootSequenceNumber);
             return;
         }
         switch (entry.type) {
@@ -842,10 +842,6 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
-    private void ensurePageLoadedExitReadLock(Long pageId) throws DataStorageManagerException {
-
-    }
-
     private void loadPageToMemory(Long pageId) throws DataStorageManagerException {
         pagesLock.lock();
         try {
@@ -855,12 +851,18 @@ public class TableManager implements AbstractTableManager {
             if (dirtyPages.contains(pageId)) {
                 throw new DataStorageManagerException("page " + pageId + " is marked as dirty, it cannot be loaded from disk, dirtyPages " + dirtyPages + ", active " + activePages);
             }
+            if (!activePages.contains(pageId)) {
+                LOGGER.log(Level.SEVERE, "{0}.{1}: page {2} is no more active. it cannot be loaded from disk", new Object[]{table.tablespace, table.name, pageId});
+                return;
+            }
             int to_unload = loadedPages.size() - MAX_LOADED_PAGES;
             if (to_unload > 0) {
                 unloadCleanPages(to_unload + UNLOAD_PAGES_MIN_BATCH);
             }
             try {
+                long _start = System.currentTimeMillis();
                 List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+                long _stopDisk = System.currentTimeMillis();
                 loadedPages.add(pageId);
                 for (Record r : page) {
                     Long actualPage = keyToPage.get(r.key);
@@ -870,7 +872,8 @@ public class TableManager implements AbstractTableManager {
                     }
                     buffer.put(r.key, r);
                 }
-                LOGGER.log(Level.SEVERE, "table " + table.name + ", loaded " + page.size() + " records from page " + pageId);
+                long _stopBuffer = System.currentTimeMillis();
+                LOGGER.log(Level.SEVERE, "table " + table.name + ", loaded " + page.size() + " records from page " + pageId + " in " + (_stopBuffer - _start) + " ms (" + (_stopDisk - _start) + " ms disk, " + (_stopBuffer - _stopDisk) + " ms mem)");
             } catch (DataStorageManagerException error) {
                 LOGGER.log(Level.SEVERE, "table " + table.name + ", error loading page " + pageId + ", active pages " + activePages + ", dirtyPages " + dirtyPages, error);
                 throw new DataStorageManagerException("table " + table.name + ", error loading page " + pageId + ", active pages " + activePages + ", dirtyPages " + dirtyPages, error);
@@ -878,6 +881,7 @@ public class TableManager implements AbstractTableManager {
         } finally {
             pagesLock.unlock();
         }
+
     }
 
     @Override
@@ -967,7 +971,7 @@ public class TableManager implements AbstractTableManager {
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
 
         Predicate predicate = statement.getPredicate();
-
+        long _start = System.currentTimeMillis();
         MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
         try {
             if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
@@ -1035,6 +1039,7 @@ public class TableManager implements AbstractTableManager {
 
             return new SimpleDataScanner(recordSet);
         } catch (DataStorageManagerException err) {
+            LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
             throw new StatementExecutionException(err);
         }
     }

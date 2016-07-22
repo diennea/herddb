@@ -97,7 +97,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) {
         Page page = pages.get(tableName + "_" + pageId);
-        LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
+        //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         return page != null ? page.records : null;
     }
 
@@ -110,7 +110,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) {
         Page page = new Page(new ArrayList<>(newPage));
         pages.put(tableName + "_" + pageId, page);
-        LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
+        //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
     }
 
     @Override
