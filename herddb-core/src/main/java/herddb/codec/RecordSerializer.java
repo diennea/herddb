@@ -40,7 +40,7 @@ import java.util.Map;
  */
 public final class RecordSerializer {
 
-    private static Object deserialize(byte[] data, int type) {
+    public static Object deserialize(byte[] data, int type) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
                 return data;
@@ -52,6 +52,8 @@ public final class RecordSerializer {
                 return new Bytes(data).to_string();
             case ColumnTypes.TIMESTAMP:
                 return new Bytes(data).to_timestamp();
+            case ColumnTypes.NULL:
+                return null;
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }

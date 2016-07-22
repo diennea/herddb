@@ -19,13 +19,16 @@
  */
 package herddb.model;
 
+import herddb.codec.RecordSerializer;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -107,21 +110,57 @@ public class Tuple {
 
     public byte[] serialize() throws IOException {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
-        try (ObjectOutputStream oos = new ObjectOutputStream(oo)) {
-            oos.writeUnshared(fieldNames);
-            oos.writeUnshared(values);
+
+        try (ExtendedDataOutputStream eoo = new ExtendedDataOutputStream(oo);) {
+            int i = 0;
+            for (String fieldName : fieldNames) {
+                Object value = values[i];
+                if (value == null) {
+                    eoo.writeVInt(ColumnTypes.NULL);
+                } else {
+                    byte columnType;
+                    if (value instanceof String) {
+                        columnType = ColumnTypes.STRING;
+                    } else if (value instanceof Integer) {
+                        columnType = ColumnTypes.INTEGER;
+                    } else if (value instanceof Long) {
+                        columnType = ColumnTypes.LONG;
+                    } else if (value instanceof java.sql.Timestamp) {
+                        columnType = ColumnTypes.TIMESTAMP;
+                    } else if (value instanceof byte[]) {
+                        columnType = ColumnTypes.BYTEARRAY;
+                    } else {
+                        throw new IOException("unsupported class " + value.getClass());
+                    }
+                    eoo.writeVInt(columnType);
+                    eoo.writeArray(RecordSerializer.serialize(value, columnType));
+                }
+                eoo.writeUTF(fieldName);
+                i++;
+            }
         }
         return oo.toByteArray();
     }
 
     public static Tuple deserialize(byte[] data) throws IOException {
-        try {
-            ObjectInputStream oo = new ObjectInputStream(new ByteArrayInputStream(data));
-            String[] fieldNames = (String[]) oo.readUnshared();
-            Object[] values = (Object[]) oo.readUnshared();
-            return new Tuple(fieldNames, values);
-        } catch (ClassNotFoundException err) {
-            throw new IOException(err);
+        try (ExtendedDataInputStream eoo = new ExtendedDataInputStream(new ByteArrayInputStream(data));) {
+            List<String> fieldNames = new ArrayList<>();
+            List<Object> values = new ArrayList<>();
+            while (true) {
+                int type = eoo.readVIntNoEOFException();
+                if (eoo.isEof()) {
+                    break;
+                }
+                byte[] _value = eoo.readArray();
+                Object value = RecordSerializer.deserialize(_value, type);
+                String fieldName = eoo.readUTF();
+                fieldNames.add(fieldName);
+                values.add(value);
+            }
+            return new Tuple(
+                    fieldNames.toArray(new String[fieldNames.size()]),
+                    values.toArray(new Object[values.size()]));
+
         }
     }
 }

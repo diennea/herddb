@@ -31,6 +31,7 @@ public class ColumnTypes {
     public static final int INTEGER = 2;
     public static final int BYTEARRAY = 3;
     public static final int TIMESTAMP = 4;
+    public static final int NULL = 5;
 
     public static String typeToString(int type) {
         switch (type) {
@@ -44,6 +45,8 @@ public class ColumnTypes {
                 return "bytearray";
             case TIMESTAMP:
                 return "timestamp";
+            case NULL:
+                return "null";
             default:
                 return "type?" + type;
         }
