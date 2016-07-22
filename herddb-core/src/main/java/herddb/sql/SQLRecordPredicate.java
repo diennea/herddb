@@ -93,7 +93,7 @@ public class SQLRecordPredicate extends Predicate {
     @Override
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
-        Map<String, Object> bean = RecordSerializer.toBean(record, table);
+        Map<String, Object> bean = record.toBean(table);
         EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters, sqlContext);
         return toBoolean(evaluateExpression(where, bean, state));
     }

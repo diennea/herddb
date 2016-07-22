@@ -28,7 +28,6 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -162,7 +161,7 @@ public final class RecordSerializer {
     }
 
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
-        ByteArrayOutputStream value = new ByteArrayOutputStream();        
+        ByteArrayOutputStream value = new ByteArrayOutputStream();
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);
@@ -203,9 +202,8 @@ public final class RecordSerializer {
                 ExtendedDataInputStream din = new ExtendedDataInputStream(s);
                 while (true) {
                     int serialPosition;
-                    try {
-                        serialPosition = din.readVInt();
-                    } catch (EOFException eof) {
+                    serialPosition = din.readVIntNoEOFException();
+                    if (din.isEof()) {
                         break;
                     }
                     byte[] v = din.readArray();

@@ -886,7 +886,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(1234), finalRecord.get("n1"));
             }
@@ -915,7 +915,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
@@ -926,7 +926,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(st_get, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
@@ -937,7 +937,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(st_get_with_condition, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }

@@ -21,6 +21,7 @@ package herddb.utils;
 
 import java.io.DataInputStream;
 import java.io.DataOutput;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -46,6 +47,41 @@ public class ExtendedDataInputStream extends DataInputStream {
      */
     public int readVInt() throws IOException {
         byte b = readByte();
+        int i = b & 0x7F;
+        for (int shift = 7; (b & 0x80) != 0; shift += 7) {
+            b = readByte();
+            i |= (b & 0x7F) << shift;
+        }
+        return i;
+    }
+
+    private boolean eof;
+
+    /**
+     * @see #readVIntNoEOFException()
+     * @return
+     */
+    public boolean isEof() {
+        return eof;
+    }
+
+    /**
+     * Same as {@link  #readVInt() } but does not throw EOFException. Since
+     * throwing exceptions is very expensive for the JVM this operation is
+     * preferred if you could hit and EOF
+     *
+     * @return
+     * @throws IOException
+     * @see #isEof()
+     */
+    public int readVIntNoEOFException() throws IOException {
+        int ch = in.read();
+        if (ch < 0) {
+            eof = true;
+            return -1;
+        }
+
+        byte b = (byte) (ch);
         int i = b & 0x7F;
         for (int shift = 7; (b & 0x80) != 0; shift += 7) {
             b = readByte();
@@ -137,7 +173,7 @@ public class ExtendedDataInputStream extends DataInputStream {
     }
 
     private static final byte[] EMPTY_ARRAY = new byte[0];
-    
+
     public byte[] readArray() throws IOException {
         int len = readVInt();
         if (len == 0) {
