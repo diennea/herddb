@@ -26,11 +26,13 @@ import herddb.model.ScanLimits;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Test;
@@ -77,26 +79,40 @@ public abstract class RecordSetSuite {
     @Test
     public void testSimpleSwap() throws Exception {
         RecordSetFactory factory = buildRecordSetFactory(1);
-        Column[] columns = new Column[2];
+        Column[] columns = new Column[6];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
+        columns[2] = Column.column("t1", ColumnTypes.TIMESTAMP);
+        columns[3] = Column.column("i1", ColumnTypes.INTEGER);
+        columns[4] = Column.column("b1", ColumnTypes.BYTEARRAY);
+        columns[5] = Column.column("null1", ColumnTypes.STRING);
 
+        java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
         try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
             Set<String> expected_s1 = new HashSet<>();
-            Set<Integer> expected_n1 = new HashSet<>();
+            Set<Long> expected_n1 = new HashSet<>();
+            Set<Integer> expected_i1 = new HashSet<>();
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
                 String s1 = "test_" + i;
                 record.put("s1", s1);
-                record.put("n1", i);
+                record.put("n1", Long.valueOf(i));
+                record.put("i1", Integer.valueOf(i));
+                record.put("t1", ts);
+                record.put("null1", null);
+                record.put("b1", s1.getBytes(StandardCharsets.UTF_8));
                 expected_s1.add(s1);
-                expected_n1.add(i);
+                expected_n1.add(Long.valueOf(i));
+                expected_i1.add(i);
                 rs.add(new Tuple(record, columns));
             }
             rs.writeFinished();
             for (Tuple t : rs) {
                 expected_s1.remove((String) t.get("s1"));
-                expected_n1.remove((Integer) t.get("n1"));
+                expected_n1.remove((Long) t.get("n1"));
+                expected_i1.remove((Integer) t.get("i1"));
+                assertEquals(ts,t.get("t1"));
+                assertNull(t.get("null1"));
             }
             assertTrue(expected_n1.isEmpty());
             assertTrue(expected_s1.isEmpty());
@@ -316,6 +332,7 @@ public abstract class RecordSetSuite {
                 }
             });
             for (Tuple t : rs) {
+                System.out.println("t:"+t.toMap());
                 expected_s2.remove((String) t.get("s2"));
                 expected_n2.remove((Integer) t.get("n2"));
             }

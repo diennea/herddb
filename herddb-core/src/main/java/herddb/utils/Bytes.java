@@ -183,6 +183,16 @@ public final class Bytes implements Comparable<Bytes> {
         return left.length - right.length;
     }
 
+    public static boolean startsWith(byte[] left, int len, byte[] right) {
+        for (int i = 0, j = 0; i < left.length && j < right.length && i < len; i++, j++) {
+            if (left[i] != right[j]) {
+                return false;
+            }
+        }
+        // equality
+        return true;
+    }
+
     public String toString() {
         // ONLY FOR TESTS
         return arraytohexstring(data);

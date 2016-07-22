@@ -33,6 +33,7 @@ import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
@@ -65,6 +66,14 @@ public class SQLRecordPredicate extends Predicate {
 
     private static final Logger LOGGER = Logger.getLogger(SQLRecordPredicate.class.getName());
 
+    static boolean isConstant(Expression exp) {
+        return exp instanceof StringValue
+                || exp instanceof LongValue
+                || exp instanceof NullValue
+                || exp instanceof TimestampValue
+                || exp instanceof JdbcParameter;
+    }
+
     private final Table table;
     private final String tableAlias;
     private final Expression where;
@@ -93,7 +102,7 @@ public class SQLRecordPredicate extends Predicate {
     @Override
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
-        Map<String, Object> bean = RecordSerializer.toBean(record, table);
+        Map<String, Object> bean = record.toBean(table);
         EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters, sqlContext);
         return toBoolean(evaluateExpression(where, bean, state));
     }
@@ -251,7 +260,7 @@ public class SQLRecordPredicate extends Predicate {
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), minorThan(left, right));
-        }        
+        }
         if (expression instanceof MinorThanEquals) {
             MinorThanEquals e = (MinorThanEquals) expression;
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);

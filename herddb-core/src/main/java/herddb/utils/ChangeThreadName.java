@@ -17,39 +17,25 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.utils;
 
 /**
- * Column types
+ * Utility for changing thread name
  *
  * @author enrico.olivelli
  */
-public class ColumnTypes {
+public class ChangeThreadName implements AutoCloseable {
 
-    public static final int STRING = 0;
-    public static final int LONG = 1;
-    public static final int INTEGER = 2;
-    public static final int BYTEARRAY = 3;
-    public static final int TIMESTAMP = 4;
-    public static final int NULL = 5;
+    private final String threadName;
 
-    public static String typeToString(int type) {
-        switch (type) {
-            case STRING:
-                return "string";
-            case LONG:
-                return "long";
-            case INTEGER:
-                return "integer";
-            case BYTEARRAY:
-                return "bytearray";
-            case TIMESTAMP:
-                return "timestamp";
-            case NULL:
-                return "null";
-            default:
-                return "type?" + type;
-        }
+    public ChangeThreadName(String newName) {
+        threadName = Thread.currentThread().getName();
+        Thread.currentThread().setName(threadName+" - "+newName);
+    }
+
+    @Override
+    public void close()  {
+        Thread.currentThread().setName(threadName);
     }
 
 }

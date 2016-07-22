@@ -28,8 +28,8 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,7 +40,7 @@ import java.util.Map;
  */
 public final class RecordSerializer {
 
-    private static Object deserialize(byte[] data, int type) {
+    public static Object deserialize(byte[] data, int type) {
         switch (type) {
             case ColumnTypes.BYTEARRAY:
                 return data;
@@ -51,7 +51,7 @@ public final class RecordSerializer {
             case ColumnTypes.STRING:
                 return new Bytes(data).to_string();
             case ColumnTypes.TIMESTAMP:
-                return new Bytes(data).to_timestamp();
+                return new Bytes(data).to_timestamp();            
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -108,9 +108,16 @@ public final class RecordSerializer {
     }
 
     public static Bytes serializePrimaryKey(Map<String, Object> record, Table table) {
+        return serializePrimaryKey(record, table, table.primaryKey);
+    }
+
+    public static Bytes serializePrimaryKey(Map<String, Object> record, Table table, String[] columns) {
         ByteArrayOutputStream key = new ByteArrayOutputStream();
         if (table.primaryKey.length == 1) {
             String pkColumn = table.primaryKey[0];
+            if (columns.length != 1 && !columns[0].equals(pkColumn)) {
+                throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(pkColumn));
+            }
             Column c = table.getColumn(pkColumn);
             Object v = record.get(c.name);
             if (v == null) {
@@ -119,8 +126,13 @@ public final class RecordSerializer {
             byte[] fieldValue = serialize(v, c.type);
             return new Bytes(fieldValue);
         } else {
+            // beware that we can serialize even only a part of the PK, for instance of a prefix index scan            
             try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
-                for (String pkColumn : table.primaryKey) {
+                int i = 0;
+                for (String pkColumn : columns) {
+                    if (!pkColumn.equals(table.primaryKey[i])) {
+                        throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(table.primaryKey));
+                    }
                     Column c = table.getColumn(pkColumn);
                     Object v = record.get(c.name);
                     if (v == null) {
@@ -128,6 +140,7 @@ public final class RecordSerializer {
                     }
                     byte[] fieldValue = serialize(v, c.type);
                     doo_key.writeArray(fieldValue);
+                    i++;
                 }
             } catch (IOException err) {
                 throw new RuntimeException(err);
@@ -149,7 +162,6 @@ public final class RecordSerializer {
 
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
         ByteArrayOutputStream value = new ByteArrayOutputStream();
-
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);
@@ -185,14 +197,13 @@ public final class RecordSerializer {
                 deserializeMultiColumnPrimaryKey(record.key.data, table, res);
             }
 
-            if (record.value != null) {
+            if (record.value != null && record.value.data.length > 0) {
                 ByteArrayInputStream s = new ByteArrayInputStream(record.value.data);
                 ExtendedDataInputStream din = new ExtendedDataInputStream(s);
                 while (true) {
                     int serialPosition;
-                    try {
-                        serialPosition = din.readVInt();
-                    } catch (EOFException eof) {
+                    serialPosition = din.readVIntNoEOFException();
+                    if (din.isEof()) {
                         break;
                     }
                     byte[] v = din.readArray();

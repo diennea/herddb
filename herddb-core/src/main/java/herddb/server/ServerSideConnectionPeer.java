@@ -188,7 +188,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         if (!get.found()) {
                             _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null));
                         } else {
-                            Map<String, Object> record = RecordSerializer.toBean(get.getRecord(), get.getTable());
+                            Map<String, Object> record = get.getRecord().toBean(get.getTable());
                             _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record));
                         }
                     } else if (result instanceof TransactionResult) {

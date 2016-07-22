@@ -20,7 +20,6 @@
 package herddb.core;
 
 import herddb.codec.RecordSerializer;
-import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
@@ -29,7 +28,6 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
-import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableSpace;
@@ -53,6 +51,8 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static herddb.core.TestUtils.execute;
+import herddb.index.PrimaryIndexPrefixScan;
+import herddb.index.PrimaryIndexSeek;
 
 /**
  *
@@ -78,7 +78,7 @@ public class RawSQLTest {
             for (int i = 0; i < 100; i++) {
                 TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
-                assertTrue(scan.getPredicate() instanceof PrimaryKeyIndexSeekPredicate);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 if (scanFirst == null) {
                     scanFirst = scan;
                 } else {
@@ -836,7 +836,7 @@ public class RawSQLTest {
                 TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList(), true, true);
 
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
-                assertTrue(scan.getPredicate() instanceof PrimaryKeyIndexSeekPredicate);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
@@ -853,7 +853,15 @@ public class RawSQLTest {
             {
                 TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey_no'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
-                assertTrue(scan.getPredicate() instanceof PrimaryKeyIndexSeekPredicate);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                    assertTrue(scan1.consume().isEmpty());
+                }
+            }
+            {
+                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey' and n1<>1234", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     assertTrue(scan1.consume().isEmpty());
                 }
@@ -878,7 +886,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(1234), finalRecord.get("n1"));
             }
@@ -907,7 +915,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(new GetStatement("tblspace1", "tsql", Bytes.from_string("mykey"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
@@ -918,7 +926,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(st_get, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
@@ -929,7 +937,7 @@ public class RawSQLTest {
                 GetResult result = manager.get(st_get_with_condition, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
-                Map<String, Object> finalRecord = RecordSerializer.toBean(result.getRecord(), manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
+                Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
                 assertEquals("mykey", finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
@@ -1067,6 +1075,53 @@ public class RawSQLTest {
             }
         }
 
+    }
+
+    @Test
+    public void multipleColumnPrimaryKeyPrefixScanTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string,"
+                    + "n1 int,"
+                    + "s1 string, "
+                    + "primary key (k1,n1)"
+                    + ")", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
+
+            {
+                TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), true, true);
+                ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+            
+            {
+                TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 <> 1235", Arrays.asList("mykey"), true, true);
+                ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+            {
+                TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 = 1235", Arrays.asList("mykey"), true, true);
+                ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+
+        }
     }
 
     @Test

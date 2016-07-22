@@ -66,4 +66,9 @@ public class ScanStatement extends TableAwareStatement {
         return projection;
     }
 
+    @Override
+    public String toString() {
+        return "ScanStatement{" + "predicate=" + predicate + ", projection=" + projection + ", comparator=" + comparator + ", limits=" + limits + '}';
+    }
+
 }

@@ -33,6 +33,7 @@ import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -45,28 +46,43 @@ class FileRecordSet extends MaterializedRecordSet {
 
     private DiskArrayList<Tuple> buffer;
     private final Path tmpDirectory;
+    private String[] fieldNames;
 
     public FileRecordSet(int expectedSize, int swapThreshold, Column[] columns, FileRecordSetFactory factory) {
         super(expectedSize, columns, factory);
         this.tmpDirectory = factory.tmpDirectory;
-        this.buffer = new DiskArrayList<>(swapThreshold, factory.tmpDirectory, SERIALIZER);
+        buildFieldNames(columns);
+        this.buffer = new DiskArrayList<>(swapThreshold, factory.tmpDirectory, new TupleSerializer(columns, fieldNames));
+
     }
 
-    private static final TupleSerializer SERIALIZER = new TupleSerializer();
+    private void buildFieldNames(Column[] columnsList) {
+        List<String> _fieldNames = new ArrayList<>();
+        for (Column c : columnsList) {
+            _fieldNames.add(c.name);
+        }
+        this.fieldNames = _fieldNames.toArray(new String[_fieldNames.size()]);
+    }
 
     private static final class TupleSerializer implements DiskArrayList.Serializer<Tuple> {
 
+        private final Column[] columns;
+        private final String[] fieldNames;
+
+        public TupleSerializer(Column[] columns, String[] fieldNames) {
+            this.columns = columns;
+            this.fieldNames = fieldNames;
+        }
+
         @Override
         public Tuple read(ExtendedDataInputStream oo) throws IOException {
-            // TODO: use a better serialization
             byte[] serialized = oo.readArray();
-            return Tuple.deserialize(serialized);
+            return Tuple.deserialize(serialized, fieldNames, columns);
         }
 
         @Override
         public void write(Tuple object, ExtendedDataOutputStream oo) throws IOException {
-            // TODO: use a better serialization
-            oo.writeArray(object.serialize());
+            oo.writeArray(object.serialize(columns));
         }
 
     }
@@ -109,7 +125,7 @@ class FileRecordSet extends MaterializedRecordSet {
                 }
                 copyInMemory.sort(comparator);
                 buffer.close();
-                DiskArrayList<Tuple> newBuffer = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, SERIALIZER);
+                DiskArrayList<Tuple> newBuffer = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
                 for (Tuple t : copyInMemory) {
                     newBuffer.add(t);
                 }
@@ -123,7 +139,8 @@ class FileRecordSet extends MaterializedRecordSet {
     @Override
     public void applyProjection(Projection projection) throws StatementExecutionException {
         this.columns = projection.getColumns();
-        DiskArrayList<Tuple> projected = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, SERIALIZER);
+        buildFieldNames(this.columns);
+        DiskArrayList<Tuple> projected = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
         for (Tuple record : buffer) {
             projected.add(projection.map(record));
         }
@@ -146,13 +163,13 @@ class FileRecordSet extends MaterializedRecordSet {
                 buffer.close();
 
                 // new empty buffer
-                buffer = new DiskArrayList<>(Integer.MAX_VALUE, tmpDirectory, SERIALIZER);
+                buffer = new DiskArrayList<>(Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
                 buffer.finish();
                 return;
             }
 
             int samplesize = maxlen - limits.getOffset();
-            DiskArrayList<Tuple> copy = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, SERIALIZER);
+            DiskArrayList<Tuple> copy = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
             int firstIndex = limits.getOffset();
             int lastIndex = limits.getOffset() + samplesize;
             int i = 0;
@@ -175,7 +192,7 @@ class FileRecordSet extends MaterializedRecordSet {
             if (maxlen < limits.getMaxRows()) {
                 return;
             }
-            DiskArrayList<Tuple> copy = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, SERIALIZER);
+            DiskArrayList<Tuple> copy = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
             int last = limits.getMaxRows();
             int i = 0;
             for (Tuple t : buffer) {

@@ -46,26 +46,54 @@ public class SQLRecordKeyFunction extends RecordFunction {
 
     private final List<Expression> expressions;
     private final herddb.model.Column[] columns;
+    private final String[] pkColumnNames;
     private final int jdbcParametersStartPos;
     private final Table table;
+    private final boolean fullPrimaryKey;
+    private final boolean isConstant;
 
     public SQLRecordKeyFunction(Table table, List<String> expressionToColumn, List<Expression> expressions, int jdbcParametersStartPos) {
         this.jdbcParametersStartPos = jdbcParametersStartPos;
         this.table = table;
-        this.columns = new Column[table.primaryKey.length];
+        this.columns = new Column[expressions.size()];
         this.expressions = new ArrayList<>();
+        this.pkColumnNames = new String[expressions.size()];
         int i = 0;
+        boolean constant = true;
         for (String cexp : expressionToColumn) {
             Column pkcolumn = table.getColumn(cexp);
             this.columns[i] = pkcolumn;
-            this.expressions.add(expressions.get(i));
+            Expression exp = expressions.get(i);
+            this.expressions.add(exp);
+            if (!SQLRecordPredicate.isConstant(exp)) {
+                constant = false;
+            }
             i++;
         }
+        this.isConstant = constant;
+        int k = 0;
+        for (String pk : table.primaryKey) {
+            if (expressionToColumn.contains(pk)) {
+                this.pkColumnNames[k++] = pk;
+            }
+        }
+        this.fullPrimaryKey = (table.primaryKey.length == columns.length);
+    }
+
+    public boolean isFullPrimaryKey() {
+        return fullPrimaryKey;
     }
 
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
+
+        if (isConstant) {
+            byte[] cachedResult = (byte[]) statementEvaluationContext.getConstant(this);
+            if (cachedResult != null) {
+                return cachedResult;
+            }
+        }
 
         int paramIndex = jdbcParametersStartPos;
         Map<String, Object> pk = new HashMap<>();
@@ -91,10 +119,28 @@ public class SQLRecordKeyFunction extends RecordFunction {
             pk.put(c.name, value);
         }
         try {
-            return RecordSerializer.serializePrimaryKey(pk, table).data;
+            // maybe this is only a partial primary key
+            byte[] result = RecordSerializer.serializePrimaryKey(pk, table, pkColumnNames).data;
+            if (isConstant) {
+                statementEvaluationContext.cacheConstant(this, result);
+            }
+            return result;
         } catch (Exception err) {
             throw new StatementExecutionException("error while converting primary key " + pk + ": " + err, err);
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder("SQLRecordKeyFunction (fullPrimaryKey=" + fullPrimaryKey + "):");
+        for (int i = 0; i < pkColumnNames.length; i++) {
+            if (i > 0) {
+                b.append(" AND ");
+            }
+            b.append(pkColumnNames[i] + "=" + expressions.get(i));
+        }
+        return b.toString();
+
     }
 
 }

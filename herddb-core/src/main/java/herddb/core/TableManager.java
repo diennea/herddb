@@ -21,7 +21,9 @@ package herddb.core;
 
 import herddb.utils.EnsureIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
+import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
+import herddb.index.PrimaryIndexSeek;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -48,8 +50,8 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
-import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.model.Tuple;
 import herddb.storage.DataStorageManager;
@@ -75,7 +77,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Handles Data of a Table
@@ -910,7 +912,8 @@ public class TableManager implements AbstractTableManager {
                     recordsOnDirtyPages.add(key);
                 }
             }
-            for (Map.Entry<Bytes, Long> recordToPage : keyToPage.scanner()) {
+            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext);
+            scanner.forEach((Map.Entry<Bytes, Long> recordToPage) -> {
                 Long pageId = recordToPage.getValue();
                 if (dirtyPages.contains(pageId)) {
                     Bytes key = recordToPage.getKey();
@@ -918,7 +921,7 @@ public class TableManager implements AbstractTableManager {
                         LOGGER.log(Level.SEVERE, "table " + table.name + " found unloaded record key " + key + " on dirty page " + pageId);
                     }
                 }
-            }
+            });
             LOGGER.log(Level.SEVERE, "flush {0} recordsOnDirtyPages, {1} records", new Object[]{table.name, recordsOnDirtyPages.size()});
             List<Record> newPage = new ArrayList<>();
             long newPageSize = 0;
@@ -974,51 +977,74 @@ public class TableManager implements AbstractTableManager {
         long _start = System.currentTimeMillis();
         MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
         try {
-            if (predicate != null && predicate instanceof PrimaryKeyIndexSeekPredicate) {
-                PrimaryKeyIndexSeekPredicate pred = (PrimaryKeyIndexSeekPredicate) predicate;
-                GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, pred.key, null), transaction, context);
+            if (predicate != null && predicate.getIndexOperation() instanceof PrimaryIndexSeek) {
+                PrimaryIndexSeek seek = (PrimaryIndexSeek) predicate.getIndexOperation();
+                byte[] key = seek.value.computeNewValue(null, context, tableContext);
+                GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, Bytes.from_array(key), predicate), transaction, context);
                 if (getResult.found()) {
                     recordSet.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
                 }
             } else {
-                for (Map.Entry<Bytes, Long> entry : keyToPage.scanner()) {
-                    Bytes key = entry.getKey();
-                    boolean keep_lock = false;
-                    boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
-                    LockHandle lock = lockForRead(key, transaction);
-                    try {
-                        if (transaction != null) {
-                            if (transaction.recordDeleted(table.name, key)) {
-                                // skip this record. inside current transaction it has been deleted
-                                continue;
+                IndexOperation indexOperation = predicate != null ? predicate.getIndexOperation() : null;
+
+                Consumer<Map.Entry<Bytes, Long>> scanExecutor = new Consumer<Map.Entry<Bytes, Long>>() {
+                    @Override
+                    public void accept(Map.Entry<Bytes, Long> entry) {
+
+                        Bytes key = entry.getKey();
+                        boolean keep_lock = false;
+                        boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
+                        LockHandle lock = lockForRead(key, transaction);
+                        try {
+                            if (transaction != null) {
+                                if (transaction.recordDeleted(table.name, key)) {
+                                    // skip this record. inside current transaction it has been deleted
+                                    return;
+                                }
+                                Record record = transaction.recordUpdated(table.name, key);
+                                if (record != null) {
+                                    // use current transaction version of the record
+                                    if (predicate == null || predicate.evaluate(record, context)) {
+                                        recordSet.add(new Tuple(record.toBean(table), table.columns));
+                                        keep_lock = true;
+                                    }
+                                    return;
+                                }
                             }
-                            Record record = transaction.recordUpdated(table.name, key);
-                            if (record != null) {
-                                // use current transaction version of the record
+                            Long pageId = entry.getValue();
+                            if (pageId != null) {
+                                Record record = fetchRecord(key, pageId);
                                 if (predicate == null || predicate.evaluate(record, context)) {
                                     recordSet.add(new Tuple(record.toBean(table), table.columns));
                                     keep_lock = true;
                                 }
-                                continue;
                             }
-                        }
-                        Long pageId = entry.getValue();
-                        if (pageId != null) {
-                            Record record = fetchRecord(key, pageId);
-                            if (predicate == null || predicate.evaluate(record, context)) {
-                                recordSet.add(new Tuple(record.toBean(table), table.columns));
-                                keep_lock = true;
+                        } catch (DataStorageManagerException | StatementExecutionException error) {
+                            throw new RuntimeException(error);
+                        } finally {
+                            // release the lock on the key if it did not match scan criteria
+                            if (transaction == null) {
+                                locksManager.releaseReadLockForKey(key, lock);
+                            } else if (!keep_lock && !already_locked) {
+                                transaction.releaseLockOnKey(table.name, key, locksManager);
                             }
-                        }
-                    } finally {
-                        // release the lock on the key if it did not match scan criteria
-                        if (transaction == null) {
-                            locksManager.releaseReadLockForKey(key, lock);
-                        } else if (!keep_lock && !already_locked) {
-                            transaction.releaseLockOnKey(table.name, key, locksManager);
                         }
                     }
+                };
+                Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext);
+                try {
+                    scanner.forEachOrdered(scanExecutor);
+                } catch (final Exception error) {
+                    LOGGER.log(Level.SEVERE, "error during scan", error);
+                    if (error.getCause() instanceof StatementExecutionException) {
+                        throw (StatementExecutionException) error.getCause();
+                    } else if (error.getCause() instanceof DataStorageManagerException) {
+                        throw (DataStorageManagerException) error.getCause();
+                    } else {
+                        throw new StatementExecutionException(error);
+                    }
                 }
+
                 if (transaction != null) {
                     for (Record record : transaction.getNewRecordsForTable(table.name)) {
                         if (!transaction.recordDeleted(table.name, record.key)

@@ -61,6 +61,7 @@ import herddb.server.ServerConfiguration;
 import herddb.sql.SQLTranslator;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.utils.ChangeThreadName;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -398,7 +399,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (statement instanceof DDLStatement) {
                 translator.clearCache();
             }
-
         }
     }
 
@@ -414,15 +414,17 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        if (plan.mainStatement instanceof ScanStatement) {
-            DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
-            if (plan.mutator != null) {
-                return executeMutatorPlan(result, plan, context, transactionContext);
+        try (ChangeThreadName changeThreadName = new ChangeThreadName("executePlan " + plan)) {
+            if (plan.mainStatement instanceof ScanStatement) {
+                DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
+                if (plan.mutator != null) {
+                    return executeMutatorPlan(result, plan, context, transactionContext);
+                } else {
+                    return executeDataScannerPlan(plan, result, transactionContext);
+                }
             } else {
-                return executeDataScannerPlan(plan, result, transactionContext);
+                return executeStatement(plan.mainStatement, context, transactionContext);
             }
-        } else {
-            return executeStatement(plan.mainStatement, context, transactionContext);
         }
 
     }
