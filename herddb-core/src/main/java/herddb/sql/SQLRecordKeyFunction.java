@@ -50,6 +50,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
     private final int jdbcParametersStartPos;
     private final Table table;
     private final boolean fullPrimaryKey;
+    private final boolean isConstant;
 
     public SQLRecordKeyFunction(Table table, List<String> expressionToColumn, List<Expression> expressions, int jdbcParametersStartPos) {
         this.jdbcParametersStartPos = jdbcParametersStartPos;
@@ -58,12 +59,18 @@ public class SQLRecordKeyFunction extends RecordFunction {
         this.expressions = new ArrayList<>();
         this.pkColumnNames = new String[expressions.size()];
         int i = 0;
+        boolean constant = true;
         for (String cexp : expressionToColumn) {
             Column pkcolumn = table.getColumn(cexp);
             this.columns[i] = pkcolumn;
-            this.expressions.add(expressions.get(i));
+            Expression exp = expressions.get(i);
+            this.expressions.add(exp);
+            if (!SQLRecordPredicate.isConstant(exp)) {
+                constant = false;
+            }
             i++;
         }
+        this.isConstant = constant;
         int k = 0;
         for (String pk : table.primaryKey) {
             if (expressionToColumn.contains(pk)) {
@@ -80,6 +87,13 @@ public class SQLRecordKeyFunction extends RecordFunction {
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
+
+        if (isConstant) {
+            byte[] cachedResult = (byte[]) statementEvaluationContext.getConstant(this);
+            if (cachedResult != null) {
+                return cachedResult;
+            }
+        }
 
         int paramIndex = jdbcParametersStartPos;
         Map<String, Object> pk = new HashMap<>();
@@ -106,7 +120,11 @@ public class SQLRecordKeyFunction extends RecordFunction {
         }
         try {
             // maybe this is only a partial primary key
-            return RecordSerializer.serializePrimaryKey(pk, table, pkColumnNames).data;
+            byte[] result = RecordSerializer.serializePrimaryKey(pk, table, pkColumnNames).data;
+            if (isConstant) {
+                statementEvaluationContext.cacheConstant(this, result);
+            }
+            return result;
         } catch (Exception err) {
             throw new StatementExecutionException("error while converting primary key " + pk + ": " + err, err);
         }

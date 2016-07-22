@@ -33,6 +33,7 @@ import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
@@ -64,6 +65,14 @@ import net.sf.jsqlparser.statement.select.SubSelect;
 public class SQLRecordPredicate extends Predicate {
 
     private static final Logger LOGGER = Logger.getLogger(SQLRecordPredicate.class.getName());
+
+    static boolean isConstant(Expression exp) {
+        return exp instanceof StringValue
+                || exp instanceof LongValue
+                || exp instanceof NullValue
+                || exp instanceof TimestampValue
+                || exp instanceof JdbcParameter;
+    }
 
     private final Table table;
     private final String tableAlias;

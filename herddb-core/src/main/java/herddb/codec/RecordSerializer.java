@@ -51,9 +51,7 @@ public final class RecordSerializer {
             case ColumnTypes.STRING:
                 return new Bytes(data).to_string();
             case ColumnTypes.TIMESTAMP:
-                return new Bytes(data).to_timestamp();
-            case ColumnTypes.NULL:
-                return null;
+                return new Bytes(data).to_timestamp();            
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }

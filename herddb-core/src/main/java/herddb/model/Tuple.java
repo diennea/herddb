@@ -108,12 +108,15 @@ public class Tuple {
         return toMap().get(name);
     }
 
-    public byte[] serialize() throws IOException {
+    public byte[] serialize(Column[] columns) throws IOException {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
 
         try (ExtendedDataOutputStream eoo = new ExtendedDataOutputStream(oo);) {
             int i = 0;
             for (String fieldName : fieldNames) {
+                if (!columns[i].name.equals(fieldName)) {
+                    throw new IOException("invalid schema for tuple " + Arrays.toString(fieldNames) + " <> " + Arrays.toString(columns));
+                }
                 Object value = values[i];
                 if (value == null) {
                     eoo.writeVInt(ColumnTypes.NULL);
@@ -135,30 +138,29 @@ public class Tuple {
                     eoo.writeVInt(columnType);
                     eoo.writeArray(RecordSerializer.serialize(value, columnType));
                 }
-                eoo.writeUTF(fieldName);
                 i++;
             }
         }
         return oo.toByteArray();
     }
 
-    public static Tuple deserialize(byte[] data) throws IOException {
+    public static Tuple deserialize(byte[] data, String[] fieldNames, Column[] columns) throws IOException {
         try (ExtendedDataInputStream eoo = new ExtendedDataInputStream(new ByteArrayInputStream(data));) {
-            List<String> fieldNames = new ArrayList<>();
+
             List<Object> values = new ArrayList<>();
-            while (true) {
-                int type = eoo.readVIntNoEOFException();
-                if (eoo.isEof()) {
-                    break;
+            for (Column column : columns) {
+                int type = eoo.readVInt();
+                Object value;
+                if (type == ColumnTypes.NULL) {
+                    value = null;
+                } else {
+                    byte[] _value = eoo.readArray();
+                    value = RecordSerializer.deserialize(_value, type);
                 }
-                byte[] _value = eoo.readArray();
-                Object value = RecordSerializer.deserialize(_value, type);
-                String fieldName = eoo.readUTF();
-                fieldNames.add(fieldName);
                 values.add(value);
             }
             return new Tuple(
-                    fieldNames.toArray(new String[fieldNames.size()]),
+                    fieldNames,
                     values.toArray(new Object[values.size()]));
 
         }

@@ -89,7 +89,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
             } else {
                 serializer.write(summary, oout);
             }
-        } catch (IOException err) {
+        } catch (IOException err) {            
             throw new RuntimeException(err);
         }
     }
