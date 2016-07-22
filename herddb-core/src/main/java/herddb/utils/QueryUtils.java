@@ -26,39 +26,70 @@ import java.util.regex.Pattern;
  * Utilities
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
-public class QueryUtils {
+public class QueryUtils
+{
 
-    private static final Pattern pattern_select = Pattern.compile("select.+from[\\W]+(?<tablespace>[\\S]+\\.)?(?<tablename>[\\S]+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern pattern_update = Pattern.compile("update[\\W]+(?<tablespace>[\\S]+\\.)?(?<tablename>[\\S]+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern pattern_insert = Pattern.compile("insert[\\W]+into[\\W]+(?<tablespace>[\\S]+\\.)?(?<tablename>[\\S]+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern pattern_createtable = Pattern.compile("create\\W+table\\W+(?<tablespace>[\\S]+\\.)?(?<tablename>[\\S]+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern pattern_droptable = Pattern.compile("drop\\W+table\\W+(?<tablespace>[\\S]+\\.)?(?<tablename>[\\S]+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern pattern_altertable = Pattern.compile("alter\\W+table\\W+(?<tablespace>[\\S]+\\.)?(?<tablename>[\\S]+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern[] ALL_PATTERNS = {
-        pattern_select,
-        pattern_update,
-        pattern_insert,
-        pattern_createtable,
-        pattern_droptable,
-        pattern_altertable};
-
-    public static String discoverTablespace(String defaultTableSpace, String query) {
-        if (query == null) {
+    /** Prefix for SELECT before tablespace.tablename */
+    private static final String PREFIX_SELECT = "select.+from\\W+";
+    
+    /** Prefix for UPDATE before tablespace.tablename */
+    private static final String PREFIX_UPDATE = "update\\W+";
+    
+    /** Prefix for INSERT before tablespace.tablename */
+    private static final String PREFIX_INSERT = "insert\\W+into\\W+";
+    
+    /** Prefix for DELETE before tablespace.tablename */
+    private static final String PREFIX_DELETE = "delete\\W+from\\W+";
+    
+    /** Prefix for TABLE CREATE before tablespace.tablename */
+    private static final String PREFIX_TABLE_CREATE = "create\\W+table\\W+";
+    
+    /** Prefix for TABLE DROP before tablespace.tablename */
+    private static final String PREFIX_TABLE_DROP = "drop\\W+table\\W+";
+    
+    /** Prefix for TABLE ALTER before tablespace.tablename */
+    private static final String PREFIX_TABLE_ALTER = "alter\\W+table\\W+";
+    
+    /** Combines prefixes and add tablespace.tablename groups */
+    private static final Pattern TABLE_SPACE_NAME_PATTERN = Pattern.compile(
+            "(?:" + PREFIX_SELECT +
+            "|" + PREFIX_UPDATE +
+            "|" + PREFIX_INSERT +
+            "|" + PREFIX_DELETE +
+            "|" + PREFIX_TABLE_CREATE +
+            "|" + PREFIX_TABLE_DROP +
+            "|" + PREFIX_TABLE_ALTER + ")" +
+            "(?<tablespace>\\S+\\.)?(?<tablename>\\S+)", Pattern.CASE_INSENSITIVE);
+    
+    /**
+     * Extract a tablespace for a given query. If no tablespace is given on the
+     * query provided default will be returned.
+     * 
+     * @param defaultTableSpace
+     *            default tablespace if no tablespace can be discovered
+     * @param query
+     *            sql query from which extract a tablespace
+     * @return discovered tablespace
+     */
+    public static String discoverTablespace(String defaultTableSpace, String query)
+    {
+        if (query == null)
             return defaultTableSpace;
+        
+        final Matcher matcher = TABLE_SPACE_NAME_PATTERN.matcher( query );
+        
+        /* A find will be used, no trim is needed */
+        if ( matcher.find() )
+        {
+            final String tableSpace =  matcher.group("tablespace");
+            
+            if (tableSpace != null)
+                return tableSpace.substring(0, tableSpace.length() - 1);
         }
-        query = query.trim();
-        for (Pattern p : ALL_PATTERNS) {
-            Matcher matcher_select = p.matcher(query);
-            if (matcher_select.find()) {
-                String group0 = matcher_select.group("tablespace");
-                if (group0 != null) {
-                    return group0.substring(0, group0.length() - 1);
-                } else {
-                    return defaultTableSpace;
-                }
-            }
-        }
+        
         return defaultTableSpace;
     }
 }
+
