@@ -17,27 +17,19 @@
  under the License.
 
  */
-package herddb.model;
+package herddb.index;
 
+import herddb.model.StatementEvaluationContext;
+import herddb.model.TableContext;
 import herddb.utils.Bytes;
+import java.util.Map;
+import java.util.function.Predicate;
 
 /**
- * A Special Predicate which goes directly to the key of an index
- *
+ * Models the usage of a index
  * @author enrico.olivelli
  */
-public class PrimaryKeyIndexSeekPredicate extends Predicate {
+public interface IndexOperation {    
 
-    public final RecordFunction key;
-
-    public PrimaryKeyIndexSeekPredicate(RecordFunction key) {
-        this.key = key;
-    }
-
-    @Override
-    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-        Bytes keyValue = new Bytes(key.computeNewValue(record, context, null));
-        return record.key.equals(keyValue);
-    }
-
+    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext ctx, TableContext tableContext);
 }

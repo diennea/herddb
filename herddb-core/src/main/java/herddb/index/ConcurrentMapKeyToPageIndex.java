@@ -19,11 +19,14 @@
  */
 package herddb.index;
 
+import herddb.model.StatementEvaluationContext;
+import herddb.model.TableContext;
 import herddb.utils.Bytes;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Implementation of KeyToPageIndex which uses any ConcurrentMap
@@ -73,8 +76,15 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public Iterable<Map.Entry<Bytes, Long>> scanner() {
-        return map.entrySet();
+    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) {
+        Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
+        if (operation == null) {
+            return baseStream;
+        } else if (operation instanceof PrimaryIndexPrefixScan) {
+            return baseStream.filter(operation.toStreamPredicate(context, tableContext));
+        } else {
+            throw new IllegalArgumentException("operation " + operation + " not implemented on " + this.getClass());
+        }
     }
 
     @Override

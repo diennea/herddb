@@ -60,12 +60,15 @@ public class Table {
         this.columnsByName = new HashMap<>();
         this.columnsBySerialPosition = new HashMap<>();
         this.auto_increment = auto_increment;
+        int i = 0;
         for (Column c : columns) {
-            columnsByName.put(c.name.toLowerCase(), c);
+            String cname = c.name.toLowerCase();
+            columnsByName.put(cname, c);
             if (c.serialPosition < 0) {
                 throw new IllegalArgumentException();
             }
             columnsBySerialPosition.put(c.serialPosition, c);
+            i++;
         }
         this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));
     }

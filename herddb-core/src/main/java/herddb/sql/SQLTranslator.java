@@ -31,6 +31,8 @@ import java.util.stream.Collectors;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
+import herddb.index.PrimaryIndexPrefixScan;
+import herddb.index.PrimaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
@@ -40,7 +42,6 @@ import herddb.model.CurrentTupleKeySeek;
 import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
-import herddb.model.PrimaryKeyIndexSeekPredicate;
 import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.ScanLimits;
@@ -118,70 +119,74 @@ public class SQLTranslator {
         this.manager = manager;
         this.cache = new PlansCache();
     }
-    
-    private static String rewriteExecuteSyntax(String query)
-    {
+
+    private static String rewriteExecuteSyntax(String query) {
         int idx = SQLUtils.findQueryStart(query);
-        
+
         //* No match at all. Only ignorable charaters and comments */
-        if (idx == -1)
+        if (idx == -1) {
             return query;
-        
+        }
+
         char ch = query.charAt(idx);
-        
+
         /* "empty" data skipped now we must recognize instructions to rewrite */
-        switch (ch)
-        {
+        switch (ch) {
             /* ALTER */
             case 'A':
-                if ( query.regionMatches(idx, "ALTER TABLESPACE ", 0, 17) )
-                    return "EXECUTE altertablespace " + query.substring( idx + 17 );
-                
+                if (query.regionMatches(idx, "ALTER TABLESPACE ", 0, 17)) {
+                    return "EXECUTE altertablespace " + query.substring(idx + 17);
+                }
+
                 return query;
-                
+
             /* BEGIN */
             case 'B':
-                if ( query.regionMatches(idx, "BEGIN TRANSACTION", 0, 17) )
-                    return "EXECUTE begintransaction" + query.substring( idx + 17 );
-                
+                if (query.regionMatches(idx, "BEGIN TRANSACTION", 0, 17)) {
+                    return "EXECUTE begintransaction" + query.substring(idx + 17);
+                }
+
                 return query;
-                
+
             /* COMMIT / CREATE */
             case 'C':
-                ch = query.charAt(idx +1);
-                switch ( ch )
-                {
+                ch = query.charAt(idx + 1);
+                switch (ch) {
                     case 'O':
-                        if ( query.regionMatches(idx, "COMMIT TRANSACTION", 0, 18) )
-                            return "EXECUTE committransaction" + query.substring( idx + 18 );
-                        
+                        if (query.regionMatches(idx, "COMMIT TRANSACTION", 0, 18)) {
+                            return "EXECUTE committransaction" + query.substring(idx + 18);
+                        }
+
                         break;
-                        
+
                     case 'R':
-                        if ( query.regionMatches(idx, "CREATE TABLESPACE ", 0, 18) )
-                            return "EXECUTE createtablespace " + query.substring( idx + 18 );
-                        
+                        if (query.regionMatches(idx, "CREATE TABLESPACE ", 0, 18)) {
+                            return "EXECUTE createtablespace " + query.substring(idx + 18);
+                        }
+
                         break;
                 }
-                
+
                 return query;
-                
+
             /* DROP */
             case 'D':
-                if ( query.regionMatches(idx, "DROP TABLESPACE ", 0, 16) )
-                    return "EXECUTE droptablespace " + query.substring( idx + 16 );
-                
+                if (query.regionMatches(idx, "DROP TABLESPACE ", 0, 16)) {
+                    return "EXECUTE droptablespace " + query.substring(idx + 16);
+                }
+
                 return query;
-                
+
             /* ROLLBACK */
             case 'R':
-                if ( query.regionMatches(idx, "ROLLBACK TRANSACTION", 0, 20) )
-                    return "EXECUTE rollbacktransaction" + query.substring( idx + 20 );
-                
+                if (query.regionMatches(idx, "ROLLBACK TRANSACTION", 0, 20)) {
+                    return "EXECUTE rollbacktransaction" + query.substring(idx + 20);
+                }
+
                 return query;
-                
+
             default:
-                
+
                 return query;
         }
     }
@@ -432,8 +437,8 @@ public class SQLTranslator {
         Table table = tableManager.getTable();
 
         SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger());
-        if (keyFunction != null) {
 
+        if (keyFunction != null && keyFunction.isFullPrimaryKey()) {
             Predicate where = buildSimplePredicate(s.getWhere(), table, table.name, 0);
             try {
                 return ExecutionPlan.simple(new DeleteStatement(tableSpace, tableName, keyFunction, where));
@@ -476,9 +481,9 @@ public class SQLTranslator {
 
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
         int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
-        RecordFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger(setClauseParamters));
+        SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger(setClauseParamters));
 
-        if (keyFunction != null) {
+        if (keyFunction != null && keyFunction.isFullPrimaryKey()) {
             // UPDATE BY PRIMARY KEY            
             try {
                 Predicate where = buildSimplePredicate(s.getWhere(), table, table.name, setClauseParamters);
@@ -561,21 +566,21 @@ public class SQLTranslator {
         throw new StatementExecutionException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
-    private Expression findColumnEqualsTo(Expression where, String columnName, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression findConstraintOnColumnEqualsTo(Expression where, String columnName, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = validatePrimaryKeyEqualsToExpression(and.getLeftExpression(), columnName, table, tableAlias, jdbcParameterPos);
+            Expression keyOnLeft = validateColumnEqualsToExpression(and.getLeftExpression(), columnName, table, tableAlias, jdbcParameterPos);
             if (keyOnLeft != null) {
                 return keyOnLeft;
             }
             int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
 
-            Expression keyOnRight = validatePrimaryKeyEqualsToExpression(and.getRightExpression(), columnName, table, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
+            Expression keyOnRight = validateColumnEqualsToExpression(and.getRightExpression(), columnName, table, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
             if (keyOnRight != null) {
                 return keyOnRight;
             }
         } else if (where instanceof EqualsTo) {
-            Expression keyDirect = validatePrimaryKeyEqualsToExpression(where, columnName, table, tableAlias, jdbcParameterPos);
+            Expression keyDirect = validateColumnEqualsToExpression(where, columnName, table, tableAlias, jdbcParameterPos);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -585,24 +590,21 @@ public class SQLTranslator {
     }
 
     private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
-        if (table.primaryKey.length == 1) {
-            Expression key = findColumnEqualsTo(where, table.primaryKey[0], table, tableAlias, jdbcParameterPos);
-            if (key == null) {
-                return null;
-            }
-            return new SQLRecordKeyFunction(table, Arrays.asList(table.primaryKey[0]), Collections.singletonList(key), jdbcParameterPos.get());
-        }
-
         List<Expression> expressions = new ArrayList<>();
+        List<String> columns = new ArrayList<>();
         for (String pk : table.primaryKey) {
-            Expression condition = findColumnEqualsTo(where, pk, table, tableAlias, jdbcParameterPos);
+            Expression condition = findConstraintOnColumnEqualsTo(where, pk, table, tableAlias, jdbcParameterPos);
             if (condition == null) {
-                return null;
+                break;
             }
+            columns.add(pk);
             expressions.add(condition);
         }
-        return new SQLRecordKeyFunction(table, Arrays.asList(table.primaryKey), expressions, jdbcParameterPos.get());
-
+        if (expressions.isEmpty()) {
+            // no match at all, there is no direct constraint on PK
+            return null;
+        }
+        return new SQLRecordKeyFunction(table, columns, expressions, jdbcParameterPos.get());
     }
 
     private Object resolveValue(Expression expression) throws StatementExecutionException {
@@ -619,7 +621,7 @@ public class SQLTranslator {
         }
     }
 
-    private Expression validatePrimaryKeyEqualsToExpression(Expression testExpression, String columnName, Table table1, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression validateColumnEqualsToExpression(Expression testExpression, String columnName, Table table1, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         Expression result = null;
         if (testExpression instanceof EqualsTo) {
             EqualsTo e = (EqualsTo) testExpression;
@@ -633,12 +635,12 @@ public class SQLTranslator {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
@@ -690,17 +692,19 @@ public class SQLTranslator {
             projection = new SQLProjection(table, tableAlias, selectBody.getSelectItems());
         }
         if (scan) {
-            Predicate where = null;
-            if (selectBody.getWhere() != null) {
-                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());
+
+            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;            
+            if (where != null) {
+                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());                
                 if (keyFunction != null) {
-                    // optimize PrimaryKeyIndexSeek case                    
-                    where = new PrimaryKeyIndexSeekPredicate(keyFunction);
+                    if (keyFunction.isFullPrimaryKey()) {
+                        where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
+                    } else {
+                        where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
+                    }
                 }
             }
-            if (where == null) {
-                where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;
-            }
+            
 
             Aggregator aggregator = null;
             ScanLimits limitsOnScan = null;
@@ -755,8 +759,8 @@ public class SQLTranslator {
                 throw new StatementExecutionException("unsupported GET without WHERE");
             }
             // SELECT * FROM WHERE KEY=? AND ....
-            RecordFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias, new AtomicInteger());
-            if (keyFunction == null) {
+            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias, new AtomicInteger());
+            if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
                 throw new StatementExecutionException("unsupported where " + selectBody.getWhere() + " " + selectBody.getWhere().getClass());
             }
 
@@ -974,7 +978,7 @@ public class SQLTranslator {
             String tableName = drop.getName().getName();
             return new DropTableStatement(tableSpace, tableName);
         }
-        
+
         throw new StatementExecutionException("only DROP TABLE and TABLESPACE is supported, drop type=" + drop.getType() + " is not implemented");
     }
 

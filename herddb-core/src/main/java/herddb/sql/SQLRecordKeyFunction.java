@@ -46,14 +46,17 @@ public class SQLRecordKeyFunction extends RecordFunction {
 
     private final List<Expression> expressions;
     private final herddb.model.Column[] columns;
+    private final String[] pkColumnNames;
     private final int jdbcParametersStartPos;
     private final Table table;
+    private final boolean fullPrimaryKey;
 
     public SQLRecordKeyFunction(Table table, List<String> expressionToColumn, List<Expression> expressions, int jdbcParametersStartPos) {
         this.jdbcParametersStartPos = jdbcParametersStartPos;
         this.table = table;
-        this.columns = new Column[table.primaryKey.length];
+        this.columns = new Column[expressions.size()];
         this.expressions = new ArrayList<>();
+        this.pkColumnNames = new String[expressions.size()];
         int i = 0;
         for (String cexp : expressionToColumn) {
             Column pkcolumn = table.getColumn(cexp);
@@ -61,6 +64,17 @@ public class SQLRecordKeyFunction extends RecordFunction {
             this.expressions.add(expressions.get(i));
             i++;
         }
+        int k = 0;
+        for (String pk : table.primaryKey) {
+            if (expressionToColumn.contains(pk)) {
+                this.pkColumnNames[k++] = pk;
+            }
+        }
+        this.fullPrimaryKey = (table.primaryKey.length == columns.length);
+    }
+
+    public boolean isFullPrimaryKey() {
+        return fullPrimaryKey;
     }
 
     @Override
@@ -91,10 +105,24 @@ public class SQLRecordKeyFunction extends RecordFunction {
             pk.put(c.name, value);
         }
         try {
-            return RecordSerializer.serializePrimaryKey(pk, table).data;
+            // maybe this is only a partial primary key
+            return RecordSerializer.serializePrimaryKey(pk, table, pkColumnNames).data;
         } catch (Exception err) {
             throw new StatementExecutionException("error while converting primary key " + pk + ": " + err, err);
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder("SQLRecordKeyFunction (fullPrimaryKey=" + fullPrimaryKey + "):");
+        for (int i = 0; i < pkColumnNames.length; i++) {
+            if (i > 0) {
+                b.append(" AND ");
+            }
+            b.append(pkColumnNames[i] + "=" + expressions.get(i));
+        }
+        return b.toString();
+
     }
 
 }

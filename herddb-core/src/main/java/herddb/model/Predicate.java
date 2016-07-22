@@ -19,6 +19,8 @@
  */
 package herddb.model;
 
+import herddb.index.IndexOperation;
+
 /**
  * A Condition
  *
@@ -27,4 +29,16 @@ package herddb.model;
 public abstract class Predicate {
 
     public abstract boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException;
+
+    private IndexOperation indexOperation;
+
+    public IndexOperation getIndexOperation() {
+        return indexOperation;
+    }
+
+    public void setIndexOperation(IndexOperation indexOperation) {
+        this.indexOperation = indexOperation;
+    }
+    
+    
 }

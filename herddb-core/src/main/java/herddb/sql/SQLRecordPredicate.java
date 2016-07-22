@@ -251,7 +251,7 @@ public class SQLRecordPredicate extends Predicate {
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);
             Object right = evaluateExpression(e.getRightExpression(), bean, state);
             return handleNot(e.isNot(), minorThan(left, right));
-        }        
+        }
         if (expression instanceof MinorThanEquals) {
             MinorThanEquals e = (MinorThanEquals) expression;
             Object left = evaluateExpression(e.getLeftExpression(), bean, state);

@@ -19,34 +19,39 @@
  */
 package herddb.index;
 
+import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
+import herddb.sql.SQLRecordKeyFunction;
 import herddb.utils.Bytes;
+import java.util.Arrays;
 import java.util.Map;
-import java.util.stream.Stream;
+import java.util.function.Predicate;
 
 /**
- * Index which maps every key of a table to the page which contains the key.
- * Keys assigned to new pages are assigned to a special NO_PAGE value
+ * Lookup record by an exact match on primary key
  *
  * @author enrico.olivelli
  */
-public interface KeyToPageIndex extends AutoCloseable {
+public class PrimaryIndexSeek implements IndexOperation {
 
-    public long size();
+    public final RecordFunction value;
 
-    public Long put(Bytes key, long currentPage);
-
-    public Iterable<Bytes> getKeysMappedToPage(long page);
-
-    public boolean containsKey(Bytes key);
-
-    public Long get(Bytes key);
-
-    public Long remove(Bytes key);
-
-    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext);
+    public PrimaryIndexSeek(RecordFunction value) {
+        this.value = value;
+    }
 
     @Override
-    public void close();
+    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext context, TableContext tableContext) {
+        return (Map.Entry<Bytes, Long> t) -> {
+            try {
+                byte[] refvalue = value.computeNewValue(null, context, tableContext);
+                return Arrays.equals(refvalue, t.getKey().data);
+            } catch (StatementExecutionException err) {
+                throw new RuntimeException(err);
+            }
+        };
+    }
+
 }
