@@ -139,6 +139,10 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
+    public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException {
+    }
+
+    @Override
     public long getNextPrimaryKeyValue() {
         return -1;
     }

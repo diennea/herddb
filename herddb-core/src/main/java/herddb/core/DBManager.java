@@ -58,7 +58,7 @@ import herddb.network.Channel;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.server.ServerConfiguration;
-import herddb.sql.SQLTranslator;
+import herddb.sql.SQLPlanner;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ChangeThreadName;
@@ -104,7 +104,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final Thread activator;
     private final AtomicBoolean stopped = new AtomicBoolean();
     private final BlockingQueue<Object> activatorQueue = new LinkedBlockingDeque<>();
-    private final SQLTranslator translator;
+    private final SQLPlanner translator;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
     private final ServerHostData hostData;
@@ -167,7 +167,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.nodeId = nodeId;
         this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
-        this.translator = new SQLTranslator(this);
+        this.translator = new SQLPlanner(this);
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
     }
@@ -188,7 +188,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.connectionsInfoProvider = connectionsInfoProvider;
     }
 
-    public SQLTranslator getTranslator() {
+    public SQLPlanner getTranslator() {
         return translator;
     }
 

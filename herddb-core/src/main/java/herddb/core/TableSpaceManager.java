@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.index.MemoryHashIndexManager;
 import herddb.client.ClientConfiguration;
 import herddb.client.ClientSideMetadataProvider;
 import herddb.client.ClientSideMetadataProviderException;
@@ -46,6 +47,7 @@ import herddb.model.DDLException;
 import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.Index;
 import herddb.model.NodeMetadata;
 import herddb.model.Record;
 import herddb.model.Statement;
@@ -62,6 +64,7 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.AlterTableStatement;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
@@ -109,6 +112,8 @@ public class TableSpaceManager {
     private final String tableSpaceUUID;
     private final String nodeId;
     private final Map<String, AbstractTableManager> tables = new ConcurrentHashMap<>();
+    private final Map<String, AbstractIndexManager> indexes = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, AbstractIndexManager>> indexesByTable = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager manager;
@@ -180,11 +185,24 @@ public class TableSpaceManager {
         actualLogSequenceNumber = logSequenceNumber;
         LOGGER.log(Level.SEVERE, nodeId + " recover " + tableSpaceName + ", logSequenceNumber from DataStorage: " + logSequenceNumber);
         List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceUUID);
-        LOGGER.log(Level.SEVERE, nodeId + " tablesAtBoot", tablesAtBoot.stream().map(t -> {
+        List<Index> indexesAtBoot = dataStorageManager.loadIndexes(logSequenceNumber, tableSpaceUUID);
+        String tableNames = tablesAtBoot.stream().map(t -> {
             return t.name;
-        }).collect(Collectors.joining()));
+        }).collect(Collectors.joining(","));
+
+        String indexNames = indexesAtBoot.stream().map(t -> {
+            return t.name + " on table " + t.table;
+        }).collect(Collectors.joining(","));
+
+        LOGGER.log(Level.SEVERE, nodeId + " " + tableSpaceName + " tablesAtBoot " + tableNames + ", indexesAtBoot " + indexNames);
+
         for (Table table : tablesAtBoot) {
-            bootTable(table, 0);
+            TableManager tableManager = bootTable(table, 0);
+            for (Index index : indexesAtBoot) {
+                if (index.table.equals(table.name)) {
+                    bootIndex(index, tableManager, 0, false);
+                }
+            }
         }
         dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
@@ -263,13 +281,7 @@ public class TableSpaceManager {
                 if (transaction == null) {
                     throw new DataStorageManagerException("invalid transaction id " + id);
                 }
-                List<AbstractTableManager> managers;
-                generalLock.readLock().lock();
-                try {
-                    managers = new ArrayList<>(tables.values());
-                } finally {
-                    generalLock.readLock().unlock();
-                }
+                List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction, recovery);
                 }
@@ -304,6 +316,21 @@ public class TableSpaceManager {
                 }
 
                 bootTable(table, entry.transactionId);
+                if (entry.transactionId <= 0) {
+                    writeTablesOnDataStorageManager(position);
+                }
+            }
+            break;
+            case LogEntryType.CREATE_INDEX: {
+                Index index = Index.deserialize(entry.value);
+                if (entry.transactionId > 0) {
+                    throw new UnsupportedOperationException("CREATE INDEX IN TRANSACTION IS NOT SUPPORTED YET");
+                }
+                AbstractTableManager table = tables.get(index.table);
+                if (table == null) {
+                    throw new RuntimeException("table " + index.table + " does not exists");
+                }
+                bootIndex(index, table, entry.transactionId, true);
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager(position);
                 }
@@ -344,6 +371,7 @@ public class TableSpaceManager {
 
         if (entry.tableName != null
                 && entry.type != LogEntryType.CREATE_TABLE
+                && entry.type != LogEntryType.CREATE_INDEX
                 && entry.type != LogEntryType.ALTER_TABLE
                 && entry.type != LogEntryType.DROP_TABLE) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
@@ -354,12 +382,16 @@ public class TableSpaceManager {
 
     private void writeTablesOnDataStorageManager(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
         List<Table> tablelist = new ArrayList<>();
+        List<Index> indexlist = new ArrayList<>();
         for (AbstractTableManager tableManager : tables.values()) {
             if (!tableManager.isSystemTable()) {
                 tablelist.add(tableManager.getTable());
             }
         }
-        dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist);
+        for (AbstractIndexManager indexManager : indexes.values()) {
+            indexlist.add(indexManager.getIndex());
+        }
+        dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist);
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
@@ -478,6 +510,14 @@ public class TableSpaceManager {
         }
         return new DDLStatementExecutionResult();
 
+    }
+
+    public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
+        Map<String, AbstractIndexManager> result = indexesByTable.get(name);
+        if (result == null) {
+            return null;
+        }
+        return result;
     }
 
     private class DumpReceiver extends TableSpaceDumpReceiver {
@@ -712,6 +752,9 @@ public class TableSpaceManager {
         if (statement instanceof CreateTableStatement) {
             return createTable((CreateTableStatement) statement, transaction);
         }
+        if (statement instanceof CreateIndexStatement) {
+            return createIndex((CreateIndexStatement) statement, transaction);
+        }
         if (statement instanceof DropTableStatement) {
             return dropTable((DropTableStatement) statement, transaction);
         }
@@ -778,6 +821,30 @@ public class TableSpaceManager {
         }
     }
 
+    private StatementExecutionResult createIndex(CreateIndexStatement statement, Transaction transaction) throws StatementExecutionException {
+        generalLock.writeLock().lock();
+        try {
+            if (indexes.containsKey(statement.getIndexefinition().name)) {
+                throw new TableAlreadyExistsException(statement.getIndexefinition().name);
+            }
+            LogEntry entry = LogEntryFactory.createIndex(statement.getIndexefinition(), transaction);
+            LogSequenceNumber pos;
+            try {
+                pos = log.log(entry, entry.transactionId <= 0);
+            } catch (LogNotAvailableException ex) {
+                throw new StatementExecutionException(ex);
+            }
+
+            apply(pos, entry, false);
+
+            return new DDLStatementExecutionResult();
+        } catch (DataStorageManagerException err) {
+            throw new StatementExecutionException(err);
+        } finally {
+            generalLock.writeLock().unlock();
+        }
+    }
+
     private StatementExecutionResult dropTable(DropTableStatement statement, Transaction transaction) throws StatementExecutionException {
         try {
             generalLock.writeLock().lock();
@@ -818,6 +885,30 @@ public class TableSpaceManager {
         return tableManager;
     }
 
+    private AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild) throws DataStorageManagerException {
+        long _start = System.currentTimeMillis();
+        LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2}.{3}", new Object[]{nodeId, tableSpaceName, index.table, index.name});
+
+        AbstractIndexManager indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+        if (indexes.containsKey(index.name)) {
+            throw new DataStorageManagerException("Index" + index.name + " already present in tableSpace " + tableSpaceName);
+        }
+        indexes.put(index.name, indexManager);
+        indexesByTable.merge(index.table, Collections.singletonMap(index.name, indexManager), (a, b) -> {
+            Map<String, AbstractIndexManager> newList = new HashMap<>(a);
+            newList.putAll(b);
+            return newList;
+        });
+        indexManager.start();
+        long _stop = System.currentTimeMillis();
+        LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (_stop - _start) + ""});
+        if (rebuild) {
+            indexManager.rebuild();
+            LOGGER.log(Level.SEVERE, "bootIndex - rebuild {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (System.currentTimeMillis() - _stop) + ""});
+        }
+        return indexManager;
+    }
+
     private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {
         LOGGER.log(Level.SEVERE, "alterTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         AbstractTableManager tableManager = tables.get(table.name);
@@ -832,6 +923,9 @@ public class TableSpaceManager {
                 generalLock.writeLock().lock();
                 for (AbstractTableManager table : tables.values()) {
                     table.close();
+                }
+                for (AbstractIndexManager index : indexes.values()) {
+                    index.close();
                 }
                 log.close();
             } finally {
@@ -863,7 +957,7 @@ public class TableSpaceManager {
             writeTablesOnDataStorageManager(logSequenceNumber);
             // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
-            
+
             // we checkpoint all data to disk and save the actual log sequence number            
             for (AbstractTableManager tableManager : tables.values()) {
                 // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
@@ -872,7 +966,14 @@ public class TableSpaceManager {
                 List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(sequenceNumber);
                 actions.addAll(postCheckPointActions);
             }
-            
+
+            for (AbstractIndexManager indexManager : indexes.values()) {
+                // same as for TableManagers
+                LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
+                List<PostCheckpointAction> postCheckPointActions = indexManager.checkpoint(sequenceNumber);
+                actions.addAll(postCheckPointActions);
+            }
+
             log.dropOldLedgers(logSequenceNumber);
 
             LogSequenceNumber _logSequenceNumber = log.getLastSequenceNumber();

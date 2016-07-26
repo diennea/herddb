@@ -53,6 +53,8 @@ import static org.junit.Assert.fail;
 import static herddb.core.TestUtils.execute;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
+import static herddb.core.TestUtils.scan;
+import static herddb.core.TestUtils.execute;
 
 /**
  *

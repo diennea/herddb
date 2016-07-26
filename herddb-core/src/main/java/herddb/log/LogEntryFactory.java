@@ -19,6 +19,7 @@
  */
 package herddb.log;
 
+import herddb.model.Index;
 import herddb.model.Table;
 import herddb.model.Transaction;
 
@@ -29,16 +30,17 @@ import herddb.model.Transaction;
  */
 public class LogEntryFactory {
 
-    
     public static LogEntry createTable(Table table, Transaction transaction) {
         byte[] payload = table.serialize();
         return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_TABLE, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, null, payload);
     }
+
     public static LogEntry alterTable(Table table, Transaction transaction) {
         byte[] payload = table.serialize();
         return new LogEntry(System.currentTimeMillis(), LogEntryType.ALTER_TABLE, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, null, payload);
     }
-     public static LogEntry dropTable(String tableSpace, String table, Transaction transaction) {       
+
+    public static LogEntry dropTable(String tableSpace, String table, Transaction transaction) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_TABLE, tableSpace, transaction != null ? transaction.transactionId : 0, table, null, null);
     }
 
@@ -64,6 +66,11 @@ public class LogEntryFactory {
 
     public static LogEntry delete(Table table, byte[] key, Transaction transaction) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.DELETE, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, key, null);
+    }
+
+    public static LogEntry createIndex(Index index, Transaction transaction) {
+        byte[] payload = index.serialize();
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_INDEX, index.tablespace, transaction != null ? transaction.transactionId : 0, index.table, null, payload);
     }
 
 }

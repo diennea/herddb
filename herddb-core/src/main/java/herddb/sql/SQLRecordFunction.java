@@ -61,7 +61,7 @@ public class SQLRecordFunction extends RecordFunction {
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
-        Map<String, Object> bean = previous != null ? previous.toBean(table) : new HashMap<>();
+        Map<String, Object> bean = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
         int paramIndex = jdbcParametersStartPos;
         for (int i = 0; i < columns.size(); i++) {
             Expression e = expressions.get(i);

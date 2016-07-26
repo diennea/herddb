@@ -24,12 +24,15 @@ import herddb.core.RecordSetFactory;
 import herddb.index.ConcurrentMapKeyToPageIndex;
 import herddb.index.KeyToPageIndex;
 import herddb.log.LogSequenceNumber;
+import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.FullTableScanConsumer;
+import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataOutputStream;
@@ -41,11 +44,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -78,6 +79,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<Bytes>> keysByPage = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<Table>> tablesByTablespace = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<Index>> indexesByTablespace = new ConcurrentHashMap<>();
 
     @Override
     public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
@@ -104,6 +106,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
         consumer.acceptTableStatus(new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>()));
+    }
+
+    @Override
+    public void fullIndexScan(String tableSpace, String tableName, FullIndexScanConsumer consumer) throws DataStorageManagerException {
+        consumer.acceptIndexStatus(new IndexStatus(tableName, LogSequenceNumber.START_OF_TIME, null));
     }
 
     @Override
@@ -141,6 +148,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String tableName, IndexStatus indexStatus) throws DataStorageManagerException {
+        return Collections.emptyList();
+    }
+
+    @Override
     public void start() throws DataStorageManagerException {
 
     }
@@ -162,14 +174,32 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
+    public List<Index> loadIndexes(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
+        List<Index> res = indexesByTablespace.get(tableSpace);
+        if (res != null) {
+            return Collections.unmodifiableList(res);
+        } else {
+            return Collections.emptyList();
+        }
+    }
 
-        List<Table> res = tablesByTablespace.get(tableSpace);
-        if (res == null) {
+    @Override
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
+
+        List<Table> tablesOnTableSpaces = tablesByTablespace.get(tableSpace);
+        if (tablesOnTableSpaces == null) {
             this.tablesByTablespace.put(tableSpace, new ArrayList<>(tables));
         } else {
-            res.addAll(tables);
+            tablesOnTableSpaces.addAll(tables);
         }
+
+        List<Index> indexesOnTableSpaces = indexesByTablespace.get(tableSpace);
+        if (indexesOnTableSpaces == null) {
+            this.indexesByTablespace.put(tableSpace, new ArrayList<>(indexlist));
+        } else {
+            indexesOnTableSpaces.addAll(indexlist);
+        }
+
     }
 
     @Override

@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import herddb.model.ColumnsList;
 
 /**
  * Record conversion to byte[]
@@ -51,7 +52,7 @@ public final class RecordSerializer {
             case ColumnTypes.STRING:
                 return new Bytes(data).to_string();
             case ColumnTypes.TIMESTAMP:
-                return new Bytes(data).to_timestamp();            
+                return new Bytes(data).to_timestamp();
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -107,14 +108,15 @@ public final class RecordSerializer {
         return toRecord(record, table);
     }
 
-    public static Bytes serializePrimaryKey(Map<String, Object> record, Table table) {
-        return serializePrimaryKey(record, table, table.primaryKey);
+    public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table) {
+        return serializePrimaryKey(record, table, table.getPrimaryKey());
     }
 
-    public static Bytes serializePrimaryKey(Map<String, Object> record, Table table, String[] columns) {
+    public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {
         ByteArrayOutputStream key = new ByteArrayOutputStream();
-        if (table.primaryKey.length == 1) {
-            String pkColumn = table.primaryKey[0];
+        String[] primaryKey = table.getPrimaryKey();
+        if (primaryKey.length == 1) {
+            String pkColumn = primaryKey[0];
             if (columns.length != 1 && !columns[0].equals(pkColumn)) {
                 throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(pkColumn));
             }
@@ -130,8 +132,8 @@ public final class RecordSerializer {
             try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
                 int i = 0;
                 for (String pkColumn : columns) {
-                    if (!pkColumn.equals(table.primaryKey[i])) {
-                        throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(table.primaryKey));
+                    if (!pkColumn.equals(primaryKey[i])) {
+                        throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(primaryKey));
                     }
                     Column c = table.getColumn(pkColumn);
                     Object v = record.get(c.name);

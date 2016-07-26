@@ -22,6 +22,7 @@ package herddb.index;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableContext;
 import herddb.utils.Bytes;
+import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -76,8 +77,11 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) {
+    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, herddb.core.AbstractIndexManager index) {
         Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
+        if (index != null) {
+            return index.recordSetScanner(operation, context, tableContext, this);
+        }
         if (operation == null) {
             return baseStream;
         } else if (operation instanceof PrimaryIndexPrefixScan) {

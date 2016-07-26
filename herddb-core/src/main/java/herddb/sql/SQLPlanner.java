@@ -19,9 +19,9 @@
  */
 package herddb.sql;
 
+import herddb.core.AbstractIndexManager;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +33,7 @@ import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
@@ -67,6 +68,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.SQLUtils;
+import java.util.Map;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
@@ -100,13 +102,14 @@ import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.update.Update;
+import herddb.model.ColumnsList;
 
 /**
  * Translates SQL to Internal API
  *
  * @author enrico.olivelli
  */
-public class SQLTranslator {
+public class SQLPlanner {
 
     private final DBManager manager;
     private final PlansCache cache;
@@ -115,7 +118,7 @@ public class SQLTranslator {
         cache.clear();
     }
 
-    public SQLTranslator(DBManager manager) {
+    public SQLPlanner(DBManager manager) {
         this.manager = manager;
         this.cache = new PlansCache();
     }
@@ -566,21 +569,21 @@ public class SQLTranslator {
         throw new StatementExecutionException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
-    private Expression findConstraintOnColumnEqualsTo(Expression where, String columnName, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression findConstraintOnColumnEqualsTo(Expression where, String columnName, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = validateColumnEqualsToExpression(and.getLeftExpression(), columnName, table, tableAlias, jdbcParameterPos);
+            Expression keyOnLeft = validateColumnEqualsToExpression(and.getLeftExpression(), columnName, tableAlias, jdbcParameterPos);
             if (keyOnLeft != null) {
                 return keyOnLeft;
             }
             int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
 
-            Expression keyOnRight = validateColumnEqualsToExpression(and.getRightExpression(), columnName, table, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
+            Expression keyOnRight = validateColumnEqualsToExpression(and.getRightExpression(), columnName, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
             if (keyOnRight != null) {
                 return keyOnRight;
             }
         } else if (where instanceof EqualsTo) {
-            Expression keyDirect = validateColumnEqualsToExpression(where, columnName, table, tableAlias, jdbcParameterPos);
+            Expression keyDirect = validateColumnEqualsToExpression(where, columnName, tableAlias, jdbcParameterPos);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -590,10 +593,14 @@ public class SQLTranslator {
     }
 
     private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+        return findIndexSeek(where, table.primaryKey, table, tableAlias, jdbcParameterPos);
+    }
+
+    private SQLRecordKeyFunction findIndexSeek(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         List<Expression> expressions = new ArrayList<>();
         List<String> columns = new ArrayList<>();
-        for (String pk : table.primaryKey) {
-            Expression condition = findConstraintOnColumnEqualsTo(where, pk, table, tableAlias, jdbcParameterPos);
+        for (String pk : columnsToMatch) {
+            Expression condition = findConstraintOnColumnEqualsTo(where, pk, tableAlias, jdbcParameterPos);
             if (condition == null) {
                 break;
             }
@@ -621,7 +628,7 @@ public class SQLTranslator {
         }
     }
 
-    private Expression validateColumnEqualsToExpression(Expression testExpression, String columnName, Table table1, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression validateColumnEqualsToExpression(Expression testExpression, String columnName, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         Expression result = null;
         if (testExpression instanceof EqualsTo) {
             EqualsTo e = (EqualsTo) testExpression;
@@ -635,12 +642,12 @@ public class SQLTranslator {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintOnColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintOnColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
@@ -693,18 +700,32 @@ public class SQLTranslator {
         }
         if (scan) {
 
-            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;            
+            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;
             if (where != null) {
-                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());                
+                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());
                 if (keyFunction != null) {
                     if (keyFunction.isFullPrimaryKey()) {
                         where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
                     } else {
                         where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
                     }
+                } else {
+                    Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+                    if (indexes != null) {
+                        // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
+                        for (AbstractIndexManager index : indexes.values()) {
+                            String[] columnsToMatch = index.getColumnNames();
+                            SQLRecordKeyFunction indexSeekFunction = findIndexSeek(selectBody.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger());
+                            if (indexSeekFunction != null) {
+                                where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                                break;
+                            }
+                        }
+                    }
                 }
             }
-            
 
             Aggregator aggregator = null;
             ScanLimits limitsOnScan = null;
