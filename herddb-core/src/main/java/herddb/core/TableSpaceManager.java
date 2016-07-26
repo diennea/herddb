@@ -852,18 +852,26 @@ public class TableSpaceManager {
             if (tables.containsKey(statement.getTableDefinition().name)) {
                 throw new TableAlreadyExistsException(statement.getTableDefinition().name);
             }
-            LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
-            LogSequenceNumber pos;
-            try {
-                pos = log.log(entry, entry.transactionId <= 0);
-            } catch (LogNotAvailableException ex) {
-                throw new StatementExecutionException(ex);
+            for (Index additionalIndex : statement.getAdditionalIndexes()) {
+                if (indexes.containsKey(additionalIndex.name)) {
+                    throw new IndexAlreadyExistsException(additionalIndex.name);
+                }
             }
 
-            apply(pos, entry, false);
+            {
+                LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
+                LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+                apply(pos, entry, false);
+            }
+
+            for (Index additionalIndex : statement.getAdditionalIndexes()) {
+                LogEntry entry = LogEntryFactory.createIndex(additionalIndex, transaction);
+                LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+                apply(pos, entry, false);
+            }
 
             return new DDLStatementExecutionResult();
-        } catch (DataStorageManagerException err) {
+        } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
             generalLock.writeLock().unlock();
@@ -903,7 +911,7 @@ public class TableSpaceManager {
             if (transaction != null && transaction.isTableDropped(statement.getTable())) {
                 throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
             }
-            
+
             Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(statement.getTable());
             if (indexesOnTable != null) {
                 for (String index : indexesOnTable.keySet()) {
@@ -929,7 +937,7 @@ public class TableSpaceManager {
         try {
             generalLock.writeLock().lock();
             if (!indexes.containsKey(statement.getIndexName())) {
-                throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
+                throw new IndexDoesNotExistException("index " + statement.getIndexName() + " does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
             }
             if (transaction != null && transaction.isIndexDropped(statement.getIndexName())) {
                 throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());

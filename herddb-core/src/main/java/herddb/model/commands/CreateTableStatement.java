@@ -20,7 +20,10 @@
 package herddb.model.commands;
 
 import herddb.model.DDLStatement;
+import herddb.model.Index;
 import herddb.model.Table;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Create a Table
@@ -30,14 +33,26 @@ import herddb.model.Table;
 public class CreateTableStatement extends DDLStatement {
 
     private final Table tableDefinition;
+    private final List<Index> additionalIndexes;
 
     public CreateTableStatement(Table tableDefinition) {
         super(tableDefinition.tablespace);
         this.tableDefinition = tableDefinition;
+        this.additionalIndexes = Collections.emptyList();
+    }
+
+    public CreateTableStatement(Table tableDefinition, List<Index> additionalIndexes) {
+        super(tableDefinition.tablespace);
+        this.tableDefinition = tableDefinition;
+        this.additionalIndexes = additionalIndexes;
     }
 
     public Table getTableDefinition() {
         return tableDefinition;
+    }
+
+    public List<Index> getAdditionalIndexes() {
+        return additionalIndexes;
     }
 
 }

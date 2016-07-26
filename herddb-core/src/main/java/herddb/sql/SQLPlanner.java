@@ -250,53 +250,82 @@ public class SQLPlanner {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
-        boolean foundPk = false;
-        List<String> allColumnNames = new ArrayList<>();
-        Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
-        Set<String> primaryKey = new HashSet<>();
+        try {
+            boolean foundPk = false;
+            Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
+            Set<String> primaryKey = new HashSet<>();
 
-        if (s.getIndexes() != null) {
-            for (Index index : s.getIndexes()) {
-                if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
-                    for (String n : index.getColumnsNames()) {
-                        n = n.toLowerCase();
-                        tablebuilder.primaryKey(n);
-                        primaryKey.add(n);
-                        foundPk = true;
+            if (s.getIndexes() != null) {
+                for (Index index : s.getIndexes()) {
+                    if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
+                        for (String n : index.getColumnsNames()) {
+                            n = n.toLowerCase();
+                            tablebuilder.primaryKey(n);
+                            primaryKey.add(n);
+                            foundPk = true;
+                        }
                     }
                 }
             }
-        }
 
-        int position = 0;
-        for (ColumnDefinition cf : s.getColumnDefinitions()) {
-            String columnName = cf.getColumnName().toLowerCase();
-            allColumnNames.add(columnName);
-            int type;
-            String dataType = cf.getColDataType().getDataType();
-            type = sqlDataTypeToColumnType(dataType);
-            tablebuilder.column(columnName, type, position++);
+            int position = 0;
+            for (ColumnDefinition cf : s.getColumnDefinitions()) {
+                String columnName = cf.getColumnName().toLowerCase();
+                int type;
+                String dataType = cf.getColDataType().getDataType();
+                type = sqlDataTypeToColumnType(dataType);
+                tablebuilder.column(columnName, type, position++);
 
-            if (cf.getColumnSpecStrings() != null) {
-                List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
-                boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
-                if (columnSpecs.contains("PRIMARY")) {
-                    foundPk = true;
-                    tablebuilder.primaryKey(columnName, auto_increment);
-                }
-                if (auto_increment && primaryKey.contains(cf.getColumnName())) {
-                    tablebuilder.primaryKey(columnName, auto_increment);
+                if (cf.getColumnSpecStrings() != null) {
+                    List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
+                    boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
+                    if (columnSpecs.contains("PRIMARY")) {
+                        foundPk = true;
+                        tablebuilder.primaryKey(columnName, auto_increment);
+                    }
+                    if (auto_increment && primaryKey.contains(cf.getColumnName())) {
+                        tablebuilder.primaryKey(columnName, auto_increment);
+                    }
                 }
             }
-        }
 
-        if (!foundPk) {
-            tablebuilder.column("_pk", ColumnTypes.LONG, position++);
-            tablebuilder.primaryKey("_pk", true);
-        }
+            if (!foundPk) {
+                tablebuilder.column("_pk", ColumnTypes.LONG, position++);
+                tablebuilder.primaryKey("_pk", true);
+            }
 
-        try {
-            CreateTableStatement statement = new CreateTableStatement(tablebuilder.build());
+            Table table = tablebuilder.build();
+            List<herddb.model.Index> otherIndexes = new ArrayList<>();
+            if (s.getIndexes() != null) {
+                for (Index index : s.getIndexes()) {
+                    if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
+
+                    } else if (index.getType().equalsIgnoreCase("INDEX")) {
+                        String indexName = index.getName().toLowerCase();
+                        String indexType = convertIndexType(null);
+
+                        herddb.model.Index.Builder builder = herddb.model.Index
+                                .builder()
+                                .name(indexName)
+                                .type(indexType)
+                                .table(tableName)
+                                .tablespace(tableSpace);
+
+                        for (String columnName : index.getColumnsNames()) {
+                            columnName = columnName.toLowerCase();
+                            Column column = table.getColumn(columnName);
+                            if (column == null) {
+                                throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+                            }
+                            builder.column(column.name, column.type);
+                        }
+
+                        otherIndexes.add(builder.build());
+                    }
+                }
+            }
+
+            CreateTableStatement statement = new CreateTableStatement(table, otherIndexes);
             return statement;
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition: " + err.getMessage(), err);
@@ -304,43 +333,56 @@ public class SQLPlanner {
     }
 
     private Statement buildCreateIndexStatement(String defaultTableSpace, CreateIndex s) throws StatementExecutionException {
-        String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName().toLowerCase();
-        String indexName = s.getIndex().getName().toLowerCase();
-        String indexType = s.getIndex().getType();
-        if (indexType == null) {
-            indexType = herddb.model.Index.TYPE_HASH;
-        }
-
-        if (tableSpace == null) {
-            tableSpace = defaultTableSpace;
-        }
-        herddb.model.Index.Builder builder = herddb.model.Index
-                .builder()
-                .name(indexName)
-                .table(tableName)
-                .tablespace(tableSpace);
-
-        AbstractTableManager tableDefinition = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
-        if (tableDefinition == null) {
-            throw new TableDoesNotExistException("no such table " + tableName + " in tablespace " + tableSpace);
-        }
-
-        for (String columnName : s.getIndex().getColumnsNames()) {
-            columnName = columnName.toLowerCase();
-            Column column = tableDefinition.getTable().getColumn(columnName);
-            if (column == null) {
-                throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
-            }
-            builder.column(column.name, column.type);
-        }
-
         try {
+            String tableSpace = s.getTable().getSchemaName();
+            if (tableSpace == null) {
+                tableSpace = defaultTableSpace;
+            }
+            String tableName = s.getTable().getName().toLowerCase();
+
+            String indexName = s.getIndex().getName().toLowerCase();
+            String indexType = convertIndexType(s.getIndex().getType());
+
+            herddb.model.Index.Builder builder = herddb.model.Index
+                    .builder()
+                    .name(indexName)
+                    .type(indexType)
+                    .table(tableName)
+                    .tablespace(tableSpace);
+
+            AbstractTableManager tableDefinition = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
+            if (tableDefinition == null) {
+                throw new TableDoesNotExistException("no such table " + tableName + " in tablespace " + tableSpace);
+            }
+            for (String columnName : s.getIndex().getColumnsNames()) {
+                columnName = columnName.toLowerCase();
+                Column column = tableDefinition.getTable().getColumn(columnName);
+                if (column == null) {
+                    throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+                }
+                builder.column(column.name, column.type);
+            }
+
             CreateIndexStatement statement = new CreateIndexStatement(builder.build());
             return statement;
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad index definition: " + err.getMessage(), err);
         }
+    }
+
+    private String convertIndexType(String indexType) throws StatementExecutionException {
+        if (indexType == null) {
+            indexType = herddb.model.Index.TYPE_HASH;
+        } else {
+            indexType = indexType.toLowerCase();
+        }
+        switch (indexType) {
+            case herddb.model.Index.TYPE_HASH:
+                break;
+            default:
+                throw new StatementExecutionException("Invalid index type " + indexType);
+        }
+        return indexType;
     }
 
     private int sqlDataTypeToColumnType(String dataType) throws StatementExecutionException {
@@ -716,11 +758,11 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
+            throw new TableSpaceDoesNotExistException("no such tablespace " + tableSpace + " here");
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
+            throw new TableDoesNotExistException("no such table " + tableName + " in tablepace " + tableSpace);
         }
 
         Table table = tableManager.getTable();

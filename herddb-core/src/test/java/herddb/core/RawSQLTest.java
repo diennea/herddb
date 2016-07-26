@@ -19,9 +19,6 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -50,24 +47,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static herddb.core.TestUtils.execute;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
-import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static herddb.core.TestUtils.execute;
 import herddb.model.IndexAlreadyExistsException;
@@ -1348,6 +1330,15 @@ public class RawSQLTest {
 
             execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
 
+            execute(manager, "CREATE HASH INDEX ix_hash ON tblspace1.tsql(n1)", Collections.emptyList());
+
+            try {
+                execute(manager, "CREATE BADTYPE INDEX ix_bad ON tblspace1.tsql(n1)", Collections.emptyList());
+                fail();
+            } catch (StatementExecutionException ok) {
+                assertTrue(ok.getMessage().contains("badtype"));
+            }
+
             try {
                 execute(manager, "DROP INDEX tblspace1.ix2", Collections.emptyList());
                 fail();
@@ -1362,8 +1353,30 @@ public class RawSQLTest {
                 execute(manager, "CREATE INDEX ix2 ON tsql(n1)", Collections.emptyList());
                 fail();
             } catch (TableDoesNotExistException ok) {
-
             }
+
+            try {
+                execute(manager, "CREATE INDEX duplicatecolumn ON tblspace1.tsql(n1,n1)", Collections.emptyList());
+                fail();
+            } catch (StatementExecutionException ok) {
+            }
+
+        }
+    }
+
+    @Test
+    public void createIndexOnTableTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,"
+                    + "INDEX ix1 (n1,s1))", Collections.emptyList());
+
+            execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
 
         }
     }
