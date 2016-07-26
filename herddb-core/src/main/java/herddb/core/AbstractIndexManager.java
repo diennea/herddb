@@ -48,11 +48,17 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     protected final DataStorageManager dataStorageManager;
     protected final String tableSpaceUUID;
     protected final CommitLog log;
+    /**
+     * This value is not empty until the transaction who creates the table does
+     * not commit
+     */
+    protected long createdInTransaction;
 
     public abstract void start() throws DataStorageManagerException;
 
-    public AbstractIndexManager(Index index, AbstractTableManager tableManager, DataStorageManager dataStorageManager, String tableSpaceUUID, CommitLog log) {
+    public AbstractIndexManager(Index index, AbstractTableManager tableManager, DataStorageManager dataStorageManager, String tableSpaceUUID, CommitLog log, long createdInTransaction) {
         this.index = index;
+        this.createdInTransaction = createdInTransaction;
         this.tableManager = tableManager;
         this.dataStorageManager = dataStorageManager;
         this.tableSpaceUUID = tableSpaceUUID;
@@ -112,5 +118,22 @@ public abstract class AbstractIndexManager implements AutoCloseable {
 
     public void recordDeleted(Bytes key, Map<String, Object> values) throws DataStorageManagerException {
         throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    void dropIndexData() throws DataStorageManagerException {
+        dataStorageManager.dropIndex(tableSpaceUUID, index.name);
+    }
+
+    void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
+        if (createdInTransaction > 0) {
+            if (transaction.transactionId != createdInTransaction) {
+                throw new DataStorageManagerException("this indexManager is available only on transaction " + createdInTransaction);
+            }
+            createdInTransaction = 0;
+        }
+    }
+
+    public boolean isCommitted() {
+        return createdInTransaction == 0;
     }
 }

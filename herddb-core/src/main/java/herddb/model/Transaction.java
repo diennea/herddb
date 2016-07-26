@@ -49,7 +49,9 @@ public class Transaction {
     public final Map<String, List<Record>> newRecords;
     public final Map<String, List<Bytes>> deletedRecords;
     public final Map<String, Table> newTables;
+    public final Map<String, Index> newIndexes;
     public final Set<String> droppedTables;
+    public final Set<String> droppedIndexes;
 
     public Transaction(long transactionId, String tableSpace) {
         this.transactionId = transactionId;
@@ -59,7 +61,9 @@ public class Transaction {
         this.newRecords = new HashMap<>();
         this.deletedRecords = new HashMap<>();
         this.newTables = new HashMap<>();
+        this.newIndexes = new HashMap<>();
         this.droppedTables = new HashSet<>();
+        this.droppedIndexes = new HashSet<>();
     }
 
     public Map<String, Table> getNewTables() {
@@ -86,6 +90,11 @@ public class Transaction {
     public void registerNewTable(Table table) {
         newTables.put(table.name, table);
         droppedTables.remove(table.name);
+    }
+
+    public void registerNewIndex(Index index) {
+        newIndexes.put(index.name, index);
+        droppedIndexes.remove(index.name);
     }
 
     public void registerInsertOnTable(String tableName, Bytes key, Bytes value) {
@@ -212,7 +221,7 @@ public class Transaction {
 
     @Override
     public String toString() {
-        return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + '}';
+        return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + ", newIndexes=" + newIndexes + '}';
     }
 
     public void registerDropTable(String tableName) {
@@ -220,8 +229,17 @@ public class Transaction {
         droppedTables.add(tableName);
     }
 
+    public void registerDropIndex(String indexName) {
+        newIndexes.remove(indexName);
+        droppedIndexes.add(indexName);
+    }
+
     public boolean isTableDropped(String tableName) {
         return droppedTables.contains(tableName) && !newTables.containsKey(tableName);
+    }
+
+    public boolean isIndexDropped(String indexName) {
+        return droppedIndexes.contains(indexName) && !newIndexes.containsKey(indexName);
     }
 
     public void serialize(ExtendedDataOutputStream out) throws IOException {
@@ -261,6 +279,15 @@ public class Transaction {
         for (String table : droppedTables) {
             out.writeUTF(table);
         }
+        out.writeVInt(newIndexes.size());
+        for (Index index : newIndexes.values()) {
+            out.writeArray(index.serialize());
+        }
+        out.writeVInt(droppedIndexes.size());
+        for (String index : droppedIndexes) {
+            out.writeUTF(index);
+        }
+
     }
 
     public static Transaction deserialize(String tableSpace, ExtendedDataInputStream in) throws IOException {
@@ -313,6 +340,17 @@ public class Transaction {
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
             t.droppedTables.add(in.readUTF());
+        }
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            byte[] data = in.readArray();
+            Index index = Index.deserialize(data);
+            t.newIndexes.put(index.name, index);
+        }
+
+        size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            t.droppedIndexes.add(in.readUTF());
         }
         return t;
 

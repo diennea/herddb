@@ -714,6 +714,9 @@ public class SQLPlanner {
                     if (indexes != null) {
                         // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
                         for (AbstractIndexManager index : indexes.values()) {
+                            if (!index.isCommitted()) {
+                                continue;
+                            }
                             String[] columnsToMatch = index.getColumnNames();
                             SQLRecordKeyFunction indexSeekFunction = findIndexSeek(selectBody.getWhere(), columnsToMatch,
                                     index.getIndex(),

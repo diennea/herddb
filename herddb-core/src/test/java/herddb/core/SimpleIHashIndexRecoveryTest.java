@@ -109,7 +109,7 @@ public class SimpleIHashIndexRecoveryTest {
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-            TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
             ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -126,7 +126,7 @@ public class SimpleIHashIndexRecoveryTest {
                 tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
-            TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
 
             ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);

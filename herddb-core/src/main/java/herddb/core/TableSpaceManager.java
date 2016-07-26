@@ -116,7 +116,7 @@ public class TableSpaceManager {
     private final Map<String, Map<String, AbstractIndexManager>> indexesByTable = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
-    private final DBManager manager;
+    private final DBManager dbmanager;
     private volatile boolean leader;
     private volatile boolean closed;
     private volatile boolean failed;
@@ -133,7 +133,7 @@ public class TableSpaceManager {
 
     public TableSpaceManager(String nodeId, String tableSpaceName, String tableSpaceUUID, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLog log, DBManager manager, boolean virtual) {
         this.nodeId = nodeId;
-        this.manager = manager;
+        this.dbmanager = manager;
         this.metadataStorageManager = metadataStorageManager;
         this.dataStorageManager = dataStorageManager;
         this.log = log;
@@ -212,6 +212,12 @@ public class TableSpaceManager {
                         bootTable(table, t.transactionId);
                     }
                 }
+                for (Index index : t.newIndexes.values()) {
+                    if (!indexes.containsKey(index.name)) {
+                        AbstractTableManager tableManager = tables.get(index.table);
+                        bootIndex(index, tableManager, t.transactionId, false);
+                    }
+                }
             } catch (Exception err) {
                 LOGGER.log(Level.SEVERE, "error while booting tmp tables " + err, err);
                 throw new RuntimeException(err);
@@ -285,7 +291,11 @@ public class TableSpaceManager {
                 for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction, recovery);
                 }
-                if (!transaction.droppedTables.isEmpty()) {
+                List<AbstractIndexManager> indexManagers = new ArrayList<>(indexes.values());
+                for (AbstractIndexManager indexManager : indexManagers) {
+                    indexManager.onTransactionCommit(transaction, recovery);
+                }
+                if (!transaction.droppedTables.isEmpty() || !transaction.droppedIndexes.isEmpty()) {
                     generalLock.writeLock().lock();
                     try {
                         for (String dropped : transaction.droppedTables) {
@@ -297,12 +307,25 @@ public class TableSpaceManager {
                                 }
                             }
                         }
+                        for (String dropped : transaction.droppedIndexes) {
+                            for (AbstractIndexManager manager : indexManagers) {
+                                if (manager.getIndex().name.equals(dropped)) {
+                                    manager.dropIndexData();
+                                    manager.close();
+                                    indexes.remove(manager.getIndex().name);
+                                }
+                            }
+                        }
                     } finally {
                         generalLock.writeLock().unlock();
-                    }
+                    }                    
                 }
-                if (!transaction.getNewTables().isEmpty() || !transaction.droppedTables.isEmpty()) {
+                if (!transaction.newTables.isEmpty()
+                        || !transaction.droppedTables.isEmpty()
+                        || !transaction.newIndexes.isEmpty()
+                        || !transaction.droppedIndexes.isEmpty()) {
                     writeTablesOnDataStorageManager(position);
+                    dbmanager.getPlanner().clearCache();
                 }
                 transactions.remove(transaction.transactionId);
             }
@@ -324,7 +347,9 @@ public class TableSpaceManager {
             case LogEntryType.CREATE_INDEX: {
                 Index index = Index.deserialize(entry.value);
                 if (entry.transactionId > 0) {
-                    throw new UnsupportedOperationException("CREATE INDEX IN TRANSACTION IS NOT SUPPORTED YET");
+                    long id = entry.transactionId;
+                    Transaction transaction = transactions.get(id);
+                    transaction.registerNewIndex(index);
                 }
                 AbstractTableManager tableManager = tables.get(index.table);
                 if (tableManager == null) {
@@ -423,9 +448,9 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("cannot download data of tableSpace " + tableSpaceName + " from leader " + leaderId + ", no metadata found");
         }
         NodeMetadata nodeData = leaderAddress.get();
-        ClientConfiguration clientConfiguration = new ClientConfiguration(manager.getTmpDirectory());
-        clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, manager.getServerToServerUsername());
-        clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, manager.getServerToServerPassword());
+        ClientConfiguration clientConfiguration = new ClientConfiguration(dbmanager.getTmpDirectory());
+        clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, dbmanager.getServerToServerUsername());
+        clientConfiguration.set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, dbmanager.getServerToServerPassword());
         try (HDBClient client = new HDBClient(clientConfiguration);) {
             client.setClientSideMetadataProvider(new ClientSideMetadataProvider() {
                 @Override
@@ -702,7 +727,7 @@ public class TableSpaceManager {
     }
 
     void startAsFollower() throws DataStorageManagerException, DDLException, LogNotAvailableException {
-        manager.submit(new FollowerThread());
+        dbmanager.submit(new FollowerThread());
     }
 
     void startAsLeader() throws DataStorageManagerException, DDLException, LogNotAvailableException {
@@ -858,13 +883,14 @@ public class TableSpaceManager {
     private TableManager bootTable(Table table, long transaction) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
-        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID, this.manager.getMaxLogicalPageSize(), transaction);
+        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID, this.dbmanager.getMaxLogicalPageSize(), transaction);
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
         tables.put(table.name, tableManager);
         tableManager.start();
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
+        dbmanager.getPlanner().clearCache();
         return tableManager;
     }
 
@@ -889,6 +915,7 @@ public class TableSpaceManager {
             indexManager.rebuild();
             LOGGER.log(Level.SEVERE, "bootIndex - rebuild {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (System.currentTimeMillis() - _stop) + ""});
         }
+        dbmanager.getPlanner().clearCache();
         return indexManager;
     }
 
@@ -1054,8 +1081,8 @@ public class TableSpaceManager {
         }
     }
 
-    public DBManager getManager() {
-        return manager;
+    public DBManager getDbmanager() {
+        return dbmanager;
     }
 
 }

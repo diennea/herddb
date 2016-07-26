@@ -729,9 +729,7 @@ public class TableManager implements AbstractTableManager {
         if (!NO_PAGE.equals(pageId)) {
             dirtyPages.add(pageId);
         }
-        dirtyRecords.incrementAndGet();
-        System.out.println("previous:" + previous);
-        System.out.println("newRecord:" + newRecord);
+        dirtyRecords.incrementAndGet();        
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
@@ -739,9 +737,7 @@ public class TableManager implements AbstractTableManager {
                 throw new RuntimeException("updated record at " + key + " was not loaded in buffer, cannot update indexes");
             }
             Map<String, Object> prevValues = previous.toBean(table);
-            Map<String, Object> newValues = newRecord.toBean(table);
-            System.out.println("prevValues " + prevValues);
-            System.out.println("newValues " + newValues);
+            Map<String, Object> newValues = newRecord.toBean(table);            
             for (AbstractIndexManager index : indexes.values()) {
                 index.recordUpdated(key, prevValues, newValues);
             }
@@ -1035,7 +1031,7 @@ public class TableManager implements AbstractTableManager {
 
         Predicate predicate = statement.getPredicate();
         long _start = System.currentTimeMillis();
-        MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
+        MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
         try {
             if (predicate != null && predicate.getIndexOperation() instanceof PrimaryIndexSeek) {
                 PrimaryIndexSeek seek = (PrimaryIndexSeek) predicate.getIndexOperation();

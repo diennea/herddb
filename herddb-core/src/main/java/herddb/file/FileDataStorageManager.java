@@ -665,6 +665,17 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "dropIndex {0}.{1}", new Object[]{tablespace, name});
+        Path tableDir = getIndexDirectory(tablespace, name);
+        try {
+            deleteDirectory(tableDir);
+        } catch (IOException ex) {
+            throw new DataStorageManagerException(ex);
+        }
+    }
+
+    @Override
     public LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException {
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);

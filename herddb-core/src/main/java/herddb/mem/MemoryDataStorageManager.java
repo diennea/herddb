@@ -240,6 +240,19 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
+        List<Index> indexes = indexesByTablespace.get(tablespace);
+        if (indexes != null) {
+            for (Iterator<Index> it = indexes.iterator(); it.hasNext();) {
+                Index index = it.next();
+                if (index.name.equals(name)) {
+                    it.remove();
+                }
+            }
+        }
+    }
+
+    @Override
     public KeyToPageIndex createKeyToPageMap(String tablespace, String name) {
         return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
     }

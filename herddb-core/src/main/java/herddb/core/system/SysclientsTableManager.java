@@ -54,7 +54,7 @@ public class SysclientsTableManager extends AbstractSystemTableManager {
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
-        ConnectionsInfoProvider connectionsInfoProvider = tableSpaceManager.getManager().getConnectionsInfoProvider();
+        ConnectionsInfoProvider connectionsInfoProvider = tableSpaceManager.getDbmanager().getConnectionsInfoProvider();
         if (connectionsInfoProvider == null) {
             return Collections.emptyList();
         }

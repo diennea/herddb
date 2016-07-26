@@ -47,6 +47,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
+import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
@@ -188,7 +189,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.connectionsInfoProvider = connectionsInfoProvider;
     }
 
-    public SQLPlanner getTranslator() {
+    public SQLPlanner getPlanner() {
         return translator;
     }
 
@@ -667,7 +668,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public void setMaxLogicalPageSize(long maxLogicalPageSize) {
         this.maxLogicalPageSize = maxLogicalPageSize;
     }
-
+   
     private class Activator implements Runnable {
 
         @Override

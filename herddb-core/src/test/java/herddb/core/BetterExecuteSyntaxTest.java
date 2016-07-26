@@ -36,6 +36,8 @@ import java.util.Collections;
 import java.util.List;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
+import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.scan;
 
 /**
  * Tests about statement rewriting for EXECUTE syntax

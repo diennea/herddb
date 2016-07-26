@@ -163,4 +163,6 @@ public abstract class DataStorageManager {
 
     public abstract void cleanupAfterBoot(String tablespace, String name, Set<Long> activePagesAtBoot) throws DataStorageManagerException;
 
+    public abstract void dropIndex(String tableSpaceUUID, String name) throws DataStorageManagerException;
+
 }

@@ -39,12 +39,12 @@ import java.util.List;
 public class TestUtils {
 
     public static DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
     }
 
     public static DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, transactionContext);
     }
 
@@ -61,17 +61,17 @@ public class TestUtils {
     }
 
     public static StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return manager.executePlan(translated.plan, translated.context, transactionContext);
     }
 
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
     }
 
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;
     }
 }

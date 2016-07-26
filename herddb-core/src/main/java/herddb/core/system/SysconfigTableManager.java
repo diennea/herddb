@@ -49,7 +49,7 @@ public class SysconfigTableManager extends AbstractSystemTableManager {
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
-        ServerConfiguration configuration = tableSpaceManager.getManager().getConfiguration();
+        ServerConfiguration configuration = tableSpaceManager.getDbmanager().getConfiguration();
         return configuration.keys()
                 .stream()
                 .map(r -> RecordSerializer.makeRecord(table, "name", r, "value", configuration.getString(r, "")))

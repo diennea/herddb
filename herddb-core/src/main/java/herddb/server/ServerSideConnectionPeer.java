@@ -163,7 +163,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     TransactionContext transactionContext = new TransactionContext(txId);
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace, query, parameters, false, true);
+                    TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace, query, parameters, false, true);
                     Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
                     StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -318,7 +318,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    TranslatedQuery translatedQuery = server.getManager().getTranslator().translate(tableSpace, query, parameters, true, true);
+                    TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace, query, parameters, true, true);
                     Statement statement = translatedQuery.plan.mainStatement;
                     TransactionContext transactionContext = new TransactionContext(txId);
                     if (statement instanceof ScanStatement) {

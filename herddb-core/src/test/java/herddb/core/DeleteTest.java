@@ -32,6 +32,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.executeUpdate;
+import static herddb.core.TestUtils.scan;
 
 /**
  *

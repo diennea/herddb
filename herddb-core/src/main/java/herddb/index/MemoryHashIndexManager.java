@@ -68,7 +68,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     private final ConcurrentHashMap<Bytes, List<Bytes>> data = new ConcurrentHashMap<>();
 
     public MemoryHashIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
-        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log);
+        super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
     }
 
     LogSequenceNumber bootSequenceNumber;
@@ -158,6 +158,10 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
     @Override
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        if (createdInTransaction > 0) {
+            LOGGER.log(Level.SEVERE, "checkpoint for index " + index.name + " skipped, this index is created on transaction " + createdInTransaction + " which is not committed");
+            return Collections.emptyList();
+        }
         List<PostCheckpointAction> result = new ArrayList<>();
 
         LOGGER.log(Level.SEVERE, "flush index {0}", new Object[]{index.name});
