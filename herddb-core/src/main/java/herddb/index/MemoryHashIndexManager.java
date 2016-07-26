@@ -56,7 +56,8 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 /**
- * HASH index. The index resides entirely in memory. It is serialized fully on the IndexStatus structure
+ * HASH index. The index resides entirely in memory. It is serialized fully on
+ * the IndexStatus structure
  *
  * @author enrico.olivelli
  */
@@ -82,7 +83,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
             @Override
             public void acceptIndexStatus(IndexStatus indexStatus) {
-                LOGGER.log(Level.SEVERE, "recovery index "+indexStatus.indexName+" at " + indexStatus.sequenceNumber);
+                LOGGER.log(Level.SEVERE, "recovery index " + indexStatus.indexName + " at " + indexStatus.sequenceNumber);
                 bootSequenceNumber = indexStatus.sequenceNumber;
                 if (indexStatus.indexData != null) {
                     ByteArrayInputStream indexData = new ByteArrayInputStream(indexStatus.indexData);
@@ -102,6 +103,10 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                         throw new RuntimeException(error);
                     }
                 }
+            }
+
+            @Override
+            public void acceptPage(long pageId, byte[] data) {
             }
 
         });
@@ -173,7 +178,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             throw new DataStorageManagerException(error);
         }
 
-        IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, indexData.toByteArray());
+        IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, Collections.emptySet(), indexData.toByteArray());
         result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus));
         LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries", new Object[]{index.name, count + ""});
         return result;

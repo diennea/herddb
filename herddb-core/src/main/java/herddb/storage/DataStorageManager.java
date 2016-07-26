@@ -48,6 +48,8 @@ public abstract class DataStorageManager {
      */
     public abstract List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException;
 
+    public abstract byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException;
+
     /**
      * Load the full data of a table
      *
@@ -57,20 +59,23 @@ public abstract class DataStorageManager {
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException;
-    
-    
+
     public abstract void fullIndexScan(String tableSpace, String tableName, FullIndexScanConsumer consumer) throws DataStorageManagerException;
 
     /**
      * Write a page on disk
      *
+     * @param tableSpace
      * @param tableName
+     * @param pageId
      * @param sequenceNumber
      * @param newPage
      * @return
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException;
+
+    public abstract void writeIndexPage(String tableSpace, String tableName, long pageId, byte[] page) throws DataStorageManagerException;
 
     /**
      * Write current table status. This operations mark the actual set of pages
@@ -83,7 +88,7 @@ public abstract class DataStorageManager {
      * @throws DataStorageManagerException
      */
     public abstract List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
-    
+
     public abstract List<PostCheckpointAction> indexCheckpoint(String tableSpace, String tableName, IndexStatus indexStatus) throws DataStorageManagerException;
 
     /**
@@ -118,14 +123,15 @@ public abstract class DataStorageManager {
      * @throws DataStorageManagerException
      */
     public abstract List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException;
-    
+
     /**
      * Load indexes metadata
+     *
      * @param sequenceNumber
      * @param tableSpace
      * @return
-     * @throws DataStorageManagerException 
-     */    
+     * @throws DataStorageManagerException
+     */
     public abstract List<Index> loadIndexes(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException;
 
     public abstract void loadTransactions(LogSequenceNumber sequenceNumber, String tableSpace, Consumer<Transaction> consumer) throws DataStorageManagerException;
@@ -139,7 +145,7 @@ public abstract class DataStorageManager {
      * @param indexlist
      * @throws DataStorageManagerException
      */
-    public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException;        
+    public abstract void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException;
 
     public abstract void writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 

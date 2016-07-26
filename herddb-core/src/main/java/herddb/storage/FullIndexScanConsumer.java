@@ -30,4 +30,5 @@ public interface FullIndexScanConsumer {
 
     public void acceptIndexStatus(IndexStatus tableStatus);
 
+    public void acceptPage(long pageId, byte[] data);
 }

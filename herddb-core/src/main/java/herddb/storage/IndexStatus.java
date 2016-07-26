@@ -23,6 +23,9 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Status of an index on disk
@@ -34,26 +37,38 @@ public class IndexStatus {
     public final String indexName;
     public final LogSequenceNumber sequenceNumber;
     public final byte[] indexData;
+    public final Set<Long> activePages;
 
-    public IndexStatus(String indexName, LogSequenceNumber sequenceNumber, byte[] indexData) {
+    public IndexStatus(String indexName, LogSequenceNumber sequenceNumber, final Set<Long> activePages, byte[] indexData) {
         this.indexName = indexName;
         this.sequenceNumber = sequenceNumber;
         this.indexData = indexData;
+        this.activePages = activePages != null ? activePages : Collections.emptySet();
     }
 
     public void serialize(ExtendedDataOutputStream output) throws IOException {
         output.writeUTF(indexName);
         output.writeLong(sequenceNumber.ledgerId);
         output.writeLong(sequenceNumber.offset);
+        output.writeVInt(activePages.size());
+        for (long idpage : activePages) {
+            output.writeVLong(idpage);
+        }
         output.writeArray(indexData);
+
     }
 
     public static IndexStatus deserialize(ExtendedDataInputStream in) throws IOException {
         String indexName = in.readUTF();
         long ledgerId = in.readLong();
         long offset = in.readLong();
+        int numPages = in.readVInt();
+        Set<Long> activePages = new HashSet<>();
+        for (int i = 0; i < numPages; i++) {
+            activePages.add(in.readVLong());
+        }
         byte[] indexData = in.readArray();
-        return new IndexStatus(indexName, new LogSequenceNumber(ledgerId, offset), indexData);
+        return new IndexStatus(indexName, new LogSequenceNumber(ledgerId, offset), activePages, indexData);
     }
 
     @Override

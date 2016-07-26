@@ -77,6 +77,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     }
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Bytes> indexpages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<Bytes>> keysByPage = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<Table>> tablesByTablespace = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<Index>> indexesByTablespace = new ConcurrentHashMap<>();
@@ -104,13 +105,20 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
+        Bytes page = indexpages.get(indexName + "_" + pageId);
+        //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
+        return page != null ? page.data : null;
+    }
+
+    @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
         consumer.acceptTableStatus(new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>()));
     }
 
     @Override
     public void fullIndexScan(String tableSpace, String tableName, FullIndexScanConsumer consumer) throws DataStorageManagerException {
-        consumer.acceptIndexStatus(new IndexStatus(tableName, LogSequenceNumber.START_OF_TIME, null));
+        consumer.acceptIndexStatus(new IndexStatus(tableName, LogSequenceNumber.START_OF_TIME, null, null));
     }
 
     @Override
@@ -118,6 +126,12 @@ public class MemoryDataStorageManager extends DataStorageManager {
         Page page = new Page(new ArrayList<>(newPage));
         pages.put(tableName + "_" + pageId, page);
         //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
+    }
+
+    @Override
+    public void writeIndexPage(String tableSpace, String tableName, long pageId, byte[] page) throws DataStorageManagerException {
+        Bytes page_wrapper = Bytes.from_array(page);
+        indexpages.put(tableName + "_" + pageId, page_wrapper);
     }
 
     @Override

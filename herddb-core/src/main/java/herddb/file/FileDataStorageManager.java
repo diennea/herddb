@@ -193,11 +193,43 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
+        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        Path pageFile = getPageFile(tableDir, pageId);
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(pageFile, StandardOpenOption.READ), 4 * 1024 * 1024);
+                DigestInputStream digest = new DigestInputStream(input, createMD5());
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
+            int flags = dataIn.readVInt(); // flags for future implementations
+            if (flags != 0) {
+                throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
+            }
+            byte[] data = dataIn.readArray();
+            byte[] computedDigest = digest.getMessageDigest().digest();
+            byte[] writtenDigest = dataIn.readArray();
+            if (!Arrays.equals(computedDigest, writtenDigest)) {
+                throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", MD5 checksum failed");
+            }
+            return data;
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
     public void fullIndexScan(String tableSpace, String indexName, FullIndexScanConsumer consumer) throws DataStorageManagerException {
         IndexStatus latestStatus = readActualIndexStatus(tableSpace, indexName);
 
         LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", status: " + latestStatus);
         consumer.acceptIndexStatus(latestStatus);
+
+        List<Long> activePages = new ArrayList<>(latestStatus.activePages);
+        activePages.sort(null);
+        for (long idpage : activePages) {
+            byte[] records = readIndexPage(tableSpace, indexName, idpage);
+            consumer.acceptPage(idpage, records);
+            LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", page " + idpage + ", " + records.length + " bytes");
+        }
+
     }
 
     @Override
@@ -272,7 +304,7 @@ public class FileDataStorageManager extends DataStorageManager {
         LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys);
         if (!Files.isRegularFile(keys)) {
             LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys + ". file does not exist");
-            return new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null);
+            return new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null, null);
         }
         IndexStatus latestStatus = null;
         try (InputStream input = new BufferedInputStream(Files.newInputStream(keys, StandardOpenOption.READ), 4 * 1024 * 1024);
@@ -444,6 +476,28 @@ public class FileDataStorageManager extends DataStorageManager {
                 dataOutput.writeArray(record.key.data);
                 dataOutput.writeArray(record.value.data);
             }
+            dataOutput.writeArray(digest.getMessageDigest().digest());
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException {
+        // synch on index is done by the IndexManager
+
+        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        try {
+            Files.createDirectories(tableDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        Path pageFile = getPageFile(tableDir, pageId);
+        try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
+                DigestOutputStream digest = new DigestOutputStream(output, createMD5());
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
+            dataOutput.writeVInt(0); // flags for future implementations
+            dataOutput.writeArray(page);
             dataOutput.writeArray(digest.getMessageDigest().digest());
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
@@ -633,6 +687,7 @@ public class FileDataStorageManager extends DataStorageManager {
             }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
+
         }
     }
 
