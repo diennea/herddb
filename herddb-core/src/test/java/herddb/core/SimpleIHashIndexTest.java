@@ -26,7 +26,6 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.Index;
-import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TableSpace;
@@ -35,7 +34,8 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
-import herddb.model.commands.InsertStatement;
+import herddb.model.commands.DropIndexStatement;
+import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
@@ -43,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
@@ -417,6 +418,246 @@ public class SimpleIHashIndexTest {
                     assertEquals(2, scan1.consume().size());
                 }
             }
+
+        }
+
+    }
+
+    @Test
+    public void dropIndex() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            Bytes key = Bytes.from_int(1234);
+            Bytes value = Bytes.from_long(8888);
+
+            Table transacted_table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st_create = new CreateTableStatement(transacted_table);
+            manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("a", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("b", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(Index.TYPE_HASH)
+                    .column("name", ColumnTypes.STRING).
+                    build();
+            CreateIndexStatement createIndex = new CreateIndexStatement(index);
+            manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            DropIndexStatement dropIndex = new DropIndexStatement(index.tablespace, index.name);
+            manager.executeStatement(dropIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+        }
+
+    }
+
+    @Test
+    public void dropIndexInTransaction() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            Bytes key = Bytes.from_int(1234);
+            Bytes value = Bytes.from_long(8888);
+
+            Table transacted_table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st_create = new CreateTableStatement(transacted_table);
+            manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("a", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("b", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(Index.TYPE_HASH)
+                    .column("name", ColumnTypes.STRING).
+                    build();
+            CreateIndexStatement createIndex = new CreateIndexStatement(index);
+            manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            long tx = TestUtils.beginTransaction(manager, "tblspace1");
+            DropIndexStatement dropIndex = new DropIndexStatement(index.tablespace, index.name);
+            manager.executeStatement(dropIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+        }
+
+    }
+
+    @Test
+    public void dropTableWithIndexes() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            Bytes key = Bytes.from_int(1234);
+            Bytes value = Bytes.from_long(8888);
+
+            Table transacted_table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st_create = new CreateTableStatement(transacted_table);
+            manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("a", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("b", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(Index.TYPE_HASH)
+                    .column("name", ColumnTypes.STRING).
+                    build();
+            CreateIndexStatement createIndex = new CreateIndexStatement(index);
+            manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            assertEquals(1, manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1").size());
+
+            long tx = TestUtils.beginTransaction(manager, "tblspace1");
+            DropTableStatement dropTable = new DropTableStatement(index.tablespace, index.table);
+            manager.executeStatement(dropTable, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            assertEquals(1, manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1").size());
+            
+            TestUtils.commitTransaction(manager, "tblspace1", tx);
+
+            assertNull(manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1"));
+
+        }
+
+    }
+
+    @Test
+    public void dropTableWithIndexesInTransaction() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+            Bytes key = Bytes.from_int(1234);
+            Bytes value = Bytes.from_long(8888);
+
+            Table transacted_table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st_create = new CreateTableStatement(transacted_table);
+            manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("a", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("b", "n1"), TransactionContext.NO_TRANSACTION);
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(Index.TYPE_HASH)
+                    .column("name", ColumnTypes.STRING).
+                    build();
+            CreateIndexStatement createIndex = new CreateIndexStatement(index);
+            manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(2, scan1.consume().size());
+                }
+            }
+
+            assertEquals(1, manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1").size());
+
+            DropTableStatement dropTable = new DropTableStatement(index.tablespace, index.table);
+            manager.executeStatement(dropTable, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            assertNull(manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1"));
 
         }
 

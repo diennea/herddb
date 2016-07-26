@@ -48,6 +48,7 @@ import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.Index;
+import herddb.model.IndexDoesNotExistException;
 import herddb.model.NodeMetadata;
 import herddb.model.Record;
 import herddb.model.Statement;
@@ -66,6 +67,7 @@ import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
@@ -76,6 +78,7 @@ import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.utils.Bytes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -313,12 +316,16 @@ public class TableSpaceManager {
                                     manager.dropIndexData();
                                     manager.close();
                                     indexes.remove(manager.getIndex().name);
+                                    Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
+                                    if (indexesForTable != null) {
+                                        indexesForTable.remove(manager.getIndex().name);
+                                    }
                                 }
                             }
                         }
                     } finally {
                         generalLock.writeLock().unlock();
-                    }                    
+                    }
                 }
                 if (!transaction.newTables.isEmpty()
                         || !transaction.droppedTables.isEmpty()
@@ -383,6 +390,36 @@ public class TableSpaceManager {
 
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager(position);
+                }
+            }
+            break;
+            case LogEntryType.DROP_INDEX: {
+                String indexName = Bytes.from_array(entry.value).to_string();
+                if (entry.transactionId > 0) {
+                    long id = entry.transactionId;
+                    Transaction transaction = transactions.get(id);
+                    transaction.registerDropIndex(indexName);
+                } else {
+                    try {
+                        generalLock.writeLock().lock();
+                        AbstractIndexManager manager = indexes.get(indexName);
+                        if (manager != null) {
+                            manager.dropIndexData();
+                            manager.close();
+                            indexes.remove(manager.getIndexName());
+                            Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
+                            if (indexesForTable != null) {
+                                indexesForTable.remove(manager.getIndex().name);
+                            }
+                        }
+                    } finally {
+                        generalLock.writeLock().unlock();
+                    }
+                }
+
+                if (entry.transactionId <= 0) {
+                    writeTablesOnDataStorageManager(position);
+                    dbmanager.getPlanner().clearCache();
                 }
             }
             break;
@@ -528,7 +565,7 @@ public class TableSpaceManager {
 
     public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
         Map<String, AbstractIndexManager> result = indexesByTable.get(name);
-        if (result == null) {
+        if (result == null || result.isEmpty()) {
             return null;
         }
         return result;
@@ -772,6 +809,9 @@ public class TableSpaceManager {
         if (statement instanceof DropTableStatement) {
             return dropTable((DropTableStatement) statement, transaction);
         }
+        if (statement instanceof DropIndexStatement) {
+            return dropIndex((DropIndexStatement) statement, transaction);
+        }
         if (statement instanceof BeginTransactionStatement) {
             if (transaction != null) {
                 throw new IllegalArgumentException("transaction already started");
@@ -862,7 +902,38 @@ public class TableSpaceManager {
             if (transaction != null && transaction.isTableDropped(statement.getTable())) {
                 throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
             }
+            
+            Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(statement.getTable());
+            if (indexesOnTable != null) {
+                for (String index : indexesOnTable.keySet()) {
+                    LogEntry entry = LogEntryFactory.dropIndex(statement.getTableSpace(), index, transaction);
+                    LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+                    apply(pos, entry, false);
+                }
+            }
+
             LogEntry entry = LogEntryFactory.dropTable(statement.getTableSpace(), statement.getTable(), transaction);
+            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+            apply(pos, entry, false);
+
+            return new DDLStatementExecutionResult();
+        } catch (DataStorageManagerException | LogNotAvailableException err) {
+            throw new StatementExecutionException(err);
+        } finally {
+            generalLock.writeLock().unlock();
+        }
+    }
+
+    private StatementExecutionResult dropIndex(DropIndexStatement statement, Transaction transaction) throws StatementExecutionException {
+        try {
+            generalLock.writeLock().lock();
+            if (!indexes.containsKey(statement.getIndexName())) {
+                throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
+            }
+            if (transaction != null && transaction.isIndexDropped(statement.getIndexName())) {
+                throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
+            }
+            LogEntry entry = LogEntryFactory.dropIndex(statement.getTableSpace(), statement.getIndexName(), transaction);
             LogSequenceNumber pos;
             try {
                 pos = log.log(entry, entry.transactionId <= 0);
@@ -903,7 +974,11 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("Index" + index.name + " already present in tableSpace " + tableSpaceName);
         }
         indexes.put(index.name, indexManager);
-        indexesByTable.merge(index.table, Collections.singletonMap(index.name, indexManager), (a, b) -> {
+
+        Map<String, AbstractIndexManager> newMap = new HashMap<>(); // this must be mutable (see DROP INDEX)
+        newMap.put(index.name, indexManager);
+
+        indexesByTable.merge(index.table, newMap, (a, b) -> {
             Map<String, AbstractIndexManager> newList = new HashMap<>(a);
             newList.putAll(b);
             return newList;

@@ -61,6 +61,12 @@ public class LogEntry {
         }
     }
 
+    /**
+     *
+     * @param doo
+     * @return an estimate on the number of written bytes
+     * @throws IOException
+     */
     public int serialize(ExtendedDataOutputStream doo) throws IOException {
         doo.writeLong(timestamp); // 8
         doo.writeShort(type);  // 2
@@ -96,6 +102,9 @@ public class LogEntry {
             case LogEntryType.DROP_TABLE:
                 doo.writeUTF(tableName);
                 return 18 + tableSpace.length() + tableName.length();
+            case LogEntryType.DROP_INDEX:
+                doo.writeArray(this.value);
+                return 18 + tableSpace.length() + value.length;
             case LogEntryType.BEGINTRANSACTION:
             case LogEntryType.COMMITTRANSACTION:
             case LogEntryType.ROLLBACKTRANSACTION:
@@ -138,6 +147,9 @@ public class LogEntry {
                     break;
                 case LogEntryType.DROP_TABLE:
                     tableName = dis.readUTF();
+                    break;
+                case LogEntryType.DROP_INDEX:
+                    value = dis.readArray();
                     break;
                 case LogEntryType.CREATE_INDEX:
                     tableName = dis.readUTF();

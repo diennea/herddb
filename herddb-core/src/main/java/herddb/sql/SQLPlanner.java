@@ -103,6 +103,7 @@ import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.update.Update;
 import herddb.model.ColumnsList;
+import herddb.model.commands.DropIndexStatement;
 
 /**
  * Translates SQL to Internal API
@@ -1001,6 +1002,17 @@ public class SQLPlanner {
             }
             String tableName = drop.getName().getName();
             return new DropTableStatement(tableSpace, tableName);
+        }
+        if (drop.getType().equalsIgnoreCase("index")) {
+            if (drop.getName() == null) {
+                throw new StatementExecutionException("missing index name");
+            }
+            String tableSpace = drop.getName().getSchemaName();
+            if (tableSpace == null) {
+                tableSpace = defaultTableSpace;
+            }
+            String indexName = drop.getName().getName();
+            return new DropIndexStatement(tableSpace, indexName);
         }
 
         throw new StatementExecutionException("only DROP TABLE and TABLESPACE is supported, drop type=" + drop.getType() + " is not implemented");

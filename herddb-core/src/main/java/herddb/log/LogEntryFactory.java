@@ -22,6 +22,7 @@ package herddb.log;
 import herddb.model.Index;
 import herddb.model.Table;
 import herddb.model.Transaction;
+import herddb.utils.Bytes;
 
 /**
  * Factory for entries
@@ -42,6 +43,10 @@ public class LogEntryFactory {
 
     public static LogEntry dropTable(String tableSpace, String table, Transaction transaction) {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_TABLE, tableSpace, transaction != null ? transaction.transactionId : 0, table, null, null);
+    }
+
+    public static LogEntry dropIndex(String tableSpace, String indexName, Transaction transaction) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_INDEX, tableSpace, transaction != null ? transaction.transactionId : 0, null, null, Bytes.from_string(indexName).data);
     }
 
     public static LogEntry beginTransaction(String tablespace, long transactionId) {
