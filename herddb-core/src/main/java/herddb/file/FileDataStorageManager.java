@@ -24,13 +24,16 @@ import herddb.core.RecordSetFactory;
 import herddb.index.ConcurrentMapKeyToPageIndex;
 import herddb.index.KeyToPageIndex;
 import herddb.log.LogSequenceNumber;
+import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.FullTableScanConsumer;
+import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
@@ -125,6 +128,10 @@ public class FileDataStorageManager extends DataStorageManager {
         return getTablespaceDirectory(tablespace).resolve("tables." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".tablesmetadata");
     }
 
+    private Path getTablespaceIndexesMetadataFile(String tablespace, LogSequenceNumber sequenceNumber) {
+        return getTablespaceDirectory(tablespace).resolve("indexes." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".tablesmetadata");
+    }
+
     private Path getTablespaceTransactionsFile(String tablespace, LogSequenceNumber sequenceNumber) {
         return getTablespaceDirectory(tablespace).resolve("transactions." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".tx");
     }
@@ -133,11 +140,15 @@ public class FileDataStorageManager extends DataStorageManager {
         return getTablespaceDirectory(tableSpace).resolve(tablename + ".table");
     }
 
+    private Path getIndexDirectory(String tableSpace, String indexname) {
+        return getTablespaceDirectory(tableSpace).resolve(indexname + ".index");
+    }
+
     private Path getPageFile(Path tableDirectory, Long pageId) {
         return tableDirectory.resolve(pageId + ".page");
     }
 
-    private Path getTableCheckPointsFile(Path tableDirectory) {
+    private Path getCheckPointsFile(Path tableDirectory) {
         return tableDirectory.resolve("checkpoints");
     }
 
@@ -182,6 +193,46 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
+        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        Path pageFile = getPageFile(tableDir, pageId);
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(pageFile, StandardOpenOption.READ), 4 * 1024 * 1024);
+                DigestInputStream digest = new DigestInputStream(input, createMD5());
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
+            int flags = dataIn.readVInt(); // flags for future implementations
+            if (flags != 0) {
+                throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
+            }
+            byte[] data = dataIn.readArray();
+            byte[] computedDigest = digest.getMessageDigest().digest();
+            byte[] writtenDigest = dataIn.readArray();
+            if (!Arrays.equals(computedDigest, writtenDigest)) {
+                throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", MD5 checksum failed");
+            }
+            return data;
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public void fullIndexScan(String tableSpace, String indexName, FullIndexScanConsumer consumer) throws DataStorageManagerException {
+        IndexStatus latestStatus = readActualIndexStatus(tableSpace, indexName);
+
+        LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", status: " + latestStatus);
+        consumer.acceptIndexStatus(latestStatus);
+
+        List<Long> activePages = new ArrayList<>(latestStatus.activePages);
+        activePages.sort(null);
+        for (long idpage : activePages) {
+            byte[] records = readIndexPage(tableSpace, indexName, idpage);
+            consumer.acceptPage(idpage, records);
+            LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", page " + idpage + ", " + records.length + " bytes");
+        }
+
+    }
+
+    @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
 
         TableStatus latestStatus = readActualTableStatus(tableSpace, tableName);
@@ -209,7 +260,7 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getTableCheckPointsFile(tableDir);
+        Path keys = getCheckPointsFile(tableDir);
         LOGGER.log(Level.SEVERE, "readActualTableStatus " + tableSpace + "." + tableName + " from " + keys);
         if (!Files.isRegularFile(keys)) {
             LOGGER.log(Level.SEVERE, "readActualTableStatus " + tableSpace + "." + tableName + " from " + keys + ". file does not exist");
@@ -242,6 +293,46 @@ public class FileDataStorageManager extends DataStorageManager {
         return latestStatus;
     }
 
+    private IndexStatus readActualIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException {
+        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        try {
+            Files.createDirectories(tableDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        Path keys = getCheckPointsFile(tableDir);
+        LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys);
+        if (!Files.isRegularFile(keys)) {
+            LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys + ". file does not exist");
+            return new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null, null);
+        }
+        IndexStatus latestStatus = null;
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(keys, StandardOpenOption.READ), 4 * 1024 * 1024);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+            while (true) {
+                int marker;
+                try {
+                    marker = dataIn.readInt();
+                } catch (EOFException ok) {
+                    break;
+                }
+                if (marker == TABLE_STATUS_MARKER) {
+                    IndexStatus indexStatus = IndexStatus.deserialize(dataIn);
+                    latestStatus = indexStatus;
+                } else {
+                    throw new IOException("corrupted file " + keys + ", missing marker");
+                }
+
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        if (latestStatus == null) {
+            throw new DataStorageManagerException("table status not found on disk");
+        }
+        return latestStatus;
+    }
+
     private static final int TABLE_STATUS_MARKER = 1233;
 
     @Override
@@ -252,7 +343,7 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getTableCheckPointsFile(tableDir);
+        Path keys = getCheckPointsFile(tableDir);
         LOGGER.log(Level.SEVERE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + keys);
         try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
@@ -285,6 +376,26 @@ public class FileDataStorageManager extends DataStorageManager {
             }
         }
         return result;
+    }
+
+    @Override
+    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus) throws DataStorageManagerException {
+        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        try {
+            Files.createDirectories(tableDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        Path keys = getCheckPointsFile(tableDir);
+        LOGGER.log(Level.SEVERE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + keys);
+        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
+                ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
+            dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
+            indexStatus.serialize(dataOutputKeys);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        return Collections.emptyList();
     }
 
     private static long getPageId(Path p) {
@@ -372,6 +483,28 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException {
+        // synch on index is done by the IndexManager
+
+        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        try {
+            Files.createDirectories(tableDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        Path pageFile = getPageFile(tableDir, pageId);
+        try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
+                DigestOutputStream digest = new DigestOutputStream(output, createMD5());
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
+            dataOutput.writeVInt(0); // flags for future implementations
+            dataOutput.writeArray(page);
+            dataOutput.writeArray(digest.getMessageDigest().digest());
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
     public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
         TableStatus readActualTableStatus = readActualTableStatus(tableSpace, tableName);
         return readActualTableStatus.activePages.size();
@@ -418,17 +551,58 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables) throws DataStorageManagerException {
+    public List<Index> loadIndexes(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
+        try {
+            Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
+            Files.createDirectories(tableSpaceDirectory);
+            Path file = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
+            LOGGER.log(Level.SEVERE, "loadIndexes for tableSpace " + tableSpace + " from " + file.toAbsolutePath().toString() + ", sequenceNumber:" + sequenceNumber);
+            if (!Files.isRegularFile(file)) {
+                if (sequenceNumber.isStartOfTime()) {
+                    LOGGER.log(Level.SEVERE, "file " + file.toAbsolutePath().toString() + " not found");
+                    return Collections.emptyList();
+                } else {
+                    throw new DataStorageManagerException("local index data not available for tableSpace " + tableSpace + ", recovering from sequenceNumber " + sequenceNumber);
+                }
+            }
+            try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                String readname = din.readUTF();
+                if (!readname.equals(tableSpace)) {
+                    throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
+                }
+                long ledgerId = din.readLong();
+                long offset = din.readLong();
+                if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
+                    throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for sequence number " + sequenceNumber);
+                }
+                int numTables = din.readInt();
+                List<Index> res = new ArrayList<>();
+                for (int i = 0; i < numTables; i++) {
+                    byte[] indexData = din.readArray();
+                    Index table = Index.deserialize(indexData);
+                    res.add(table);
+                }
+                return Collections.unmodifiableList(res);
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
         if (sequenceNumber.isStartOfTime() && !tables.isEmpty()) {
             throw new DataStorageManagerException("impossible to write a non empty table list at start-of-time");
         }
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
-            Path file = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
-            Files.createDirectories(file.getParent());
-            LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString());
-            try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+            Path file_tables = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
+            Path file_indexes = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
+            Files.createDirectories(file_tables.getParent());
+            LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
+            try (OutputStream out = Files.newOutputStream(file_tables, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                     ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeUTF(tableSpace);
                 dout.writeLong(sequenceNumber.ledgerId);
@@ -437,6 +611,21 @@ public class FileDataStorageManager extends DataStorageManager {
                 for (Table t : tables) {
                     byte[] tableSerialized = t.serialize();
                     dout.writeArray(tableSerialized);
+                }
+            }
+            try (OutputStream out = Files.newOutputStream(file_indexes, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                dout.writeUTF(tableSpace);
+                dout.writeLong(sequenceNumber.ledgerId);
+                dout.writeLong(sequenceNumber.offset);
+                if (indexlist != null) {
+                    dout.writeInt(indexlist.size());
+                    for (Index t : indexlist) {
+                        byte[] indexSerialized = t.serialize();
+                        dout.writeArray(indexSerialized);
+                    }
+                } else {
+                    dout.writeInt(0);
                 }
             }
         } catch (IOException err) {
@@ -476,6 +665,17 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public void dropIndex(String tablespace, String name) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "dropIndex {0}.{1}", new Object[]{tablespace, name});
+        Path tableDir = getIndexDirectory(tablespace, name);
+        try {
+            deleteDirectory(tableDir);
+        } catch (IOException ex) {
+            throw new DataStorageManagerException(ex);
+        }
+    }
+
+    @Override
     public LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException {
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
@@ -498,6 +698,7 @@ public class FileDataStorageManager extends DataStorageManager {
             }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
+
         }
     }
 

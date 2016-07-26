@@ -26,35 +26,52 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.model.TransactionResult;
 import herddb.sql.TranslatedQuery;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Utility
+ *
  * @author enrico.olivelli
  */
 public class TestUtils {
 
     public static DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION);
+    }
+
+    public static DMLStatementExecutionResult executeUpdate(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        return (DMLStatementExecutionResult) manager.executePlan(translated.plan, translated.context, transactionContext);
+    }
+
+    public static long beginTransaction(DBManager manager, String tableSpace) throws StatementExecutionException {
+        return ((TransactionResult) execute(manager, "BEGIN TRANSACTION '" + tableSpace + "'", Collections.emptyList(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+    }
+
+    public static void commitTransaction(DBManager manager, String tableSpace, long tx) throws StatementExecutionException {
+        execute(manager, "COMMIT TRANSACTION '" + tableSpace + "','" + tx + "'", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
     }
 
     public static StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
         return execute(manager, query, parameters, TransactionContext.NO_TRANSACTION);
     }
-    
+
     public static StatementExecutionResult execute(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return manager.executePlan(translated.plan, translated.context, transactionContext);
     }
 
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;
     }
+
     public static DataScanner scan(DBManager manager, String query, List<Object> parameters, TransactionContext transactionContext) throws StatementExecutionException {
-        TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, query, parameters, true, true);
+        TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, query, parameters, true, true);
         return ((ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext)).dataScanner;
     }
 }

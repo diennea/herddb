@@ -21,33 +21,31 @@ package herddb.index;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableContext;
-import herddb.storage.DataStorageManagerException;
+import herddb.sql.SQLRecordKeyFunction;
 import herddb.utils.Bytes;
 import java.util.Map;
-import java.util.stream.Stream;
+import java.util.function.Predicate;
 
 /**
- * Index which maps every key of a table to the page which contains the key.
- * Keys assigned to new pages are assigned to a special NO_PAGE value
+ * Seek on secondary index
  *
  * @author enrico.olivelli
  */
-public interface KeyToPageIndex extends AutoCloseable {
+public class SecondaryIndexSeek implements IndexOperation {
 
-    public long size();
+    public final String indexName;
+    public final String[] columnsToMatch;
+    public final SQLRecordKeyFunction value;
 
-    public Long put(Bytes key, long currentPage);
-
-    public Iterable<Bytes> getKeysMappedToPage(long page);
-
-    public boolean containsKey(Bytes key);
-
-    public Long get(Bytes key);
-
-    public Long remove(Bytes key);
-
-    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, herddb.core.AbstractIndexManager index) throws DataStorageManagerException;
+    public SecondaryIndexSeek(String indexName, String[] columnsToMatch, SQLRecordKeyFunction value) {
+        this.indexName = indexName;
+        this.columnsToMatch = columnsToMatch;
+        this.value = value;
+    }
 
     @Override
-    public void close();
+    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext ctx, TableContext tableContext) {
+        throw new UnsupportedOperationException("Not supported"); //To change body of generated methods, choose Tools | Templates.
+    }
+
 }

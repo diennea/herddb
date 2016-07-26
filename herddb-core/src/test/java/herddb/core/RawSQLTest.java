@@ -19,9 +19,6 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -50,9 +47,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static herddb.core.TestUtils.execute;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
+import static herddb.core.TestUtils.executeUpdate;
+import static herddb.core.TestUtils.scan;
+import static herddb.core.TestUtils.execute;
+import herddb.model.IndexAlreadyExistsException;
+import herddb.model.IndexDoesNotExistException;
+import herddb.model.TableDoesNotExistException;
 
 /**
  *
@@ -76,7 +78,7 @@ public class RawSQLTest {
 
             ScanStatement scanFirst = null;
             for (int i = 0; i < 100; i++) {
-                TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList(), true, true);
+                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 if (scanFirst == null) {
@@ -765,7 +767,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
@@ -777,7 +779,7 @@ public class RawSQLTest {
                 }
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
@@ -790,7 +792,7 @@ public class RawSQLTest {
             }
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey5", Integer.valueOf(3))).getUpdateCount());
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
@@ -803,7 +805,7 @@ public class RawSQLTest {
                 }
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
@@ -833,7 +835,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
 
             {
-                TranslatedQuery translated = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList(), true, true);
 
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
@@ -851,7 +853,7 @@ public class RawSQLTest {
                 }
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey_no'", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey_no'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
@@ -859,7 +861,7 @@ public class RawSQLTest {
                 }
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey' and n1<>1234", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = 'mykey' and n1<>1234", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
@@ -921,7 +923,7 @@ public class RawSQLTest {
             }
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), false, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), false, true);
                 GetStatement st_get = (GetStatement) translate1.plan.mainStatement;
                 GetResult result = manager.get(st_get, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
@@ -932,7 +934,7 @@ public class RawSQLTest {
             }
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 999), false, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 999), false, true);
                 GetStatement st_get_with_condition = (GetStatement) translate1.plan.mainStatement;
                 GetResult result = manager.get(st_get_with_condition, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
@@ -943,7 +945,7 @@ public class RawSQLTest {
             }
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 9992), false, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 = ? and n1=?", Arrays.asList("mykey", 9992), false, true);
                 GetStatement st_get_with_wrong_condition = (GetStatement) translate1.plan.mainStatement;
                 GetResult result = manager.get(st_get_with_wrong_condition, translate1.context, TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
@@ -990,7 +992,7 @@ public class RawSQLTest {
                 assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=2138,s1='foo' where k1 = 'mykey2' and s1 is null", Collections.emptyList()).getUpdateCount());
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(1, scan1.consume().size());
@@ -998,7 +1000,7 @@ public class RawSQLTest {
 
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
@@ -1011,7 +1013,7 @@ public class RawSQLTest {
                 }
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 theKey FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 theKey FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
@@ -1023,7 +1025,7 @@ public class RawSQLTest {
                 }
             }
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> records = scan1.consume();
@@ -1040,7 +1042,7 @@ public class RawSQLTest {
             }
 
             {
-                TranslatedQuery translate1 = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 ='mykey2' and s1 is not null", Collections.emptyList(), true, true);
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.tsql where k1 ='mykey2' and s1 is not null", Collections.emptyList(), true, true);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(1, scan1.consume().size());
@@ -1096,16 +1098,16 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
 
             {
-                TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), true, true);
+                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), true, true);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(2, scan1.consume().size());
                 }
             }
-            
+
             {
-                TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 <> 1235", Arrays.asList("mykey"), true, true);
+                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 <> 1235", Arrays.asList("mykey"), true, true);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
@@ -1113,7 +1115,7 @@ public class RawSQLTest {
                 }
             }
             {
-                TranslatedQuery translate = manager.getTranslator().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 = 1235", Arrays.asList("mykey"), true, true);
+                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 = 1235", Arrays.asList("mykey"), true, true);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
@@ -1304,6 +1306,78 @@ public class RawSQLTest {
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=1", Collections.emptyList()).consume().size());
 
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE not (n1=2) or n1=3", Collections.emptyList()).consume().size());
+        }
+    }
+
+    @Test
+    public void createDropIndexTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
+            try {
+                execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
+                fail();
+            } catch (IndexAlreadyExistsException ok) {
+            }
+            execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
+
+            execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
+
+            execute(manager, "CREATE HASH INDEX ix_hash ON tblspace1.tsql(n1)", Collections.emptyList());
+
+            try {
+                execute(manager, "CREATE BADTYPE INDEX ix_bad ON tblspace1.tsql(n1)", Collections.emptyList());
+                fail();
+            } catch (StatementExecutionException ok) {
+                assertTrue(ok.getMessage().contains("badtype"));
+            }
+
+            try {
+                execute(manager, "DROP INDEX tblspace1.ix2", Collections.emptyList());
+                fail();
+            } catch (IndexDoesNotExistException ok) {
+            }
+            try {
+                execute(manager, "DROP INDEX ix1", Collections.emptyList());
+                fail();
+            } catch (IndexDoesNotExistException ok) {
+            }
+            try {
+                execute(manager, "CREATE INDEX ix2 ON tsql(n1)", Collections.emptyList());
+                fail();
+            } catch (TableDoesNotExistException ok) {
+            }
+
+            try {
+                execute(manager, "CREATE INDEX duplicatecolumn ON tblspace1.tsql(n1,n1)", Collections.emptyList());
+                fail();
+            } catch (StatementExecutionException ok) {
+            }
+
+        }
+    }
+
+    @Test
+    public void createIndexOnTableTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,"
+                    + "INDEX ix1 (n1,s1))", Collections.emptyList());
+
+            execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
+
         }
     }
 }

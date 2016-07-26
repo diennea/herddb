@@ -19,9 +19,9 @@
  */
 package herddb.sql;
 
+import herddb.core.AbstractIndexManager;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +33,7 @@ import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
@@ -67,6 +68,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.SQLUtils;
+import java.util.Map;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
@@ -100,13 +102,18 @@ import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.update.Update;
+import herddb.model.ColumnsList;
+import herddb.model.TableDoesNotExistException;
+import herddb.model.commands.CreateIndexStatement;
+import herddb.model.commands.DropIndexStatement;
+import net.sf.jsqlparser.statement.create.index.CreateIndex;
 
 /**
  * Translates SQL to Internal API
  *
  * @author enrico.olivelli
  */
-public class SQLTranslator {
+public class SQLPlanner {
 
     private final DBManager manager;
     private final PlansCache cache;
@@ -115,7 +122,7 @@ public class SQLTranslator {
         cache.clear();
     }
 
-    public SQLTranslator(DBManager manager) {
+    public SQLPlanner(DBManager manager) {
         this.manager = manager;
         this.cache = new PlansCache();
     }
@@ -205,6 +212,8 @@ public class SQLTranslator {
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
                 result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
+            } else if (stmt instanceof CreateIndex) {
+                result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
             } else if (stmt instanceof Insert) {
                 result = ExecutionPlan.simple(buildInsertStatement(defaultTableSpace, (Insert) stmt));
             } else if (stmt instanceof Delete) {
@@ -229,7 +238,7 @@ public class SQLTranslator {
                 cache.put(cacheKey, result);
             }
             return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
-        } catch (JSQLParserException | DataScannerException err) {
+        } catch (JSQLParserException | DataScannerException | net.sf.jsqlparser.parser.TokenMgrError err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
 
@@ -241,57 +250,139 @@ public class SQLTranslator {
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
-        boolean foundPk = false;
-        List<String> allColumnNames = new ArrayList<>();
-        Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
-        Set<String> primaryKey = new HashSet<>();
+        try {
+            boolean foundPk = false;
+            Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
+            Set<String> primaryKey = new HashSet<>();
 
-        if (s.getIndexes() != null) {
-            for (Index index : s.getIndexes()) {
-                if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
-                    for (String n : index.getColumnsNames()) {
-                        n = n.toLowerCase();
-                        tablebuilder.primaryKey(n);
-                        primaryKey.add(n);
-                        foundPk = true;
+            if (s.getIndexes() != null) {
+                for (Index index : s.getIndexes()) {
+                    if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
+                        for (String n : index.getColumnsNames()) {
+                            n = n.toLowerCase();
+                            tablebuilder.primaryKey(n);
+                            primaryKey.add(n);
+                            foundPk = true;
+                        }
                     }
                 }
             }
-        }
 
-        int position = 0;
-        for (ColumnDefinition cf : s.getColumnDefinitions()) {
-            String columnName = cf.getColumnName().toLowerCase();
-            allColumnNames.add(columnName);
-            int type;
-            String dataType = cf.getColDataType().getDataType();
-            type = sqlDataTypeToColumnType(dataType);
-            tablebuilder.column(columnName, type, position++);
+            int position = 0;
+            for (ColumnDefinition cf : s.getColumnDefinitions()) {
+                String columnName = cf.getColumnName().toLowerCase();
+                int type;
+                String dataType = cf.getColDataType().getDataType();
+                type = sqlDataTypeToColumnType(dataType);
+                tablebuilder.column(columnName, type, position++);
 
-            if (cf.getColumnSpecStrings() != null) {
-                List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
-                boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
-                if (columnSpecs.contains("PRIMARY")) {
-                    foundPk = true;
-                    tablebuilder.primaryKey(columnName, auto_increment);
-                }
-                if (auto_increment && primaryKey.contains(cf.getColumnName())) {
-                    tablebuilder.primaryKey(columnName, auto_increment);
+                if (cf.getColumnSpecStrings() != null) {
+                    List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
+                    boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
+                    if (columnSpecs.contains("PRIMARY")) {
+                        foundPk = true;
+                        tablebuilder.primaryKey(columnName, auto_increment);
+                    }
+                    if (auto_increment && primaryKey.contains(cf.getColumnName())) {
+                        tablebuilder.primaryKey(columnName, auto_increment);
+                    }
                 }
             }
-        }
 
-        if (!foundPk) {
-            tablebuilder.column("_pk", ColumnTypes.LONG, position++);
-            tablebuilder.primaryKey("_pk", true);
-        }
+            if (!foundPk) {
+                tablebuilder.column("_pk", ColumnTypes.LONG, position++);
+                tablebuilder.primaryKey("_pk", true);
+            }
 
-        try {
-            CreateTableStatement statement = new CreateTableStatement(tablebuilder.build());
+            Table table = tablebuilder.build();
+            List<herddb.model.Index> otherIndexes = new ArrayList<>();
+            if (s.getIndexes() != null) {
+                for (Index index : s.getIndexes()) {
+                    if (index.getType().equalsIgnoreCase("PRIMARY KEY")) {
+
+                    } else if (index.getType().equalsIgnoreCase("INDEX")) {
+                        String indexName = index.getName().toLowerCase();
+                        String indexType = convertIndexType(null);
+
+                        herddb.model.Index.Builder builder = herddb.model.Index
+                                .builder()
+                                .name(indexName)
+                                .type(indexType)
+                                .table(tableName)
+                                .tablespace(tableSpace);
+
+                        for (String columnName : index.getColumnsNames()) {
+                            columnName = columnName.toLowerCase();
+                            Column column = table.getColumn(columnName);
+                            if (column == null) {
+                                throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+                            }
+                            builder.column(column.name, column.type);
+                        }
+
+                        otherIndexes.add(builder.build());
+                    }
+                }
+            }
+
+            CreateTableStatement statement = new CreateTableStatement(table, otherIndexes);
             return statement;
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition: " + err.getMessage(), err);
         }
+    }
+
+    private Statement buildCreateIndexStatement(String defaultTableSpace, CreateIndex s) throws StatementExecutionException {
+        try {
+            String tableSpace = s.getTable().getSchemaName();
+            if (tableSpace == null) {
+                tableSpace = defaultTableSpace;
+            }
+            String tableName = s.getTable().getName().toLowerCase();
+
+            String indexName = s.getIndex().getName().toLowerCase();
+            String indexType = convertIndexType(s.getIndex().getType());
+
+            herddb.model.Index.Builder builder = herddb.model.Index
+                    .builder()
+                    .name(indexName)
+                    .type(indexType)
+                    .table(tableName)
+                    .tablespace(tableSpace);
+
+            AbstractTableManager tableDefinition = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
+            if (tableDefinition == null) {
+                throw new TableDoesNotExistException("no such table " + tableName + " in tablespace " + tableSpace);
+            }
+            for (String columnName : s.getIndex().getColumnsNames()) {
+                columnName = columnName.toLowerCase();
+                Column column = tableDefinition.getTable().getColumn(columnName);
+                if (column == null) {
+                    throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+                }
+                builder.column(column.name, column.type);
+            }
+
+            CreateIndexStatement statement = new CreateIndexStatement(builder.build());
+            return statement;
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException("bad index definition: " + err.getMessage(), err);
+        }
+    }
+
+    private String convertIndexType(String indexType) throws StatementExecutionException {
+        if (indexType == null) {
+            indexType = herddb.model.Index.TYPE_HASH;
+        } else {
+            indexType = indexType.toLowerCase();
+        }
+        switch (indexType) {
+            case herddb.model.Index.TYPE_HASH:
+                break;
+            default:
+                throw new StatementExecutionException("Invalid index type " + indexType);
+        }
+        return indexType;
     }
 
     private int sqlDataTypeToColumnType(String dataType) throws StatementExecutionException {
@@ -566,21 +657,21 @@ public class SQLTranslator {
         throw new StatementExecutionException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
-    private Expression findConstraintOnColumnEqualsTo(Expression where, String columnName, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression findConstraintOnColumnEqualsTo(Expression where, String columnName, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = validateColumnEqualsToExpression(and.getLeftExpression(), columnName, table, tableAlias, jdbcParameterPos);
+            Expression keyOnLeft = validateColumnEqualsToExpression(and.getLeftExpression(), columnName, tableAlias, jdbcParameterPos);
             if (keyOnLeft != null) {
                 return keyOnLeft;
             }
             int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
 
-            Expression keyOnRight = validateColumnEqualsToExpression(and.getRightExpression(), columnName, table, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
+            Expression keyOnRight = validateColumnEqualsToExpression(and.getRightExpression(), columnName, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
             if (keyOnRight != null) {
                 return keyOnRight;
             }
         } else if (where instanceof EqualsTo) {
-            Expression keyDirect = validateColumnEqualsToExpression(where, columnName, table, tableAlias, jdbcParameterPos);
+            Expression keyDirect = validateColumnEqualsToExpression(where, columnName, tableAlias, jdbcParameterPos);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -590,10 +681,14 @@ public class SQLTranslator {
     }
 
     private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+        return findIndexSeek(where, table.primaryKey, table, tableAlias, jdbcParameterPos);
+    }
+
+    private SQLRecordKeyFunction findIndexSeek(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         List<Expression> expressions = new ArrayList<>();
         List<String> columns = new ArrayList<>();
-        for (String pk : table.primaryKey) {
-            Expression condition = findConstraintOnColumnEqualsTo(where, pk, table, tableAlias, jdbcParameterPos);
+        for (String pk : columnsToMatch) {
+            Expression condition = findConstraintOnColumnEqualsTo(where, pk, tableAlias, jdbcParameterPos);
             if (condition == null) {
                 break;
             }
@@ -621,7 +716,7 @@ public class SQLTranslator {
         }
     }
 
-    private Expression validateColumnEqualsToExpression(Expression testExpression, String columnName, Table table1, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression validateColumnEqualsToExpression(Expression testExpression, String columnName, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
         Expression result = null;
         if (testExpression instanceof EqualsTo) {
             EqualsTo e = (EqualsTo) testExpression;
@@ -635,12 +730,12 @@ public class SQLTranslator {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintOnColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, table1, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintOnColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, table1, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, tableAlias, jdbcParameterPos);
                 if (result != null) {
                     return result;
                 }
@@ -663,11 +758,11 @@ public class SQLTranslator {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
+            throw new TableSpaceDoesNotExistException("no such tablespace " + tableSpace + " here");
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
+            throw new TableDoesNotExistException("no such table " + tableName + " in tablepace " + tableSpace);
         }
 
         Table table = tableManager.getTable();
@@ -693,18 +788,35 @@ public class SQLTranslator {
         }
         if (scan) {
 
-            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;            
+            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;
             if (where != null) {
-                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());                
+                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());
                 if (keyFunction != null) {
                     if (keyFunction.isFullPrimaryKey()) {
                         where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
                     } else {
                         where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
                     }
+                } else {
+                    Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+                    if (indexes != null) {
+                        // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
+                        for (AbstractIndexManager index : indexes.values()) {
+                            if (!index.isCommitted()) {
+                                continue;
+                            }
+                            String[] columnsToMatch = index.getColumnNames();
+                            SQLRecordKeyFunction indexSeekFunction = findIndexSeek(selectBody.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger());
+                            if (indexSeekFunction != null) {
+                                where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                                break;
+                            }
+                        }
+                    }
                 }
             }
-            
 
             Aggregator aggregator = null;
             ScanLimits limitsOnScan = null;
@@ -977,6 +1089,17 @@ public class SQLTranslator {
             }
             String tableName = drop.getName().getName();
             return new DropTableStatement(tableSpace, tableName);
+        }
+        if (drop.getType().equalsIgnoreCase("index")) {
+            if (drop.getName() == null) {
+                throw new StatementExecutionException("missing index name");
+            }
+            String tableSpace = drop.getName().getSchemaName();
+            if (tableSpace == null) {
+                tableSpace = defaultTableSpace;
+            }
+            String indexName = drop.getName().getName();
+            return new DropIndexStatement(tableSpace, indexName);
         }
 
         throw new StatementExecutionException("only DROP TABLE and TABLESPACE is supported, drop type=" + drop.getType() + " is not implemented");

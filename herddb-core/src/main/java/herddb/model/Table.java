@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * @author enrico.olivelli
  */
-public class Table {
+public class Table implements ColumnsList {
 
     public final String name;
     public final String tablespace;
@@ -135,8 +135,19 @@ public class Table {
         return oo.toByteArray();
     }
 
+    @Override
     public Column getColumn(String cname) {
         return columnsByName.get(cname.toLowerCase());
+    }
+
+    @Override
+    public Column[] getColumns() {
+        return columns;
+    }
+
+    @Override
+    public String[] getPrimaryKey() {
+        return primaryKey;
     }
 
     public Table applyAlterTable(AlterTableStatement alterTableStatement) {

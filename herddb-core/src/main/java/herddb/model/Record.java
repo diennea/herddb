@@ -22,6 +22,7 @@ package herddb.model;
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
 import java.lang.ref.SoftReference;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -43,7 +44,7 @@ public class Record {
     public synchronized Map<String, Object> toBean(Table table) {
         Map<String, Object> cached = cache != null ? cache.get() : null;
         if (cached == null) {
-            cached = RecordSerializer.toBean(this, table);
+            cached = Collections.unmodifiableMap(RecordSerializer.toBean(this, table));
             cache = new SoftReference<>(cached);
         }
         return cached;

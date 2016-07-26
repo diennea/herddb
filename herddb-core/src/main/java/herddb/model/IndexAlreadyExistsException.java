@@ -17,25 +17,17 @@
  under the License.
 
  */
-package herddb.log;
+package herddb.model;
 
 /**
- * Types of log entry
+ * a Index already exists
  *
  * @author enrico.olivelli
  */
-public class LogEntryType {
+public class IndexAlreadyExistsException extends DDLException {
 
-    public static final short CREATE_TABLE = 1;
-    public static final short INSERT = 2;
-    public static final short UPDATE = 3;
-    public static final short DELETE = 4;
-    public static final short BEGINTRANSACTION = 5;
-    public static final short COMMITTRANSACTION = 6;
-    public static final short ROLLBACKTRANSACTION = 7;
-    public static final short ALTER_TABLE = 8;
-    public static final short DROP_TABLE = 9;
-    public static final short CREATE_INDEX = 10;    
-    public static final short DROP_INDEX = 11;    
+    public IndexAlreadyExistsException(String message) {
+        super(message);
+    }
 
 }

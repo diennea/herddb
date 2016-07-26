@@ -139,6 +139,10 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
+    public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException {
+    }
+
+    @Override
     public long getNextPrimaryKeyValue() {
         return -1;
     }
@@ -158,7 +162,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
         Predicate predicate = statement.getPredicate();
-        MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
+        MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
         for (Record record : buildVirtualRecordList()) {
             if (predicate == null || predicate.evaluate(record, context)) {
                 recordSet.add(new Tuple(record.toBean(table)));

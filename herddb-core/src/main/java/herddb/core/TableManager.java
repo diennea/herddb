@@ -24,6 +24,7 @@ import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
 import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexSeek;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -250,7 +251,7 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void start() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {1}", new Object[]{keyToPage.size(), table.name});
+        LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {0}", new Object[]{table.name});
         Set<Long> activePagesAtBoot = new HashSet<>();
         bootSequenceNumber = log.getLastSequenceNumber();
 
@@ -694,34 +695,79 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
-    private void applyDelete(Bytes key) {
+    private void applyDelete(Bytes key) throws DataStorageManagerException {
         Long pageId = keyToPage.remove(key);
         if (pageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
         deletedKeys.add(key);
-        buffer.remove(key);
+        Record record = buffer.remove(key);
         if (!NO_PAGE.equals(pageId)) {
             dirtyPages.add(pageId);
         }
         dirtyRecords.incrementAndGet();
+
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        if (indexes != null) {
+            if (record == null) {
+                throw new RuntimeException("deleted record at " + key + " was not loaded in buffer, cannot update indexes");
+            }
+            Map<String, Object> values = record.toBean(table);
+            for (AbstractIndexManager index : indexes.values()) {
+                index.recordInserted(key, values);
+            }
+        }
     }
 
-    private void applyUpdate(Bytes key, Bytes value) {
+    private void applyUpdate(Bytes key, Bytes value) throws DataStorageManagerException {
         Long pageId = keyToPage.put(key, NO_PAGE);
         if (pageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
-        buffer.put(key, new Record(key, value));
+        Record newRecord = new Record(key, value);
+        Record previous = buffer.put(key, newRecord);
         if (!NO_PAGE.equals(pageId)) {
             dirtyPages.add(pageId);
         }
-        dirtyRecords.incrementAndGet();
+        dirtyRecords.incrementAndGet();        
+
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        if (indexes != null) {
+            if (previous == null) {
+                throw new RuntimeException("updated record at " + key + " was not loaded in buffer, cannot update indexes");
+            }
+            Map<String, Object> prevValues = previous.toBean(table);
+            Map<String, Object> newValues = newRecord.toBean(table);            
+            for (AbstractIndexManager index : indexes.values()) {
+                index.recordUpdated(key, prevValues, newValues);
+            }
+        }
     }
 
     @Override
     public void dropTableData() throws DataStorageManagerException {
         dataStorageManager.dropTable(tableSpaceUUID, table.name);
+    }
+
+    @Override
+    public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException {
+        Consumer<Map.Entry<Bytes, Long>> scanExecutor = (Map.Entry<Bytes, Long> entry) -> {
+            Bytes key = entry.getKey();
+            LockHandle lock = lockForRead(key, null);
+            try {
+                Long pageId = entry.getValue();
+                if (pageId != null) {
+                    Record record = fetchRecord(key, pageId);
+                    records.accept(record);
+                }
+            } catch (DataStorageManagerException | StatementExecutionException error) {
+                throw new RuntimeException(error);
+            } finally {
+                locksManager.releaseReadLockForKey(key, lock);
+            }
+        };
+        Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
+        scanner.forEach(scanExecutor);
     }
 
     @Override
@@ -749,14 +795,14 @@ public class TableManager implements AbstractTableManager {
         });
     }
 
-    void writeFromDump(List<Record> record) {
+    void writeFromDump(List<Record> record) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
         for (Record r : record) {
             applyInsert(r.key, r.value);
         }
     }
 
-    private void applyInsert(Bytes key, Bytes value) {
+    private void applyInsert(Bytes key, Bytes value) throws DataStorageManagerException {
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value            
             long pk_logical_value;
@@ -775,9 +821,19 @@ public class TableManager implements AbstractTableManager {
                 dirtyPages.add(pageId);
             }
         }
-        buffer.put(key, new Record(key, value));
+        Record record = new Record(key, value);
+        buffer.put(key, record);
         deletedKeys.remove(key);
         dirtyRecords.incrementAndGet();
+
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        if (indexes != null) {
+            Map<String, Object> values = record.toBean(table);
+            for (AbstractIndexManager index : indexes.values()) {
+                index.recordInserted(key, values);
+            }
+        }
+
     }
 
     private void autoFlush() throws DataStorageManagerException {
@@ -912,7 +968,7 @@ public class TableManager implements AbstractTableManager {
                     recordsOnDirtyPages.add(key);
                 }
             }
-            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext);
+            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
             scanner.forEach((Map.Entry<Bytes, Long> recordToPage) -> {
                 Long pageId = recordToPage.getValue();
                 if (dirtyPages.contains(pageId)) {
@@ -975,7 +1031,7 @@ public class TableManager implements AbstractTableManager {
 
         Predicate predicate = statement.getPredicate();
         long _start = System.currentTimeMillis();
-        MaterializedRecordSet recordSet = tableSpaceManager.getManager().getRecordSetFactory().createRecordSet(table.columns);
+        MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
         try {
             if (predicate != null && predicate.getIndexOperation() instanceof PrimaryIndexSeek) {
                 PrimaryIndexSeek seek = (PrimaryIndexSeek) predicate.getIndexOperation();
@@ -1031,7 +1087,17 @@ public class TableManager implements AbstractTableManager {
                         }
                     }
                 };
-                Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext);
+
+                AbstractIndexManager useIndex = null;
+                if (indexOperation instanceof SecondaryIndexSeek) {
+                    Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+                    if (indexes != null) {
+                        SecondaryIndexSeek sis = (SecondaryIndexSeek) indexOperation;
+                        useIndex = indexes.get(sis.indexName);
+                    }
+                }
+                Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
+
                 try {
                     scanner.forEachOrdered(scanExecutor);
                 } catch (final Exception error) {

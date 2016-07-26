@@ -36,6 +36,7 @@ import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
+import herddb.model.ColumnsList;
 
 /**
  * Record mutator using SQL
@@ -48,11 +49,11 @@ public class SQLRecordKeyFunction extends RecordFunction {
     private final herddb.model.Column[] columns;
     private final String[] pkColumnNames;
     private final int jdbcParametersStartPos;
-    private final Table table;
+    private final ColumnsList table;
     private final boolean fullPrimaryKey;
     private final boolean isConstant;
 
-    public SQLRecordKeyFunction(Table table, List<String> expressionToColumn, List<Expression> expressions, int jdbcParametersStartPos) {
+    public SQLRecordKeyFunction(ColumnsList table, List<String> expressionToColumn, List<Expression> expressions, int jdbcParametersStartPos) {
         this.jdbcParametersStartPos = jdbcParametersStartPos;
         this.table = table;
         this.columns = new Column[expressions.size()];
@@ -72,12 +73,13 @@ public class SQLRecordKeyFunction extends RecordFunction {
         }
         this.isConstant = constant;
         int k = 0;
-        for (String pk : table.primaryKey) {
+        String[] primaryKey = table.getPrimaryKey();
+        for (String pk : primaryKey) {
             if (expressionToColumn.contains(pk)) {
                 this.pkColumnNames[k++] = pk;
             }
         }
-        this.fullPrimaryKey = (table.primaryKey.length == columns.length);
+        this.fullPrimaryKey = (primaryKey.length == columns.length);
     }
 
     public boolean isFullPrimaryKey() {
