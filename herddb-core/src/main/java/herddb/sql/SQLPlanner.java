@@ -103,7 +103,10 @@ import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.update.Update;
 import herddb.model.ColumnsList;
+import herddb.model.TableDoesNotExistException;
+import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.DropIndexStatement;
+import net.sf.jsqlparser.statement.create.index.CreateIndex;
 
 /**
  * Translates SQL to Internal API
@@ -209,6 +212,8 @@ public class SQLPlanner {
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof CreateTable) {
                 result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
+            } else if (stmt instanceof CreateIndex) {
+                result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
             } else if (stmt instanceof Insert) {
                 result = ExecutionPlan.simple(buildInsertStatement(defaultTableSpace, (Insert) stmt));
             } else if (stmt instanceof Delete) {
@@ -295,6 +300,46 @@ public class SQLPlanner {
             return statement;
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition: " + err.getMessage(), err);
+        }
+    }
+
+    private Statement buildCreateIndexStatement(String defaultTableSpace, CreateIndex s) throws StatementExecutionException {
+        String tableSpace = s.getTable().getSchemaName();
+        String tableName = s.getTable().getName().toLowerCase();
+        String indexName = s.getIndex().getName().toLowerCase();
+        String indexType = s.getIndex().getType();
+        if (indexType == null) {
+            indexType = herddb.model.Index.TYPE_HASH;
+        }
+
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        herddb.model.Index.Builder builder = herddb.model.Index
+                .builder()
+                .name(indexName)
+                .table(tableName)
+                .tablespace(tableSpace);
+
+        AbstractTableManager tableDefinition = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
+        if (tableDefinition == null) {
+            throw new TableDoesNotExistException("no such table " + tableName + " in tablespace " + tableSpace);
+        }
+
+        for (String columnName : s.getIndex().getColumnsNames()) {
+            columnName = columnName.toLowerCase();
+            Column column = tableDefinition.getTable().getColumn(columnName);
+            if (column == null) {
+                throw new StatementExecutionException("no such column " + columnName + " on table " + tableName + " in tablespace " + tableSpace);
+            }
+            builder.column(column.name, column.type);
+        }
+
+        try {
+            CreateIndexStatement statement = new CreateIndexStatement(builder.build());
+            return statement;
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException("bad index definition: " + err.getMessage(), err);
         }
     }
 

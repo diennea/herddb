@@ -70,6 +70,9 @@ import static herddb.core.TestUtils.scan;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static herddb.core.TestUtils.execute;
+import herddb.model.IndexAlreadyExistsException;
+import herddb.model.IndexDoesNotExistException;
+import herddb.model.TableDoesNotExistException;
 
 /**
  *
@@ -1120,7 +1123,7 @@ public class RawSQLTest {
                     assertEquals(2, scan1.consume().size());
                 }
             }
-            
+
             {
                 TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 <> 1235", Arrays.asList("mykey"), true, true);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
@@ -1321,6 +1324,47 @@ public class RawSQLTest {
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE n1=1 or n1=1", Collections.emptyList()).consume().size());
 
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE not (n1=2) or n1=3", Collections.emptyList()).consume().size());
+        }
+    }
+
+    @Test
+    public void createDropIndexTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
+            try {
+                execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
+                fail();
+            } catch (IndexAlreadyExistsException ok) {
+            }
+            execute(manager, "DROP INDEX tblspace1.ix1", Collections.emptyList());
+
+            execute(manager, "CREATE INDEX ix1 ON tblspace1.tsql(n1)", Collections.emptyList());
+
+            try {
+                execute(manager, "DROP INDEX tblspace1.ix2", Collections.emptyList());
+                fail();
+            } catch (IndexDoesNotExistException ok) {
+            }
+            try {
+                execute(manager, "DROP INDEX ix1", Collections.emptyList());
+                fail();
+            } catch (IndexDoesNotExistException ok) {
+            }
+            try {
+                execute(manager, "CREATE INDEX ix2 ON tsql(n1)", Collections.emptyList());
+                fail();
+            } catch (TableDoesNotExistException ok) {
+
+            }
+
         }
     }
 }

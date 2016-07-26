@@ -48,6 +48,7 @@ import herddb.model.TransactionResult;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.Index;
+import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
 import herddb.model.NodeMetadata;
 import herddb.model.Record;
@@ -873,7 +874,7 @@ public class TableSpaceManager {
         generalLock.writeLock().lock();
         try {
             if (indexes.containsKey(statement.getIndexefinition().name)) {
-                throw new TableAlreadyExistsException(statement.getIndexefinition().name);
+                throw new IndexAlreadyExistsException(statement.getIndexefinition().name);
             }
             LogEntry entry = LogEntryFactory.createIndex(statement.getIndexefinition(), transaction);
             LogSequenceNumber pos;
