@@ -124,7 +124,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             Map<String, Object> values = r.toBean(table);
             Bytes key = RecordSerializer.serializePrimaryKey(values, table);
             LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
-            recordInserted(key, values, null);
+            recordInserted(key, values);
         });
         long _stop = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "rebuilding index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
@@ -185,7 +185,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordDeleted(Bytes key, Map<String, Object> values, Transaction transaction) {
+    public void recordDeleted(Bytes key, Map<String, Object> values) {
         Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index);
         if (indexKey == null) {
             // valore non indicizzabile, contiene dei null
@@ -206,7 +206,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordInserted(Bytes key, Map<String, Object> values, Transaction transaction) {
+    public void recordInserted(Bytes key, Map<String, Object> values) {
         Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index);
         if (indexKey == null) {
             // valore non indicizzabile, contiene dei null
@@ -225,7 +225,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues, Transaction transaction) {
+    public void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues) {
         Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(previousValues, index);
         Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, index);
         if (indexKeyRemoved == null && indexKeyAdded == null) {

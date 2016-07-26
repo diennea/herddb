@@ -92,7 +92,7 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
-    public Stream<Map.Entry<Bytes, Long>> recordSetScanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, KeyToPageIndex keyToPageIndex) {
+    public Stream<Map.Entry<Bytes, Long>> recordSetScanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, KeyToPageIndex keyToPageIndex) throws DataStorageManagerException {
         return scanner(operation, context, tableContext).map((Bytes b) -> {
             Long idPage = keyToPageIndex.get(b);
             if (idPage == null) {
@@ -102,15 +102,15 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         }).filter(p -> p != null);
     }
 
-    public void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues, Transaction transaction) {
+    public void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues) throws DataStorageManagerException {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
-    public void recordInserted(Bytes key, Map<String, Object> values, Transaction transaction) {
+    public void recordInserted(Bytes key, Map<String, Object> values) throws DataStorageManagerException {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
-    public void recordDeleted(Bytes key, Map<String, Object> values, Transaction transaction) {
+    public void recordDeleted(Bytes key, Map<String, Object> values) throws DataStorageManagerException {
         throw new UnsupportedOperationException("Not supported yet.");
     }
 }

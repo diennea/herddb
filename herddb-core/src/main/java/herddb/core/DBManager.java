@@ -381,13 +381,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 return dropTableSpace((DropTableSpaceStatement) statement);
             }
 
-            TableSpaceManager manager;
-            generalLock.readLock().lock();
-            try {
-                manager = tablesSpaces.get(tableSpace);
-            } finally {
-                generalLock.readLock().unlock();
-            }
+            TableSpaceManager manager = tablesSpaces.get(tableSpace);
             if (manager == null) {
                 throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
             }
@@ -491,13 +485,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         if (tableSpace == null) {
             throw new StatementExecutionException("invalid tableSpace " + tableSpace);
         }
-        TableSpaceManager manager;
-        generalLock.readLock().lock();
-        try {
-            manager = tablesSpaces.get(tableSpace);
-        } finally {
-            generalLock.readLock().unlock();
-        }
+        TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
         }

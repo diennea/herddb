@@ -48,8 +48,9 @@ public class SimpleClientScanDiscoverTableSpaceTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                connection.executeUpdate(TableSpace.DEFAULT, "EXECUTE CREATETABLESPACE 'foo','wait:100000'", 0, Collections.emptyList());
                 
-                connection.executeUpdate(TableSpace.DEFAULT, "EXECUTE CREATETABLESPACE 'foo'", 0, Collections.emptyList());                
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE foo.mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
@@ -69,7 +70,7 @@ public class SimpleClientScanDiscoverTableSpaceTest {
 
                 // single fetch result test
                 assertEquals(1, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM foo.mytable WHERE id='test_1'", Collections.emptyList(), 0, 0, 10).consume().size());
-                
+
                 // single fetch result test
                 assertEquals(1, connection.executeScan("foo", "SELECT * FROM mytable WHERE id='test_1'", Collections.emptyList(), 0, 0, 10).consume().size());
 

@@ -222,7 +222,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (err instanceof NotLeaderException) {
                         error.setParameter("notLeader", "true");
                     }
-                    _channel.sendReplyMessage(message, error);
+                    _channel.sendReplyMessage(message, error);                    
                 }
             }
             break;

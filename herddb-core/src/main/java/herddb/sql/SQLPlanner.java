@@ -232,7 +232,7 @@ public class SQLPlanner {
                 cache.put(cacheKey, result);
             }
             return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
-        } catch (JSQLParserException | DataScannerException err) {
+        } catch (JSQLParserException | DataScannerException | net.sf.jsqlparser.parser.TokenMgrError err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
 

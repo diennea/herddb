@@ -695,7 +695,7 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
-    private void applyDelete(Bytes key) {
+    private void applyDelete(Bytes key) throws DataStorageManagerException {
         Long pageId = keyToPage.remove(key);
         if (pageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
@@ -714,12 +714,12 @@ public class TableManager implements AbstractTableManager {
             }
             Map<String, Object> values = record.toBean(table);
             for (AbstractIndexManager index : indexes.values()) {
-                index.recordInserted(key, values, null);
+                index.recordInserted(key, values);
             }
         }
     }
 
-    private void applyUpdate(Bytes key, Bytes value) {
+    private void applyUpdate(Bytes key, Bytes value) throws DataStorageManagerException {
         Long pageId = keyToPage.put(key, NO_PAGE);
         if (pageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
@@ -743,7 +743,7 @@ public class TableManager implements AbstractTableManager {
             System.out.println("prevValues " + prevValues);
             System.out.println("newValues " + newValues);
             for (AbstractIndexManager index : indexes.values()) {
-                index.recordUpdated(key, prevValues, newValues, null);
+                index.recordUpdated(key, prevValues, newValues);
             }
         }
     }
@@ -799,14 +799,14 @@ public class TableManager implements AbstractTableManager {
         });
     }
 
-    void writeFromDump(List<Record> record) {
+    void writeFromDump(List<Record> record) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
         for (Record r : record) {
             applyInsert(r.key, r.value);
         }
     }
 
-    private void applyInsert(Bytes key, Bytes value) {
+    private void applyInsert(Bytes key, Bytes value) throws DataStorageManagerException {
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value            
             long pk_logical_value;
@@ -834,7 +834,7 @@ public class TableManager implements AbstractTableManager {
         if (indexes != null) {
             Map<String, Object> values = record.toBean(table);
             for (AbstractIndexManager index : indexes.values()) {
-                index.recordInserted(key, values, null);
+                index.recordInserted(key, values);
             }
         }
 

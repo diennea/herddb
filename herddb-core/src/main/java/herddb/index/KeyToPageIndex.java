@@ -21,6 +21,7 @@ package herddb.index;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableContext;
+import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -45,7 +46,7 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     public Long remove(Bytes key);
 
-    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, herddb.core.AbstractIndexManager index);
+    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, herddb.core.AbstractIndexManager index) throws DataStorageManagerException;
 
     @Override
     public void close();

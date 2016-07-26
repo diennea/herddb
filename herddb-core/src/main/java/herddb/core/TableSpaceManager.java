@@ -326,11 +326,11 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     throw new UnsupportedOperationException("CREATE INDEX IN TRANSACTION IS NOT SUPPORTED YET");
                 }
-                AbstractTableManager table = tables.get(index.table);
-                if (table == null) {
+                AbstractTableManager tableManager = tables.get(index.table);
+                if (tableManager == null) {
                     throw new RuntimeException("table " + index.table + " does not exists");
                 }
-                bootIndex(index, table, entry.transactionId, true);
+                bootIndex(index, tableManager, entry.transactionId, true);
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager(position);
                 }
@@ -400,22 +400,16 @@ public class TableSpaceManager {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
         String table = statement.getTable();
-        AbstractTableManager manager;
-        generalLock.readLock().lock();
-        try {
-            manager = tables.get(table);
-        } finally {
-            generalLock.readLock().unlock();
-        }
-        if (manager == null) {
+        AbstractTableManager tableManager = tables.get(table);
+        if (tableManager == null) {
             throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
         }
-        if (manager.getCreatedInTransaction() > 0) {
-            if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
-                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
+        if (tableManager.getCreatedInTransaction() > 0) {
+            if (transaction == null || transaction.transactionId != tableManager.getCreatedInTransaction()) {
+                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + tableManager.getCreatedInTransaction());
             }
         }
-        return manager.scan(statement, context, transaction);
+        return tableManager.scan(statement, context, transaction);
     }
 
     private void downloadTableSpaceData() throws MetadataStorageManagerException, DataStorageManagerException, LogNotAvailableException {
@@ -485,19 +479,14 @@ public class TableSpaceManager {
         if (transactionContext.transactionId > 0) {
             throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
         }
-        AbstractTableManager manager;
-        generalLock.writeLock().lock();
-        try {
-            manager = tables.get(alterTableStatement.getTable());
-            if (manager == null) {
-                throw new TableDoesNotExistException("no table " + alterTableStatement.getTable() + " in tablespace " + tableSpaceName);
-            }
-        } finally {
-            generalLock.writeLock().unlock();
+        AbstractTableManager tableManager = tables.get(alterTableStatement.getTable());
+        if (tableManager == null) {
+            throw new TableDoesNotExistException("no table " + alterTableStatement.getTable() + " in tablespace " + tableSpaceName);
         }
+
         Table newTable;
         try {
-            newTable = manager.getTable().applyAlterTable(alterTableStatement);
+            newTable = tableManager.getTable().applyAlterTable(alterTableStatement);
         } catch (IllegalArgumentException error) {
             throw new StatementExecutionException(error);
         }
@@ -776,13 +765,7 @@ public class TableSpaceManager {
         if (statement instanceof TableAwareStatement) {
             TableAwareStatement st = (TableAwareStatement) statement;
             String table = st.getTable();
-            AbstractTableManager manager;
-            generalLock.readLock().lock();
-            try {
-                manager = tables.get(table);
-            } finally {
-                generalLock.readLock().unlock();
-            }
+            AbstractTableManager manager = tables.get(table);
             if (manager == null) {
                 throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
             }
