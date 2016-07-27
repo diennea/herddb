@@ -20,6 +20,7 @@
 package herddb.index;
 
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
@@ -83,14 +84,18 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
         // every predicate (WHEREs...) will always be evaluated anyway on every record, in order to guarantee correctness        
         Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
         if (index != null) {
-            return index.recordSetScanner(operation, context, tableContext, this);
+            try {
+                return index.recordSetScanner(operation, context, tableContext, this);
+            } catch (StatementExecutionException err) {
+                throw new DataStorageManagerException(err);
+            }
         }
         if (operation == null) {
             return baseStream;
         } else if (operation instanceof PrimaryIndexPrefixScan) {
             return baseStream.filter(operation.toStreamPredicate(context, tableContext));
         } else {
-            throw new IllegalArgumentException("operation " + operation + " not implemented on " + this.getClass());
+            throw new DataStorageManagerException("operation " + operation + " not implemented on " + this.getClass());
         }
     }
 

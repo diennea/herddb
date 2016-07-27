@@ -729,7 +729,7 @@ public class TableManager implements AbstractTableManager {
         if (!NO_PAGE.equals(pageId)) {
             dirtyPages.add(pageId);
         }
-        dirtyRecords.incrementAndGet();        
+        dirtyRecords.incrementAndGet();
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
@@ -737,7 +737,7 @@ public class TableManager implements AbstractTableManager {
                 throw new RuntimeException("updated record at " + key + " was not loaded in buffer, cannot update indexes");
             }
             Map<String, Object> prevValues = previous.toBean(table);
-            Map<String, Object> newValues = newRecord.toBean(table);            
+            Map<String, Object> newValues = newRecord.toBean(table);
             for (AbstractIndexManager index : indexes.values()) {
                 index.recordUpdated(key, prevValues, newValues);
             }
