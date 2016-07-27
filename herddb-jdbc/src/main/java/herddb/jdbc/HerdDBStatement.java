@@ -214,9 +214,9 @@ public class HerdDBStatement implements java.sql.Statement {
     @Override
     public ResultSet getGeneratedKeys() throws SQLException {
         if (lastKey != null) {
-            return new HerdDBResultSet(new SingletonScanResultSet(lastKey));
+            return new HerdDBResultSet(new SingletonScanResultSet(0, lastKey));
         } else {
-            return new HerdDBResultSet(new EmptyScanResultSet());
+            return new HerdDBResultSet(new EmptyScanResultSet(0));
         }
     }
 

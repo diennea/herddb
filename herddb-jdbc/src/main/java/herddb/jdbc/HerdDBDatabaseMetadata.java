@@ -648,12 +648,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern, String columnNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
@@ -748,23 +748,23 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                             "SELF_REFERENCING_COL_NAME",
                             "REF_GENERATION"
                     ));
-            return new HerdDBResultSet(new IteratorScanResultSet(metadata, results.iterator()));
+            return new HerdDBResultSet(new IteratorScanResultSet(0,metadata, results.iterator()));
         }
     }
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getCatalogs() throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getTableTypes() throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     /**
@@ -947,58 +947,58 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                             "IS_AUTOINCREMENT",
                             "IS_GENERATEDCOLUMN"
                     ));
-            return new HerdDBResultSet(new IteratorScanResultSet(metadata, results.iterator()));
+            return new HerdDBResultSet(new IteratorScanResultSet(0, metadata, results.iterator()));
         }
     }
 
     @Override
     public ResultSet getColumnPrivileges(String catalog, String schema, String table, String columnNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getTablePrivileges(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getBestRowIdentifier(String catalog, String schema, String table, int scope, boolean nullable) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getVersionColumns(String catalog, String schema, String table) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getExportedKeys(String catalog, String schema, String table) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getCrossReference(String parentCatalog, String parentSchema, String parentTable, String foreignCatalog, String foreignSchema, String foreignTable) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getTypeInfo() throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
@@ -1063,7 +1063,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getUDTs(String catalog, String schemaPattern, String typeNamePattern, int[] types) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
@@ -1093,17 +1093,17 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern, String attributeNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
@@ -1158,7 +1158,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
@@ -1173,22 +1173,22 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public ResultSet getClientInfoProperties() throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getFunctions(String catalog, String schemaPattern, String functionNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getFunctionColumns(String catalog, String schemaPattern, String functionNamePattern, String columnNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override
     public ResultSet getPseudoColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet());
+        return new HerdDBResultSet(new EmptyScanResultSet(0));
     }
 
     @Override

@@ -26,4 +26,8 @@ package herddb.model;
  */
 public class DDLStatementExecutionResult extends StatementExecutionResult {
 
+    public DDLStatementExecutionResult(long transactionId) {
+        super(transactionId);
+    }
+
 }

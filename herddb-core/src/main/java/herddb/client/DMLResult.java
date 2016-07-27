@@ -29,13 +29,15 @@ import java.util.Map;
 public class DMLResult {
 
     public final long updateCount;
+    public final long transactionId;
     public final Object key;
     public final Map<String, Object> newvalue;
 
-    public DMLResult(long updateCount, Object key, Map<String, Object> newvalue) {
+    public DMLResult(long updateCount, Object key, Map<String, Object> newvalue, long transactionId) {
         this.updateCount = updateCount;
         this.key = key;
         this.newvalue = newvalue;
+        this.transactionId = transactionId;
     }
 
 }

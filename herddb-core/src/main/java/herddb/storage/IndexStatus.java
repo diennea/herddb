@@ -42,7 +42,7 @@ public class IndexStatus {
     public IndexStatus(String indexName, LogSequenceNumber sequenceNumber, final Set<Long> activePages, byte[] indexData) {
         this.indexName = indexName;
         this.sequenceNumber = sequenceNumber;
-        this.indexData = indexData;
+        this.indexData = indexData != null ? indexData : new byte[0];
         this.activePages = activePages != null ? activePages : Collections.emptySet();
     }
 

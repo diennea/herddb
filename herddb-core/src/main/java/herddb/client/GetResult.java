@@ -17,38 +17,23 @@
  under the License.
 
  */
-package herddb.client.impl;
+package herddb.client;
 
-import herddb.client.HDBException;
-import herddb.client.ScanResultSet;
-import herddb.client.ScanResultSetMetadata;
-import java.util.Collections;
 import java.util.Map;
 
 /**
- * Empty result set
+ * Result of a simple GET
  *
  * @author enrico.olivelli
  */
-public class EmptyScanResultSet extends ScanResultSet {
+public class GetResult {
 
-    public EmptyScanResultSet(long transactionId) {
-        super(transactionId);
-    }
+    public final Map<String, Object> data;
+    public final long transactionId;
 
-    @Override
-    public ScanResultSetMetadata getMetadata() {
-        return new ScanResultSetMetadata(Collections.emptyList());
-    }
-
-    @Override
-    public boolean hasNext() throws HDBException {
-        return false;
-    }
-
-    @Override
-    public Map<String, Object> next() throws HDBException {
-        throw new UnsupportedOperationException("Not supported"); //To change body of generated methods, choose Tools | Templates.
+    public GetResult(Map<String, Object> data, long transactionId) {
+        this.data = data;
+        this.transactionId = transactionId;
     }
 
 }

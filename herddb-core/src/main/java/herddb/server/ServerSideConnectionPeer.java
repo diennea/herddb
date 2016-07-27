@@ -182,14 +182,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                                 otherData.put("newvalue", newvalue);
                             }
                         }
-                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData));
+                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData, dml.transactionId));
                     } else if (result instanceof GetResult) {
                         GetResult get = (GetResult) result;
                         if (!get.found()) {
-                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null));
+                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null, get.transactionId));
                         } else {
                             Map<String, Object> record = get.getRecord().toBean(get.getTable());
-                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record));
+                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record, get.transactionId));
                         }
                     } else if (result instanceof TransactionResult) {
                         TransactionResult txresult = (TransactionResult) result;
@@ -210,10 +210,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                                 break;
                         }
                         data.put("tx", txresult.getTransactionId());
-                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data));
+                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data, txresult.transactionId));
                     } else if (result instanceof DDLStatementExecutionResult) {
                         DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
-                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, null));
+                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, null, ddl.transactionId));
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
                     }
@@ -222,7 +222,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     if (err instanceof NotLeaderException) {
                         error.setParameter("notLeader", "true");
                     }
-                    _channel.sendReplyMessage(message, error);                    
+                    _channel.sendReplyMessage(message, error);
                 }
             }
             break;
@@ -325,7 +325,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                         ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                         if (maxRows > 0) {
-                            scanResult = new ScanResult(new LimitedDataScanner(scanResult.dataScanner, new ScanLimits(maxRows, 0)));
+                            scanResult = new ScanResult(scanResult.transactionId, new LimitedDataScanner(scanResult.dataScanner, new ScanLimits(maxRows, 0)));
                         }
                         DataScanner dataScanner = scanResult.dataScanner;
 
@@ -344,7 +344,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         if (!last) {
                             scanners.put(scannerId, scanner);
                         }
-                        _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last));
+                        _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
                     }
@@ -390,8 +390,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             last = true;
                         }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
-                        _channel.sendReplyMessage(message,
-                                Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last));
+                        _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
                     } catch (DataScannerException error) {
                         _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
                     }

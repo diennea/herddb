@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -66,6 +67,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     private static final Logger LOGGER = Logger.getLogger(MemoryHashIndexManager.class.getName());
 
     private final ConcurrentHashMap<Bytes, List<Bytes>> data = new ConcurrentHashMap<>();
+    private final AtomicLong newPageId = new AtomicLong(1);
 
     public MemoryHashIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
@@ -85,28 +87,31 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             public void acceptIndexStatus(IndexStatus indexStatus) {
                 LOGGER.log(Level.SEVERE, "recovery index " + indexStatus.indexName + " at " + indexStatus.sequenceNumber);
                 bootSequenceNumber = indexStatus.sequenceNumber;
-                if (indexStatus.indexData != null) {
-                    ByteArrayInputStream indexData = new ByteArrayInputStream(indexStatus.indexData);
-                    try (ExtendedDataInputStream oo = new ExtendedDataInputStream(indexData)) {
-                        int size = oo.readVIntNoEOFException();
-                        for (int i = 0; i < size; i++) {
-                            byte[] indexKey = oo.readArray();
-                            int entrySize = oo.readVInt();
-                            List<Bytes> value = new ArrayList<>(entrySize);
-                            for (int kk = 0; kk < entrySize; kk++) {
-                                byte[] tableKey = oo.readArray();
-                                value.add(Bytes.from_array(tableKey));
-                            }
-                            data.put(Bytes.from_array(indexKey), value);
-                        }
-                    } catch (IOException error) {
-                        throw new RuntimeException(error);
-                    }
-                }
             }
 
             @Override
-            public void acceptPage(long pageId, byte[] data) {
+            public void acceptPage(long pageId, byte[] pagedata) {
+                if (newPageId.get() <= pageId) {
+                    newPageId.set(pageId + 1);
+                }
+                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length);
+
+                ByteArrayInputStream indexData = new ByteArrayInputStream(pagedata);
+                try (ExtendedDataInputStream oo = new ExtendedDataInputStream(indexData)) {
+                    int size = oo.readVIntNoEOFException();
+                    for (int i = 0; i < size; i++) {
+                        byte[] indexKey = oo.readArray();
+                        int entrySize = oo.readVInt();
+                        List<Bytes> value = new ArrayList<>(entrySize);
+                        for (int kk = 0; kk < entrySize; kk++) {
+                            byte[] tableKey = oo.readArray();
+                            value.add(Bytes.from_array(tableKey));
+                        }
+                        data.put(Bytes.from_array(indexKey), value);
+                    }
+                } catch (IOException error) {
+                    throw new RuntimeException(error);
+                }
             }
 
         });
@@ -131,17 +136,23 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) {
+    public Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         if (operation instanceof SecondaryIndexSeek) {
             SecondaryIndexSeek sis = (SecondaryIndexSeek) operation;
             SQLRecordKeyFunction value = sis.value;
+            byte[] refvalue = value.computeNewValue(null, context, tableContext);
+            List<Bytes> result = data.get(Bytes.from_array(refvalue));
+            if (result != null) {
+                return result.stream();
+            } else {
+                return Stream.empty();
+            }
+        } else if (operation instanceof SecondaryIndexPrefixScan) {
+            SecondaryIndexPrefixScan sis = (SecondaryIndexPrefixScan) operation;
+            SQLRecordKeyFunction value = sis.value;
+            byte[] refvalue = value.computeNewValue(null, context, tableContext);
             Predicate<Map.Entry<Bytes, List<Bytes>>> predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
-                try {
-                    byte[] refvalue = value.computeNewValue(null, context, tableContext);
-                    return Arrays.equals(refvalue, entry.getKey().data);
-                } catch (StatementExecutionException err) {
-                    throw new RuntimeException(err);
-                }
+                return Bytes.startsWith(refvalue, refvalue.length, entry.getKey().data);
             };
             return data
                     .entrySet()
@@ -181,10 +192,12 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         } catch (IOException error) {
             throw new DataStorageManagerException(error);
         }
-
-        IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, Collections.emptySet(), indexData.toByteArray());
+        byte[] data = indexData.toByteArray();
+        long pageId = newPageId.getAndIncrement();
+        dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, data);
+        IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, Collections.singleton(pageId), null);
         result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus));
-        LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries", new Object[]{index.name, count + ""});
+        LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries, page {2}", new Object[]{index.name, count + "", pageId + ""});
         return result;
     }
 

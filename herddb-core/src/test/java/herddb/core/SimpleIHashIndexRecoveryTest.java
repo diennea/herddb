@@ -137,5 +137,82 @@ public class SimpleIHashIndexRecoveryTest {
         }
 
     }
+    
+    @Test
+    public void createRecoveryIndex_withduoblecheckpoint() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                    .builder()
+                    .onTable(table)
+                    .type(Index.TYPE_HASH)
+                    .column("name", ColumnTypes.STRING).
+                    build();
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('a','n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('b','n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('c','n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('d','n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('e','n2')", Collections.emptyList());
+
+            CreateIndexStatement st3 = new CreateIndexStatement(index);
+            manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+
+            manager.checkpoint();
+            manager.checkpoint();
+        }
+
+        try (DBManager manager = new DBManager("localhost",
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
+            manager.start();
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
+
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+
+        }
+
+    }
 
 }

@@ -240,21 +240,23 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 throw new HDBException(reply + "");
             }
             long updateCount = (Long) reply.parameters.get("updateCount");
+            long transactionId = (Long) reply.parameters.get("tx");
 
             Object key = null;
             Map<String, Object> newvalue = null;
             Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
+
             if (data != null) {
                 key = data.get("key");
                 newvalue = (Map<String, Object>) data.get("newvalue");
             }
-            return new DMLResult(updateCount, key, newvalue);
+            return new DMLResult(updateCount, key, newvalue, transactionId);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
     }
 
-    Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    GetResult executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, params);
@@ -268,10 +270,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 throw new HDBException(reply + "");
             }
             long found = (Long) reply.parameters.get("updateCount");
+            long transactionId = (Long) reply.parameters.get("tx");
             if (found <= 0) {
-                return null;
+                return new GetResult(null, transactionId);
+            } else {
+                return new GetResult((Map<String, Object>) reply.parameters.get("data"), transactionId);
             }
-            return (Map<String, Object>) reply.parameters.get("data");
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -353,8 +357,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
             List<String> columnNames = (List<String>) reply.parameters.get("columns");
             boolean last = (Boolean) reply.parameters.get("last");
+            long transactionId = (Long) reply.parameters.get("tx");
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
-            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer, fetchSize, last);
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer, fetchSize, last, transactionId);
 
             return impl;
         } catch (InterruptedException | TimeoutException err) {
@@ -419,9 +424,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         private final String scannerId;
         private final ScanResultSetMetadata metadata;
 
-        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer, int fetchSize, boolean onlyOneChunk) {
+        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
+            super(tx);
             this.scannerId = scannerId;
             this.metadata = new ScanResultSetMetadata(columns);
+
             this.fetchBuffer.addAll(fetchBuffer);
             this.fetchSize = fetchSize;
             if (fetchBuffer.isEmpty()) {

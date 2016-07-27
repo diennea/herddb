@@ -26,4 +26,10 @@ package herddb.model;
  */
 public abstract class StatementExecutionResult {
 
+    public final long transactionId;
+
+    public StatementExecutionResult(long transactionId) {
+        this.transactionId = transactionId;
+    }
+
 }

@@ -458,21 +458,34 @@ public class TableSpaceManager {
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        boolean rollbackOnError = false;
+        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
+            StatementExecutionResult newTransaction = beginTransaction();
+            transactionContext = new TransactionContext(newTransaction.transactionId);
+            rollbackOnError = true;
+        }
         Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
-        String table = statement.getTable();
-        AbstractTableManager tableManager = tables.get(table);
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
-        }
-        if (tableManager.getCreatedInTransaction() > 0) {
-            if (transaction == null || transaction.transactionId != tableManager.getCreatedInTransaction()) {
-                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + tableManager.getCreatedInTransaction());
+        try {
+            String table = statement.getTable();
+            AbstractTableManager tableManager = tables.get(table);
+            if (tableManager == null) {
+                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
             }
+            if (tableManager.getCreatedInTransaction() > 0) {
+                if (transaction == null || transaction.transactionId != tableManager.getCreatedInTransaction()) {
+                    throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + tableManager.getCreatedInTransaction());
+                }
+            }
+            return tableManager.scan(statement, context, transaction);
+        } catch (StatementExecutionException error) {
+            if (rollbackOnError) {
+                rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId));
+            }
+            throw error;
         }
-        return tableManager.scan(statement, context, transaction);
     }
 
     private void downloadTableSpaceData() throws MetadataStorageManagerException, DataStorageManagerException, LogNotAvailableException {
@@ -560,7 +573,7 @@ public class TableSpaceManager {
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
-        return new DDLStatementExecutionResult();
+        return new DDLStatementExecutionResult(transactionContext.transactionId);
 
     }
 
@@ -797,53 +810,67 @@ public class TableSpaceManager {
         if (virtual) {
             throw new StatementExecutionException("executeStatement not available on virtual tablespaces");
         }
+        boolean rollbackOnError = false;
+        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
+            StatementExecutionResult newTransaction = beginTransaction();
+            transactionContext = new TransactionContext(newTransaction.transactionId);
+            rollbackOnError = true;
+        }
+
         Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
-        if (statement instanceof CreateTableStatement) {
-            return createTable((CreateTableStatement) statement, transaction);
-        }
-        if (statement instanceof CreateIndexStatement) {
-            return createIndex((CreateIndexStatement) statement, transaction);
-        }
-        if (statement instanceof DropTableStatement) {
-            return dropTable((DropTableStatement) statement, transaction);
-        }
-        if (statement instanceof DropIndexStatement) {
-            return dropIndex((DropIndexStatement) statement, transaction);
-        }
-        if (statement instanceof BeginTransactionStatement) {
-            if (transaction != null) {
-                throw new IllegalArgumentException("transaction already started");
+        try {
+            if (statement instanceof CreateTableStatement) {
+                return createTable((CreateTableStatement) statement, transaction);
             }
-            return beginTransaction();
-        }
-        if (statement instanceof RollbackTransactionStatement) {
-            return rollbackTransaction((RollbackTransactionStatement) statement);
-        }
-        if (statement instanceof CommitTransactionStatement) {
-            return commitTransaction((CommitTransactionStatement) statement);
-        }
-        if (statement instanceof AlterTableStatement) {
-            return alterTable((AlterTableStatement) statement, transactionContext);
-        }
-        if (statement instanceof TableAwareStatement) {
-            TableAwareStatement st = (TableAwareStatement) statement;
-            String table = st.getTable();
-            AbstractTableManager manager = tables.get(table);
-            if (manager == null) {
-                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
+            if (statement instanceof CreateIndexStatement) {
+                return createIndex((CreateIndexStatement) statement, transaction);
             }
-            if (manager.getCreatedInTransaction() > 0) {
-                if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
-                    throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
+            if (statement instanceof DropTableStatement) {
+                return dropTable((DropTableStatement) statement, transaction);
+            }
+            if (statement instanceof DropIndexStatement) {
+                return dropIndex((DropIndexStatement) statement, transaction);
+            }
+            if (statement instanceof BeginTransactionStatement) {
+                if (transaction != null) {
+                    throw new IllegalArgumentException("transaction already started");
                 }
+                return beginTransaction();
             }
-            return manager.executeStatement(statement, transaction, context);
-        }
+            if (statement instanceof RollbackTransactionStatement) {
+                return rollbackTransaction((RollbackTransactionStatement) statement);
+            }
+            if (statement instanceof CommitTransactionStatement) {
+                return commitTransaction((CommitTransactionStatement) statement);
+            }
+            if (statement instanceof AlterTableStatement) {
+                return alterTable((AlterTableStatement) statement, transactionContext);
+            }
+            if (statement instanceof TableAwareStatement) {
+                TableAwareStatement st = (TableAwareStatement) statement;
+                String table = st.getTable();
+                AbstractTableManager manager = tables.get(table);
+                if (manager == null) {
+                    throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
+                }
+                if (manager.getCreatedInTransaction() > 0) {
+                    if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
+                        throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
+                    }
+                }
+                return manager.executeStatement(statement, transaction, context);
+            }
 
-        throw new StatementExecutionException("unsupported statement " + statement);
+            throw new StatementExecutionException("unsupported statement " + statement);
+        } catch (StatementExecutionException error) {
+            if (rollbackOnError) {
+                rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId));
+            }
+            throw error;
+        }
     }
 
     private StatementExecutionResult createTable(CreateTableStatement statement, Transaction transaction) throws StatementExecutionException {
@@ -858,19 +885,17 @@ public class TableSpaceManager {
                 }
             }
 
-            {
-                LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
-                LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
-                apply(pos, entry, false);
-            }
+            LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
+            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+            apply(pos, entry, false);
 
             for (Index additionalIndex : statement.getAdditionalIndexes()) {
-                LogEntry entry = LogEntryFactory.createIndex(additionalIndex, transaction);
-                LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
-                apply(pos, entry, false);
+                LogEntry index_entry = LogEntryFactory.createIndex(additionalIndex, transaction);
+                LogSequenceNumber index_pos = log.log(index_entry, index_entry.transactionId <= 0);
+                apply(index_pos, index_entry, false);
             }
 
-            return new DDLStatementExecutionResult();
+            return new DDLStatementExecutionResult(entry.transactionId);
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -894,7 +919,7 @@ public class TableSpaceManager {
 
             apply(pos, entry, false);
 
-            return new DDLStatementExecutionResult();
+            return new DDLStatementExecutionResult(entry.transactionId);
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -925,7 +950,7 @@ public class TableSpaceManager {
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
 
-            return new DDLStatementExecutionResult();
+            return new DDLStatementExecutionResult(entry.transactionId);
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -952,7 +977,7 @@ public class TableSpaceManager {
 
             apply(pos, entry, false);
 
-            return new DDLStatementExecutionResult();
+            return new DDLStatementExecutionResult(entry.transactionId);
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {

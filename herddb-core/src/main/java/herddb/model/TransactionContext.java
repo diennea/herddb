@@ -32,7 +32,11 @@ public class TransactionContext {
         this.transactionId = transactionId;
     }
 
+    public final static long AUTOTRANSACTION_ID = -1;
+
     public final static TransactionContext NO_TRANSACTION = new TransactionContext(0);
+
+    public final static TransactionContext AUTOTRANSACTION_TRANSACTION = new TransactionContext(AUTOTRANSACTION_ID);
 
     @Override
     public String toString() {

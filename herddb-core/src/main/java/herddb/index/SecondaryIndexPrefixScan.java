@@ -19,7 +19,9 @@
  */
 package herddb.index;
 
+import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.sql.SQLRecordKeyFunction;
 import herddb.utils.Bytes;
@@ -27,24 +29,24 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Seek on secondary index
+ * Scan on a secondary index
  *
  * @author enrico.olivelli
  */
-public class SecondaryIndexSeek implements IndexOperation {
+public class SecondaryIndexPrefixScan implements IndexOperation {
 
     public final String indexName;
     public final String[] columnsToMatch;
     public final SQLRecordKeyFunction value;
 
-    public SecondaryIndexSeek(String indexName, String[] columnsToMatch, SQLRecordKeyFunction value) {
+    public SecondaryIndexPrefixScan(String indexName, String[] columnsToMatch, SQLRecordKeyFunction value) {
         this.indexName = indexName;
         this.columnsToMatch = columnsToMatch;
         this.value = value;
     }
 
     @Override
-    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext ctx, TableContext tableContext) {
+    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext context, TableContext tableContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

@@ -25,13 +25,13 @@ import herddb.log.CommitLog;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.model.Transaction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -54,8 +54,6 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      */
     protected long createdInTransaction;
 
-    public abstract void start() throws DataStorageManagerException;
-
     public AbstractIndexManager(Index index, AbstractTableManager tableManager, DataStorageManager dataStorageManager, String tableSpaceUUID, CommitLog log, long createdInTransaction) {
         this.index = index;
         this.createdInTransaction = createdInTransaction;
@@ -77,28 +75,69 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         return index.columnNames;
     }
 
+    /**
+     * Boots the index, this method usually reload state from the
+     * DataStorageManager
+     *
+     * @throws DataStorageManagerException
+     * @see DataStorageManager#fullIndexScan(java.lang.String, java.lang.String,
+     * herddb.storage.FullIndexScanConsumer)
+     */
+    public abstract void start() throws DataStorageManagerException;
+
+    /**
+     * Release resources. Do not drop data
+     */
     @Override
     public void close() {
+
     }
 
     /**
      * Rebuild entirely the index, usually performing a full table scan
      *
-     * @param tableManager
      * @throws DataStorageManagerException
      */
-    public void rebuild() throws DataStorageManagerException {
-    }
+    public abstract void rebuild() throws DataStorageManagerException;
 
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        return Collections.emptyList();
-    }
+    /**
+     * Ensures that all data is persisted from disk
+     *
+     * @param sequenceNumber
+     * @return
+     * @throws DataStorageManagerException
+     */
+    public abstract List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
-    public Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
+    /**
+     * Basic function of the index. The index returns the list of PKs of the
+     * table which match the predicate (IndexOperation) Beare that this function
+     * could return a super set of the list of the PKs which actually match the
+     * predicate. TableManager will check every record againts the (WHERE)
+     * Predicate in order to ensure the final result
+     *
+     * @param operation
+     * @param context
+     * @param tableContext
+     * @return a stream on the PK values of the tables which match the index
+     * @throws StatementExecutionException
+     */
+    protected abstract Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException;
 
-    public Stream<Map.Entry<Bytes, Long>> recordSetScanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, KeyToPageIndex keyToPageIndex) throws DataStorageManagerException {
+    /**
+     * This function is called from the TableManager to perform scans. It
+     * usually have to deal with a JOIN on the KeyToPageIndex of the
+     * TableManager
+     *
+     * @param operation
+     * @param context
+     * @param tableContext
+     * @param keyToPageIndex
+     * @return
+     * @throws DataStorageManagerException
+     * @throws StatementExecutionException
+     */
+    public Stream<Map.Entry<Bytes, Long>> recordSetScanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, KeyToPageIndex keyToPageIndex) throws DataStorageManagerException, StatementExecutionException {
         return scanner(operation, context, tableContext).map((Bytes b) -> {
             Long idPage = keyToPageIndex.get(b);
             if (idPage == null) {
@@ -108,23 +147,22 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         }).filter(p -> p != null);
     }
 
-    public void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues) throws DataStorageManagerException {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
+    public abstract void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues) throws DataStorageManagerException;
 
-    public void recordInserted(Bytes key, Map<String, Object> values) throws DataStorageManagerException {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
+    public abstract void recordInserted(Bytes key, Map<String, Object> values) throws DataStorageManagerException;
 
-    public void recordDeleted(Bytes key, Map<String, Object> values) throws DataStorageManagerException {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
+    public abstract void recordDeleted(Bytes key, Map<String, Object> values) throws DataStorageManagerException;
 
-    void dropIndexData() throws DataStorageManagerException {
+    /**
+     * Drop the index from persist storage
+     *
+     * @throws DataStorageManagerException
+     */
+    public void dropIndexData() throws DataStorageManagerException {
         dataStorageManager.dropIndex(tableSpaceUUID, index.name);
     }
 
-    void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
+    final void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             if (transaction.transactionId != createdInTransaction) {
                 throw new DataStorageManagerException("this indexManager is available only on transaction " + createdInTransaction);
@@ -133,7 +171,7 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         }
     }
 
-    public boolean isCommitted() {
+    public final boolean isAvailable() {
         return createdInTransaction == 0;
     }
 }

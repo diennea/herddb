@@ -26,7 +26,6 @@ package herddb.model;
  */
 public class TransactionResult extends StatementExecutionResult {
 
-    private final long transactionId;
     private final OutcomeType outcome;
 
     public static enum OutcomeType {
@@ -36,7 +35,7 @@ public class TransactionResult extends StatementExecutionResult {
     }
 
     public TransactionResult(long transactionId, OutcomeType outcome) {
-        this.transactionId = transactionId;
+        super(transactionId);
         this.outcome = outcome;
     }
 

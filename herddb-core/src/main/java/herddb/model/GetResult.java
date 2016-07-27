@@ -29,12 +29,15 @@ public class GetResult extends StatementExecutionResult {
     private final Record record;
     private final Table table;
 
-    public GetResult(Record record, Table table) {
+    public GetResult(long transactionId, Record record, Table table) {
+        super(transactionId);
         this.record = record;
         this.table = table;
     }
 
-    public static final GetResult NOT_FOUND = new GetResult(null, null);
+    public static final GetResult NOT_FOUND(long transactionId) {
+        return new GetResult(transactionId, null, null);
+    }
 
     public Table getTable() {
         return table;

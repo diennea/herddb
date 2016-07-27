@@ -149,7 +149,7 @@ public class HDBConnection implements AutoCloseable {
         throw new HDBException("client is closed");
     }
 
-    public Map<String, Object> executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+    public GetResult executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
         if (discoverTablespaceFromSql) {
             tableSpace = discoverTablespace(tableSpace, query);
         }

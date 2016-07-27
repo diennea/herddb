@@ -35,7 +35,8 @@ public class IteratorScanResultSet extends ScanResultSet {
     private final Iterator<Map<String, Object>> iterator;
     private final ScanResultSetMetadata metadata;
 
-    public IteratorScanResultSet(ScanResultSetMetadata metadata, Iterator<Map<String, Object>> iterator) {
+    public IteratorScanResultSet(long transactionId, ScanResultSetMetadata metadata, Iterator<Map<String, Object>> iterator) {
+        super(transactionId);
         this.iterator = iterator;
         this.metadata = metadata;
     }

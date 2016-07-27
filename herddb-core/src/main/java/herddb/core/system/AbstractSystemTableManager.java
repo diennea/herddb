@@ -172,7 +172,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         recordSet.sort(statement.getComparator());
         recordSet.applyLimits(statement.getLimits());
         recordSet.applyProjection(statement.getProjection());
-        return new SimpleDataScanner(recordSet);
+        return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
     }
 
     @Override

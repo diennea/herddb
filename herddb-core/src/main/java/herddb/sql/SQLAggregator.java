@@ -110,7 +110,7 @@ public class SQLAggregator implements Aggregator {
         private DataScanner aggregatedScanner;
 
         public AggregatedDataScanner(DataScanner wrapped) throws StatementExecutionException {
-            super(createOutputColumns(selectItems, wrapped));
+            super(wrapped.transactionId, createOutputColumns(selectItems, wrapped));
             this.wrapped = wrapped;
         }
 
@@ -170,7 +170,7 @@ public class SQLAggregator implements Aggregator {
                         results.add(tuple);
                     }
                     results.writeFinished();
-                    aggregatedScanner = new SimpleDataScanner(results);
+                    aggregatedScanner = new SimpleDataScanner(wrapped.transactionId, results);
                 } else {
                     Group group = createGroup(null);
                     AggregatedColumnCalculator[] columns = group.columns;
@@ -192,7 +192,7 @@ public class SQLAggregator implements Aggregator {
                     MaterializedRecordSet results = recordSetFactory.createFixedSizeRecordSet(1, getSchema());
                     results.add(tuple);
                     results.writeFinished();
-                    aggregatedScanner = new SimpleDataScanner(results);
+                    aggregatedScanner = new SimpleDataScanner(wrapped.transactionId, results);
                 }
             } catch (StatementExecutionException err) {
                 throw new DataScannerException(err);
