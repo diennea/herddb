@@ -427,9 +427,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private StatementExecutionResult executeDataScannerPlan(ExecutionPlan plan, DataScanner result, TransactionContext transactionContext) throws StatementExecutionException {
         ScanResult scanResult;
         if (plan.mainAggregator != null) {
-            scanResult = new ScanResult(plan.mainAggregator.aggregate(result));
+            scanResult = new ScanResult(transactionContext.transactionId, plan.mainAggregator.aggregate(result));
         } else {
-            scanResult = new ScanResult(result);
+            scanResult = new ScanResult(transactionContext.transactionId, result);
         }
         if (plan.comparator != null) {
             // SORT is to be applied before limits
@@ -439,14 +439,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 sortedSet.writeFinished();
                 sortedSet.sort(plan.comparator);
                 scanResult.dataScanner.close();
-                scanResult = new ScanResult(new SimpleDataScanner(sortedSet));
+                scanResult = new ScanResult(transactionContext.transactionId, new SimpleDataScanner(transactionContext.transactionId, sortedSet));
             } catch (DataScannerException err) {
                 throw new StatementExecutionException(err);
             }
         }
         if (plan.limits != null) {
             try {
-                return new ScanResult(new LimitedDataScanner(scanResult.dataScanner, plan.limits));
+                return new ScanResult(transactionContext.transactionId, new LimitedDataScanner(scanResult.dataScanner, plan.limits));
             } catch (DataScannerException limitError) {
                 throw new StatementExecutionException(limitError);
             }
@@ -469,7 +469,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         context.setCurrentTuple(null);
                     }
                 }
-                return new DMLStatementExecutionResult(updateCount);
+                return new DMLStatementExecutionResult(transactionContext.transactionId, updateCount);
             } finally {
                 result.close();
             }
@@ -542,7 +542,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 }
             }
 
-            return new DDLStatementExecutionResult();
+            return new DDLStatementExecutionResult(0);
         } catch (StatementExecutionException err) {
             throw err;
         } catch (Exception err) {
@@ -617,7 +617,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             metadataStorageManager.updateTableSpace(tableSpace, previous);
             triggerActivator();
-            return new DDLStatementExecutionResult();
+            return new DDLStatementExecutionResult(0);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -631,7 +631,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             metadataStorageManager.dropTableSpace(dropTableSpaceStatement.getTableSpace(), previous);
             triggerActivator();
-            return new DDLStatementExecutionResult();
+            return new DDLStatementExecutionResult(0);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -668,7 +668,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public void setMaxLogicalPageSize(long maxLogicalPageSize) {
         this.maxLogicalPageSize = maxLogicalPageSize;
     }
-   
+
     private class Activator implements Runnable {
 
         @Override

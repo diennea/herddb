@@ -20,11 +20,13 @@
 package herddb.server;
 
 import herddb.client.ClientConfiguration;
+import herddb.client.DMLResult;
 import herddb.client.GetResult;
 import herddb.client.HDBConnection;
 import herddb.client.HDBClient;
 import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
+import herddb.model.TransactionContext;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,27 +44,7 @@ import org.junit.rules.TemporaryFolder;
  *
  * @author enrico.olivelli
  */
-public class SimpleClientServerTest {
-//
-//         @Before
-//    public void setupLogger() throws Exception {
-//        Level level = Level.FINEST;
-//        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-//
-//            @Override
-//            public void uncaughtException(Thread t, Throwable e) {
-//                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
-//                e.printStackTrace();
-//            }
-//        });
-//        java.util.logging.LogManager.getLogManager().reset();
-//        ConsoleHandler ch = new ConsoleHandler();
-//        ch.setLevel(level);
-//        SimpleFormatter f = new SimpleFormatter();
-//        ch.setFormatter(f);
-//        java.util.logging.Logger.getLogger("").setLevel(level);
-//        java.util.logging.Logger.getLogger("").addHandler(ch);
-//    }
+public class SimpleClientServerAutoTransactionTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -82,15 +64,16 @@ public class SimpleClientServerTest {
                         "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
-                long tx = connection.beginTransaction(TableSpace.DEFAULT);
+                DMLResult executeUpdateResult = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.AUTOTRANSACTION_ID, Arrays.asList("test", 1, 2));
 
-                long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test", 1, 2)).updateCount;
+                long tx = executeUpdateResult.transactionId;
+                long countInsert = executeUpdateResult.updateCount;
                 Assert.assertEquals(1, countInsert);
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
-                        "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());
+                        "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());;
                 Map<String, Object> record = res.data;
                 Assert.assertNotNull(record);
                 assertEquals("test", record.get("id"));

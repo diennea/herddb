@@ -104,7 +104,7 @@ public final class Message {
         return new Message(clientId, TYPE_TABLESPACE_DUMP_DATA, data);
     }
 
-    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<String> columns, List<Map<String, Object>> records, boolean last) {
+    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<String> columns, List<Map<String, Object>> records, boolean last, long tx) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
@@ -112,6 +112,7 @@ public final class Message {
         data.put("scannerId", scannerId);
         data.put("records", records);
         data.put("last", last);
+        data.put("tx", tx);
         return new Message(clientId, TYPE_RESULTSET_CHUNK, data);
     }
 
@@ -132,12 +133,13 @@ public final class Message {
         return new Message(clientId, TYPE_FETCHSCANNERDATA, data);
     }
 
-    public static Message EXECUTE_STATEMENT_RESULT(long updateCount, Map<String, Object> otherdata) {
+    public static Message EXECUTE_STATEMENT_RESULT(long updateCount, Map<String, Object> otherdata, long tx) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("updateCount", updateCount);
         data.put("data", otherdata);
+        data.put("tx", tx);
         return new Message(null, TYPE_EXECUTE_STATEMENT_RESULT, data);
     }
 

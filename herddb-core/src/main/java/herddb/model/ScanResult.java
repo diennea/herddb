@@ -28,7 +28,8 @@ public class ScanResult extends StatementExecutionResult implements AutoCloseabl
 
     public final DataScanner dataScanner;
 
-    public ScanResult(DataScanner dataScanner) {
+    public ScanResult(long transactionId, DataScanner dataScanner) {
+        super(transactionId);
         this.dataScanner = dataScanner;
     }
 

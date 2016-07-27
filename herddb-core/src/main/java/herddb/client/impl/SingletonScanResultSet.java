@@ -35,7 +35,8 @@ public class SingletonScanResultSet extends ScanResultSet {
     boolean read = false;
     final Object key;
 
-    public SingletonScanResultSet(Object key) {
+    public SingletonScanResultSet(long transactionId, Object key) {
+        super(transactionId);
         this.key = key;
     }
 

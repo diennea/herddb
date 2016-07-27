@@ -32,13 +32,16 @@ public class DMLStatementExecutionResult extends StatementExecutionResult {
     private final Bytes key;
     private final Bytes newvalue;
 
-    public DMLStatementExecutionResult(int updateCount) {
+    public DMLStatementExecutionResult(long transactionId, int updateCount) {
+        super(transactionId);
         this.updateCount = updateCount;
         this.key = null;
         this.newvalue = null;
+
     }
 
-    public DMLStatementExecutionResult(int updateCount, Bytes key, Bytes newvalue) {
+    public DMLStatementExecutionResult(long transactionId, int updateCount, Bytes key, Bytes newvalue) {
+        super(transactionId);
         this.updateCount = updateCount;
         this.key = key;
         this.newvalue = newvalue;

@@ -31,10 +31,16 @@ import java.util.Map;
 public abstract class ScanResultSet implements AutoCloseable {
 
     public abstract ScanResultSetMetadata getMetadata();
-    
+
     public abstract boolean hasNext() throws HDBException;
 
     public abstract Map<String, Object> next() throws HDBException;
+
+    public final long transactionId;
+
+    public ScanResultSet(long transactionId) {
+        this.transactionId = transactionId;
+    }
 
     @Override
     public void close() {
@@ -43,7 +49,7 @@ public abstract class ScanResultSet implements AutoCloseable {
     public List< Map<String, Object>> consume() throws HDBException {
         List<Map<String, Object>> result = new ArrayList<>();
         while (hasNext()) {
-            Map<String, Object> record = next();            
+            Map<String, Object> record = next();
             result.add(record);
         }
         return result;
