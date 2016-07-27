@@ -114,6 +114,13 @@ public class TransactionsTest {
                         assertEquals(0, ps1.executeUpdate());
                     }
                     con.commit();
+                    
+                    
+                    // complex multi record update
+                    try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE 1=1");) {
+                        assertEquals(4, ps1.executeUpdate());
+                    }
+                    con.commit();
 
                     // direct record update
                     try (PreparedStatement ps1 = con.prepareStatement("UPDATE mytable set name='aa' WHERE key='k5'");) {

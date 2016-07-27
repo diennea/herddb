@@ -412,6 +412,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         try (ChangeThreadName changeThreadName = new ChangeThreadName("executePlan " + plan)) {
             if (plan.mainStatement instanceof ScanStatement) {
                 DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
+                // transction can be auto generated during the scan 
+                transactionContext = new TransactionContext(result.transactionId);
                 if (plan.mutator != null) {
                     return executeMutatorPlan(result, plan, context, transactionContext);
                 } else {
