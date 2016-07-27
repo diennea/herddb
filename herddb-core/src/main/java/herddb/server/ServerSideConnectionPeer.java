@@ -157,7 +157,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     break;
                 }
                 Long tx = (Long) message.parameters.get("tx");
-                long txId = tx != null ? tx : 0;
+                long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
                 String query = (String) message.parameters.get("query");
                 String tableSpace = (String) message.parameters.get("tableSpace");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
@@ -176,7 +176,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
                             Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
                             otherData = new HashMap<>();
-                            otherData.put("key", key);
+                            otherData.put("key", key);                            
                             if (dml.getNewvalue() != null) {
                                 Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
                                 otherData.put("newvalue", newvalue);

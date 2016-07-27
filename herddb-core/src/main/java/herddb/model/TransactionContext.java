@@ -33,8 +33,9 @@ public class TransactionContext {
     }
 
     public final static long AUTOTRANSACTION_ID = -1;
+    public final static long NOTRANSACTION_ID = 0;
 
-    public final static TransactionContext NO_TRANSACTION = new TransactionContext(0);
+    public final static TransactionContext NO_TRANSACTION = new TransactionContext(NOTRANSACTION_ID);
 
     public final static TransactionContext AUTOTRANSACTION_TRANSACTION = new TransactionContext(AUTOTRANSACTION_ID);
 
