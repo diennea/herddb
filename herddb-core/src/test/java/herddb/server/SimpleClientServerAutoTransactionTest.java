@@ -70,7 +70,7 @@ public class SimpleClientServerAutoTransactionTest {
                 long tx = executeUpdateResult.transactionId;
                 long countInsert = executeUpdateResult.updateCount;
                 Assert.assertEquals(1, countInsert);
-                connection.commitTransaction(TableSpace.DEFAULT, tx);
+                
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
                         "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());;
@@ -79,6 +79,8 @@ public class SimpleClientServerAutoTransactionTest {
                 assertEquals("test", record.get("id"));
                 assertEquals(Long.valueOf(1), record.get("n1"));
                 assertEquals(Integer.valueOf(2), record.get("n2"));
+                
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();

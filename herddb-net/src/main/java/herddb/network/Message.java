@@ -69,6 +69,17 @@ public final class Message {
         return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
     }
 
+    public static Message EXECUTE_STATEMENTS(String clientId, String tableSpace, String query, long tx, List<List<Object>> params) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("tableSpace", tableSpace);
+        data.put("tx", tx);
+        data.put("query", query);
+        data.put("params", params);
+        return new Message(clientId, TYPE_EXECUTE_STATEMENTS, data);
+    }
+
     public static Message OPEN_SCANNER(String clientId, String tableSpace, String query, String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
@@ -143,6 +154,16 @@ public final class Message {
         return new Message(null, TYPE_EXECUTE_STATEMENT_RESULT, data);
     }
 
+    public static Message EXECUTE_STATEMENT_RESULTS(List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("updateCount", updateCounts);
+        data.put("data", otherdata);
+        data.put("tx", tx);
+        return new Message(null, TYPE_EXECUTE_STATEMENTS_RESULT, data);
+    }
+
     public static Message SASL_TOKEN_MESSAGE_REQUEST(String saslMech) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
@@ -212,6 +233,8 @@ public final class Message {
     public static final int TYPE_TABLESPACE_DUMP_DATA = 12;
     public static final int TYPE_REQUEST_TABLE_RESTORE = 13;
     public static final int TYPE_PUSH_TABLE_DATA = 14;
+    public static final int TYPE_EXECUTE_STATEMENTS = 15;
+    public static final int TYPE_EXECUTE_STATEMENTS_RESULT = 16;
 
     public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;
@@ -231,6 +254,10 @@ public final class Message {
                 return "EXECUTE_STATEMENT";
             case TYPE_EXECUTE_STATEMENT_RESULT:
                 return "EXECUTE_STATEMENT_RESULT";
+            case TYPE_EXECUTE_STATEMENTS:
+                return "EXECUTE_STATEMENTS";
+            case TYPE_EXECUTE_STATEMENTS_RESULT:
+                return "EXECUTE_STATEMENTS_RESULT";
             case TYPE_OPENSCANNER:
                 return "OPENSCANNER";
             case TYPE_RESULTSET_CHUNK:

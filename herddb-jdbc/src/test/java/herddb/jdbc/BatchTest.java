@@ -29,7 +29,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -56,24 +56,64 @@ public class BatchTest {
                         PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values(?)");) {
                     create.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
 
-                    for (int i = 0; i < 100; i++) {
-                        statement.setString(1, "v" + i);
-                        statement.addBatch();
-                    }
-                    int[] results = statement.executeBatch();
-                    for (int i = 0; i < 100; i++) {
-                        assertEquals(1, results[i]);
+                    {
+                        for (int i = 0; i < 100; i++) {
+                            statement.setString(1, "v" + i);
+                            statement.addBatch();
+                        }
+                        int[] results = statement.executeBatch();
+                        for (int i = 0; i < 100; i++) {
+                            assertEquals(1, results[i]);
+                        }
+
+                        try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable ORDER BY n1")) {
+                            int count = 0;
+                            while (rs.next()) {
+                                assertEquals("v" + count, rs.getString("name"));
+                                assertEquals(count + 1, rs.getInt("n1"));
+                                count++;
+                            }
+                            assertEquals(100, count);
+                        }
                     }
 
-                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable ORDER BY n1")) {
-                        int count = 0;
-                        while (rs.next()) {
-                            assertEquals("v" + count, rs.getString("name"));
-                            assertEquals(count+1, rs.getInt("n1"));
-                            count++;
-                        }
-                        assertEquals(100, count);
+                    int next_id;
+                    try (ResultSet rs = statement.executeQuery("SELECT MAX(n1) FROM mytable")) {
+                        assertTrue(rs.next());
+                        next_id = rs.getInt(1) + 1;
+                        assertEquals(101, next_id);
                     }
+
+                    statement.executeUpdate("DELETE FROM mytable");
+                    try (ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM mytable")) {
+                        assertTrue(rs.next());
+                        assertEquals(0, rs.getInt(1));
+                    }
+
+                    // transactions
+                    con.setAutoCommit(false);
+
+                    {
+                        for (int i = 0; i < 100; i++) {
+                            statement.setString(1, "v" + i);
+                            statement.addBatch();
+                        }
+                        int[] results = statement.executeBatch();
+                        for (int i = 0; i < 100; i++) {
+                            assertEquals(1, results[i]);
+                        }
+
+                        try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable ORDER BY n1")) {
+                            int count = 0;
+                            while (rs.next()) {
+                                assertEquals("v" + count, rs.getString("name"));
+                                assertEquals(count + next_id, rs.getInt("n1"));
+                                count++;
+                            }
+                            assertEquals(100, count);
+                        }
+                    }
+                    con.commit();
                 }
             }
         }

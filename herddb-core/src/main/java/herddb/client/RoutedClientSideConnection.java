@@ -256,6 +256,39 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
+    List<DMLResult> executeUpdates(String tableSpace, String query, long tx, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
+        Channel _channel = ensureOpen();
+        try {
+            Message message = Message.EXECUTE_STATEMENTS(clientId, tableSpace, query, tx, batch);
+            Message reply = _channel.sendMessageWithReply(message, timeout);
+            if (reply.type == Message.TYPE_ERROR) {
+                boolean notLeader = reply.parameters.get("notLeader") != null;
+                if (notLeader) {
+                    this.connection.requestMetadataRefresh();
+                    throw new RetryRequestException(reply + "");
+                }
+                throw new HDBException(reply + "");
+            }
+
+            long transactionId = (Long) reply.parameters.get("tx");
+
+            List<Map<String, Object>> data = (List<Map<String, Object>>) reply.parameters.get("data");
+            List<Long> updateCounts = (List<Long>) reply.parameters.get("updateCount");
+            List<DMLResult> results = new ArrayList<>();
+
+            for (int i = 0; i < updateCounts.size(); i++) {
+                Object key = data.get(0).get("key");
+                Map<String, Object> newvalue = (Map<String, Object>) data.get(i).get("newvalue");
+                DMLResult res = new DMLResult(updateCounts.get(i), key, newvalue, transactionId);
+                results.add(res);
+            }
+
+            return results;
+        } catch (InterruptedException | TimeoutException err) {
+            throw new HDBException(err);
+        }
+    }
+
     GetResult executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {

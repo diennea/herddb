@@ -20,6 +20,7 @@
 package herddb.server;
 
 import herddb.client.ClientConfiguration;
+import herddb.client.DMLResult;
 import herddb.client.GetResult;
 import herddb.client.HDBConnection;
 import herddb.client.HDBClient;
@@ -87,7 +88,10 @@ public class SimpleClientServerTest {
                 long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
                         "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test", 1, 2)).updateCount;
                 Assert.assertEquals(1, countInsert);
-                connection.commitTransaction(TableSpace.DEFAULT, tx);
+                long countInsert2 = connection.executeUpdate(TableSpace.DEFAULT,
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test2", 2, 3)).updateCount;
+                Assert.assertEquals(1, countInsert2);
+                
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
                         "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());
@@ -96,6 +100,22 @@ public class SimpleClientServerTest {
                 assertEquals("test", record.get("id"));
                 assertEquals(Long.valueOf(1), record.get("n1"));
                 assertEquals(Integer.valueOf(2), record.get("n2"));
+
+                List<DMLResult> executeUpdates = connection.executeUpdates(TableSpace.DEFAULT, "UPDATE mytable set n2=? WHERE id=?", tx,
+                        Arrays.asList(
+                                Arrays.asList(1,"test"),
+                                Arrays.asList(2,"test2"),
+                                Arrays.asList(3,"test_not_exists")
+                        )
+                );
+                assertEquals(3, executeUpdates.size());
+                assertEquals(1, executeUpdates.get(0).updateCount);
+                assertEquals(1, executeUpdates.get(1).updateCount);
+                assertEquals(0, executeUpdates.get(2).updateCount);
+                assertEquals(tx, executeUpdates.get(0).transactionId);
+                assertEquals(tx, executeUpdates.get(1).transactionId);
+                assertEquals(tx, executeUpdates.get(2).transactionId);
+                connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();

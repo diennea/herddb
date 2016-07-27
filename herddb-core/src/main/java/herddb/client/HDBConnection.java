@@ -149,6 +149,22 @@ public class HDBConnection implements AutoCloseable {
         throw new HDBException("client is closed");
     }
 
+    public List<DMLResult> executeUpdates(String tableSpace, String query, long tx, List<List<Object>> batch) throws ClientSideMetadataProviderException, HDBException {
+        if (discoverTablespaceFromSql) {
+            tableSpace = discoverTablespace(tableSpace, query);
+        }
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                return route.executeUpdates(tableSpace, query, tx, batch);
+            } catch (RetryRequestException retry) {
+                LOGGER.log(Level.SEVERE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+        }
+        throw new HDBException("client is closed");
+    }
+
     public GetResult executeGet(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
         if (discoverTablespaceFromSql) {
             tableSpace = discoverTablespace(tableSpace, query);

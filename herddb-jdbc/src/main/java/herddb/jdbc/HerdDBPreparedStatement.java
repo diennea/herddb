@@ -217,11 +217,19 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
         try {
             int[] results = new int[batch.size()];
             int i = 0;
-            for (List<Object> parameters : this.batch) {
-                long result = doExecuteLargeUpdate(parameters);
-                results[i++] = (int) result;
+
+            parent.discoverTableSpace(sql);
+            List<DMLResult> dmlresults = parent.getConnection().executeUpdates(parent.getTableSpace(), sql, parent.ensureTransaction(), this.batch);
+
+            for (DMLResult dmlresult : dmlresults) {
+                results[i++] = (int) dmlresult.updateCount;
+                parent.statementFinished(dmlresult.transactionId);
+                lastUpdateCount = dmlresult.updateCount;
+                lastKey = dmlresult.key;
             }
             return results;
+        } catch (ClientSideMetadataProviderException | HDBException err) {
+            throw new SQLException(err);
         } finally {
             batch.clear();
         }

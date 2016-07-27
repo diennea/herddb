@@ -92,7 +92,7 @@ public class HerdDBResultSet implements ResultSet {
         try {
             return metadata.getColumnNames().get(columnIndex - 1);
         } catch (IndexOutOfBoundsException err) {
-            throw new SQLException("invalid index " + columnIndex + ", max value is " + metadata.getColumnNames().size());
+            throw new SQLException("invalid index " + columnIndex + ", min value is 1, max value is " + metadata.getColumnNames().size());
         }
     }
 
