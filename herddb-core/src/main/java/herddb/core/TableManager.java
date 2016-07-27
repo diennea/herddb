@@ -1163,13 +1163,12 @@ public class TableManager implements AbstractTableManager {
                         LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages + ", record " + key + " deleted during data access");
                         return null;
                     }
-                    if (!Objects.equals(pageId, relocatedPageId)) {
-                        pageId = relocatedPageId;
-                        if (!Objects.equals(pageId, NO_PAGE) && !loadedPages.contains(pageId)) {
-                            loadPageToMemory(pageId);
-                        }
-                        record = buffer.get(key);
+                    LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed, checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
+                    pageId = relocatedPageId;
+                    if (!Objects.equals(pageId, NO_PAGE) && !loadedPages.contains(pageId)) {
+                        loadPageToMemory(pageId);
                     }
+                    record = buffer.get(key);
                 }
             }
             if (record == null) {
