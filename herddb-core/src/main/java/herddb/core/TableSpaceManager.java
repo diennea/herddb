@@ -821,6 +821,9 @@ public class TableSpaceManager {
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
             throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
         }
+        if (transactionContext.transactionId > 0 && transaction == null) {
+            throw new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName);
+        }
         try {
             if (statement instanceof CreateTableStatement) {
                 return createTable((CreateTableStatement) statement, transaction);

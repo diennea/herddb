@@ -412,6 +412,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         try (ChangeThreadName changeThreadName = new ChangeThreadName("executePlan " + plan)) {
             if (plan.mainStatement instanceof ScanStatement) {
                 DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
+                // transction can be auto generated during the scan 
+                transactionContext = new TransactionContext(result.transactionId);
                 if (plan.mutator != null) {
                     return executeMutatorPlan(result, plan, context, transactionContext);
                 } else {
@@ -469,7 +471,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         context.setCurrentTuple(null);
                     }
                 }
-                return new DMLStatementExecutionResult(transactionContext.transactionId, updateCount);
+                return new DMLStatementExecutionResult(result.transactionId, updateCount);
             } finally {
                 result.close();
             }
@@ -542,7 +544,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 }
             }
 
-            return new DDLStatementExecutionResult(0);
+            return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
         } catch (StatementExecutionException err) {
             throw err;
         } catch (Exception err) {
@@ -617,7 +619,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             metadataStorageManager.updateTableSpace(tableSpace, previous);
             triggerActivator();
-            return new DDLStatementExecutionResult(0);
+            return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }
@@ -631,7 +633,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             metadataStorageManager.dropTableSpace(dropTableSpaceStatement.getTableSpace(), previous);
             triggerActivator();
-            return new DDLStatementExecutionResult(0);
+            return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         }

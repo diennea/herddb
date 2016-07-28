@@ -25,6 +25,7 @@ import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.impl.EmptyScanResultSet;
 import herddb.client.impl.SingletonScanResultSet;
+import herddb.model.TransactionContext;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -54,6 +55,7 @@ public class HerdDBStatement implements java.sql.Statement {
         try {
             parent.discoverTableSpace(sql);
             ScanResultSet scanResult = this.parent.getConnection().executeScan(parent.getTableSpace(), sql, Collections.emptyList(), parent.ensureTransaction(), maxRows, fetchSize);
+            parent.statementFinished(scanResult.transactionId);
             return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
             throw new SQLException(ex);
@@ -214,9 +216,9 @@ public class HerdDBStatement implements java.sql.Statement {
     @Override
     public ResultSet getGeneratedKeys() throws SQLException {
         if (lastKey != null) {
-            return new HerdDBResultSet(new SingletonScanResultSet(0, lastKey));
+            return new HerdDBResultSet(new SingletonScanResultSet(TransactionContext.NOTRANSACTION_ID, lastKey));
         } else {
-            return new HerdDBResultSet(new EmptyScanResultSet(0));
+            return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
         }
     }
 
@@ -240,6 +242,7 @@ public class HerdDBStatement implements java.sql.Statement {
         try {
             parent.discoverTableSpace(sql);
             DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), Collections.emptyList());
+            parent.statementFinished(result.transactionId);
             lastUpdateCount = result.updateCount;
             lastKey = result.key;
             return lastUpdateCount;

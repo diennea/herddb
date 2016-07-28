@@ -157,7 +157,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     break;
                 }
                 Long tx = (Long) message.parameters.get("tx");
-                long txId = tx != null ? tx : 0;
+                long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
                 String query = (String) message.parameters.get("query");
                 String tableSpace = (String) message.parameters.get("tableSpace");
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
@@ -217,6 +217,65 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     } else {
                         _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
                     }
+                } catch (StatementExecutionException err) {
+                    Message error = Message.ERROR(null, err);
+                    if (err instanceof NotLeaderException) {
+                        error.setParameter("notLeader", "true");
+                    }
+                    _channel.sendReplyMessage(message, error);
+                }
+            }
+            break;
+            case Message.TYPE_EXECUTE_STATEMENTS: {
+                if (!authenticated) {
+                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
+                    _channel.sendReplyMessage(message, error);
+                    break;
+                }
+                Long tx = (Long) message.parameters.get("tx");
+                long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
+                long transactionId = txId;
+                String query = (String) message.parameters.get("query");
+                String tableSpace = (String) message.parameters.get("tableSpace");
+                List<List<Object>> batch = (List<List<Object>>) message.parameters.get("params");
+                try {
+                    
+                    List<Long> updateCounts = new ArrayList<>(batch.size());
+                    List<Map<String, Object>> otherDatas = new ArrayList<>(batch.size());
+                    for (int i = 0; i < batch.size(); i++) {
+                        List<Object> parameters = batch.get(i);
+
+                        TransactionContext transactionContext = new TransactionContext(transactionId);
+                        TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace, query, parameters, false, true);
+                        Statement statement = translatedQuery.plan.mainStatement;
+
+                        StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                        if (transactionId > 0 && result.transactionId > 0 && transactionId != result.transactionId) {
+                            throw new StatementExecutionException("transactionid changed during batch execution, " + transactionId + "<>" + result.transactionId);
+                        }
+                        transactionId = result.transactionId;
+                        
+                        if (result instanceof DMLStatementExecutionResult) {
+                            DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
+                            Map<String, Object> otherData = new HashMap<>();
+                            if (dml.getKey() != null) {
+                                TableAwareStatement tableStatement = (TableAwareStatement) statement;
+                                Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                                Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                                otherData = new HashMap<>();
+                                otherData.put("key", key);
+                                if (dml.getNewvalue() != null) {
+                                    Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
+                                    otherData.put("newvalue", newvalue);
+                                }
+                            }
+                            updateCounts.add(Long.valueOf(dml.getUpdateCount()));
+                            otherDatas.add(otherData);
+                        } else {
+                            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("bad result type " + result.getClass() + " (" + result + ")")));
+                        }
+                    }
+                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULTS(updateCounts, otherDatas, transactionId));
                 } catch (StatementExecutionException err) {
                     Message error = Message.ERROR(null, err);
                     if (err instanceof NotLeaderException) {

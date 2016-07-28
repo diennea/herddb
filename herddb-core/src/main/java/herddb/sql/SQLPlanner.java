@@ -106,6 +106,7 @@ import herddb.model.ColumnsList;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.DropIndexStatement;
+import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
 
 /**
@@ -711,6 +712,29 @@ public class SQLPlanner {
             return ((LongValue) expression).getValue();
         } else if (expression instanceof TimestampValue) {
             return ((TimestampValue) expression).getValue();
+        } else if (expression instanceof SignedExpression) {
+            SignedExpression se = (SignedExpression)expression;
+            switch (se.getSign()) {
+                case '+': {
+                    return resolveValue(se.getExpression());
+                }
+                case '-':{
+                    Object value = resolveValue(se.getExpression());
+                    if (value == null) {
+                        return null;
+                    }
+                    if (value instanceof Integer) {
+                        return -1L * ((Integer)value);
+                    } else if (value instanceof Long) {
+                        return -1L * ((Long)value);
+                    } else {
+                        throw new StatementExecutionException("unsupported value type " + expression.getClass()+" with sign "+se.getSign()+" on value "+value+" of type "+value.getClass());
+                    }
+                }
+                default:
+                    throw new StatementExecutionException("unsupported value type " + expression.getClass()+" with sign "+se.getSign());
+            }
+            
         } else {
             throw new StatementExecutionException("unsupported value type " + expression.getClass());
         }

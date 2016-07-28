@@ -23,6 +23,7 @@ import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.model.TableSpace;
+import herddb.model.TransactionContext;
 import herddb.utils.QueryUtils;
 import java.sql.Array;
 import java.sql.Blob;
@@ -65,17 +66,10 @@ public class HerdDBConnection implements java.sql.Connection {
     }
 
     long ensureTransaction() throws SQLException {
-        if (!autocommit && transactionId <= 0) {
-            try {
-                transactionId = connection.beginTransaction(tableSpace);
-            } catch (ClientSideMetadataProviderException | HDBException err) {
-                throw new SQLException(err);
-            }
+        if (!autocommit && transactionId == 0) {
+            // transaction will be started at first statement execution
+            transactionId = TransactionContext.AUTOTRANSACTION_ID;
         }
-        return transactionId;
-    }
-
-    public long getTransactionId() {
         return transactionId;
     }
 
@@ -131,9 +125,12 @@ public class HerdDBConnection implements java.sql.Connection {
         if (autocommit) {
             throw new SQLException("connection is not in autocommit mode");
         }
-        if (transactionId <= 0) {
+        if (transactionId == 0) {
             // no transaction actually started, nothing to commit
             return;
+        }
+        if (transactionId<0) {
+            throw new SQLException("current transactionId cannot be negative");
         }
         try {
             connection.commitTransaction(tableSpace, transactionId);
@@ -149,9 +146,12 @@ public class HerdDBConnection implements java.sql.Connection {
         if (autocommit) {
             throw new SQLException("connection is not in autocommit mode");
         }
-        if (transactionId <= 0) {
+        if (transactionId == 0) {
             // no transaction actually started, nothing to commit
             return;
+        }
+        if (transactionId<0) {
+            throw new SQLException("current transactionId cannot be negative");
         }
         try {
             connection.rollbackTransaction(tableSpace, transactionId);
@@ -408,6 +408,10 @@ public class HerdDBConnection implements java.sql.Connection {
 
     void discoverTableSpace(String sql) throws SQLException {
         setSchema(QueryUtils.discoverTablespace(tableSpace, sql));
+    }
+
+    void statementFinished(long transactionId) {
+        this.transactionId = transactionId;
     }
 
 }
