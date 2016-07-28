@@ -1158,7 +1158,7 @@ public class TableManager implements AbstractTableManager {
                 record = buffer.get(key);
                 if (record == null) {
                     Long relocatedPageId = keyToPage.get(key);
-                    if (relocatedPageId == null) {
+                    if (relocatedPageId == null || Objects.equals(relocatedPageId, NO_PAGE)) {
                         // deleted
                         LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages + ", record " + key + " deleted during data access");
                         return null;
