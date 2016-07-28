@@ -242,6 +242,26 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return waitForTablespace(tableSpace, millis, true);
     }
 
+    public boolean waitForBootOfLocalTablespaces(int millis) throws InterruptedException, MetadataStorageManagerException {
+        List<String> tableSpacesToWaitFor = new ArrayList<>();
+        Collection<String> allTableSpaces = metadataStorageManager.listTableSpaces();
+        for (String tableSpaceName : allTableSpaces) {
+            TableSpace tableSpace = metadataStorageManager.describeTableSpace(tableSpaceName);
+            if (tableSpace.leaderId.equals(nodeId)) {
+                tableSpacesToWaitFor.add(tableSpaceName);
+            }
+        }
+        LOGGER.log(Level.INFO, "Waiting (max " + millis + " ms) for boot of local tablespaces: " + tableSpacesToWaitFor);
+
+        for (String tableSpace : tableSpacesToWaitFor) {
+            boolean ok = waitForTablespace(tableSpace, millis, true);
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean waitForTablespace(String tableSpace, int millis, boolean checkLeader) throws InterruptedException {
         long now = System.currentTimeMillis();
         while (System.currentTimeMillis() - now <= millis) {

@@ -101,8 +101,11 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
                 server = new Server(serverConfiguration);
                 try {
                     server.start();
-                    // single machine, local mode, boot the 'default' tablespace                    
-                    server.waitForTableSpaceBoot(TableSpace.DEFAULT, waitForTableSpaceTimeout, true);
+                    // single machine, local mode, boot the 'default' tablespace
+                    if (waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
+                        server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
+                    }
+                    server.waitForBootOfLocalTablespaces(waitForTableSpaceTimeout);
                     client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 } catch (Exception ex) {
                     throw new SQLException("Cannot boot embedded server " + ex, ex);
@@ -110,8 +113,11 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
             }
             if (server != null && waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
                 try {
-                    LOGGER.log(Level.SEVERE, "Waiting for boot of tablespace " + waitForTableSpace + ". Witing at max " + waitForTableSpaceTimeout + " ms");
-                    server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
+                    LOGGER.log(Level.SEVERE, "Waiting for boot of tablespace " + waitForTableSpace + ". Waiting at max " + waitForTableSpaceTimeout + " ms");
+                    if (waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
+                        server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
+                    }
+                    server.waitForBootOfLocalTablespaces(waitForTableSpaceTimeout);
                 } catch (Exception ex) {
                     throw new SQLException("Cannot wait for tableSpace " + defaultSchema + " to boot: " + ex, ex);
                 }
