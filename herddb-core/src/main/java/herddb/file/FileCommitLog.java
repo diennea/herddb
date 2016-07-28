@@ -130,9 +130,11 @@ public class FileCommitLog extends CommitLog {
 
         ExtendedDataInputStream in;
         long ledgerId;
+        boolean lastFile;
 
-        private CommitFileReader(long ledgerId) throws IOException {
+        private CommitFileReader(long ledgerId, boolean lastFile) throws IOException {
             this.ledgerId = ledgerId;
+            this.lastFile = lastFile;
             Path filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION);
             // in case of IOException the stream is not opened, not need to close it
             this.in = new ExtendedDataInputStream(new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ), 64 * 1024));
@@ -141,21 +143,31 @@ public class FileCommitLog extends CommitLog {
         public LogEntryWithSequenceNumber nextEntry() throws IOException {
             byte entryStart;
             try {
-                entryStart = in.readByte();
-            } catch (EOFException okEnd) {
-                return null;
+                try {
+                    entryStart = in.readByte();
+                } catch (EOFException completeFileFinished) {
+                    return null;
+                }
+                if (entryStart != ENTRY_START) {
+                    throw new IOException("corrupted txlog file");
+                }
+                long seqNumber = this.in.readLong();
+                LogEntry edit = LogEntry.deserialize(this.in);
+                int entryEnd = this.in.readByte();
+                if (entryEnd != ENTRY_END) {
+                    throw new IOException("corrupted txlog file");
+                }
+                return new LogEntryWithSequenceNumber(new LogSequenceNumber(ledgerId, seqNumber), edit);
+            } catch (EOFException truncatedLog) {
+                // if we hit EOF the entry has not been written, and so not acked, we can ignore it and say that the file is finished
+                // it is important that this is the last file in the set
+                if (lastFile) {
+                    LOGGER.log(Level.SEVERE, "found unfinished entry in file " + this.ledgerId + ". entry was not acked. ignoring " + truncatedLog);
+                    return null;
+                } else {
+                    throw truncatedLog;
+                }
             }
-            if (entryStart != ENTRY_START) {
-                throw new IOException("corrupted txlog file");
-            }
-            long seqNumber = this.in.readLong();
-            LogEntry edit = LogEntry.deserialize(this.in);
-            int entryEnd = this.in.readByte();
-            if (entryEnd != ENTRY_END) {
-                throw new IOException("corrupted txlog file");
-            }
-
-            return new LogEntryWithSequenceNumber(new LogSequenceNumber(ledgerId, seqNumber), edit);
         }
 
         @Override
@@ -336,14 +348,16 @@ public class FileCommitLog extends CommitLog {
                 }
             }
             names.sort(Comparator.comparing(Path::toString));
+
             for (Path p : names) {
-                LOGGER.log(Level.SEVERE, "logfile is {0}", p.toAbsolutePath());
+                boolean lastFile = p.equals(names.get(names.size() - 1));
+                LOGGER.log(Level.SEVERE, "logfile is {0}, lastFile {1}", new Object[]{p.toAbsolutePath(), lastFile});
                 String name = p.getFileName().toString().replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
                 if (ledgerId > currentLedgerId) {
                     currentLedgerId = ledgerId;
                 }
-                try (CommitFileReader reader = new CommitFileReader(ledgerId)) {
+                try (CommitFileReader reader = new CommitFileReader(ledgerId, lastFile)) {
                     LogEntryWithSequenceNumber n = reader.nextEntry();
                     while (n != null) {
                         lastSequenceNumber = n.logSequenceNumber.offset;
