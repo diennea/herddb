@@ -42,7 +42,6 @@ import herddb.model.RecordFunction;
 import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.Statement;
-import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.Transaction;
@@ -73,9 +72,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -137,7 +134,7 @@ public class TableManager implements AbstractTableManager {
     /**
      * Access to Pages
      */
-    private final ReentrantReadWriteLock pagesLock = new ReentrantReadWriteLock(true);
+    private final ReentrantLock pagesLock = new ReentrantLock(true);
 
     private volatile boolean checkPointRunning = false;
 
@@ -296,11 +293,6 @@ public class TableManager implements AbstractTableManager {
     @Override
     public StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
         try {
-            pagesLock.readLock().lockInterruptibly();
-        } catch (InterruptedException err) {
-            throw new StatementExecutionException(err);
-        }
-        try {
             if (statement instanceof UpdateStatement) {
                 UpdateStatement update = (UpdateStatement) statement;
                 return executeUpdate(update, transaction, context);
@@ -320,7 +312,6 @@ public class TableManager implements AbstractTableManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException("internal data error: " + err, err);
         } finally {
-            pagesLock.readLock().unlock();
             if (transaction == null) {
                 try {
                     autoFlush();
@@ -603,42 +594,30 @@ public class TableManager implements AbstractTableManager {
             forceFlushTableData = true;
         }
 
-        if (!recovery) {
-            try {
-                pagesLock.readLock().lockInterruptibly();
-            } catch (InterruptedException err) {
-                throw new DataStorageManagerException(err);
+        List<Record> changedRecords = transaction.changedRecords.get(table.name);
+        // transaction is still holding locks on each record, so we can change records        
+        List<Record> newRecords = transaction.newRecords.get(table.name);
+        if (newRecords != null) {
+            for (Record record : newRecords) {
+                ensurePageLoadedOnApply(record.key, recovery);
+                applyInsert(record.key, record.value);
             }
         }
-        try {
-            List<Record> changedRecords = transaction.changedRecords.get(table.name);
-            // transaction is still holding locks on each record, so we can change records        
-            List<Record> newRecords = transaction.newRecords.get(table.name);
-            if (newRecords != null) {
-                for (Record record : newRecords) {
-                    ensurePageLoadedOnApply(record.key, recovery);
-                    applyInsert(record.key, record.value);
-                }
-            }
-            if (changedRecords != null) {
-                for (Record r : changedRecords) {
-                    ensurePageLoadedOnApply(r.key, recovery);
-                    applyUpdate(r.key, r.value);
-                }
-            }
-            List<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
-            if (deletedRecords != null) {
-                for (Bytes key : deletedRecords) {
-                    ensurePageLoadedOnApply(key, recovery);
-                    applyDelete(key);
-                }
-            }
-            transaction.releaseLocksOnTable(table.name, locksManager);
-        } finally {
-            if (!recovery) {
-                pagesLock.readLock().unlock();
+        if (changedRecords != null) {
+            for (Record r : changedRecords) {
+                ensurePageLoadedOnApply(r.key, recovery);
+                applyUpdate(r.key, r.value);
             }
         }
+        List<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
+        if (deletedRecords != null) {
+            for (Bytes key : deletedRecords) {
+                ensurePageLoadedOnApply(key, recovery);
+                applyDelete(key);
+            }
+        }
+        transaction.releaseLocksOnTable(table.name, locksManager);
+
         if (forceFlushTableData) {
             LOGGER.log(Level.SEVERE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
             checkpoint(log.getLastSequenceNumber());
@@ -769,34 +748,26 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException {
-        try {
-            pagesLock.readLock().lockInterruptibly();
-        } catch (InterruptedException err) {
-            throw new DataStorageManagerException(err);
-        }
-        try {
-            Consumer<Map.Entry<Bytes, Long>> scanExecutor = (Map.Entry<Bytes, Long> entry) -> {
-                Bytes key = entry.getKey();
-                LockHandle lock = lockForRead(key, null);
-                try {
-                    Long pageId = entry.getValue();
-                    if (pageId != null) {
-                        Record record = fetchRecord(key, pageId);
-                        if (record != null) {
-                            records.accept(record);
-                        }
+        Consumer<Map.Entry<Bytes, Long>> scanExecutor = (Map.Entry<Bytes, Long> entry) -> {
+            Bytes key = entry.getKey();
+            LockHandle lock = lockForRead(key, null);
+            try {
+                Long pageId = entry.getValue();
+                if (pageId != null) {
+                    Record record = fetchRecord(key, pageId);
+                    if (record != null) {
+                        records.accept(record);
                     }
-                } catch (DataStorageManagerException | StatementExecutionException error) {
-                    throw new RuntimeException(error);
-                } finally {
-                    locksManager.releaseReadLockForKey(key, lock);
                 }
-            };
-            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
-            scanner.forEach(scanExecutor);
-        } finally {
-            pagesLock.readLock().unlock();
-        }
+            } catch (DataStorageManagerException | StatementExecutionException error) {
+                throw new RuntimeException(error);
+            } finally {
+                locksManager.releaseReadLockForKey(key, lock);
+            }
+        };
+        Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
+        scanner.forEach(scanExecutor);
+
     }
 
     @Override
@@ -931,10 +902,7 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
-        if (!recovery) {
-            pagesLock.readLock().unlock();
-        }
-        pagesLock.writeLock().lock();
+        pagesLock.lock();
         try {
             if (loadedPages.contains(pageId)) {
                 return;
@@ -970,10 +938,7 @@ public class TableManager implements AbstractTableManager {
                 throw new DataStorageManagerException("table " + table.name + ", error loading page " + pageId + ", active pages " + activePages + ", dirtyPages " + dirtyPages, error);
             }
         } finally {
-            pagesLock.writeLock().unlock();
-            if (!recovery) {
-                pagesLock.readLock().lock();
-            }
+            pagesLock.unlock();
         }
 
     }
@@ -985,7 +950,7 @@ public class TableManager implements AbstractTableManager {
             return Collections.emptyList();
         }
         List<PostCheckpointAction> result = new ArrayList<>();
-        pagesLock.writeLock().lock();
+        pagesLock.lock();
         try {
             checkPointRunning = true;
             /*
@@ -1046,7 +1011,7 @@ public class TableManager implements AbstractTableManager {
             LOGGER.log(Level.SEVERE, "checkpoint {0} finished, now activePages {1}", new Object[]{table.name, activePages + ""});
             checkPointRunning = false;
         } finally {
-            pagesLock.writeLock().unlock();
+            pagesLock.unlock();
         }
         return result;
     }
@@ -1070,17 +1035,7 @@ public class TableManager implements AbstractTableManager {
             if (predicate != null && predicate.getIndexOperation() instanceof PrimaryIndexSeek) {
                 PrimaryIndexSeek seek = (PrimaryIndexSeek) predicate.getIndexOperation();
                 byte[] key = seek.value.computeNewValue(null, context, tableContext);
-                try {
-                    pagesLock.readLock().lockInterruptibly();
-                } catch (InterruptedException err) {
-                    throw new StatementExecutionException(err);
-                }
-                GetResult getResult;
-                try {
-                    getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, Bytes.from_array(key), predicate), transaction, context);
-                } finally {
-                    pagesLock.readLock().unlock();
-                }
+                GetResult getResult = (GetResult) executeGet(new GetStatement(table.tablespace, table.name, Bytes.from_array(key), predicate), transaction, context);
                 if (getResult.found()) {
                     recordSet.add(new Tuple(getResult.getRecord().toBean(table), table.columns));
                 }
@@ -1141,28 +1096,19 @@ public class TableManager implements AbstractTableManager {
                     }
                 }
 
-                try {
-                    pagesLock.readLock().lockInterruptibly();
-                } catch (InterruptedException err) {
-                    throw new StatementExecutionException(err);
-                }
-                try {
-                    Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
+                Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
 
-                    try {
-                        scanner.forEachOrdered(scanExecutor);
-                    } catch (final Exception error) {
-                        LOGGER.log(Level.SEVERE, "error during scan", error);
-                        if (error.getCause() instanceof StatementExecutionException) {
-                            throw (StatementExecutionException) error.getCause();
-                        } else if (error.getCause() instanceof DataStorageManagerException) {
-                            throw (DataStorageManagerException) error.getCause();
-                        } else {
-                            throw new StatementExecutionException(error);
-                        }
+                try {
+                    scanner.forEachOrdered(scanExecutor);
+                } catch (final Exception error) {
+                    LOGGER.log(Level.SEVERE, "error during scan", error);
+                    if (error.getCause() instanceof StatementExecutionException) {
+                        throw (StatementExecutionException) error.getCause();
+                    } else if (error.getCause() instanceof DataStorageManagerException) {
+                        throw (DataStorageManagerException) error.getCause();
+                    } else {
+                        throw new StatementExecutionException(error);
                     }
-                } finally {
-                    pagesLock.readLock().unlock();
                 }
 
                 if (transaction != null) {

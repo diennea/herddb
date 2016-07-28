@@ -55,7 +55,7 @@ import org.junit.Test;
 public class ScanDuringCheckPointTest {
 
     @Test
-    @Ignore
+//    @Ignore
     public void bigTableScan() throws Exception {
         int testSize = 5000;
         String nodeId = "localhost";

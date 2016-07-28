@@ -39,6 +39,7 @@ import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import java.util.Random;
+import org.junit.Ignore;
 
 /**
  *
@@ -97,6 +98,7 @@ public class AutocheckPointTest {
     }
 
     @Test
+    @Ignore
     public void autoCheckPointDuringActivityTest() throws Exception {
         Path dataPath = folder.newFolder("data").toPath();
         Path logsPath = folder.newFolder("logs").toPath();
