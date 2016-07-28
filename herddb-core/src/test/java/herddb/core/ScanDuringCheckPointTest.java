@@ -38,7 +38,9 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -56,6 +58,7 @@ public class ScanDuringCheckPointTest {
         int testSize = 5000;
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.setMaxLogicalPageSize(10);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -93,37 +96,50 @@ public class ScanDuringCheckPointTest {
 
             assertTrue(testSize > 100);
 
-            CountDownLatch checkpointDone = new CountDownLatch(1);
-            Thread fakeCheckpointThread = new Thread(new Runnable() {
+            ExecutorService service = Executors.newFixedThreadPool(1);
+
+            Runnable checkPointPerformer = new Runnable() {
                 @Override
                 public void run() {
+                    CountDownLatch checkpointDone = new CountDownLatch(1);
+                    Thread fakeCheckpointThread = new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                manager.checkpoint();
+                            } catch (Throwable t) {
+                                t.printStackTrace();
+                                fail();
+                            }
+                            checkpointDone.countDown();
+                        }
+
+                    });
+                    fakeCheckpointThread.setDaemon(true);
                     try {
-                        manager.checkpoint();
-                    } catch (Throwable t) {
-                        t.printStackTrace();
-                        fail();
+                        fakeCheckpointThread.start();
+                        checkpointDone.await();
+                        fakeCheckpointThread.join();
+                    } catch (InterruptedException err) {
+                        throw new RuntimeException(err);
                     }
-                    checkpointDone.countDown();
                 }
+            };
 
-            });
-            fakeCheckpointThread.setDaemon(true);
-
-            AtomicBoolean done = new AtomicBoolean();
+            AtomicInteger done = new AtomicInteger();
             Predicate slowPredicate = new Predicate() {
 
                 int count = 0;
 
                 @Override
                 public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-                    if (count++ == 100) {
+                    if (count++ % 10 == 0) {
                         // checkpoint will flush buffers, in the middle of the scan
-                        fakeCheckpointThread.start();
                         try {
-                            checkpointDone.await();
-                            fakeCheckpointThread.join();
-                            done.set(true);
-                        } catch (InterruptedException err) {
+                            System.out.println("GO checkpoint !");
+                            service.submit(checkPointPerformer).get();
+                            done.incrementAndGet();
+                        } catch (ExecutionException | InterruptedException err) {
                             throw new StatementExecutionException(err);
                         }
                     }
@@ -139,7 +155,7 @@ public class ScanDuringCheckPointTest {
                 assertEquals(testSize, count.get());
             }
             assertEquals(testSize, stats.getTablesize());
-            assertTrue(done.get());
+            assertEquals(testSize/10, done.get());
         }
     }
 }
