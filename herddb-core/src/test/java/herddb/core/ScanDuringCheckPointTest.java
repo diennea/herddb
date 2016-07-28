@@ -45,6 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -54,6 +55,7 @@ import org.junit.Test;
 public class ScanDuringCheckPointTest {
 
     @Test
+    @Ignore
     public void bigTableScan() throws Exception {
         int testSize = 5000;
         String nodeId = "localhost";
