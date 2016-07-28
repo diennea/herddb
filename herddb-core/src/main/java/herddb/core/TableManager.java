@@ -138,11 +138,6 @@ public class TableManager implements AbstractTableManager {
      */
     private final ReentrantLock pagesLock = new ReentrantLock(true);
 
-    /**
-     * Used to wait for checkpoint to finish
-     */
-    private final Condition checkPointRunningCondition = pagesLock.newCondition();
-
     private volatile boolean checkPointRunning = false;
 
     /**
@@ -477,7 +472,7 @@ public class TableManager implements AbstractTableManager {
                         return new DMLStatementExecutionResult(transactionId, 0, key, null);
                     }
                     actual = fetchRecord(key, pageId);
-                    if (predicate != null && !predicate.evaluate(actual, context)) {
+                    if (actual == null || (predicate != null && !predicate.evaluate(actual, context))) {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(transactionId, 0, key, null);
                     }
@@ -490,7 +485,7 @@ public class TableManager implements AbstractTableManager {
                     return new DMLStatementExecutionResult(transactionId, 0, key, null);
                 }
                 Record actual = fetchRecord(key, pageId);
-                if (predicate != null && !predicate.evaluate(actual, context)) {
+                if (actual == null || (predicate != null && !predicate.evaluate(actual, context))) {
                     // record does not match predicate
                     return new DMLStatementExecutionResult(transactionId, 0, key, null);
                 }
@@ -549,7 +544,7 @@ public class TableManager implements AbstractTableManager {
                         return new DMLStatementExecutionResult(transactionId, 0, key, null);
                     }
                     actual = fetchRecord(key, pageId);
-                    if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
+                    if (actual == null || (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context))) {
                         // record does not match predicate
                         return new DMLStatementExecutionResult(transactionId, 0, key, null);
                     }
@@ -561,7 +556,7 @@ public class TableManager implements AbstractTableManager {
                     return new DMLStatementExecutionResult(transactionId, 0, key, null);
                 }
                 Record actual = fetchRecord(key, pageId);
-                if (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context)) {
+                if (actual == null || (delete.getPredicate() != null && !delete.getPredicate().evaluate(actual, context))) {
                     // record does not match predicate
                     return new DMLStatementExecutionResult(transactionId, 0, key, null);
                 }
@@ -759,7 +754,9 @@ public class TableManager implements AbstractTableManager {
                 Long pageId = entry.getValue();
                 if (pageId != null) {
                     Record record = fetchRecord(key, pageId);
-                    records.accept(record);
+                    if (record != null) {
+                        records.accept(record);
+                    }
                 }
             } catch (DataStorageManagerException | StatementExecutionException error) {
                 throw new RuntimeException(error);
@@ -890,7 +887,7 @@ public class TableManager implements AbstractTableManager {
                 return GetResult.NOT_FOUND(transactionId);
             }
             loaded = fetchRecord(key, pageId);
-            if (predicate != null && !predicate.evaluate(loaded, context)) {
+            if (loaded == null || (predicate != null && !predicate.evaluate(loaded, context))) {
                 return GetResult.NOT_FOUND(transactionId);
             }
             return new GetResult(transactionId, loaded, table);
@@ -1011,7 +1008,6 @@ public class TableManager implements AbstractTableManager {
             result.addAll(actions);
             LOGGER.log(Level.SEVERE, "checkpoint {0} finished, now activePages {1}", new Object[]{table.name, activePages + ""});
             checkPointRunning = false;
-            checkPointRunningCondition.signalAll();
         } finally {
             pagesLock.unlock();
         }
@@ -1072,7 +1068,7 @@ public class TableManager implements AbstractTableManager {
                             Long pageId = entry.getValue();
                             if (pageId != null) {
                                 Record record = fetchRecord(key, pageId);
-                                if (predicate == null || predicate.evaluate(record, context)) {
+                                if (record != null && (predicate == null || predicate.evaluate(record, context))) {
                                     recordSet.add(new Tuple(record.toBean(table), table.columns));
                                     keep_lock = true;
                                 }
@@ -1139,46 +1135,25 @@ public class TableManager implements AbstractTableManager {
     }
 
     private Record fetchRecord(Bytes key, Long pageId) throws StatementExecutionException, DataStorageManagerException {
-        if (!Objects.equals(pageId, NO_PAGE) && !loadedPages.contains(pageId)) {
-            loadPageToMemory(pageId);
-        }
-        try {
-            Record record = buffer.get(key);
-            while (record == null) {
-                LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed, checkPointRunning:" + checkPointRunning);
-                pagesLock.lockInterruptibly();
-                try {
-                    while (checkPointRunning) {
-                        checkPointRunningCondition.await();
-                    }
-                } finally {
-                    pagesLock.unlock();
-                }
-
-                record = buffer.get(key);
-                if (record == null) {
-                    Long relocatedPageId = keyToPage.get(key);
-                    if (relocatedPageId == null || Objects.equals(relocatedPageId, NO_PAGE)) {
-                        // deleted
-                        LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages + ", record " + key + " deleted during data access");
-                        return null;
-                    }
-                    LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed, checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
-                    pageId = relocatedPageId;
-                    if (!Objects.equals(pageId, NO_PAGE) && !loadedPages.contains(pageId)) {
-                        loadPageToMemory(pageId);
-                    }
-                    record = buffer.get(key);
-                }
+        Record record = buffer.get(key);
+        while (record == null) {
+            Long relocatedPageId = keyToPage.get(key);
+            LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed, checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
+            if (relocatedPageId == null) {
+                // deleted
+                LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages + ", record " + key + " deleted during data access");
+                return null;
             }
-            if (record == null) {
-                LOGGER.log(Level.SEVERE, "table " + table.name + ", activePages " + activePages);
+            pageId = relocatedPageId;
+            if (!Objects.equals(pageId, NO_PAGE)) {
+                // BEWARE that loading a page into memory can cause other pages to be unloaded
+                loadPageToMemory(pageId);
+            } else {
                 throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + activePages);
             }
-            return record;
-        } catch (InterruptedException exit) {
-            throw new StatementExecutionException(exit);
+            record = buffer.get(key);
         }
+        return record;
     }
 
     private final TableManagerStats stats = new TableManagerStats() {
