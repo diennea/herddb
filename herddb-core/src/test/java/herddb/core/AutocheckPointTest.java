@@ -98,7 +98,7 @@ public class AutocheckPointTest {
     }
 
     @Test
-    @Ignore
+//    @Ignore
     public void autoCheckPointDuringActivityTest() throws Exception {
         Path dataPath = folder.newFolder("data").toPath();
         Path logsPath = folder.newFolder("logs").toPath();

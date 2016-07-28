@@ -116,7 +116,7 @@ public class TableManager implements AbstractTableManager {
      * a structure which holds the set of the pages which are loaded in memory
      * (set<long>)
      */
-    private final Set<Long> loadedPages = new HashSet<>();
+    private final Set<Long> loadedPages = new ConcurrentSkipListSet<>();
 
     private final Set<Long> dirtyPages = new ConcurrentSkipListSet<>();
 
@@ -999,31 +999,32 @@ public class TableManager implements AbstractTableManager {
                 createNewPage(newPage, newPageSize);
             }
 
-            // clear the buffer first, running scans or statements can get null on buffer.get, see fetchRecord logic            
-            buffer.clear();
-            loadedPages.clear();
             activePages.removeAll(dirtyPages);
             dirtyPages.clear();
             dirtyRecords.set(0);
+
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
             List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
             result.addAll(actions);
-            LOGGER.log(Level.SEVERE, "checkpoint {0} finished, now activePages {1}", new Object[]{table.name, activePages + ""});
+            LOGGER.log(Level.SEVERE, "checkpoint {0} finished, now activePages {1}, dirty {2}, loaded {3}", new Object[]{table.name, activePages + "", dirtyPages + "", loadedPages + ""});
             checkPointRunning = false;
         } finally {
             pagesLock.unlock();
         }
+        unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
         return result;
     }
 
-    private void createNewPage(List<Record> newPage, long newPageSize) throws DataStorageManagerException {
+    private long createNewPage(List<Record> newPage, long newPageSize) throws DataStorageManagerException {
         long pageId = this.newPageId.getAndIncrement();
         LOGGER.log(Level.SEVERE, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size", new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
         activePages.add(pageId);
+        loadedPages.add(pageId);
         for (Record record : newPage) {
             keyToPage.put(record.key, pageId);
         }
+        return pageId;
     }
 
     @Override
