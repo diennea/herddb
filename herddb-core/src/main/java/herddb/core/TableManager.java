@@ -49,6 +49,7 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
+import herddb.model.Projection;
 import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -954,10 +955,17 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
-        MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
-
+        boolean sorted = statement.getComparator() != null;
+        final Projection projection = statement.getProjection();
+        boolean applyProjectionDuringScan = !sorted && projection != null;
+        MaterializedRecordSet recordSet;
+        if (applyProjectionDuringScan) {
+            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(projection.getColumns());
+        } else {
+            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
+        }
         ScanLimits limits = statement.getLimits();
-        if (limits != null && limits.getMaxRows() > 0 && statement.getComparator() == null) {
+        if (limits != null && limits.getMaxRows() > 0 && !sorted) {
             // if no sort is present the limits can be applying during the scan and perform an early exit
             AtomicInteger remaining = new AtomicInteger(limits.getMaxRows());
 
@@ -966,8 +974,11 @@ public class TableManager implements AbstractTableManager {
             }
             accessTableData(statement, context, new ScanResultOperation() {
                 @Override
-                public void accept(Record record) {
+                public void accept(Record record) throws StatementExecutionException {
                     Tuple tuple = new Tuple(record.toBean(table), table.columns);
+                    if (applyProjectionDuringScan) {
+                        tuple = projection.map(tuple);
+                    }
                     recordSet.add(tuple);
                     if (remaining.decrementAndGet() == 0) {
                         throw new ExitLoop();
@@ -977,8 +988,11 @@ public class TableManager implements AbstractTableManager {
         } else {
             accessTableData(statement, context, new ScanResultOperation() {
                 @Override
-                public void accept(Record record) {
+                public void accept(Record record) throws StatementExecutionException {
                     Tuple tuple = new Tuple(record.toBean(table), table.columns);
+                    if (applyProjectionDuringScan) {
+                        tuple = projection.map(tuple);
+                    }
                     recordSet.add(tuple);
                 }
             }, transaction, false);
@@ -986,7 +1000,9 @@ public class TableManager implements AbstractTableManager {
         recordSet.writeFinished();
         recordSet.sort(statement.getComparator());
         recordSet.applyLimits(statement.getLimits());
-        recordSet.applyProjection(statement.getProjection());
+        if (!applyProjectionDuringScan) {
+            recordSet.applyProjection(statement.getProjection());
+        }
         return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
     }
 
