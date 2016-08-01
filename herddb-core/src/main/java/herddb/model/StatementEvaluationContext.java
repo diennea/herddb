@@ -40,7 +40,6 @@ public class StatementEvaluationContext {
 
     private static final Logger LOGGER = Logger.getLogger(StatementEvaluationContext.class.getName());
 
-    private Tuple currentTuple;
     private DBManager manager;
     private TransactionContext transactionContext;
     private final Map<String, List<Tuple>> subqueryCache = new HashMap<>();
@@ -72,14 +71,6 @@ public class StatementEvaluationContext {
 
     public void setManager(DBManager manager) {
         this.manager = manager;
-    }
-
-    public Tuple getCurrentTuple() {
-        return currentTuple;
-    }
-
-    public void setCurrentTuple(Tuple currentTuple) {
-        this.currentTuple = currentTuple;
     }
 
     public List<Tuple> executeSubquery(PlainSelect select) throws StatementExecutionException {

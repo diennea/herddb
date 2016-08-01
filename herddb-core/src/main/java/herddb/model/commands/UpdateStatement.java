@@ -19,11 +19,14 @@
  */
 package herddb.model.commands;
 
+import herddb.index.PrimaryIndexSeek;
 import herddb.model.DMLStatement;
 import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.ConstValueRecordFunction;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 
 /**
  * Update an existing record
@@ -43,6 +46,17 @@ public class UpdateStatement extends DMLStatement {
     public UpdateStatement(String tableSpace, String table, RecordFunction key, RecordFunction function, Predicate predicate) {
         super(table, tableSpace);
         this.function = function;
+        if (predicate == null) {
+            predicate = new Predicate() {
+                @Override
+                public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                    return true;
+                }
+            };
+        }
+        if (key != null) {
+            predicate.setIndexOperation(new PrimaryIndexSeek(key));
+        }
         this.predicate = predicate;
         this.key = key;
     }
@@ -51,17 +65,13 @@ public class UpdateStatement extends DMLStatement {
         return function;
     }
 
-    public RecordFunction getKey() {
-        return key;
-    }
-
     public Predicate getPredicate() {
         return predicate;
     }
 
     @Override
     public String toString() {
-        return "UpdateStatement "+System.identityHashCode(this)+" {" + "function=" + function + ", key=" + key + ", predicate=" + predicate + '}';
+        return "UpdateStatement " + System.identityHashCode(this) + " {" + "function=" + function + ", key=" + key + ", predicate=" + predicate + '}';
     }
 
 }

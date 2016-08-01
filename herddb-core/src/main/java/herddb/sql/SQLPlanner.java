@@ -39,7 +39,6 @@ import herddb.model.Aggregator;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
-import herddb.model.CurrentTupleKeySeek;
 import herddb.model.DataScannerException;
 import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
@@ -528,24 +527,40 @@ public class SQLPlanner {
         }
         Table table = tableManager.getTable();
 
-        SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger());
-
-        if (keyFunction != null && keyFunction.isFullPrimaryKey()) {
-            Predicate where = buildSimplePredicate(s.getWhere(), table, table.name, 0);
-            try {
-                return ExecutionPlan.simple(new DeleteStatement(tableSpace, tableName, keyFunction, where));
-            } catch (IllegalArgumentException err) {
-                throw new StatementExecutionException(err);
+        // Perform a scan and then delete each row
+        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), 0) : null;
+        if (where != null) {
+            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger());
+            if (keyFunction != null) {
+                if (keyFunction.isFullPrimaryKey()) {
+                    where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
+                } else {
+                    where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
+                }
+            } else {
+                Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+                if (indexes != null) {
+                    // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
+                    for (AbstractIndexManager index : indexes.values()) {
+                        if (!index.isAvailable()) {
+                            continue;
+                        }
+                        String[] columnsToMatch = index.getColumnNames();
+                        SQLRecordKeyFunction indexSeekFunction = findIndexSeek(s.getWhere(), columnsToMatch,
+                                index.getIndex(),
+                                table.name, new AtomicInteger());
+                        if (indexSeekFunction != null) {
+                            where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            break;
+                        }
+                    }
+                }
             }
-        } else {
-
-            // Perform a scan and then update each row
-            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), 0) : null;
-            ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
-            DeleteStatement st = new DeleteStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), where);
-            return ExecutionPlan.make(scan, null, null, null, st);
-
         }
+
+        DeleteStatement st = new DeleteStatement(tableSpace, tableName, null, where);
+        return ExecutionPlan.simple(st);
+
     }
 
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s) throws StatementExecutionException {
@@ -573,24 +588,39 @@ public class SQLPlanner {
 
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
         int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
-        SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger(setClauseParamters));
 
-        if (keyFunction != null && keyFunction.isFullPrimaryKey()) {
-            // UPDATE BY PRIMARY KEY            
-            try {
-                Predicate where = buildSimplePredicate(s.getWhere(), table, table.name, setClauseParamters);
-                UpdateStatement st = new UpdateStatement(tableSpace, tableName, keyFunction, function, where);
-                return ExecutionPlan.simple(st);
-            } catch (IllegalArgumentException err) {
-                throw new StatementExecutionException(err);
+        // Perform a scan and then update each row
+        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), setClauseParamters) : null;
+        if (where != null) {
+            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new AtomicInteger(setClauseParamters));
+            if (keyFunction != null) {
+                if (keyFunction.isFullPrimaryKey()) {
+                    where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
+                } else {
+                    where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
+                }
+            } else {
+                Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+                if (indexes != null) {
+                    // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
+                    for (AbstractIndexManager index : indexes.values()) {
+                        if (!index.isAvailable()) {
+                            continue;
+                        }
+                        String[] columnsToMatch = index.getColumnNames();
+                        SQLRecordKeyFunction indexSeekFunction = findIndexSeek(s.getWhere(), columnsToMatch,
+                                index.getIndex(),
+                                table.name, new AtomicInteger());
+                        if (indexSeekFunction != null) {
+                            where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            break;
+                        }
+                    }
+                }
             }
-        } else {
-            // Perform a scan and then update each row
-            Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), setClauseParamters) : null;
-            ScanStatement scan = new ScanStatement(tableSpace, tableName, Projection.PRIMARY_KEY(table), where, null, null);
-            UpdateStatement st = new UpdateStatement(tableSpace, tableName, new CurrentTupleKeySeek(table), function, where);
-            return ExecutionPlan.make(scan, null, null, null, st);
         }
+        UpdateStatement st = new UpdateStatement(tableSpace, tableName, null, function, where);
+        return ExecutionPlan.simple(st);
 
     }
 
@@ -713,28 +743,28 @@ public class SQLPlanner {
         } else if (expression instanceof TimestampValue) {
             return ((TimestampValue) expression).getValue();
         } else if (expression instanceof SignedExpression) {
-            SignedExpression se = (SignedExpression)expression;
+            SignedExpression se = (SignedExpression) expression;
             switch (se.getSign()) {
                 case '+': {
                     return resolveValue(se.getExpression());
                 }
-                case '-':{
+                case '-': {
                     Object value = resolveValue(se.getExpression());
                     if (value == null) {
                         return null;
                     }
                     if (value instanceof Integer) {
-                        return -1L * ((Integer)value);
+                        return -1L * ((Integer) value);
                     } else if (value instanceof Long) {
-                        return -1L * ((Long)value);
+                        return -1L * ((Long) value);
                     } else {
-                        throw new StatementExecutionException("unsupported value type " + expression.getClass()+" with sign "+se.getSign()+" on value "+value+" of type "+value.getClass());
+                        throw new StatementExecutionException("unsupported value type " + expression.getClass() + " with sign " + se.getSign() + " on value " + value + " of type " + value.getClass());
                     }
                 }
                 default:
-                    throw new StatementExecutionException("unsupported value type " + expression.getClass()+" with sign "+se.getSign());
+                    throw new StatementExecutionException("unsupported value type " + expression.getClass() + " with sign " + se.getSign());
             }
-            
+
         } else {
             throw new StatementExecutionException("unsupported value type " + expression.getClass());
         }
@@ -886,7 +916,7 @@ public class SQLPlanner {
 
             try {
                 ScanStatement statement = new ScanStatement(tableSpace, tableName, projection, where, comparatorOnScan, limitsOnScan);
-                return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan, null);
+                return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }

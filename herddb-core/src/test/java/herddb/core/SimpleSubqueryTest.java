@@ -82,7 +82,7 @@ public class SimpleSubqueryTest {
                         + "FROM tblspace1.table1 t1 "
                         + "WHERE t2.n1=123", Collections.emptyList());
                 fail("query must not work");
-            } catch (Exception ok) {
+            } catch (Exception ok) {                
                 assertEquals("invalid column name n1 invalid table name t2, expecting t1", ok.getMessage());
 
             }

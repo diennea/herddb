@@ -434,11 +434,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
                 // transction can be auto generated during the scan 
                 transactionContext = new TransactionContext(result.transactionId);
-                if (plan.mutator != null) {
-                    return executeMutatorPlan(result, plan, context, transactionContext);
-                } else {
-                    return executeDataScannerPlan(plan, result, transactionContext);
-                }
+                return executeDataScannerPlan(plan, result, transactionContext);
             } else {
                 return executeStatement(plan.mainStatement, context, transactionContext);
             }
@@ -474,29 +470,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         } else {
             return scanResult;
-        }
-    }
-
-    private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        try {
-            int updateCount = 0;
-            try {
-                while (result.hasNext()) {
-                    Tuple next = result.next();
-                    context.setCurrentTuple(next);
-                    try {
-                        DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context, transactionContext);
-                        updateCount += executeUpdate.getUpdateCount();
-                    } finally {
-                        context.setCurrentTuple(null);
-                    }
-                }
-                return new DMLStatementExecutionResult(result.transactionId, updateCount);
-            } finally {
-                result.close();
-            }
-        } catch (DataScannerException ex) {
-            throw new StatementExecutionException(ex);
         }
     }
 

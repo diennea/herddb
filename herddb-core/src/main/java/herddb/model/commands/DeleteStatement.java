@@ -19,10 +19,15 @@
  */
 package herddb.model.commands;
 
+import herddb.index.IndexOperation;
+import herddb.index.PrimaryIndexSeek;
 import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.Predicate;
+import herddb.model.Record;
 import herddb.model.RecordFunction;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.utils.Bytes;
 
 /**
@@ -33,23 +38,31 @@ import herddb.utils.Bytes;
  */
 public class DeleteStatement extends DMLStatement {
 
-    private final RecordFunction keyFunction;
     private final Predicate predicate;
 
     public DeleteStatement(String tableSpace, String table, Bytes key, Predicate predicate) {
         super(table, tableSpace);
-        this.keyFunction = new ConstValueRecordFunction(key.data);
+        if (predicate == null) {
+            if (key == null) {
+                predicate = new Predicate() {
+                    @Override
+                    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                        return true;
+                    }
+                };
+            } else {
+                predicate = new Predicate() {
+                    @Override
+                    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
+                        return record.key.equals(key);
+                    }
+                };
+            }
+        }
+        if (key != null) {
+            predicate.setIndexOperation(new PrimaryIndexSeek(new ConstValueRecordFunction(key.data)));
+        }
         this.predicate = predicate;
-    }
-
-    public DeleteStatement(String tableSpace, String table, RecordFunction keyFunction, Predicate predicate) {
-        super(table, tableSpace);
-        this.keyFunction = keyFunction;
-        this.predicate = predicate;
-    }
-
-    public RecordFunction getKeyFunction() {
-        return keyFunction;
     }
 
     public Predicate getPredicate() {
