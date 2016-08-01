@@ -49,6 +49,7 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
+import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
@@ -430,6 +431,9 @@ public class TableManager implements AbstractTableManager {
                 locksManager.releaseWriteLockForKey(key, lock);
             }
         }
+    }
+
+    private static class ExitLoop extends RuntimeException {
     }
 
     private static class ScanResultOperation {
@@ -951,21 +955,38 @@ public class TableManager implements AbstractTableManager {
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
         MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
-        accessTableData(statement, context, new ScanResultOperation() {
-            @Override
-            public void accept(Record record) {
-                Tuple tuple = new Tuple(record.toBean(table), table.columns);
-                recordSet.add(tuple);
+
+        ScanLimits limits = statement.getLimits();
+        if (limits != null && limits.getMaxRows() > 0 && statement.getComparator() == null) {
+            // if no sort is present the limits can be applying during the scan and perform an early exit
+            AtomicInteger remaining = new AtomicInteger(limits.getMaxRows());
+
+            if (limits.getOffset() > 0) {
+                remaining.getAndAdd(limits.getOffset());
             }
-        }, transaction, false);
+            accessTableData(statement, context, new ScanResultOperation() {
+                @Override
+                public void accept(Record record) {
+                    Tuple tuple = new Tuple(record.toBean(table), table.columns);
+                    recordSet.add(tuple);
+                    if (remaining.decrementAndGet() == 0) {
+                        throw new ExitLoop();
+                    }
+                }
+            }, transaction, false);
+        } else {
+            accessTableData(statement, context, new ScanResultOperation() {
+                @Override
+                public void accept(Record record) {
+                    Tuple tuple = new Tuple(record.toBean(table), table.columns);
+                    recordSet.add(tuple);
+                }
+            }, transaction, false);
+        }
         recordSet.writeFinished();
         recordSet.sort(statement.getComparator());
-
-        // TODO: if no sort is present the limits can be applying during the scan and perform an early exit
         recordSet.applyLimits(statement.getLimits());
-
         recordSet.applyProjection(statement.getProjection());
-
         return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
     }
 
@@ -1034,9 +1055,12 @@ public class TableManager implements AbstractTableManager {
             }
 
             Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
-
+            boolean exit = false;
             try {
                 scanner.forEachOrdered(scanExecutor);
+            } catch (ExitLoop exitLoop) {
+                exit = true;
+                LOGGER.log(Level.SEVERE, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
             } catch (final Exception error) {
                 LOGGER.log(Level.SEVERE, "error during scan", error);
                 if (error.getCause() instanceof StatementExecutionException) {
@@ -1048,7 +1072,7 @@ public class TableManager implements AbstractTableManager {
                 }
             }
 
-            if (transaction != null) {
+            if (!exit && transaction != null) {
                 for (Record record : transaction.getNewRecordsForTable(table.name)) {
                     if (!transaction.recordDeleted(table.name, record.key)
                             && (predicate == null || predicate.evaluate(record, context))) {
@@ -1057,6 +1081,8 @@ public class TableManager implements AbstractTableManager {
                 }
             }
 
+        } catch (ExitLoop exitLoop) {
+            LOGGER.log(Level.SEVERE, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
             throw new StatementExecutionException(err);
