@@ -556,9 +556,9 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
-        if (recovery && !pos.after(bootSequenceNumber)) {
-            LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry + " at " + pos + ", table booted at " + bootSequenceNumber);
+    public void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException {
+        if (recovery && !position.after(bootSequenceNumber)) {
+            LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry + " at " + position + ", table booted at " + bootSequenceNumber);
             return;
         }
         switch (entry.type) {
@@ -573,7 +573,7 @@ public class TableManager implements AbstractTableManager {
                     if (transaction == null) {
                         throw new DataStorageManagerException("no such transaction " + entry.transactionId);
                     }
-                    transaction.registerDeleteOnTable(this.table.name, key);
+                    transaction.registerDeleteOnTable(this.table.name, key, position);
                 } else {
                     applyDelete(key);
                 }
@@ -590,7 +590,7 @@ public class TableManager implements AbstractTableManager {
                     if (transaction == null) {
                         throw new DataStorageManagerException("no such transaction " + entry.transactionId);
                     }
-                    transaction.registerRecoredUpdate(this.table.name, key, value);
+                    transaction.registerRecordUpdate(this.table.name, key, value, position);
                 } else {
                     applyUpdate(key, value);
                 }
@@ -607,7 +607,7 @@ public class TableManager implements AbstractTableManager {
                     if (transaction == null) {
                         throw new DataStorageManagerException("no such transaction " + entry.transactionId);
                     }
-                    transaction.registerInsertOnTable(table.name, key, value);
+                    transaction.registerInsertOnTable(table.name, key, value, position);
                 } else {
                     applyInsert(key, value);
                 }

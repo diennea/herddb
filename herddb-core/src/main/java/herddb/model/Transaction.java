@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.log.LogSequenceNumber;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
@@ -53,14 +54,16 @@ public class Transaction {
     public Map<String, Index> newIndexes;
     public Set<String> droppedTables;
     public Set<String> droppedIndexes;
+    public LogSequenceNumber lastSequenceNumber;
 
-    public Transaction(long transactionId, String tableSpace) {
+    public Transaction(long transactionId, String tableSpace, LogSequenceNumber lastSequenceNumber) {
         this.transactionId = transactionId;
         this.tableSpace = tableSpace;
         this.locks = new HashMap<>();
         this.changedRecords = new HashMap<>();
         this.newRecords = new HashMap<>();
         this.deletedRecords = new HashMap<>();
+        this.lastSequenceNumber = lastSequenceNumber;
     }
 
     public LockHandle lookupLock(String tableName, Bytes key) {
@@ -80,7 +83,11 @@ public class Transaction {
         ll.put(handle.key, handle);
     }
 
-    public synchronized void registerNewTable(Table table) {
+    public synchronized void registerNewTable(Table table, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         if (newTables == null) {
             newTables = new HashMap<>();
         }
@@ -91,7 +98,11 @@ public class Transaction {
         droppedTables.remove(table.name);
     }
 
-    public synchronized void registerNewIndex(Index index) {
+    public synchronized void registerNewIndex(Index index, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         if (newIndexes == null) {
             newIndexes = new HashMap<>();
         }
@@ -102,7 +113,11 @@ public class Transaction {
         droppedIndexes.remove(index.name);
     }
 
-    public synchronized void registerInsertOnTable(String tableName, Bytes key, Bytes value) {
+    public synchronized void registerInsertOnTable(String tableName, Bytes key, Bytes value, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         List<Record> ll = newRecords.get(tableName);
         if (ll == null) {
             ll = new ArrayList<>();
@@ -145,7 +160,11 @@ public class Transaction {
      * @param key
      * @param value if null this is a DELETE
      */
-    public synchronized void registerRecoredUpdate(String tableName, Bytes key, Bytes value) {
+    public synchronized void registerRecordUpdate(String tableName, Bytes key, Bytes value, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         List<Record> ll = changedRecords.get(tableName);
         if (ll == null) {
             ll = new ArrayList<>();
@@ -173,8 +192,11 @@ public class Transaction {
         }
     }
 
-    public synchronized void registerDeleteOnTable(String tableName, Bytes key) {
-        registerRecoredUpdate(tableName, key, null);
+    public synchronized void registerDeleteOnTable(String tableName, Bytes key, LogSequenceNumber sequenceNumber) {        
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        registerRecordUpdate(tableName, key, null, sequenceNumber);
 
         List<Bytes> ll = deletedRecords.get(tableName);
         if (ll == null) {
@@ -229,7 +251,11 @@ public class Transaction {
         return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + ", newIndexes=" + newIndexes + '}';
     }
 
-    public synchronized void registerDropTable(String tableName) {
+    public synchronized void registerDropTable(String tableName, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         if (newTables == null) {
             newTables = new HashMap<>();
         }
@@ -240,7 +266,11 @@ public class Transaction {
         droppedTables.add(tableName);
     }
 
-    public synchronized void registerDropIndex(String indexName) {
+    public synchronized void registerDropIndex(String indexName, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         if (newIndexes == null) {
             newIndexes = new HashMap<>();
         }
@@ -260,8 +290,10 @@ public class Transaction {
     }
 
     public synchronized void serialize(ExtendedDataOutputStream out) throws IOException {
-        out.writeInt(0); // flags
+        out.writeInt(0); // flags        
         out.writeLong(transactionId);
+        out.writeLong(lastSequenceNumber.ledgerId);
+        out.writeLong(lastSequenceNumber.offset);
         out.writeVInt(changedRecords.size());
         for (Map.Entry<String, List<Record>> table : changedRecords.entrySet()) {
             out.writeUTF(table.getKey());
@@ -326,7 +358,10 @@ public class Transaction {
     public static Transaction deserialize(String tableSpace, ExtendedDataInputStream in) throws IOException {
         in.readInt(); // flags
         long id = in.readLong();
-        Transaction t = new Transaction(id, tableSpace);
+        long ledgerId = in.readLong();
+        long offset = in.readLong();
+        LogSequenceNumber lastSequenceNumber = new LogSequenceNumber(ledgerId, offset);
+        Transaction t = new Transaction(id, tableSpace, lastSequenceNumber);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();

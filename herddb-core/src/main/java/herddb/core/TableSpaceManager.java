@@ -259,7 +259,7 @@ public class TableSpaceManager {
         switch (entry.type) {
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
-                Transaction transaction = new Transaction(id, tableSpaceName);
+                Transaction transaction = new Transaction(id, tableSpaceName, position);
                 transactions.put(id, transaction);
             }
             break;
@@ -352,7 +352,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerNewTable(table);
+                    transaction.registerNewTable(table, position);
                 }
 
                 bootTable(table, entry.transactionId);
@@ -366,7 +366,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerNewIndex(index);
+                    transaction.registerNewIndex(index, position);
                 }
                 AbstractTableManager tableManager = tables.get(index.table);
                 if (tableManager == null) {
@@ -383,7 +383,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerDropTable(tableName);
+                    transaction.registerDropTable(tableName, position);
                 } else {
                     try {
                         generalLock.writeLock().lock();
@@ -408,7 +408,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerDropIndex(indexName);
+                    transaction.registerDropIndex(indexName, position);
                 } else {
                     try {
                         generalLock.writeLock().lock();
