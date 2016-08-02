@@ -19,14 +19,6 @@
  */
 package herddb.file;
 
-import herddb.log.CommitLog;
-import herddb.log.LogEntry;
-import herddb.log.LogNotAvailableException;
-import herddb.log.LogSequenceNumber;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.FileUtils;
-import herddb.utils.SimpleBufferedOutputStream;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.FileOutputStream;
@@ -41,15 +33,20 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.bookkeeper.client.BKException;
+import herddb.log.CommitLog;
+import herddb.log.LogEntry;
+import herddb.log.LogNotAvailableException;
+import herddb.log.LogSequenceNumber;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.FileUtils;
+import herddb.utils.SimpleBufferedOutputStream;
 
 /**
  * Commit log on file
@@ -63,7 +60,9 @@ public class FileCommitLog extends CommitLog {
     private Path logDirectory;
 
     private long currentLedgerId = 0;
-    private long lastSequenceNumber = -1;
+    
+    private LogSequenceNumber recoveredLogSequence;
+    
     private long maxLogFileSize = 1024 * 1024;
     private long writtenBytes = 0;
 
@@ -78,11 +77,17 @@ public class FileCommitLog extends CommitLog {
 
     private class CommitFileWriter implements AutoCloseable {
 
-        ExtendedDataOutputStream out;
-        Path filename;
-        FileOutputStream fOut;
+        final long ledgerId;
+        long sequenceNumber;
+        
+        final ExtendedDataOutputStream out;
+        final Path filename;
+        final FileOutputStream fOut;
 
-        private CommitFileWriter(long ledgerId) throws IOException {
+        private CommitFileWriter(long ledgerId, long sequenceNumber) throws IOException {
+            this.ledgerId = ledgerId;
+            this.sequenceNumber = sequenceNumber;
+            
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
             LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
@@ -186,9 +191,9 @@ public class FileCommitLog extends CommitLog {
                 writer.close();
             }
             ensureDirectories();
-            currentLedgerId++;
-            lastSequenceNumber = -1;
-            writer = new CommitFileWriter(currentLedgerId);
+            
+            writer = new CommitFileWriter(++currentLedgerId,-1);
+            
         } catch (IOException err) {
             throw new LogNotAvailableException(err);
         }
@@ -283,15 +288,18 @@ public class FileCommitLog extends CommitLog {
 
     private void writeEntry(LogEntryHolderFuture entry) {
         try {
-            if (writer == null) {
+            CommitFileWriter writer = this.writer;
+            
+            if (writer == null)
                 throw new IOException("not yet writable");
-            }
-            long newSequenceNumber = ++lastSequenceNumber;
+            
+            long newSequenceNumber = ++writer.sequenceNumber;
             writer.writeEntry(newSequenceNumber, entry.entry);
-            if (writtenBytes > maxLogFileSize) {
+            
+            if (writtenBytes > maxLogFileSize)
                 openNewLedger();
-            }
-            entry.done(new LogSequenceNumber(currentLedgerId, newSequenceNumber));
+            
+            entry.done(new LogSequenceNumber(writer.ledgerId, newSequenceNumber));
         } catch (IOException | LogNotAvailableException err) {
             entry.error(err);
         }
@@ -310,8 +318,8 @@ public class FileCommitLog extends CommitLog {
             LOGGER.log(Level.FINEST, "log {0}", edit);
         }
         LogEntryHolderFuture future = new LogEntryHolderFuture(edit, synch);
-        writeQueue.add(future);
         try {
+            writeQueue.put(future);
             return future.ack.get();
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
@@ -353,18 +361,23 @@ public class FileCommitLog extends CommitLog {
             
             final Path last = names.isEmpty() ? null : names.get(names.size() - 1);
 
+            long offset = -1;
             for (Path p : names) {
+                
                 boolean lastFile = p.equals(last);
+                
                 LOGGER.log(Level.SEVERE, "logfile is {0}, lastFile {1}", new Object[]{p.toAbsolutePath(), lastFile});
+                
                 String name = p.getFileName().toString().replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
-                if (ledgerId > currentLedgerId) {
-                    currentLedgerId = ledgerId;
-                }
+                
+                currentLedgerId = Math.max(currentLedgerId , ledgerId);
+                offset = -1;
+                
                 try (CommitFileReader reader = new CommitFileReader(ledgerId, lastFile)) {
                     LogEntryWithSequenceNumber n = reader.nextEntry();
                     while (n != null) {
-                        lastSequenceNumber = n.logSequenceNumber.offset;
+                        offset = n.logSequenceNumber.offset;
                         if (n.logSequenceNumber.after(snapshotSequenceNumber)) {
                             LOGGER.log(Level.FINE, "RECOVER ENTRY {0}, {1}", new Object[]{n.logSequenceNumber, n.entry});
                             consumer.accept(n.logSequenceNumber, n.entry);
@@ -375,6 +388,9 @@ public class FileCommitLog extends CommitLog {
                     }
                 }
             }
+            
+            recoveredLogSequence = new LogSequenceNumber(currentLedgerId, offset);
+            
             LOGGER.log(Level.SEVERE, "Max ledgerId is {0}", new Object[]{currentLedgerId});
         } catch (Exception err) {
             throw new LogNotAvailableException(err);
@@ -476,7 +492,11 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public LogSequenceNumber getLastSequenceNumber() {
-        return new LogSequenceNumber(currentLedgerId, lastSequenceNumber);
+        final CommitFileWriter writer = this.writer;
+        if ( writer == null )
+            return ( recoveredLogSequence == null ) ? new LogSequenceNumber(currentLedgerId, -1) : recoveredLogSequence;
+        else
+            return new LogSequenceNumber(writer.ledgerId, writer.sequenceNumber);
     }
 
 }
