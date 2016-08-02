@@ -50,4 +50,9 @@ public class SecondaryIndexPrefixScan implements IndexOperation {
         throw new UnsupportedOperationException("Not supported");
     }
 
+    @Override
+    public String getIndexName() {
+        return indexName;
+    }
+
 }

@@ -52,9 +52,18 @@ import herddb.index.PrimaryIndexSeek;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
 import static herddb.core.TestUtils.execute;
+import herddb.index.SecondaryIndexPrefixScan;
+import herddb.index.SecondaryIndexSeek;
+import herddb.model.ColumnTypes;
+import herddb.model.Index;
 import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
+import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
+import herddb.model.commands.CreateIndexStatement;
+import herddb.model.commands.CreateTableStatement;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -234,7 +243,7 @@ public class RawSQLTest {
         }
     }
 
-     @Test
+    @Test
     public void simpleExitLoopTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
@@ -267,7 +276,7 @@ public class RawSQLTest {
             }
         }
     }
-    
+
     @Test
     public void orderByAliasTest() throws Exception {
         String nodeId = "localhost";
@@ -1111,53 +1120,6 @@ public class RawSQLTest {
             }
         }
 
-    }
-
-    @Test
-    public void multipleColumnPrimaryKeyPrefixScanTest() throws Exception {
-        String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
-            manager.start();
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
-            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
-
-            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string,"
-                    + "n1 int,"
-                    + "s1 string, "
-                    + "primary key (k1,n1)"
-                    + ")", Collections.emptyList());
-
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
-
-            {
-                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), true, true);
-                ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
-                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
-                try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(2, scan1.consume().size());
-                }
-            }
-
-            {
-                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 <> 1235", Arrays.asList("mykey"), true, true);
-                ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
-                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
-                try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(1, scan1.consume().size());
-                }
-            }
-            {
-                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 = 1235", Arrays.asList("mykey"), true, true);
-                ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
-                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
-                try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(1, scan1.consume().size());
-                }
-            }
-
-        }
     }
 
     @Test

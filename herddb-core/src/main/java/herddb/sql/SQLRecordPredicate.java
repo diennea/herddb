@@ -393,7 +393,7 @@ public class SQLRecordPredicate extends Predicate {
 
     @Override
     public String toString() {
-        return "SQLRecordPredicate{" + "table=" + table + ", tableAlias=" + tableAlias + ", where=" + where + ", firstParameterPos=" + firstParameterPos + ",indexOp=" + getIndexOperation() + '}';
+        return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + tableAlias + ", where=" + where + ", firstParameterPos=" + firstParameterPos + ",indexOp=" + getIndexOperation() + '}';
     }
 
 }

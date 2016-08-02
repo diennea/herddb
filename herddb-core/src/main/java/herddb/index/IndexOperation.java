@@ -32,4 +32,6 @@ import java.util.function.Predicate;
 public interface IndexOperation {    
 
     public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext ctx, TableContext tableContext);
+    
+    public String getIndexName();
 }

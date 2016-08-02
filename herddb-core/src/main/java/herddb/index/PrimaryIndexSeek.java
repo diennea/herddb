@@ -54,4 +54,9 @@ public class PrimaryIndexSeek implements IndexOperation {
         };
     }
 
+    @Override
+    public String getIndexName() {
+        return "PRIMARY KEY";
+    }
+
 }

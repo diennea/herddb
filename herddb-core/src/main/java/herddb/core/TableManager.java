@@ -1064,11 +1064,13 @@ public class TableManager implements AbstractTableManager {
             };
 
             AbstractIndexManager useIndex = null;
-            if (indexOperation instanceof SecondaryIndexSeek) {
+            if (indexOperation != null) {
                 Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
                 if (indexes != null) {
-                    SecondaryIndexSeek sis = (SecondaryIndexSeek) indexOperation;
-                    useIndex = indexes.get(sis.indexName);
+                    useIndex = indexes.get(indexOperation.getIndexName());
+                    if (useIndex != null && !useIndex.isAvailable()) {
+                        useIndex = null;
+                    }
                 }
             }
 

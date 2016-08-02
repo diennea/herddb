@@ -33,6 +33,7 @@ import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
@@ -550,7 +551,11 @@ public class SQLPlanner {
                                 index.getIndex(),
                                 table.name, new AtomicInteger());
                         if (indexSeekFunction != null) {
-                            where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            if (indexSeekFunction.isFullPrimaryKey()) {
+                                where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            } else {
+                                where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            }
                             break;
                         }
                     }
@@ -612,7 +617,11 @@ public class SQLPlanner {
                                 index.getIndex(),
                                 table.name, new AtomicInteger());
                         if (indexSeekFunction != null) {
-                            where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            if (indexSeekFunction.isFullPrimaryKey()) {
+                                where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            } else {
+                                where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                            }
                             break;
                         }
                     }
@@ -844,7 +853,7 @@ public class SQLPlanner {
 
             Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;
             if (where != null) {
-                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, table.name, new AtomicInteger());
+                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias, new AtomicInteger());
                 if (keyFunction != null) {
                     if (keyFunction.isFullPrimaryKey()) {
                         where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
@@ -864,7 +873,11 @@ public class SQLPlanner {
                                     index.getIndex(),
                                     table.name, new AtomicInteger());
                             if (indexSeekFunction != null) {
-                                where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                                if (indexSeekFunction.isFullPrimaryKey()) {
+                                    where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                                } else {
+                                    where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
+                                }
                                 break;
                             }
                         }

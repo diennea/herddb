@@ -54,4 +54,10 @@ public class PrimaryIndexPrefixScan implements IndexOperation {
             return Bytes.startsWith(fullrecordKey, prefix.length, prefix);
         };
     }
+
+    @Override
+    public String getIndexName() {
+        return "PRIMARY KEY";
+    }
+
 }
