@@ -19,14 +19,6 @@
  */
 package herddb.file;
 
-import herddb.log.CommitLog;
-import herddb.log.LogEntry;
-import herddb.log.LogNotAvailableException;
-import herddb.log.LogSequenceNumber;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.FileUtils;
-import herddb.utils.SimpleBufferedOutputStream;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.FileOutputStream;
@@ -41,15 +33,20 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.bookkeeper.client.BKException;
+import herddb.log.CommitLog;
+import herddb.log.LogEntry;
+import herddb.log.LogNotAvailableException;
+import herddb.log.LogSequenceNumber;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.FileUtils;
+import herddb.utils.SimpleBufferedOutputStream;
 
 /**
  * Commit log on file
@@ -310,8 +307,8 @@ public class FileCommitLog extends CommitLog {
             LOGGER.log(Level.FINEST, "log {0}", edit);
         }
         LogEntryHolderFuture future = new LogEntryHolderFuture(edit, synch);
-        writeQueue.add(future);
         try {
+            writeQueue.put(future);
             return future.ack.get();
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
