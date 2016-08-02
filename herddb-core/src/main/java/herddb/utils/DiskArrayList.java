@@ -89,7 +89,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
             } else {
                 serializer.write(summary, oout);
             }
-        } catch (IOException err) {            
+        } catch (IOException err) {
             throw new RuntimeException(err);
         }
     }
@@ -151,6 +151,15 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
         }
         buffer.clear();
         buffer = null;
+    }
+
+    public void truncate(int size) {
+        if (size > 0 && this.size > size) {
+            this.size = size;
+            if (!swapped) {
+                buffer = new ArrayList<>(buffer.subList(0, size));
+            }
+        }
     }
 
     private class Reader implements Iterator<T> {

@@ -53,7 +53,7 @@ public abstract class Channel implements AutoCloseable {
     public abstract void sendMessageWithAsyncReply(Message message, long timeout, ReplyCallback callback);
 
     public abstract void channelIdle();
-    
+
     public abstract String getRemoteAddress();
 
     @Override
@@ -61,6 +61,7 @@ public abstract class Channel implements AutoCloseable {
 
     public Message sendMessageWithReply(Message message, long timeout) throws InterruptedException, TimeoutException {
         CompletableFuture<Message> resp = new CompletableFuture<>();
+        long _start = System.currentTimeMillis();
         sendMessageWithAsyncReply(message, timeout, (Message originalMessage, Message message1, Throwable error) -> {
             if (error != null) {
                 resp.completeExceptionally(error);
@@ -72,11 +73,16 @@ public abstract class Channel implements AutoCloseable {
             return resp.get(timeout, TimeUnit.MILLISECONDS);
         } catch (ExecutionException err) {
             if (err.getCause() instanceof IOException) {
-                TimeoutException te = new TimeoutException("io-error while waiting for reply");
+                TimeoutException te = new TimeoutException("io-error while waiting for reply: " + err.getCause());
                 te.initCause(err.getCause());
                 throw te;
             }
             throw new RuntimeException(err.getCause());
+        } catch (TimeoutException timeoutException) {
+            long _stop = System.currentTimeMillis();
+            TimeoutException err = new TimeoutException("Timed-out after waitin response for " + (_stop - _start) + " ms");
+            err.initCause(timeoutException);
+            throw err;
         }
     }
 

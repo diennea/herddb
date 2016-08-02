@@ -90,7 +90,7 @@ public class SQLProjection implements Projection {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName());
                     }
                     if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
-                        throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName()+", expecting "+tableAlias);
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
                     }
                     columType = column.type;
                 } else if (exp instanceof StringValue) {
@@ -164,7 +164,6 @@ public class SQLProjection implements Projection {
     public Tuple map(Tuple tuple) throws StatementExecutionException {
         Map<String, Object> record = tuple.toMap();
         List<Object> values = new ArrayList<>(output.size());
-        int pos = 0;
         for (OutputColumn col : output) {
             Object value;
             value = BuiltinFunctions.computeValue(col.expression, record);

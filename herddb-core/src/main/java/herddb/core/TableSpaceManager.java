@@ -211,15 +211,19 @@ public class TableSpaceManager {
         dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
             try {
-                for (Table table : t.newTables.values()) {
-                    if (!tables.containsKey(table.name)) {
-                        bootTable(table, t.transactionId);
+                if (t.newTables != null) {
+                    for (Table table : t.newTables.values()) {
+                        if (!tables.containsKey(table.name)) {
+                            bootTable(table, t.transactionId);
+                        }
                     }
                 }
-                for (Index index : t.newIndexes.values()) {
-                    if (!indexes.containsKey(index.name)) {
-                        AbstractTableManager tableManager = tables.get(index.table);
-                        bootIndex(index, tableManager, t.transactionId, false);
+                if (t.newIndexes != null) {
+                    for (Index index : t.newIndexes.values()) {
+                        if (!indexes.containsKey(index.name)) {
+                            AbstractTableManager tableManager = tables.get(index.table);
+                            bootIndex(index, tableManager, t.transactionId, false);
+                        }
                     }
                 }
             } catch (Exception err) {
@@ -255,7 +259,7 @@ public class TableSpaceManager {
         switch (entry.type) {
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
-                Transaction transaction = new Transaction(id, tableSpaceName);
+                Transaction transaction = new Transaction(id, tableSpaceName, position);
                 transactions.put(id, transaction);
             }
             break;
@@ -273,7 +277,8 @@ public class TableSpaceManager {
                     generalLock.readLock().unlock();
                 }
                 for (AbstractTableManager manager : managers) {
-                    if (transaction.getNewTables().containsKey(manager.getTable().name)) {
+
+                    if (transaction.isNewTable(manager.getTable().name)) {
                         LOGGER.log(Level.SEVERE, "rollback CREATE TABLE " + manager.getTable().name);
                         manager.dropTableData();
                         manager.close();
@@ -299,27 +304,31 @@ public class TableSpaceManager {
                 for (AbstractIndexManager indexManager : indexManagers) {
                     indexManager.onTransactionCommit(transaction, recovery);
                 }
-                if (!transaction.droppedTables.isEmpty() || !transaction.droppedIndexes.isEmpty()) {
+                if ((transaction.droppedTables != null && !transaction.droppedTables.isEmpty()) || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
                     generalLock.writeLock().lock();
                     try {
-                        for (String dropped : transaction.droppedTables) {
-                            for (AbstractTableManager manager : managers) {
-                                if (manager.getTable().name.equals(dropped)) {
-                                    manager.dropTableData();
-                                    manager.close();
-                                    tables.remove(manager.getTable().name);
+                        if (transaction.droppedTables != null) {
+                            for (String dropped : transaction.droppedTables) {
+                                for (AbstractTableManager manager : managers) {
+                                    if (manager.getTable().name.equals(dropped)) {
+                                        manager.dropTableData();
+                                        manager.close();
+                                        tables.remove(manager.getTable().name);
+                                    }
                                 }
                             }
                         }
-                        for (String dropped : transaction.droppedIndexes) {
-                            for (AbstractIndexManager manager : indexManagers) {
-                                if (manager.getIndex().name.equals(dropped)) {
-                                    manager.dropIndexData();
-                                    manager.close();
-                                    indexes.remove(manager.getIndex().name);
-                                    Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
-                                    if (indexesForTable != null) {
-                                        indexesForTable.remove(manager.getIndex().name);
+                        if (transaction.droppedIndexes != null) {
+                            for (String dropped : transaction.droppedIndexes) {
+                                for (AbstractIndexManager manager : indexManagers) {
+                                    if (manager.getIndex().name.equals(dropped)) {
+                                        manager.dropIndexData();
+                                        manager.close();
+                                        indexes.remove(manager.getIndex().name);
+                                        Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
+                                        if (indexesForTable != null) {
+                                            indexesForTable.remove(manager.getIndex().name);
+                                        }
                                     }
                                 }
                             }
@@ -328,10 +337,10 @@ public class TableSpaceManager {
                         generalLock.writeLock().unlock();
                     }
                 }
-                if (!transaction.newTables.isEmpty()
-                        || !transaction.droppedTables.isEmpty()
-                        || !transaction.newIndexes.isEmpty()
-                        || !transaction.droppedIndexes.isEmpty()) {
+                if ((transaction.newTables != null && !transaction.newTables.isEmpty())
+                        || (transaction.droppedTables != null && !transaction.droppedTables.isEmpty())
+                        || (transaction.newIndexes != null && !transaction.newIndexes.isEmpty())
+                        || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
                     writeTablesOnDataStorageManager(position);
                     dbmanager.getPlanner().clearCache();
                 }
@@ -343,7 +352,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerNewTable(table);
+                    transaction.registerNewTable(table, position);
                 }
 
                 bootTable(table, entry.transactionId);
@@ -357,7 +366,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerNewIndex(index);
+                    transaction.registerNewIndex(index, position);
                 }
                 AbstractTableManager tableManager = tables.get(index.table);
                 if (tableManager == null) {
@@ -374,7 +383,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerDropTable(tableName);
+                    transaction.registerDropTable(tableName, position);
                 } else {
                     try {
                         generalLock.writeLock().lock();
@@ -399,7 +408,7 @@ public class TableSpaceManager {
                 if (entry.transactionId > 0) {
                     long id = entry.transactionId;
                     Transaction transaction = transactions.get(id);
-                    transaction.registerDropIndex(indexName);
+                    transaction.registerDropIndex(indexName, position);
                 } else {
                     try {
                         generalLock.writeLock().lock();

@@ -19,15 +19,9 @@
  */
 package herddb.core;
 
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
-import herddb.mem.MemoryCommitLogManager;
-import herddb.mem.MemoryDataStorageManager;
-import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import static herddb.model.TransactionContext.NO_TRANSACTION;
@@ -44,6 +38,8 @@ import org.junit.rules.TemporaryFolder;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import java.util.Random;
+import org.junit.Ignore;
 
 /**
  *
@@ -97,6 +93,49 @@ public class AutocheckPointTest {
             execute(manager, "EXECUTE committransaction 'tblspace1'," + tx, Collections.emptyList());
 
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234 and s1='b'", Collections.emptyList()).consume().size());
+
+        }
+    }
+
+    @Test
+//    @Ignore
+    public void autoCheckPointDuringActivityTest() throws Exception {
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager(nodeId,
+                new FileMetadataStorageManager(metadataPath),
+                new FileDataStorageManager(dataPath),
+                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+                tmoDir, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (K1 int ,s1 string,n1 int, primary key(k1))", Collections.emptyList());
+
+            for (int i = 0; i < 100; i++) {
+                assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList(i, "a", Integer.valueOf(1234))).getUpdateCount());
+            }
+
+            manager.checkpoint();
+
+            long lastCheckpont = manager.getLastCheckPointTs();
+            // we want to checkpoint very ofter
+            manager.setCheckpointPeriod(100);
+
+            Random random = new Random();
+            for (int trial = 0; trial < 1000; trial++) {
+                int i = random.nextInt(100);
+                execute(manager, "UPDATE tblspace1.tsql set s1='b" + trial + "' where k1=?", Arrays.asList(i), TransactionContext.NO_TRANSACTION);
+                Thread.sleep(10);
+            }
+
+            assertNotEquals(lastCheckpont, manager.getLastCheckPointTs());
 
         }
     }

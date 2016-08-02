@@ -242,6 +242,26 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return waitForTablespace(tableSpace, millis, true);
     }
 
+    public boolean waitForBootOfLocalTablespaces(int millis) throws InterruptedException, MetadataStorageManagerException {
+        List<String> tableSpacesToWaitFor = new ArrayList<>();
+        Collection<String> allTableSpaces = metadataStorageManager.listTableSpaces();
+        for (String tableSpaceName : allTableSpaces) {
+            TableSpace tableSpace = metadataStorageManager.describeTableSpace(tableSpaceName);
+            if (tableSpace.leaderId.equals(nodeId)) {
+                tableSpacesToWaitFor.add(tableSpaceName);
+            }
+        }
+        LOGGER.log(Level.INFO, "Waiting (max " + millis + " ms) for boot of local tablespaces: " + tableSpacesToWaitFor);
+
+        for (String tableSpace : tableSpacesToWaitFor) {
+            boolean ok = waitForTablespace(tableSpace, millis, true);
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public boolean waitForTablespace(String tableSpace, int millis, boolean checkLeader) throws InterruptedException {
         long now = System.currentTimeMillis();
         while (System.currentTimeMillis() - now <= millis) {
@@ -414,11 +434,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
                 // transction can be auto generated during the scan 
                 transactionContext = new TransactionContext(result.transactionId);
-                if (plan.mutator != null) {
-                    return executeMutatorPlan(result, plan, context, transactionContext);
-                } else {
-                    return executeDataScannerPlan(plan, result, transactionContext);
-                }
+                return executeDataScannerPlan(plan, result, transactionContext);
             } else {
                 return executeStatement(plan.mainStatement, context, transactionContext);
             }
@@ -454,29 +470,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         } else {
             return scanResult;
-        }
-    }
-
-    private StatementExecutionResult executeMutatorPlan(DataScanner result, ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        try {
-            int updateCount = 0;
-            try {
-                while (result.hasNext()) {
-                    Tuple next = result.next();
-                    context.setCurrentTuple(next);
-                    try {
-                        DMLStatementExecutionResult executeUpdate = executeUpdate(plan.mutator, context, transactionContext);
-                        updateCount += executeUpdate.getUpdateCount();
-                    } finally {
-                        context.setCurrentTuple(null);
-                    }
-                }
-                return new DMLStatementExecutionResult(result.transactionId, updateCount);
-            } finally {
-                result.close();
-            }
-        } catch (DataScannerException ex) {
-            throw new StatementExecutionException(ex);
         }
     }
 

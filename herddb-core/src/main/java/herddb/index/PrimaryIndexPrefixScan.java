@@ -43,19 +43,15 @@ public class PrimaryIndexPrefixScan implements IndexOperation {
 
     @Override
     public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext context, TableContext tableContext) {
+        byte[] prefix;
+        try {
+            prefix = value.computeNewValue(null, context, tableContext);
+        } catch (StatementExecutionException err) {
+            throw new RuntimeException(err);
+        }
         return (Map.Entry<Bytes, Long> t) -> {
-            try {
-                byte[] prefix = value.computeNewValue(null, context, tableContext);
-                byte[] fullrecordKey = t.getKey().data;                
-                return Bytes.startsWith(fullrecordKey,prefix.length, prefix);
-            } catch (StatementExecutionException err) {
-                throw new RuntimeException(err);
-            }
+            byte[] fullrecordKey = t.getKey().data;
+            return Bytes.startsWith(fullrecordKey, prefix.length, prefix);
         };
     }
-
-    
-    
-    
-
 }

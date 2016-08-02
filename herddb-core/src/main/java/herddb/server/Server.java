@@ -241,6 +241,9 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             throw new Exception("TableSpace " + tableSpace + " not started within " + timeout + " ms");
         }
     }
+    public void  waitForBootOfLocalTablespaces(int timeout) throws Exception {
+        this.manager.waitForBootOfLocalTablespaces(timeout);
+    }
 
     @Override
     public void close() throws Exception {

@@ -19,12 +19,14 @@
  */
 package herddb.model;
 
+import herddb.log.LogSequenceNumber;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import java.io.IOException;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -48,26 +50,20 @@ public class Transaction {
     public final Map<String, List<Record>> changedRecords;
     public final Map<String, List<Record>> newRecords;
     public final Map<String, List<Bytes>> deletedRecords;
-    public final Map<String, Table> newTables;
-    public final Map<String, Index> newIndexes;
-    public final Set<String> droppedTables;
-    public final Set<String> droppedIndexes;
+    public Map<String, Table> newTables;
+    public Map<String, Index> newIndexes;
+    public Set<String> droppedTables;
+    public Set<String> droppedIndexes;
+    public LogSequenceNumber lastSequenceNumber;
 
-    public Transaction(long transactionId, String tableSpace) {
+    public Transaction(long transactionId, String tableSpace, LogSequenceNumber lastSequenceNumber) {
         this.transactionId = transactionId;
         this.tableSpace = tableSpace;
         this.locks = new HashMap<>();
         this.changedRecords = new HashMap<>();
         this.newRecords = new HashMap<>();
         this.deletedRecords = new HashMap<>();
-        this.newTables = new HashMap<>();
-        this.newIndexes = new HashMap<>();
-        this.droppedTables = new HashSet<>();
-        this.droppedIndexes = new HashSet<>();
-    }
-
-    public Map<String, Table> getNewTables() {
-        return newTables;
+        this.lastSequenceNumber = lastSequenceNumber;
     }
 
     public LockHandle lookupLock(String tableName, Bytes key) {
@@ -87,17 +83,41 @@ public class Transaction {
         ll.put(handle.key, handle);
     }
 
-    public void registerNewTable(Table table) {
+    public synchronized void registerNewTable(Table table, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
+        if (newTables == null) {
+            newTables = new HashMap<>();
+        }
         newTables.put(table.name, table);
+        if (droppedTables == null) {
+            droppedTables = new HashSet<>();
+        }
         droppedTables.remove(table.name);
     }
 
-    public void registerNewIndex(Index index) {
+    public synchronized void registerNewIndex(Index index, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
+        if (newIndexes == null) {
+            newIndexes = new HashMap<>();
+        }
         newIndexes.put(index.name, index);
+        if (droppedIndexes == null) {
+            droppedIndexes = new HashSet<>();
+        }
         droppedIndexes.remove(index.name);
     }
 
-    public void registerInsertOnTable(String tableName, Bytes key, Bytes value) {
+    public synchronized void registerInsertOnTable(String tableName, Bytes key, Bytes value, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         List<Record> ll = newRecords.get(tableName);
         if (ll == null) {
             ll = new ArrayList<>();
@@ -140,7 +160,11 @@ public class Transaction {
      * @param key
      * @param value if null this is a DELETE
      */
-    public void registerRecoredUpdate(String tableName, Bytes key, Bytes value) {
+    public synchronized void registerRecordUpdate(String tableName, Bytes key, Bytes value, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
         List<Record> ll = changedRecords.get(tableName);
         if (ll == null) {
             ll = new ArrayList<>();
@@ -168,8 +192,11 @@ public class Transaction {
         }
     }
 
-    public void registerDeleteOnTable(String tableName, Bytes key) {
-        Transaction.this.registerRecoredUpdate(tableName, key, null);
+    public synchronized void registerDeleteOnTable(String tableName, Bytes key, LogSequenceNumber sequenceNumber) {        
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        registerRecordUpdate(tableName, key, null, sequenceNumber);
 
         List<Bytes> ll = deletedRecords.get(tableName);
         if (ll == null) {
@@ -224,27 +251,49 @@ public class Transaction {
         return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + ", newIndexes=" + newIndexes + '}';
     }
 
-    public void registerDropTable(String tableName) {
+    public synchronized void registerDropTable(String tableName, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
+        if (newTables == null) {
+            newTables = new HashMap<>();
+        }
         newTables.remove(tableName);
+        if (droppedTables == null) {
+            droppedTables = new HashSet<>();
+        }
         droppedTables.add(tableName);
     }
 
-    public void registerDropIndex(String indexName) {
+    public synchronized void registerDropIndex(String indexName, LogSequenceNumber sequenceNumber) {
+        if (lastSequenceNumber.after(sequenceNumber)) {
+            return;
+        }
+        this.lastSequenceNumber = sequenceNumber;
+        if (newIndexes == null) {
+            newIndexes = new HashMap<>();
+        }
         newIndexes.remove(indexName);
+        if (droppedIndexes == null) {
+            droppedIndexes = new HashSet<>();
+        }
         droppedIndexes.add(indexName);
     }
 
     public boolean isTableDropped(String tableName) {
-        return droppedTables.contains(tableName) && !newTables.containsKey(tableName);
+        return droppedTables != null && droppedTables.contains(tableName) && (newTables == null || !newTables.containsKey(tableName));
     }
 
     public boolean isIndexDropped(String indexName) {
-        return droppedIndexes.contains(indexName) && !newIndexes.containsKey(indexName);
+        return droppedIndexes != null && droppedIndexes.contains(indexName) && (newIndexes == null || !newIndexes.containsKey(indexName));
     }
 
-    public void serialize(ExtendedDataOutputStream out) throws IOException {
-        out.writeInt(0); // flags
+    public synchronized void serialize(ExtendedDataOutputStream out) throws IOException {
+        out.writeInt(0); // flags        
         out.writeLong(transactionId);
+        out.writeLong(lastSequenceNumber.ledgerId);
+        out.writeLong(lastSequenceNumber.offset);
         out.writeVInt(changedRecords.size());
         for (Map.Entry<String, List<Record>> table : changedRecords.entrySet()) {
             out.writeUTF(table.getKey());
@@ -271,21 +320,37 @@ public class Transaction {
                 out.writeArray(key.data);
             }
         }
-        out.writeVInt(newTables.size());
-        for (Table table : newTables.values()) {
-            out.writeArray(table.serialize());
+        if (newTables == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(newTables.size());
+            for (Table table : newTables.values()) {
+                out.writeArray(table.serialize());
+            }
         }
-        out.writeVInt(droppedTables.size());
-        for (String table : droppedTables) {
-            out.writeUTF(table);
+        if (droppedTables == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(droppedTables.size());
+            for (String table : droppedTables) {
+                out.writeUTF(table);
+            }
         }
-        out.writeVInt(newIndexes.size());
-        for (Index index : newIndexes.values()) {
-            out.writeArray(index.serialize());
+        if (newIndexes == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(newIndexes.size());
+            for (Index index : newIndexes.values()) {
+                out.writeArray(index.serialize());
+            }
         }
-        out.writeVInt(droppedIndexes.size());
-        for (String index : droppedIndexes) {
-            out.writeUTF(index);
+        if (droppedIndexes == null) {
+            out.writeVInt(0);
+        } else {
+            out.writeVInt(droppedIndexes.size());
+            for (String index : droppedIndexes) {
+                out.writeUTF(index);
+            }
         }
 
     }
@@ -293,7 +358,10 @@ public class Transaction {
     public static Transaction deserialize(String tableSpace, ExtendedDataInputStream in) throws IOException {
         in.readInt(); // flags
         long id = in.readLong();
-        Transaction t = new Transaction(id, tableSpace);
+        long ledgerId = in.readLong();
+        long offset = in.readLong();
+        LogSequenceNumber lastSequenceNumber = new LogSequenceNumber(ledgerId, offset);
+        Transaction t = new Transaction(id, tableSpace, lastSequenceNumber);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();
@@ -331,26 +399,38 @@ public class Transaction {
         }
 
         size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            byte[] data = in.readArray();
-            Table table = Table.deserialize(data);
-            t.newTables.put(table.name, table);
+        if (size > 0) {
+            t.newTables = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                byte[] data = in.readArray();
+                Table table = Table.deserialize(data);
+                t.newTables.put(table.name, table);
+            }
         }
 
         size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            t.droppedTables.add(in.readUTF());
+        if (size > 0) {
+            t.droppedTables = new HashSet<>();
+            for (int i = 0; i < size; i++) {
+                t.droppedTables.add(in.readUTF());
+            }
         }
         size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            byte[] data = in.readArray();
-            Index index = Index.deserialize(data);
-            t.newIndexes.put(index.name, index);
+        if (size > 0) {
+            t.newIndexes = new HashMap<>();
+            for (int i = 0; i < size; i++) {
+                byte[] data = in.readArray();
+                Index index = Index.deserialize(data);
+                t.newIndexes.put(index.name, index);
+            }
         }
 
         size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            t.droppedIndexes.add(in.readUTF());
+        if (size > 0) {
+            t.droppedIndexes = new HashSet<>();
+            for (int i = 0; i < size; i++) {
+                t.droppedIndexes.add(in.readUTF());
+            }
         }
         return t;
 
@@ -364,6 +444,10 @@ public class Transaction {
                 locksManager.releaseLock(lock);
             }
         }
+    }
+
+    public boolean isNewTable(String name) {
+        return newTables != null && newTables.containsKey(name);
     }
 
 }

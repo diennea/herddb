@@ -192,20 +192,7 @@ class FileRecordSet extends MaterializedRecordSet {
             if (maxlen < limits.getMaxRows()) {
                 return;
             }
-            DiskArrayList<Tuple> copy = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
-            int last = limits.getMaxRows();
-            int i = 0;
-            for (Tuple t : buffer) {
-                if (i < last) {
-                    copy.add(t);
-                } else {
-                    break;
-                }
-                i++;
-            }
-            buffer.close();
-            copy.finish();
-            buffer = copy;
+            buffer.truncate(limits.getMaxRows());            
         }
 
     }
