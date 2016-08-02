@@ -75,8 +75,6 @@ public abstract class CommitLog implements AutoCloseable {
 
     public abstract boolean isClosed();
 
-    public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
-
-    }
+    public abstract void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException;
 
 }

@@ -464,7 +464,8 @@ public class BookkeeperCommitLog extends CommitLog {
     @Override
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
         if (ledgersRetentionPeriod > 0) {
-            LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber " + lastCheckPointSequenceNumber + ", ledgersRetentionPeriod:" + ledgersRetentionPeriod + " ,lastLedgerId: " + lastLedgerId + ", currentLedgerId: " + currentLedgerId);
+            LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, ledgersRetentionPeriod: {1} ,lastLedgerId: {2}, currentLedgerId: {3}",
+                    new Object[] {lastCheckPointSequenceNumber,ledgersRetentionPeriod,lastLedgerId,currentLedgerId} );
             long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
             List<Long> oldLedgers;
             lock.readLock().lock();
@@ -474,7 +475,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 lock.readLock().unlock();
             }
 
-            LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: " + currentLedgerId + ", lastLedgerId:" + lastLedgerId + ", dropping ledgers before " + new java.sql.Timestamp(min_timestamp) + ": " + oldLedgers);
+            LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: {0}, lastLedgerId: {1}, dropping ledgers before {2}: {3}",
+                    new Object[] {currentLedgerId,lastLedgerId, new java.sql.Timestamp(min_timestamp),oldLedgers});
             oldLedgers.remove(this.currentLedgerId);
             oldLedgers.remove(this.lastLedgerId);
             if (oldLedgers.isEmpty()) {
