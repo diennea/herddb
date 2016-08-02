@@ -49,6 +49,8 @@ import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.apache.bookkeeper.client.BKException;
+
 /**
  * Commit log on file
  *
@@ -348,9 +350,11 @@ public class FileCommitLog extends CommitLog {
                 }
             }
             names.sort(Comparator.comparing(Path::toString));
+            
+            final Path last = names.isEmpty() ? null : names.get(names.size() - 1);
 
             for (Path p : names) {
-                boolean lastFile = p.equals(names.get(names.size() - 1));
+                boolean lastFile = p.equals(last);
                 LOGGER.log(Level.SEVERE, "logfile is {0}, lastFile {1}", new Object[]{p.toAbsolutePath(), lastFile});
                 String name = p.getFileName().toString().replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
@@ -376,6 +380,46 @@ public class FileCommitLog extends CommitLog {
             throw new LogNotAvailableException(err);
         }
 
+    }
+    
+    @Override
+    public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
+        LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, currentLedgerId: {2}",
+                new Object[] {lastCheckPointSequenceNumber,currentLedgerId} );
+        
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
+            List<Path> names = new ArrayList<>();
+            for (Path path : stream)
+                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(LOGFILEEXTENSION))
+                    names.add(path);
+            
+            names.sort(Comparator.comparing(Path::toString));
+            
+            final Path last = names.isEmpty() ? null : names.get(names.size() - 1);
+            
+            int count = 0;
+            
+            long ledgerLimit = Math.min( lastCheckPointSequenceNumber.ledgerId, currentLedgerId );
+            
+            for (Path path : names) {
+                boolean lastFile = path.equals(last);
+                
+                String name = path.getFileName().toString().replace(LOGFILEEXTENSION, "");
+                long ledgerId = Long.parseLong(name, 16);
+                
+                
+                if ( !lastFile && ledgerId < ledgerLimit )
+                {
+                    LOGGER.log(Level.SEVERE, "deleting logfile {0} for ledger {1}", new Object[] {path.toAbsolutePath(), ledgerId});
+                    Files.delete(path);
+                    ++count;
+                }
+            }
+            
+            LOGGER.log(Level.SEVERE, "Deleted logfiles: {}", count);
+        } catch (Exception err) {
+            throw new LogNotAvailableException(err);
+        }
     }
 
     @Override
