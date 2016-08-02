@@ -28,6 +28,7 @@ import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -101,7 +102,6 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
 
         // Remember that the IndexOperation can return more records
         // every predicate (WHEREs...) will always be evaluated anyway on every record, in order to guarantee correctness        
-        Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
         if (index != null) {
             try {
                 return index.recordSetScanner(operation, context, tableContext, this);
@@ -110,9 +110,22 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
             }
         }
         if (operation == null) {
+            Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
             return baseStream;
         } else if (operation instanceof PrimaryIndexPrefixScan) {
-            return baseStream.filter(operation.toStreamPredicate(context, tableContext));
+            PrimaryIndexPrefixScan scan = (PrimaryIndexPrefixScan) operation;
+            byte[] prefix;
+            try {
+                prefix = scan.value.computeNewValue(null, context, tableContext);
+            } catch (StatementExecutionException err) {
+                throw new RuntimeException(err);
+            }
+            Predicate<Map.Entry<Bytes, Long>> predicate = (Map.Entry<Bytes, Long> t) -> {
+                byte[] fullrecordKey = t.getKey().data;
+                return Bytes.startsWith(fullrecordKey, prefix.length, prefix);
+            };
+            Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
+            return baseStream.filter(predicate);
         } else {
             throw new DataStorageManagerException("operation " + operation + " not implemented on " + this.getClass());
         }

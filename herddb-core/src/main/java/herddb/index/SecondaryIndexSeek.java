@@ -44,11 +44,6 @@ public class SecondaryIndexSeek implements IndexOperation {
     }
 
     @Override
-    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext ctx, TableContext tableContext) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public String getIndexName() {
         return indexName;
     }

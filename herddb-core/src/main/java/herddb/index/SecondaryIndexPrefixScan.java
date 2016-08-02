@@ -46,11 +46,6 @@ public class SecondaryIndexPrefixScan implements IndexOperation {
     }
 
     @Override
-    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext context, TableContext tableContext) {
-        throw new UnsupportedOperationException("Not supported");
-    }
-
-    @Override
     public String getIndexName() {
         return indexName;
     }

@@ -43,18 +43,6 @@ public class PrimaryIndexSeek implements IndexOperation {
     }
 
     @Override
-    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext context, TableContext tableContext) {
-        return (Map.Entry<Bytes, Long> t) -> {
-            try {
-                byte[] refvalue = value.computeNewValue(null, context, tableContext);
-                return Arrays.equals(refvalue, t.getKey().data);
-            } catch (StatementExecutionException err) {
-                throw new RuntimeException(err);
-            }
-        };
-    }
-
-    @Override
     public String getIndexName() {
         return "PRIMARY KEY";
     }

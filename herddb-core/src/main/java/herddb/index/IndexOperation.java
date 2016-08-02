@@ -19,19 +19,12 @@
  */
 package herddb.index;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.TableContext;
-import herddb.utils.Bytes;
-import java.util.Map;
-import java.util.function.Predicate;
-
 /**
  * Models the usage of a index
+ *
  * @author enrico.olivelli
  */
-public interface IndexOperation {    
+public interface IndexOperation {
 
-    public Predicate<? super Map.Entry<Bytes, Long>> toStreamPredicate(StatementEvaluationContext ctx, TableContext tableContext);
-    
     public String getIndexName();
 }
