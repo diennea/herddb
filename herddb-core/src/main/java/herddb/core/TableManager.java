@@ -348,12 +348,14 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void unloadPage(Long pageId) {
-        Iterable<Bytes> keys = this.keyToPage.getKeysMappedToPage(pageId);
-        LOGGER.log(Level.SEVERE, "table " + table.name + " unloadpage " + pageId);
-        for (Bytes key : keys) {
-            buffer.remove(key);
+        if (!dirtyPages.contains(pageId)) {
+            Iterable<Bytes> keys = this.keyToPage.getKeysMappedToPage(pageId);
+            LOGGER.log(Level.SEVERE, "table " + table.name + " unloadpage " + pageId);
+            for (Bytes key : keys) {
+                buffer.remove(key);
+            }
+            loadedPages.remove(pageId);
         }
-        loadedPages.remove(pageId);
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
@@ -834,7 +836,7 @@ public class TableManager implements AbstractTableManager {
                 return;
             }
             if (dirtyPages.contains(pageId)) {
-                throw new DataStorageManagerException("page " + pageId + " is marked as dirty, it cannot be loaded from disk, dirtyPages " + dirtyPages + ", active " + activePages);
+                throw new DataStorageManagerException("table " + table.tablespace + "." + table.name + ", page " + pageId + " is marked as dirty, it cannot be loaded from disk, dirtyPages " + dirtyPages + ", active " + activePages);
             }
             if (!activePages.contains(pageId)) {
                 LOGGER.log(Level.SEVERE, "{0}.{1}: page {2} is no more active. it cannot be loaded from disk", new Object[]{table.tablespace, table.name, pageId});
@@ -934,10 +936,10 @@ public class TableManager implements AbstractTableManager {
             result.addAll(actions);
             LOGGER.log(Level.SEVERE, "checkpoint {0} finished, now activePages {1}, dirty {2}, loaded {3}", new Object[]{table.name, activePages + "", dirtyPages + "", loadedPages + ""});
             checkPointRunning = false;
+            unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
         } finally {
             pagesLock.unlock();
         }
-        unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
         return result;
     }
 
