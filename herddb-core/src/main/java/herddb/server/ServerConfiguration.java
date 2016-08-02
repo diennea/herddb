@@ -50,6 +50,15 @@ public final class ServerConfiguration {
     public static final String PROPERTY_MODE_CLUSTER = "cluster";
 
     public static final String PROPERTY_BASEDIR = "server.baseDir";
+    public static final String PROPERTY_BASEDIR_DEFAULT = "dbdata";
+    public static final String PROPERTY_DATADIR = "server.dataDir";
+    public static final String PROPERTY_DATADIR_DEFAULT = "data";
+    public static final String PROPERTY_LOGDIR = "server.logDir";
+    public static final String PROPERTY_LOGDIR_DEFAULT = "txlog";
+    public static final String PROPERTY_TMPDIR = "server.tmpDir";
+    public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";
+    public static final String PROPERTY_METADATADIR = "server.metadataDir";
+    public static final String PROPERTY_METADATADIR_DEFAULT = "metadata";
     public static final String PROPERTY_HOST = "server.host";
     public static final String PROPERTY_HOST_DEFAULT = "localhost";
     public static final String PROPERTY_PORT = "server.port";

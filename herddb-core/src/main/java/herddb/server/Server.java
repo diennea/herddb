@@ -102,9 +102,9 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
 
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
-        this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ".")).toAbsolutePath();
-        this.dataDirectory = this.baseDirectory.resolve("dbdata");
-        this.tmpDirectory = this.baseDirectory.resolve("dbtmp");
+        this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ServerConfiguration.PROPERTY_BASEDIR_DEFAULT)).toAbsolutePath();
+        this.dataDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_DATADIR, ServerConfiguration.PROPERTY_DATADIR_DEFAULT));
+        this.tmpDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_TMPDIR, ServerConfiguration.PROPERTY_TMPDIR_DEFAULT));
         String usersfile = configuration.getString(ServerConfiguration.PROPERTY_USERS_FILE, ServerConfiguration.PROPERTY_USERS_FILE_DEFAULT);
         if (usersfile.isEmpty()) {
             this.userManager = new SimpleSingleUserManager(configuration);
@@ -177,7 +177,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 return new MemoryMetadataStorageManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                return new FileMetadataStorageManager(dataDirectory);
+                Path metadataDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_METADATADIR, ServerConfiguration.PROPERTY_METADATADIR_DEFAULT));
+                return new FileMetadataStorageManager(metadataDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 return new ZookeeperMetadataStorageManager(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
                         configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
@@ -194,7 +195,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
-                return new FileDataStorageManager(dataDirectory, diskswapThreshold);
+                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold);
             default:
                 throw new RuntimeException();
         }
@@ -206,7 +207,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 return new MemoryCommitLogManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                return new FileCommitLogManager(dataDirectory, 64 * 1024 * 1024);
+                Path logDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_LOGDIR, ServerConfiguration.PROPERTY_LOGDIR_DEFAULT));
+                return new FileCommitLogManager(logDirectory, 64 * 1024 * 1024);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
@@ -241,7 +243,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             throw new Exception("TableSpace " + tableSpace + " not started within " + timeout + " ms");
         }
     }
-    public void  waitForBootOfLocalTablespaces(int timeout) throws Exception {
+
+    public void waitForBootOfLocalTablespaces(int timeout) throws Exception {
         this.manager.waitForBootOfLocalTablespaces(timeout);
     }
 

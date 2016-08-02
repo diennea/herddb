@@ -84,12 +84,12 @@ public class FileDataStorageManager extends DataStorageManager {
     private final int swapThreshold;
 
     public FileDataStorageManager(Path baseDirectory) {
-        this(baseDirectory, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
+        this(baseDirectory, baseDirectory.resolve("tmp"), ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
     }
 
-    public FileDataStorageManager(Path baseDirectory, int swapThreshold) {
-        this.baseDirectory = baseDirectory.resolve("data");
-        this.tmpDirectory = baseDirectory.resolve("tmp");
+    public FileDataStorageManager(Path baseDirectory, Path tmpDirectory, int swapThreshold) {
+        this.baseDirectory = baseDirectory;
+        this.tmpDirectory = tmpDirectory;
         this.swapThreshold = swapThreshold;
     }
 

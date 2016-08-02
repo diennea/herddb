@@ -66,7 +66,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     private final ConcurrentMap<String, Map<String, TableSpaceReplicaState>> statesForTableSpace = new ConcurrentHashMap<>();
 
     public FileMetadataStorageManager(Path baseDirectory) {
-        this.baseDirectory = baseDirectory.resolve("metadata");
+        this.baseDirectory = baseDirectory;
     }
 
     @Override

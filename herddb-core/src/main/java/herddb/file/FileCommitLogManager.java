@@ -36,7 +36,7 @@ public class FileCommitLogManager extends CommitLogManager {
     private final long maxLogFileSize;
 
     public FileCommitLogManager(Path baseDirectory, long maxLogFileSize) {
-        this.baseDirectory = baseDirectory.resolve("txlog");
+        this.baseDirectory = baseDirectory;
         this.maxLogFileSize = maxLogFileSize;
     }
 
