@@ -67,6 +67,10 @@ public class MemoryCommitLogManager extends CommitLogManager {
             @Override
             public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
             }
+            
+            @Override
+            public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
+            }
 
             @Override
             public void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException {
@@ -78,7 +82,6 @@ public class MemoryCommitLogManager extends CommitLogManager {
 
             @Override
             public void clear() throws LogNotAvailableException {
-
             }
 
         };
