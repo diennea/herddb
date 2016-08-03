@@ -47,7 +47,7 @@ public class JdbcDriverTest {
 
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
-
+            server.waitForStandaloneBoot();
             try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:7000?");
                     Statement statement = connection.createStatement();
                     ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {

@@ -48,6 +48,7 @@ public class TransactionsTest {
     public void test() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
+            server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
