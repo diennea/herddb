@@ -30,10 +30,10 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
@@ -68,7 +68,9 @@ public class FileCommitLog extends CommitLog {
 
     private volatile CommitFileWriter writer;
     private Thread spool;
-    private final BlockingQueue<LogEntryHolderFuture> writeQueue = new ArrayBlockingQueue<>(100000, true);
+    
+    private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(100000);
+    
     private final int MAX_UNSYNCHED_BATCH = 1000;
     private final int MAX_SYNCH_TIME = 10;
 
