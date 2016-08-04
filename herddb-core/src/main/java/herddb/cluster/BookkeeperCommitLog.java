@@ -24,7 +24,6 @@ import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,8 +47,6 @@ import org.apache.bookkeeper.client.BKException.Code;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
-import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.apache.zookeeper.KeeperException;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -61,8 +58,8 @@ public class BookkeeperCommitLog extends CommitLog {
     private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());
 
     private String sharedSecret = "dodo";
-    private BookKeeper bookKeeper;
-    private ZookeeperMetadataStorageManager metadataManager;
+    private final BookKeeper bookKeeper;
+    private final ZookeeperMetadataStorageManager metadataManager;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final String tableSpaceUUID;
     private volatile CommitFileWriter writer;
@@ -208,17 +205,10 @@ public class BookkeeperCommitLog extends CommitLog {
         }
     }
 
-    public BookkeeperCommitLog(String tableSpace, ZookeeperMetadataStorageManager metadataStorageManager) throws LogNotAvailableException {
+    public BookkeeperCommitLog(String tableSpace, ZookeeperMetadataStorageManager metadataStorageManager, BookKeeper bookkeeper) throws LogNotAvailableException {
         this.metadataManager = metadataStorageManager;
         this.tableSpaceUUID = tableSpace;
-        ClientConfiguration config = new ClientConfiguration();
-        config.setThrottleValue(0);
-        try {
-            this.bookKeeper = new BookKeeper(config, metadataManager.getZooKeeper());
-        } catch (IOException | InterruptedException | KeeperException t) {
-            close();
-            throw new LogNotAvailableException(t);
-        }
+        this.bookKeeper = bookkeeper;
     }
 
     public int getEnsemble() {
@@ -333,7 +323,7 @@ public class BookkeeperCommitLog extends CommitLog {
     @Override
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
         this.actualLedgersList = metadataManager.getActualLedgersList(tableSpaceUUID);
-        LOGGER.log(Level.SEVERE, "Actual ledgers list:" + actualLedgersList+" tableSpace "+tableSpaceUUID);
+        LOGGER.log(Level.SEVERE, "Actual ledgers list:" + actualLedgersList + " tableSpace " + tableSpaceUUID);
         this.lastLedgerId = snapshotSequenceNumber.ledgerId;
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
         this.lastSequenceNumber = snapshotSequenceNumber.offset;
@@ -465,7 +455,7 @@ public class BookkeeperCommitLog extends CommitLog {
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
         if (ledgersRetentionPeriod > 0) {
             LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, ledgersRetentionPeriod: {1} ,lastLedgerId: {2}, currentLedgerId: {3}",
-                    new Object[] {lastCheckPointSequenceNumber,ledgersRetentionPeriod,lastLedgerId,currentLedgerId} );
+                    new Object[]{lastCheckPointSequenceNumber, ledgersRetentionPeriod, lastLedgerId, currentLedgerId});
             long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
             List<Long> oldLedgers;
             lock.readLock().lock();
@@ -476,7 +466,7 @@ public class BookkeeperCommitLog extends CommitLog {
             }
 
             LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: {0}, lastLedgerId: {1}, dropping ledgers before {2}: {3}",
-                    new Object[] {currentLedgerId,lastLedgerId, new java.sql.Timestamp(min_timestamp),oldLedgers});
+                    new Object[]{currentLedgerId, lastLedgerId, new java.sql.Timestamp(min_timestamp), oldLedgers});
             oldLedgers.remove(this.currentLedgerId);
             oldLedgers.remove(this.lastLedgerId);
             if (oldLedgers.isEmpty()) {

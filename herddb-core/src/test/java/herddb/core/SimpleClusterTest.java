@@ -33,6 +33,7 @@ import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileDataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
+import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
@@ -48,7 +49,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 
+ *
  *
  * @author enrico.olivelli
  */
@@ -78,7 +79,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
     @Override
     protected CommitLogManager makeCommitLogManager() throws Exception {
-        return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) metadataStorageManager);
+        return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) metadataStorageManager, new ServerConfiguration());
     }
 
     @Override

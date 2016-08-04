@@ -71,7 +71,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_START = "server.bookkeeper.start";
     public static final boolean PROPERTY_BOOKKEEPER_START_DEFAULT = false;
 
-    public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "bookie.port";
+    public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "server.bookie.port";
     public static final int PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT = 3181;
 
     public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble";

@@ -22,6 +22,14 @@ package herddb.cluster;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
+import herddb.server.ServerConfiguration;
+import java.io.IOException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.apache.bookkeeper.client.BKException;
+import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.apache.zookeeper.KeeperException;
 
 /**
  * CommitLog on Apache BookKeeper
@@ -34,11 +42,48 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private int ensemble = 1;
     private int writeQuorumSize = 1;
     private int ackQuorumSize = 1;
+    private BookKeeper bookKeeper;
+    private final ClientConfiguration config;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
 
-    public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager) {
+    public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration) {
+        config = new ClientConfiguration();
+        config.setThrottleValue(0);
+        for (String key : serverConfiguration.keys()) {
+            if (key.startsWith("bookie.")) {
+                String _key = key.substring("bookie.".length());
+                config.setProperty(_key, serverConfiguration.getString(_key, null));
+            }
+
+        }
         this.metadataStorageManager = metadataStorageManager;
     }
+
+    @Override
+    public void start() throws LogNotAvailableException {
+        try {
+            this.bookKeeper
+                    = BookKeeper
+                    .forConfig(config)
+                    .setZookeeper(metadataStorageManager.getZooKeeper())
+                    .build();
+        } catch (IOException | InterruptedException | KeeperException t) {
+            close();
+            throw new LogNotAvailableException(t);
+        }
+    }
+
+    @Override
+    public void close() {
+        if (bookKeeper != null) {
+            try {
+                bookKeeper.close();
+            } catch (InterruptedException | BKException ex) {
+                LOG.log(Level.SEVERE, null, ex);
+            }
+        }
+    }
+    private static final Logger LOG = Logger.getLogger(BookkeeperCommitLogManager.class.getName());
 
     public int getEnsemble() {
         return ensemble;
@@ -73,8 +118,8 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     }
 
     @Override
-    public CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException {        
-        BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpace, metadataStorageManager);
+    public CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException {
+        BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpace, metadataStorageManager, bookKeeper);
         res.setAckQuorumSize(ackQuorumSize);
         res.setEnsemble(ensemble);
         res.setLedgersRetentionPeriod(ledgersRetentionPeriod);

@@ -24,7 +24,15 @@ package herddb.log;
  *
  * @author enrico.olivelli
  */
-public abstract class CommitLogManager {
+public abstract class CommitLogManager implements AutoCloseable {
 
     public abstract CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException;
+
+    public void start() throws LogNotAvailableException {
+    }
+
+    @Override
+    public void close() {
+    }
+
 }

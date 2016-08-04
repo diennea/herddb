@@ -46,6 +46,7 @@ import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
@@ -103,6 +104,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         this.mode = configuration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_STANDALONE);
         this.baseDirectory = Paths.get(configuration.getString(ServerConfiguration.PROPERTY_BASEDIR, ServerConfiguration.PROPERTY_BASEDIR_DEFAULT)).toAbsolutePath();
+        try {
+            Files.createDirectories(this.baseDirectory);
+        } catch (IOException ignore) {
+            LOGGER.log(Level.SEVERE, "Cannot create baseDirectory " + this.baseDirectory, ignore);
+        }
         this.dataDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_DATADIR, ServerConfiguration.PROPERTY_DATADIR_DEFAULT));
         this.tmpDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_TMPDIR, ServerConfiguration.PROPERTY_TMPDIR_DEFAULT));
         String usersfile = configuration.getString(ServerConfiguration.PROPERTY_USERS_FILE, ServerConfiguration.PROPERTY_USERS_FILE_DEFAULT);
@@ -133,7 +139,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         this.manager = new DBManager(nodeId,
                 metadataStorageManager,
                 buildDataStorageManager(),
-                buildFileCommitLogManager(),
+                buildCommitLogManager(),
                 tmpDirectory, serverHostData
         );
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
@@ -201,7 +207,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
     }
 
-    private CommitLogManager buildFileCommitLogManager() {
+    private CommitLogManager buildCommitLogManager() {
 
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
@@ -210,7 +216,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 Path logDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_LOGDIR, ServerConfiguration.PROPERTY_LOGDIR_DEFAULT));
                 return new FileCommitLogManager(logDirectory, 64 * 1024 * 1024);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager);
+                BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager, configuration);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
                 bkmanager.setEnsemble(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT));
                 bkmanager.setWriteQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT));

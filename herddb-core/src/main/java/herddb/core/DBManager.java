@@ -226,6 +226,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         metadataStorageManager.ensureDefaultTableSpace(nodeId);
+        
+        commitLogManager.start();
 
         generalLock.writeLock().lock();
         try {
@@ -700,6 +702,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             try {
                 metadataStorageManager.close();
             } catch (Exception err) {
+                LOGGER.log(Level.SEVERE, "error during shutdown", err);
+            }
+            
+            try {
+                commitLogManager.close();
+            }  catch (Exception err) {
                 LOGGER.log(Level.SEVERE, "error during shutdown", err);
             }
             LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);

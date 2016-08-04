@@ -22,6 +22,7 @@ package herddb.core;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileDataStorageManager;
+import herddb.server.ServerConfiguration;
 import herddb.utils.ZKTestEnv;
 import java.nio.file.Path;
 import org.junit.After;
@@ -56,7 +57,7 @@ public abstract class ReplicatedLogtestcase {
     protected DBManager startDBManager(String nodeId) throws Exception {
         Path path = folder.newFolder(nodeId).toPath();
         ZookeeperMetadataStorageManager metadataStorageManager = new ZookeeperMetadataStorageManager(testEnv.getAddress(), testEnv.getTimeout(), "/tests");
-        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager);
+        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager, new ServerConfiguration());
         FileDataStorageManager dataStorageManager = new FileDataStorageManager(path);
         System.setErr(System.out);
         DBManager manager = new DBManager(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, folder.newFolder().toPath(), null);
