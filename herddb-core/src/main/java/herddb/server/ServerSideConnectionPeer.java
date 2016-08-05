@@ -239,7 +239,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 String tableSpace = (String) message.parameters.get("tableSpace");
                 List<List<Object>> batch = (List<List<Object>>) message.parameters.get("params");
                 try {
-                    
+
                     List<Long> updateCounts = new ArrayList<>(batch.size());
                     List<Map<String, Object>> otherDatas = new ArrayList<>(batch.size());
                     for (int i = 0; i < batch.size(); i++) {
@@ -254,7 +254,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             throw new StatementExecutionException("transactionid changed during batch execution, " + transactionId + "<>" + result.transactionId);
                         }
                         transactionId = result.transactionId;
-                        
+
                         if (result instanceof DMLStatementExecutionResult) {
                             DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                             Map<String, Object> otherData = new HashMap<>();
@@ -491,6 +491,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     private void freeResources() {
+        LOGGER.log(Level.SEVERE, "freeResources {0}, {1} open transactions", new Object[]{this, openTransactions.size()});
         for (Map.Entry<String, Set<Long>> openTransaction : openTransactions.entrySet()) {
             String tableSpace = openTransaction.getKey();
             for (Long tx : openTransaction.getValue()) {
@@ -505,7 +506,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
         }
         openTransactions.clear();
-        LOGGER.log(Level.FINEST, "closing scanners " + scanners.keySet());
         scanners.values().forEach(s -> s.close());
         scanners.clear();
     }
