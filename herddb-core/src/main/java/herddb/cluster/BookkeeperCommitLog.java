@@ -570,7 +570,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
                         byte[] entryData = e.getEntry();
                         LogEntry statusEdit = LogEntry.deserialize(entryData);
-                        LOGGER.log(Level.SEVERE, "" + tableSpaceUUID + " followentry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
+//                        LOGGER.log(Level.SEVERE, "" + tableSpaceUUID + " followentry {0},{1} -> {2}", new Object[]{previous, entryId, statusEdit});
                         LogSequenceNumber number = new LogSequenceNumber(previous, entryId);
                         lastSequenceNumber = number.offset;
                         lastLedgerId = number.ledgerId;

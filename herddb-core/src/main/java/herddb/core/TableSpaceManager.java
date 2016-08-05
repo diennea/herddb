@@ -759,8 +759,7 @@ public class TableSpaceManager {
                     log.followTheLeader(actualLogSequenceNumber, new BiConsumer< LogSequenceNumber, LogEntry>() {
                         @Override
                         public void accept(LogSequenceNumber num, LogEntry u
-                        ) {
-                            LOGGER.log(Level.SEVERE, "follow " + num + ", " + u.toString());
+                        ) {                            
                             try {
                                 apply(num, u, false);
                             } catch (Throwable t) {
