@@ -107,6 +107,8 @@ import herddb.model.TableDoesNotExistException;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.DropIndexStatement;
 import net.sf.jsqlparser.expression.SignedExpression;
+import net.sf.jsqlparser.statement.alter.AlterExpression;
+import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
 
 /**
@@ -246,7 +248,7 @@ public class SQLPlanner {
     }
 
     private Statement buildCreateTableStatement(String defaultTableSpace, CreateTable s) throws StatementExecutionException {
-        String tableSpace = s.getTable().getSchemaName();
+        String tableSpace = s.getTable().getSchemaName();        
         String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
@@ -917,13 +919,18 @@ public class SQLPlanner {
                     limitsOnScan = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
                 }
             } else if (top != null) {
-                if (top.isPercentage() || top.isRowCountJdbcParameter()) {
+                if (top.isPercentage() || top.getExpression() == null) {
                     throw new StatementExecutionException("Invalid TOP clause");
                 }
-                if (aggregator != null) {
-                    limitsOnPlan = new ScanLimits((int) top.getRowCount(), 0);
-                } else {
-                    limitsOnScan = new ScanLimits((int) top.getRowCount(), 0);
+                try {
+                    int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
+                    if (aggregator != null) {
+                        limitsOnPlan = new ScanLimits((int) rowCount, 0);
+                    } else {
+                        limitsOnScan = new ScanLimits((int) rowCount, 0);
+                    }
+                } catch (NumberFormatException error) {
+                    throw new StatementExecutionException("Invalid TOP clause: " + error, error);
                 }
             }
 
@@ -1130,16 +1137,24 @@ public class SQLPlanner {
         List<Column> addColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
         String tableName = alter.getTable().getName();
-        switch (alter.getOperation()) {
-            case "add":
-                Column newColumn = Column.column(alter.getColumnName(), sqlDataTypeToColumnType(alter.getDataType().getDataType()));
-                addColumns.add(newColumn);
+        if (alter.getAlterExpressions() == null || alter.getAlterExpressions().size() != 1) {
+            throw new StatementExecutionException("supported multi-alter operation '" + alter + "'");
+        }
+        AlterExpression alterExpression = alter.getAlterExpressions().get(0);
+        AlterOperation operation = alterExpression.getOperation();
+        switch (operation) {
+            case ADD:
+                List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
+                for (AlterExpression.ColumnDataType cl : cols) {
+                    Column newColumn = Column.column(cl.getColumnName(), sqlDataTypeToColumnType(cl.getColDataType().getDataType()));
+                    addColumns.add(newColumn);
+                }
                 break;
-            case "drop":
-                dropColumns.add(alter.getColumnName());
+            case DROP:
+                dropColumns.add(alterExpression.getColumnName());
                 break;
             default:
-                throw new StatementExecutionException("supported alter operation '" + alter.getOperation() + "'");
+                throw new StatementExecutionException("supported alter operation '" + alter + "'");
         }
         return new AlterTableStatement(addColumns, dropColumns, tableName, tableSpace);
     }
