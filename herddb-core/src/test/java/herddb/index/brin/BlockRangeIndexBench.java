@@ -19,13 +19,6 @@
  */
 package herddb.index.brin;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
@@ -40,7 +33,7 @@ public class BlockRangeIndexBench {
         final int testSize = 1_000_000;
 
         long _start = System.currentTimeMillis();
-        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(1000);
+        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(10000);
         for (int i = 0; i < testSize; i++) {
             index.put(i, "test_" + i);
         }
@@ -48,7 +41,7 @@ public class BlockRangeIndexBench {
         System.out.println("time w: " + (_stop - _start));
         System.out.println("num segments: " + index.getNumSegments());
         for (int i = 0; i < testSize; i++) {
-//            index.search(i);
+            index.search(i);
             index.lookUpRange(i, i + 1000);
         }
         _start = _stop;

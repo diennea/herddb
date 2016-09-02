@@ -19,7 +19,6 @@
  */
 package herddb.index.brin;
 
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -29,10 +28,10 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.bookkeeper.proto.DataFormats.LedgerMetadataFormat.Segment;
 
 /**
  * Very Simple BRIN (Block Range Index) implementation
@@ -53,8 +52,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
     public static enum ADD_OUTCOME {
         NEED_SPLIT,
-        ADDED_TO_HEAD_BLOCK,
-        REGULAR
+        ADDED
     }
 
     private static final Logger LOG = Logger.getLogger(BlockRangeIndex.class.getName());
@@ -72,7 +70,11 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
         @Override
         public String toString() {
-            return "BlockKey{" + "minKey=" + minKey + ", segmentId=" + blockId + '}';
+            if (minKey == null) {
+                return "BlockStartKey{HEAD}";
+            } else {
+                return "BlockStartKey{" + "minKey=" + minKey + ", segmentId=" + blockId + '}';
+            }
         }
 
         public BlockStartKey(K minKey, int segmentId) {
@@ -179,10 +181,9 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         }
 
         public ADD_OUTCOME addValue(SK key, SV value) {
-            if (size == maxBlockSize) {
-                return ADD_OUTCOME.NEED_SPLIT;
-            } else if (size > maxBlockSize) {
-                throw new IllegalStateException();
+            boolean needSplit = false;
+            if (size >= maxBlockSize) {
+                needSplit = true;
             }
             mergeAddValue(key, value, values);
             size++;
@@ -191,9 +192,11 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             }
             if (minKey.compareTo(key) > 0 && this.key.blockId < 0) {
                 minKey = key;
-                return ADD_OUTCOME.ADDED_TO_HEAD_BLOCK;
+            }
+            if (needSplit) {
+                return ADD_OUTCOME.NEED_SPLIT;
             } else {
-                return ADD_OUTCOME.REGULAR;
+                return ADD_OUTCOME.ADDED;
             }
         }
 
@@ -260,9 +263,9 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 for (SV v : entry.getValue()) {
                     if (count <= splitmid) {
                         mergeAddValue(key, v, keep_values);
-                        mySize++;                        
+                        mySize++;
                     } else {
-                        mergeAddValue(key, v, other_values);                        
+                        mergeAddValue(key, v, other_values);
                         otherSize++;
                     }
                     count++;
@@ -274,7 +277,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.size = mySize;
 
             SK newOtherMinKey = other_values.firstKey();
-            SK newOtherMaxKey = other_values.firstKey();
+            SK newOtherMaxKey = other_values.lastKey();
             return new Block<>(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
         }
 
@@ -289,35 +292,19 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     }
 
     public void put(K key, V value) {
-        if (blocks.isEmpty()) {
+        BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
+        Map.Entry<BlockStartKey<K>, Block<K, V>> segmentEntry = blocks.floorEntry(lookUp);
+        if (segmentEntry == null) {
             Block<K, V> headBlock = new Block<>(HEAD_KEY, key, value);
             blocks.put(headBlock.key, headBlock);
             return;
         }
-        BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
-        Map.Entry<BlockStartKey<K>, Block<K, V>> segmentEntry = blocks.floorEntry(lookUp);
-
-        if (segmentEntry == null) {
-            BlockStartKey<K> segmentKey = new BlockStartKey<>(key, blockIdGenerator.incrementAndGet());
-            Block<K, V> s = new Block<>(segmentKey, key, value);
-            blocks.put(segmentKey, s);
-        } else {
-            Block<K, V> choosenSegment = segmentEntry.getValue();
-            ADD_OUTCOME outcome = choosenSegment.addValue(key, value);
-            if (outcome == ADD_OUTCOME.NEED_SPLIT) {
-                Block<K, V> split = choosenSegment.split();
-                if (split.minKey.compareTo(key) < 0) {
-                    split.addValue(key, value);
-                } else {
-                    choosenSegment.addValue(key, value);
-                }
-//                LOG.severe("remove segkey " + choosenKey);
-                blocks.put(split.key, split);
-            } else if (outcome == ADD_OUTCOME.ADDED_TO_HEAD_BLOCK) {
-                
-            }
+        Block<K, V> choosenSegment = segmentEntry.getValue();
+        ADD_OUTCOME outcome = choosenSegment.addValue(key, value);
+        if (outcome == ADD_OUTCOME.NEED_SPLIT) {
+            Block<K, V> split = choosenSegment.split();
+            blocks.put(split.key, split);
         }
-
     }
 
     public void delete(K key, V value) {
@@ -337,7 +324,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         List<Block> candidates = findCandidates(firstKey, lastKey);
         return candidates.stream().flatMap(s -> {
             List<V> lookupInBlock = s.lookUpRange(firstKey, lastKey);
-            if (lookupInBlock == null) {
+            if (lookupInBlock == null || lookupInBlock.isEmpty()) {
                 return Stream.empty();
             } else {
                 return lookupInBlock.stream();

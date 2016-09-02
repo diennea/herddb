@@ -37,6 +37,7 @@ public class BlockRangeIndexTest {
         index.put(1, "a");
         index.put(2, "b");
         index.put(3, "c");
+        index.dump();
         assertEquals("a", index.search(1).get(0));
         assertEquals("b", index.search(2).get(0));
         assertEquals("c", index.search(3).get(0));
@@ -62,8 +63,8 @@ public class BlockRangeIndexTest {
         System.out.println("searchResult:" + searchResult);
         assertEquals(3, searchResult.size());
         assertEquals("a", searchResult.get(0));
-        assertEquals("c", searchResult.get(1));
-        assertEquals("b", searchResult.get(2));
+        assertEquals("b", searchResult.get(1));
+        assertEquals("c", searchResult.get(2));
         assertEquals(2, index.getNumSegments());
     }
 
@@ -125,7 +126,7 @@ public class BlockRangeIndexTest {
         assertTrue(index.search(1).isEmpty());
         assertEquals("b", index.search(2).get(0));
         assertEquals("c", index.search(3).get(0));
-        assertEquals(2, index.getNumSegments());
+        assertEquals(1, index.getNumSegments());
         index.delete(2, "b");
         assertTrue(index.search(2).isEmpty());
         assertEquals("c", index.search(3).get(0));
