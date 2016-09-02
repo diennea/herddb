@@ -26,9 +26,10 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -50,30 +51,25 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         }
     }
 
-    public static enum ADD_OUTCOME {
-        NEED_SPLIT,
-        ADDED
-    }
-
     private static final Logger LOG = Logger.getLogger(BlockRangeIndex.class.getName());
 
     private final int maxBlockSize;
-    private final TreeMap<BlockStartKey<K>, Block<K, V>> blocks = new TreeMap<>();
+    private final ConcurrentNavigableMap<BlockStartKey<K>, Block<K, V>> blocks = new ConcurrentSkipListMap<>();
     private final AtomicInteger blockIdGenerator = new AtomicInteger();
 
     private final BlockStartKey HEAD_KEY = new BlockStartKey(null, -1);
 
     private final class BlockStartKey<K extends Comparable<K>> implements Comparable<BlockStartKey<K>> {
 
-        public K minKey;
-        public int blockId;
+        public final K minKey;
+        public final int blockId;
 
         @Override
         public String toString() {
             if (minKey == null) {
-                return "BlockStartKey{HEAD}";
+                return "BlockStartKey{HEAD} " + Integer.toHexString(System.identityHashCode(this));
             } else {
-                return "BlockStartKey{" + "minKey=" + minKey + ", segmentId=" + blockId + '}';
+                return "BlockStartKey{" + "minKey=" + minKey + ", segmentId=" + blockId + '}' + Integer.toHexString(System.identityHashCode(this));
             }
         }
 
@@ -129,19 +125,21 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
     }
 
-    private class Block<SK extends Comparable<SK>, SV> implements Comparable<Block<SK, SV>> {
+    private class Block<SK extends Comparable<SK>, SV> {
 
         BlockStartKey<SK> key;
         SK minKey;
         SK maxKey;
-        NavigableMap<SK, List<SV>> values = new ConcurrentSkipListMap<>();
+        NavigableMap<SK, List<SV>> values;
         int size;
+        private final ReentrantLock lock = new ReentrantLock(true);
 
         public Block(BlockStartKey<SK> key, SK firstKey, SV firstValue) {
             this.key = key;
             this.minKey = firstKey;
             List<SV> firstKeyValues = new ArrayList<>(maxBlockSize);
             firstKeyValues.add(firstValue);
+            values = new TreeMap<>();
             values.put(firstKey, firstKeyValues);
             this.maxKey = firstKey;
             this.size = 1;
@@ -157,50 +155,15 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
         @Override
         public String toString() {
-            return "Block{" + "key=" + key + ", minKey=" + minKey + ", maxKey=" + maxKey + ", size=" + size + ", values=" + values + '}';
-        }
-
-        @Override
-        public int compareTo(Block<SK, SV> o) {
-            return this.minKey.compareTo(o.minKey);
-        }
-
-        public boolean valuesInRange(SK min, SK max) {
-            return minKey.compareTo(min) <= 0
-                    && maxKey.compareTo(max) >= 0;
-        }
-
-        public boolean valueInRange(SK key) {
-            return minKey.compareTo(key) <= 0
-                    && maxKey.compareTo(key) >= 0;
-        }
-
-        public boolean intersect(SK min, SK max) {
-            return minKey.compareTo(max) <= 0
-                    && maxKey.compareTo(min) >= 0;
-        }
-
-        public ADD_OUTCOME addValue(SK key, SV value) {
-            boolean needSplit = false;
-            if (size >= maxBlockSize) {
-                needSplit = true;
-            }
-            mergeAddValue(key, value, values);
-            size++;
-            if (maxKey.compareTo(key) < 0) {
-                maxKey = key;
-            }
-            if (minKey.compareTo(key) > 0 && this.key.blockId < 0) {
-                minKey = key;
-            }
-            if (needSplit) {
-                return ADD_OUTCOME.NEED_SPLIT;
-            } else {
-                return ADD_OUTCOME.ADDED;
+            lock.lock();
+            try {
+                return "Block{" + "key=" + key + ", minKey=" + minKey + ", maxKey=" + maxKey + ", size=" + size + ", values=" + values + '}';
+            } finally {
+                lock.unlock();
             }
         }
 
-        private void mergeAddValue(SK key1, SV value, NavigableMap<SK, List<SV>> values) {
+        private void mergeAddValue(SK key1, SV value, Map<SK, List<SV>> values) {
             List<SV> valuesForKey = values.get(key1);
             if (valuesForKey == null) {
                 valuesForKey = new ArrayList<>();
@@ -209,49 +172,82 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             valuesForKey.add(value);
         }
 
-        private boolean delete(SK key, SV value) {
-            List<SV> valuesForKey = values.get(key);
-            if (valuesForKey != null) {
-                valuesForKey.remove(value);
-                if (valuesForKey.isEmpty()) {
-                    values.remove(key);
-                    if (values.isEmpty()) {
-                        size--;
-                        return true;
-                    }
+        void addValue(SK key, SV value, ConcurrentNavigableMap<BlockStartKey<SK>, Block<SK, SV>> blocks) {
+            lock.lock();
+            try {
+                mergeAddValue(key, value, values);
+                size++;
+                if (maxKey.compareTo(key) < 0) {
+                    maxKey = key;
                 }
+                if (minKey.compareTo(key) > 0 && this.key.blockId < 0) {
+                    minKey = key;
+                }
+                if (size > maxBlockSize) {
+                    split(blocks);
+                }
+            } finally {
+                lock.unlock();
             }
-            return false;
         }
 
-        private List<SV> lookUpRange(SK firstKey, SK lastKey) {
-            List<SV> result = new ArrayList<>();
-            if (firstKey != null && lastKey != null) {
-                if (firstKey.equals(lastKey)) {
-                    List<SV> seek = values.get(firstKey);
-                    if (seek == null) {
-                        return null;
-                    } else {
-                        return new ArrayList<>(seek);
+        synchronized boolean delete(SK key, SV value) {
+            lock.lock();
+            try {
+                List<SV> valuesForKey = values.get(key);
+                if (valuesForKey != null) {
+                    valuesForKey.remove(value);
+                    if (valuesForKey.isEmpty()) {
+                        values.remove(key);
+                        if (values.isEmpty()) {
+                            size--;
+                            return true;
+                        }
                     }
                 }
-                values.subMap(firstKey, true, lastKey, true).forEach((k, seg) -> {
-                    result.addAll(seg);
-                });
-            } else if (firstKey != null) {
-                values.tailMap(firstKey, true).forEach((k, seg) -> {
-                    result.addAll(seg);
-                });
-            } else {
-                values.headMap(lastKey, true).forEach((k, seg) -> {
-                    result.addAll(seg);
-                });
+                return false;
+            } finally {
+                lock.unlock();
             }
-            return result;
+        }
+
+        List<SV> lookUpRange(SK firstKey, SK lastKey) {
+            lock.lock();
+            try {
+                List<SV> result = new ArrayList<>();
+                if (firstKey != null && lastKey != null) {
+                    // index seek case
+                    if (firstKey.equals(lastKey)) {
+                        List<SV> seek = values.get(firstKey);
+                        if (seek == null) {
+                            return null;
+                        } else {
+                            return new ArrayList<>(seek);
+                        }
+                    }
+                    values.subMap(firstKey, true, lastKey, true).forEach((k, seg) -> {
+                        result.addAll(seg);
+                    });
+                } else if (firstKey != null) {
+                    values.tailMap(firstKey, true).forEach((k, seg) -> {
+                        result.addAll(seg);
+                    });
+                } else {
+                    values.headMap(lastKey, true).forEach((k, seg) -> {
+                        result.addAll(seg);
+                    });
+                }
+                return result;
+            } finally {
+                lock.unlock();
+            }
 
         }
 
-        private Block<SK, SV> split() {
+        private void split(ConcurrentNavigableMap<BlockStartKey<SK>, Block<SK, SV>> blocks) {
+            if (size < maxBlockSize) {
+                throw new IllegalStateException();
+            }
             ConcurrentSkipListMap<SK, List<SV>> keep_values = new ConcurrentSkipListMap<>();
             ConcurrentSkipListMap<SK, List<SV>> other_values = new ConcurrentSkipListMap<>();
             final int splitmid = (size / 2) - 1;
@@ -275,10 +271,10 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.minKey = keep_values.firstKey();
             this.maxKey = keep_values.lastKey();
             this.size = mySize;
-
             SK newOtherMinKey = other_values.firstKey();
             SK newOtherMaxKey = other_values.lastKey();
-            return new Block<>(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
+            Block<SK, SV> newblock = new Block<>(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
+            blocks.put(newblock.key, newblock);
         }
 
     }
@@ -293,29 +289,27 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
     public void put(K key, V value) {
         BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
+        while (!tryPut(key, value, lookUp)) {
+        }
+    }
+
+    private boolean tryPut(K key, V value, BlockStartKey<K> lookUp) {
         Map.Entry<BlockStartKey<K>, Block<K, V>> segmentEntry = blocks.floorEntry(lookUp);
         if (segmentEntry == null) {
             Block<K, V> headBlock = new Block<>(HEAD_KEY, key, value);
-            blocks.put(headBlock.key, headBlock);
-            return;
+            return blocks.putIfAbsent(HEAD_KEY, headBlock) == null;
         }
         Block<K, V> choosenSegment = segmentEntry.getValue();
-        ADD_OUTCOME outcome = choosenSegment.addValue(key, value);
-        if (outcome == ADD_OUTCOME.NEED_SPLIT) {
-            Block<K, V> split = choosenSegment.split();
-            blocks.put(split.key, split);
-        }
+        choosenSegment.addValue(key, value, blocks);
+        return true;
     }
 
     public void delete(K key, V value) {
         for (Iterator<Block<K, V>> it = blocks.values().iterator(); it.hasNext();) {
             Block<K, V> s = it.next();
-            if (s.valueInRange(key)) {
-                boolean empty = s.delete(key, value);
-                if (empty) {
-                    it.remove();
-                }
-
+            boolean empty = s.delete(key, value);
+            if (empty) {
+                it.remove();
             }
         }
     }
@@ -373,6 +367,10 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
     public List<V> search(K key) {
         return lookUpRange(key, key);
+    }
+
+    public boolean containsKey(K key) {
+        return !lookUpRange(key, key).isEmpty();
     }
 
 }

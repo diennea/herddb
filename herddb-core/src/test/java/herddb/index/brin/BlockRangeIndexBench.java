@@ -42,7 +42,7 @@ public class BlockRangeIndexBench {
         System.out.println("num segments: " + index.getNumSegments());
         for (int i = 0; i < testSize; i++) {
             index.search(i);
-            index.lookUpRange(i, i + 1000);
+//            index.lookUpRange(i, i + 1000);
         }
         _start = _stop;
         _stop = System.currentTimeMillis();
