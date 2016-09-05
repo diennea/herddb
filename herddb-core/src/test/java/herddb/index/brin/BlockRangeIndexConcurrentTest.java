@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Test;
@@ -55,7 +56,7 @@ public class BlockRangeIndexConcurrentTest {
         } finally {
             threadpool.shutdown();
         }
-        l.await(10, TimeUnit.SECONDS);
+        assertTrue(l.await(10, TimeUnit.SECONDS));
         index.dump();
         verifyIndex(index);
         List<String> result = index.lookUpRange(0, testSize + 1);
@@ -83,6 +84,7 @@ public class BlockRangeIndexConcurrentTest {
                 }
                 lastmax = entryMax;
             }
+            assertEquals(b.values.size(),b.size);
         }
     }
 
@@ -107,7 +109,7 @@ public class BlockRangeIndexConcurrentTest {
         } finally {
             threadpool.shutdown();
         }
-        l.await(10, TimeUnit.SECONDS);
+        assertTrue(l.await(10, TimeUnit.SECONDS));
         index.dump();
         verifyIndex(index);
         List<String> result = index.lookUpRange(0, testSize + 1);
@@ -135,19 +137,23 @@ public class BlockRangeIndexConcurrentTest {
             for (int i = 0; i < testSize; i++) {
                 int _i = i;
                 threadpool.submit(() -> {
-                    index.put(_i, "a" + _i);
-                    List<String> search = index.search(_i);
-                    results.addAll(search);
-                    l.countDown();
-                    index.delete(_i, "a" + _i);
-                    List<String> search2 = index.search(_i);
-                    results2.addAll(search2);
+                    try {
+                        index.put(_i, "a" + _i);
+                        List<String> search = index.search(_i);
+                        results.addAll(search);
+                        index.delete(_i, "a" + _i);
+                        List<String> search2 = index.search(_i);
+                        results2.addAll(search2);                        
+                        l.countDown();
+                    } catch (Throwable t) {
+                        t.printStackTrace();                       
+                    }
                 });
             }
         } finally {
             threadpool.shutdown();
         }
-        l.await(10, TimeUnit.SECONDS);
+        assertTrue(l.await(10, TimeUnit.SECONDS));
         index.dump();
         verifyIndex(index);
         List<String> result = index.lookUpRange(0, testSize + 1);
@@ -157,7 +163,6 @@ public class BlockRangeIndexConcurrentTest {
             assertTrue("cannot find a" + i, results.contains("a" + i));
         }
         assertTrue(results2.isEmpty());
-        assertTrue(index.getBlocks().isEmpty());
 
     }
 

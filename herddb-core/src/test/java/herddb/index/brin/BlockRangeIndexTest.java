@@ -49,7 +49,8 @@ public class BlockRangeIndexTest {
         BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(2);
         index.put(1, "a");
         index.delete(1, "a");
-        assertEquals(0, index.getNumSegments());
+        List<String> searchResult = index.search(1);
+        assertTrue(searchResult.isEmpty());
     }
 
     @Test
@@ -109,7 +110,7 @@ public class BlockRangeIndexTest {
         index.put(2, "b");
         index.put(1, "a");
         index.dump();
-        
+
         assertEquals("a", index.search(1).get(0));
         assertEquals("b", index.search(2).get(0));
         assertEquals("c", index.search(3).get(0));
@@ -126,14 +127,12 @@ public class BlockRangeIndexTest {
         assertTrue(index.search(1).isEmpty());
         assertEquals("b", index.search(2).get(0));
         assertEquals("c", index.search(3).get(0));
-        assertEquals(1, index.getNumSegments());
+
         index.delete(2, "b");
         assertTrue(index.search(2).isEmpty());
         assertEquals("c", index.search(3).get(0));
-        assertEquals(1, index.getNumSegments());
         index.delete(3, "c");
         assertTrue(index.search(3).isEmpty());
-        assertEquals(0, index.getNumSegments());
     }
 
     @Test
@@ -151,7 +150,12 @@ public class BlockRangeIndexTest {
             index.put(i, "test_" + i);
         }
         for (int i = 0; i < 10; i++) {
+            if (i == 6) {
+                System.out.println("QUI");
+            }
             List<String> result = index.search(i);
+
+            System.out.println("result for " + i + " :" + result);
             assertEquals(2, result.size());
             assertEquals("test_" + i, result.get(0));
             assertEquals("test_" + i, result.get(1));

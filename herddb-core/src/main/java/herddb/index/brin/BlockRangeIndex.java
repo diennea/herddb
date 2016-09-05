@@ -21,7 +21,6 @@ package herddb.index.brin;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -207,19 +206,22 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             return true;
         }
 
-        boolean delete(SK key, SV value) {
+        boolean delete(SK key, SV value, Set<BlockStartKey<SK>> visitedBlocks) {
+            visitedBlocks.add(this.key);
             lock.lock();
             try {
                 List<SV> valuesForKey = values.get(key);
                 if (valuesForKey != null) {
-                    valuesForKey.remove(value);
-                    if (valuesForKey.isEmpty()) {
-                        values.remove(key);
-                        if (values.isEmpty()) {
-                            size--;
-                            return true;
+                    boolean removed = valuesForKey.remove(value);
+                    if (removed) {
+                        if (valuesForKey.isEmpty()) {
+                            values.remove(key);
                         }
+                        size--;
                     }
+                }
+                if (next != null && !visitedBlocks.contains(next.key)) {
+                    next.delete(key, value, visitedBlocks);
                 }
                 return false;
             } finally {
@@ -228,6 +230,9 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         }
 
         List<SV> lookUpRange(SK firstKey, SK lastKey, Set<BlockStartKey<SK>> visitedBlocks) {
+            if (!visitedBlocks.add(this.key)) {
+                return null;
+            }
             List<SV> result = new ArrayList<>();
             lock.lock();
             try {
@@ -257,11 +262,9 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 lock.unlock();
             }
             Block<SK, SV> _next = this.next;
-
             if (_next != null && !visitedBlocks.contains(_next.key)) {
                 List<SV> lookUpRangeOnNext = _next.lookUpRange(firstKey, lastKey, visitedBlocks);
                 result.addAll(lookUpRangeOnNext);
-                visitedBlocks.add(_next.key);
             }
             return result;
 
@@ -274,7 +277,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
             ConcurrentSkipListMap<SK, List<SV>> keep_values = new ConcurrentSkipListMap<>();
             ConcurrentSkipListMap<SK, List<SV>> other_values = new ConcurrentSkipListMap<>();
-            final int splitmid = (size / 2) - 1;
+            final int splitmid = (maxBlockSize / 2) - 1;
             int count = 0;
             int otherSize = 0;
             int mySize = 0;
@@ -295,11 +298,13 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             SK firstKey = keep_values.firstKey();
             SK lastKey = keep_values.lastKey();
 
-            SK newOtherMinKey = other_values.firstKey();
-            SK newOtherMaxKey = other_values.lastKey();
-            Block<SK, SV> newblock = new Block<>(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
-            blocks.put(newblock.key, newblock);
-            this.next = newblock;
+            if (!other_values.isEmpty()) {
+                SK newOtherMinKey = other_values.firstKey();
+                SK newOtherMaxKey = other_values.lastKey();
+                Block<SK, SV> newblock = new Block<>(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
+                blocks.put(newblock.key, newblock);
+                this.next = newblock;
+            }
             this.minKey = firstKey;
             this.maxKey = lastKey;
             this.size = mySize;
@@ -334,16 +339,10 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     }
 
     public void delete(K key, V value) {
-        // TODO:
-        // issue: delete during a split: the iterator may not see the "new block"
-        // issue: delete during a put: the put may be executed on a block which as been deleted
-        for (Iterator<Block<K, V>> it = blocks.values().iterator(); it.hasNext();) {
-            Block<K, V> s = it.next();
-            boolean empty = s.delete(key, value);
-            if (empty) {
-                it.remove();
-            }
-        }
+        Set<BlockStartKey<K>> visitedBlocks = new HashSet<>();
+        blocks.values().forEach(b -> {
+            b.delete(key, value, visitedBlocks);
+        });
     }
 
     public Stream<V> query(K firstKey, K lastKey) {
