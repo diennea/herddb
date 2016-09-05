@@ -151,7 +151,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.size = 1;
         }
 
-        private Block(SK newOtherMinKey, SK newOtherMaxKey, ConcurrentSkipListMap<SK, List<SV>> other_values, int size) {
+        private Block(SK newOtherMinKey, SK newOtherMaxKey, NavigableMap<SK, List<SV>> other_values, int size) {
             this.key = new BlockStartKey<>(newOtherMinKey, blockIdGenerator.incrementAndGet());
             this.minKey = newOtherMinKey;
             this.values = other_values;
@@ -229,7 +229,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             }
         }
 
-        List<SV> lookUpRange(SK firstKey, SK lastKey, Set<BlockStartKey<SK>> visitedBlocks) {
+        Stream<SV> lookUpRange(SK firstKey, SK lastKey, Set<BlockStartKey<SK>> visitedBlocks) {
             if (!visitedBlocks.add(this.key)) {
                 return null;
             }
@@ -263,11 +263,21 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             }
             Block<SK, SV> _next = this.next;
             if (_next != null && !visitedBlocks.contains(_next.key)) {
-                List<SV> lookUpRangeOnNext = _next.lookUpRange(firstKey, lastKey, visitedBlocks);
-                result.addAll(lookUpRangeOnNext);
+                Stream<SV> lookUpRangeOnNext = _next.lookUpRange(firstKey, lastKey, visitedBlocks);
+                if (lookUpRangeOnNext != null && !result.isEmpty()) {
+                    return Stream.concat(result.stream(), lookUpRangeOnNext);
+                } else if (lookUpRangeOnNext != null) {
+                    return lookUpRangeOnNext;
+                } else if (!result.isEmpty()) {
+                    return result.stream();
+                } else {
+                    return null;
+                }
+            } else if (!result.isEmpty()) {
+                return result.stream();
+            } else {
+                return null;
             }
-            return result;
-
         }
 
         private void split(ConcurrentNavigableMap<BlockStartKey<SK>, Block<SK, SV>> blocks) {
@@ -275,8 +285,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 throw new IllegalStateException();
             }
 
-            ConcurrentSkipListMap<SK, List<SV>> keep_values = new ConcurrentSkipListMap<>();
-            ConcurrentSkipListMap<SK, List<SV>> other_values = new ConcurrentSkipListMap<>();
+            NavigableMap<SK, List<SV>> keep_values = new TreeMap<>();
+            NavigableMap<SK, List<SV>> other_values = new TreeMap<>();
             final int splitmid = (maxBlockSize / 2) - 1;
             int count = 0;
             int otherSize = 0;
@@ -295,20 +305,22 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 }
             }
 
-            SK firstKey = keep_values.firstKey();
-            SK lastKey = keep_values.lastKey();
-
             if (!other_values.isEmpty()) {
                 SK newOtherMinKey = other_values.firstKey();
                 SK newOtherMaxKey = other_values.lastKey();
                 Block<SK, SV> newblock = new Block<>(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
+
+                // access to external field, this is the cause of most of the concurrency problems
                 blocks.put(newblock.key, newblock);
+
+                SK firstKey = keep_values.firstKey();
+                SK lastKey = keep_values.lastKey();
                 this.next = newblock;
+                this.minKey = firstKey;
+                this.maxKey = lastKey;
+                this.size = mySize;
+                this.values = keep_values;
             }
-            this.minKey = firstKey;
-            this.maxKey = lastKey;
-            this.size = mySize;
-            this.values = keep_values;
         }
 
     }
@@ -348,13 +360,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     public Stream<V> query(K firstKey, K lastKey) {
         List<Block> candidates = findCandidates(firstKey, lastKey);
         Set<BlockStartKey<K>> visitedBlocks = new HashSet<>();
-        return candidates.stream().flatMap(s -> {
-            List<V> lookupInBlock = s.lookUpRange(firstKey, lastKey, visitedBlocks);
-            if (lookupInBlock == null || lookupInBlock.isEmpty()) {
-                return Stream.empty();
-            } else {
-                return lookupInBlock.stream();
-            }
+        return candidates.stream().flatMap((s) -> {
+            return s.lookUpRange(firstKey, lastKey, visitedBlocks);
         });
     }
 
