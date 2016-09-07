@@ -26,6 +26,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -37,6 +38,7 @@ import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
@@ -68,10 +70,10 @@ public class SQLRecordPredicate extends Predicate {
 
     static boolean isConstant(Expression exp) {
         return exp instanceof StringValue
-                || exp instanceof LongValue
-                || exp instanceof NullValue
-                || exp instanceof TimestampValue
-                || exp instanceof JdbcParameter;
+            || exp instanceof LongValue
+            || exp instanceof NullValue
+            || exp instanceof TimestampValue
+            || exp instanceof JdbcParameter;
     }
 
     private final Table table;
@@ -203,10 +205,10 @@ public class SQLRecordPredicate extends Predicate {
             return false;
         }
         String like = b.toString()
-                .replace(".", "\\.")
-                .replace("\\*", "\\*")
-                .replace("%", ".*")
-                .replace("_", ".?");
+            .replace(".", "\\.")
+            .replace("\\*", "\\*")
+            .replace("%", ".*")
+            .replace("_", ".?");
         return a.toString().matches(like);
     }
 
@@ -291,10 +293,10 @@ public class SQLRecordPredicate extends Predicate {
             Object start = evaluateExpression(e.getBetweenExpressionStart(), bean, state);
             Object end = evaluateExpression(e.getBetweenExpressionEnd(), bean, state);
             return handleNot(e.isNot(),
-                    (objectEquals(start, end) || minorThan(start, end)) // check impossible range
-                    && (objectEquals(left, start)
-                    || objectEquals(left, end)
-                    || (greaterThan(left, start) && minorThan(left, end))) // check value in range
+                (objectEquals(start, end) || minorThan(start, end)) // check impossible range
+                && (objectEquals(left, start)
+                || objectEquals(left, end)
+                || (greaterThan(left, start) && minorThan(left, end))) // check value in range
             );
         }
 
@@ -330,6 +332,14 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof LongValue) {
             return ((LongValue) expression).getValue();
+        }
+        if (expression instanceof TimeKeyExpression) {
+            TimeKeyExpression ext = (TimeKeyExpression) expression;
+            if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
+                return new java.sql.Timestamp(System.currentTimeMillis());
+            } else {
+                throw new StatementExecutionException("unhandled select expression " + expression);
+            }
         }
         if (expression instanceof TimestampValue) {
             return ((TimestampValue) expression).getValue();

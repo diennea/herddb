@@ -88,11 +88,7 @@ public class SQLRecordFunction extends RecordFunction {
                 bean.put(columnName, ((StringValue) e).getValue());
             } else if (e instanceof Column) {
                 Column c = (Column) e;
-                if (c.getColumnName().equalsIgnoreCase(BuiltinFunctions.CURRENT_TIMESTAMP)) {
-                    bean.put(columnName, new java.sql.Timestamp(System.currentTimeMillis()));
-                } else {
-                    bean.put(columnName, bean.get(c.getColumnName()));
-                }
+                bean.put(columnName, bean.get(c.getColumnName()));
             } else {
                 Object value = BuiltinFunctions.computeValue(e, bean);
                 bean.put(columnName, value);

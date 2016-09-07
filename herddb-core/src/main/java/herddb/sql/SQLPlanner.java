@@ -107,6 +107,7 @@ import herddb.model.TableDoesNotExistException;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.DropIndexStatement;
 import net.sf.jsqlparser.expression.SignedExpression;
+import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
@@ -652,6 +653,7 @@ public class SQLPlanner {
         if (e instanceof net.sf.jsqlparser.schema.Column
             || e instanceof StringValue
             || e instanceof NullValue
+            || e instanceof TimeKeyExpression
             || e instanceof TimestampValue
             || e instanceof LongValue) {
             return 0;
@@ -696,7 +698,7 @@ public class SQLPlanner {
                 }
             }
             return count;
-        }
+        }      
         throw new StatementExecutionException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 

@@ -29,6 +29,7 @@ import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
@@ -147,6 +148,13 @@ public class BuiltinFunctions {
             Object left = computeValue(add.getLeftExpression(), record);
             Object right = computeValue(add.getRightExpression(), record);
             return SQLRecordPredicate.subtract(left, right);
+        } else if (exp instanceof TimeKeyExpression) {
+            TimeKeyExpression ext = (TimeKeyExpression) exp;
+            if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
+                return new java.sql.Timestamp(System.currentTimeMillis());
+            } else {
+                throw new StatementExecutionException("unhandled select expression " + exp);
+            }
         } else {
             throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
         }
