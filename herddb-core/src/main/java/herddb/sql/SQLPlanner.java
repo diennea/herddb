@@ -381,6 +381,7 @@ public class SQLPlanner {
         }
         switch (indexType) {
             case herddb.model.Index.TYPE_HASH:
+            case herddb.model.Index.TYPE_BRIN:
                 break;
             default:
                 throw new StatementExecutionException("Invalid index type " + indexType);

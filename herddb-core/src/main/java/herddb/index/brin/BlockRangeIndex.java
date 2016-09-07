@@ -139,6 +139,17 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         int size;
         Block<SK, SV> next;
         private final ReentrantLock lock = new ReentrantLock(true);
+        boolean loaded;
+        boolean dirty;
+
+        public Block(int blockId, SK firstKey, SK lastKey, int size) {
+            this.key = new BlockStartKey<>(firstKey, blockId);
+            this.minKey = firstKey;
+            this.maxKey = lastKey;
+            this.size = size;
+            this.loaded = false;
+            this.dirty = false;
+        }
 
         public Block(BlockStartKey<SK> key, SK firstKey, SV firstValue) {
             this.key = key;
@@ -149,6 +160,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             values.put(firstKey, firstKeyValues);
             this.maxKey = firstKey;
             this.size = 1;
+            this.loaded = true;
+            this.dirty = true;
         }
 
         private Block(SK newOtherMinKey, SK newOtherMaxKey, NavigableMap<SK, List<SV>> other_values, int size) {
@@ -157,6 +170,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.values = other_values;
             this.maxKey = newOtherMaxKey;
             this.size = size;
+            this.loaded = true;
+            this.dirty = true;
         }
 
         @Override
@@ -410,6 +425,14 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
     public boolean containsKey(K key) {
         return !lookUpRange(key, key).isEmpty();
+    }
+
+    public void boot(BlockRangeIndexMetadata<K> metadata) {
+        this.blocks.clear();
+        for (BlockRangeIndexMetadata.BlockMetadata<K> blockData : metadata.getBlocksMetadata()) {
+            Block<K, V> block = new Block<>(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size);
+            blocks.put(block.key, block);
+        }
     }
 
 }

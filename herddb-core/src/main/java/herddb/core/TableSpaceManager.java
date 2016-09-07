@@ -34,6 +34,7 @@ import herddb.core.system.SysnodesTableManager;
 import herddb.core.system.SystablesTableManager;
 import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
+import herddb.index.brin.BRINIndexManager;
 import herddb.log.CommitLog;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
@@ -338,9 +339,9 @@ public class TableSpaceManager {
                     }
                 }
                 if ((transaction.newTables != null && !transaction.newTables.isEmpty())
-                        || (transaction.droppedTables != null && !transaction.droppedTables.isEmpty())
-                        || (transaction.newIndexes != null && !transaction.newIndexes.isEmpty())
-                        || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
+                    || (transaction.droppedTables != null && !transaction.droppedTables.isEmpty())
+                    || (transaction.newIndexes != null && !transaction.newIndexes.isEmpty())
+                    || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
                     writeTablesOnDataStorageManager(position);
                     dbmanager.getPlanner().clearCache();
                 }
@@ -442,10 +443,10 @@ public class TableSpaceManager {
         }
 
         if (entry.tableName != null
-                && entry.type != LogEntryType.CREATE_TABLE
-                && entry.type != LogEntryType.CREATE_INDEX
-                && entry.type != LogEntryType.ALTER_TABLE
-                && entry.type != LogEntryType.DROP_TABLE) {
+            && entry.type != LogEntryType.CREATE_TABLE
+            && entry.type != LogEntryType.CREATE_INDEX
+            && entry.type != LogEntryType.ALTER_TABLE
+            && entry.type != LogEntryType.DROP_TABLE) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(position, entry, recovery);
         }
@@ -759,7 +760,7 @@ public class TableSpaceManager {
                     log.followTheLeader(actualLogSequenceNumber, new BiConsumer< LogSequenceNumber, LogEntry>() {
                         @Override
                         public void accept(LogSequenceNumber num, LogEntry u
-                        ) {                            
+                        ) {
                             try {
                                 apply(num, u, false);
                             } catch (Throwable t) {
@@ -1013,11 +1014,22 @@ public class TableSpaceManager {
     private AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2}.{3}", new Object[]{nodeId, tableSpaceName, index.table, index.name});
-
-        AbstractIndexManager indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
         if (indexes.containsKey(index.name)) {
             throw new DataStorageManagerException("Index" + index.name + " already present in tableSpace " + tableSpaceName);
         }
+
+        AbstractIndexManager indexManager;
+        switch (index.type) {
+            case Index.TYPE_HASH:
+                indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                break;
+            case Index.TYPE_BRIN:
+                indexManager = new BRINIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                break;
+            default:
+                throw new DataStorageManagerException("invalid index type " + index.type);
+        }
+
         indexes.put(index.name, indexManager);
 
         Map<String, AbstractIndexManager> newMap = new HashMap<>(); // this must be mutable (see DROP INDEX)

@@ -38,6 +38,7 @@ import java.util.stream.Collectors;
 public class Index implements ColumnsList {
 
     public static final String TYPE_HASH = "hash";
+    public static final String TYPE_BRIN = "brin";
 
     public final String name;
     public final String table;
@@ -177,8 +178,8 @@ public class Index implements ColumnsList {
             if (table == null || table.isEmpty()) {
                 throw new IllegalArgumentException("table is not defined");
             }
-            if (!TYPE_HASH.equals(type)) {
-                throw new IllegalArgumentException("only index type " + TYPE_HASH + " is supported");
+            if (!TYPE_HASH.equals(type) && !TYPE_BRIN.equals(type)) {
+                throw new IllegalArgumentException("only index type " + TYPE_HASH + ","+TYPE_BRIN+" are supported");
             }
             if (columns.isEmpty()) {
                 throw new IllegalArgumentException("specify at least one column to index");

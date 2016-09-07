@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -44,16 +45,83 @@ import java.util.Collections;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 import org.junit.Test;
+import static org.junit.Assert.assertTrue;
 
 /**
- * Tests on table creation
- *
  * @author enrico.olivelli
  */
-public class SimpleIHashIndexTest {
+public abstract class SecondaryIndexAccessSuite {
 
+    protected String indexType;
+
+    public SecondaryIndexAccessSuite(String indexType) {
+        this.indexType = indexType;
+    }
+
+    @Test
+    public void secondaryIndexPrefixScan() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("n1", ColumnTypes.INTEGER)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                .builder()
+                .onTable(table)
+                .type(Index.TYPE_BRIN)
+                .column("n1", ColumnTypes.INTEGER)
+                .column("name", ColumnTypes.STRING).
+                build();
+
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('a',1,'n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',1,'n1')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('c',1,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('d',2,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('e',3,'n2')", Collections.emptyList());
+
+            // create index, it will be built using existing data
+            CreateIndexStatement st3 = new CreateIndexStatement(index);
+            manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(3, scan1.consume().size());
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1 and name='n2'", Collections.emptyList(), true, true);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    assertEquals(1, scan1.consume().size());
+                }
+            }
+
+        }
+
+    }
+    
+    
     @Test
     public void createIndexOnTableWithData() throws Exception {
         String nodeId = "localhost";
@@ -78,7 +146,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
 
@@ -128,7 +196,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
 
@@ -178,7 +246,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
 
@@ -241,7 +309,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
 
@@ -330,7 +398,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(transacted_table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
@@ -388,7 +456,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(transacted_table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
@@ -453,7 +521,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(transacted_table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
@@ -514,7 +582,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(transacted_table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
@@ -577,7 +645,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(transacted_table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
@@ -637,7 +705,7 @@ public class SimpleIHashIndexTest {
             Index index = Index
                     .builder()
                     .onTable(transacted_table)
-                    .type(Index.TYPE_HASH)
+                    .type(indexType)
                     .column("name", ColumnTypes.STRING).
                     build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);

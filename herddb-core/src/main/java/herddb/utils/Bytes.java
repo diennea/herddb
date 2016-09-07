@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -205,6 +206,12 @@ public final class Bytes implements Comparable<Bytes> {
             string.append(hexString.length() == 1 ? "0" + hexString : hexString);
         }
         return string.toString();
+    }
+
+    public Bytes next() {
+        BigInteger i = new BigInteger(this.data);
+        i = i.add(BigInteger.ONE);        
+        return Bytes.from_array(i.toByteArray());
     }
 
 }
