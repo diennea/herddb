@@ -20,21 +20,35 @@
 package herddb.index.brin;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Abstract on the storage engine
+ * Simple in-memory index data storage manager
  *
  * @author enrico.olivelli
  */
-public interface IndexDataStorage<K, V> {
+public class MemoryIndexDataStorage<K, V> implements IndexDataStorage<K, V> {
 
-    public static final long NEW_PAGE = -1;
+    AtomicLong newPageId = new AtomicLong();
 
-    public List<Map.Entry<K, V>> loadDataPage(long pageId) throws IOException;
+    private final ConcurrentHashMap<Long, List<Map.Entry<K, V>>> pages = new ConcurrentHashMap<>();
 
-    public long createDataPage(List<Map.Entry<K, V>> values) throws IOException;
+    @Override
+    public List<Map.Entry<K, V>> loadDataPage(long pageId) throws IOException {
+        return pages.get(pageId);
+    }
+
+    @Override
+    public long createDataPage(List<Map.Entry<K, V>> values) throws IOException {
+        long newid = newPageId.incrementAndGet();
+        pages.put(newid, values);
+        return newid;
+    }
 
 }

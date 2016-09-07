@@ -57,7 +57,7 @@ public class BlockRangeIndexConcurrentTest {
             threadpool.shutdown();
         }
         assertTrue(l.await(10, TimeUnit.SECONDS));
-        index.dump();
+        dumpIndex(index);
         verifyIndex(index);
         List<String> result = index.lookUpRange(0, testSize + 1);
         for (String res : result) {
@@ -68,6 +68,12 @@ public class BlockRangeIndexConcurrentTest {
             assertTrue("cannot find " + i, index.containsKey(i));
         }
 
+    }
+
+    private void dumpIndex(BlockRangeIndex<?, ?> index) {
+        for (Block b : index.getBlocks().values()) {
+            System.out.println("BLOCK " + b);
+        }
     }
 
     private void verifyIndex(BlockRangeIndex<Integer, String> index) {
@@ -84,7 +90,7 @@ public class BlockRangeIndexConcurrentTest {
                 }
                 lastmax = entryMax;
             }
-            assertEquals(b.values.size(),b.size);
+            assertEquals(b.values.size(), b.size);
         }
     }
 
@@ -110,7 +116,7 @@ public class BlockRangeIndexConcurrentTest {
             threadpool.shutdown();
         }
         assertTrue(l.await(10, TimeUnit.SECONDS));
-        index.dump();
+        dumpIndex(index);
         verifyIndex(index);
         List<String> result = index.lookUpRange(0, testSize + 1);
         for (String res : result) {
@@ -143,10 +149,10 @@ public class BlockRangeIndexConcurrentTest {
                         results.addAll(search);
                         index.delete(_i, "a" + _i);
                         List<String> search2 = index.search(_i);
-                        results2.addAll(search2);                        
+                        results2.addAll(search2);
                         l.countDown();
                     } catch (Throwable t) {
-                        t.printStackTrace();                       
+                        t.printStackTrace();
                     }
                 });
             }
@@ -154,7 +160,7 @@ public class BlockRangeIndexConcurrentTest {
             threadpool.shutdown();
         }
         assertTrue(l.await(10, TimeUnit.SECONDS));
-        index.dump();
+        dumpIndex(index);
         verifyIndex(index);
         List<String> result = index.lookUpRange(0, testSize + 1);
         assertTrue(result.isEmpty());

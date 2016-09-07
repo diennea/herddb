@@ -48,15 +48,17 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.xml.ws.Holder;
+import static org.apache.commons.lang.CharSetUtils.count;
 
 /**
  * Block-range like index
@@ -66,12 +68,15 @@ import javax.xml.ws.Holder;
 public class BRINIndexManager extends AbstractIndexManager {
 
     private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
+    private static final int MAX_BLOCK_SIZE = 10000;
     LogSequenceNumber bootSequenceNumber;
     private final AtomicLong newPageId = new AtomicLong(1);
-    private final BlockRangeIndex<Bytes, Bytes> data = new BlockRangeIndex<>(10000);
+    private final BlockRangeIndex<Bytes, Bytes> data;
+    private final IndexDataStorage<Bytes, Bytes> storageLayer = new IndexDataStorageImpl();
 
     public BRINIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
+        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, storageLayer);
     }
 
     private static final class PageContents {
@@ -95,6 +100,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                             doo.writeArray(md.lastKey.data);
                             doo.writeVInt(md.blockId);
                             doo.writeVInt(md.size);
+                            doo.writeVLong(md.pageId);
                         }
                         break;
                     case TYPE_BLOCKDATA:
@@ -125,8 +131,9 @@ public class BRINIndexManager extends AbstractIndexManager {
                             Bytes lastKey = Bytes.from_array(ein.readArray());
                             int blockId = ein.readVInt();
                             int size = ein.readVInt();
+                            long pageId = ein.readVLong();
                             BlockRangeIndexMetadata.BlockMetadata<Bytes> md
-                                = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, lastKey, blockId, size);
+                                = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, lastKey, blockId, size, pageId);
                             result.metadata.add(md);
                         }
                         break;
@@ -186,7 +193,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         } else {
             this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
         }
-        LOGGER.log(Level.SEVERE, "loaded index {1}", new Object[]{index.name});
+        LOGGER.log(Level.SEVERE, "loaded index {1} {2} blocks", new Object[]{index.name, this.data.getNumBlocks()});
     }
 
     @Override
@@ -207,7 +214,26 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        return Collections.emptyList();
+        try {
+            BlockRangeIndexMetadata<Bytes> metadata = data.checkpoint();
+            PageContents page = new PageContents();
+            page.type = PageContents.TYPE_METADATA;
+            page.metadata = metadata.getBlocksMetadata();
+            long newPage = newPageId.incrementAndGet();
+            dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, newPage, page.serialize());
+            Set<Long> activePages = new HashSet<>();
+            activePages.add(newPage);
+            page.metadata.forEach(b -> {
+                activePages.add(b.pageId);
+            });
+            IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, activePages, null);
+            List<PostCheckpointAction> result = new ArrayList<>();
+            result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus));
+            LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} blocks, pages {2}", new Object[]{index.name, page.metadata.size() + "", activePages + ""});
+            return result;
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
     @Override
@@ -271,6 +297,39 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
         if (indexKeyRemoved != null) {
             data.delete(indexKeyRemoved, key);
+        }
+    }
+
+    private class IndexDataStorageImpl implements IndexDataStorage<Bytes, Bytes> {
+
+        @Override
+        public List<Map.Entry<Bytes, Bytes>> loadDataPage(long pageId) throws IOException {
+            try {
+                byte[] pageData = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId);
+                PageContents contents = PageContents.deserialize(pageData);
+                if (contents.type != PageContents.TYPE_BLOCKDATA) {
+                    throw new IOException("page " + pageId + " does not contain blocks data");
+                }
+                return contents.pageData;
+            } catch (DataStorageManagerException err) {
+                throw new IOException(err);
+            }
+        }
+
+        @Override
+        public long createDataPage(List<Map.Entry<Bytes, Bytes>> values) throws IOException {
+            try {
+                System.out.println("createDataPAge " + values);
+                PageContents contents = new PageContents();
+                contents.type = PageContents.TYPE_BLOCKDATA;
+                contents.pageData = values;
+                byte[] serialized = contents.serialize();
+                long pageId = newPageId.incrementAndGet();
+                dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, serialized);
+                return pageId;
+            } catch (DataStorageManagerException err) {
+                throw new IOException(err);
+            }
         }
     }
 

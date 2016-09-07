@@ -248,7 +248,7 @@ public class SQLPlanner {
     }
 
     private Statement buildCreateTableStatement(String defaultTableSpace, CreateTable s) throws StatementExecutionException {
-        String tableSpace = s.getTable().getSchemaName();        
+        String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
@@ -308,11 +308,11 @@ public class SQLPlanner {
                         String indexType = convertIndexType(null);
 
                         herddb.model.Index.Builder builder = herddb.model.Index
-                                .builder()
-                                .name(indexName)
-                                .type(indexType)
-                                .table(tableName)
-                                .tablespace(tableSpace);
+                            .builder()
+                            .name(indexName)
+                            .type(indexType)
+                            .table(tableName)
+                            .tablespace(tableSpace);
 
                         for (String columnName : index.getColumnsNames()) {
                             columnName = columnName.toLowerCase();
@@ -347,11 +347,11 @@ public class SQLPlanner {
             String indexType = convertIndexType(s.getIndex().getType());
 
             herddb.model.Index.Builder builder = herddb.model.Index
-                    .builder()
-                    .name(indexName)
-                    .type(indexType)
-                    .table(tableName)
-                    .tablespace(tableSpace);
+                .builder()
+                .name(indexName)
+                .type(indexType)
+                .table(tableName)
+                .tablespace(tableSpace);
 
             AbstractTableManager tableDefinition = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
             if (tableDefinition == null) {
@@ -375,7 +375,7 @@ public class SQLPlanner {
 
     private String convertIndexType(String indexType) throws StatementExecutionException {
         if (indexType == null) {
-            indexType = herddb.model.Index.TYPE_HASH;
+            indexType = herddb.model.Index.TYPE_BRIN;
         } else {
             indexType = indexType.toLowerCase();
         }
@@ -551,8 +551,8 @@ public class SQLPlanner {
                         }
                         String[] columnsToMatch = index.getColumnNames();
                         SQLRecordKeyFunction indexSeekFunction = findIndexSeek(s.getWhere(), columnsToMatch,
-                                index.getIndex(),
-                                table.name, new AtomicInteger());
+                            index.getIndex(),
+                            table.name, new AtomicInteger());
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
                                 where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -617,8 +617,8 @@ public class SQLPlanner {
                         }
                         String[] columnsToMatch = index.getColumnNames();
                         SQLRecordKeyFunction indexSeekFunction = findIndexSeek(s.getWhere(), columnsToMatch,
-                                index.getIndex(),
-                                table.name, new AtomicInteger());
+                            index.getIndex(),
+                            table.name, new AtomicInteger());
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
                                 where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -650,10 +650,10 @@ public class SQLPlanner {
             return 0;
         }
         if (e instanceof net.sf.jsqlparser.schema.Column
-                || e instanceof StringValue
-                || e instanceof NullValue
-                || e instanceof TimestampValue
-                || e instanceof LongValue) {
+            || e instanceof StringValue
+            || e instanceof NullValue
+            || e instanceof TimestampValue
+            || e instanceof LongValue) {
             return 0;
         }
         if (e instanceof BinaryExpression) {
@@ -873,8 +873,8 @@ public class SQLPlanner {
                             }
                             String[] columnsToMatch = index.getColumnNames();
                             SQLRecordKeyFunction indexSeekFunction = findIndexSeek(selectBody.getWhere(), columnsToMatch,
-                                    index.getIndex(),
-                                    table.name, new AtomicInteger());
+                                index.getIndex(),
+                                table.name, new AtomicInteger());
                             if (indexSeekFunction != null) {
                                 if (indexSeekFunction.isFullPrimaryKey()) {
                                     where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));

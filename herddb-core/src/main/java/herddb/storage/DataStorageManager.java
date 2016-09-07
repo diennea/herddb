@@ -75,7 +75,7 @@ public abstract class DataStorageManager {
      */
     public abstract void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException;
 
-    public abstract void writeIndexPage(String tableSpace, String tableName, long pageId, byte[] page) throws DataStorageManagerException;
+    public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException;
 
     /**
      * Write current table status. This operations mark the actual set of pages

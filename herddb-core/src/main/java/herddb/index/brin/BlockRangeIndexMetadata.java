@@ -44,14 +44,24 @@ public class BlockRangeIndexMetadata<K extends Comparable<K>> {
         final K lastKey;
         final int blockId;
         final int size;
+        final long pageId;
 
-        public BlockMetadata(K firstKey, K lastKey, int blockId, int size) {
+        public BlockMetadata(K firstKey, K lastKey, int blockId, int size, long pageId) {
             this.firstKey = firstKey;
             this.lastKey = lastKey;
             this.blockId = blockId;
             this.size = size;
+            this.pageId = pageId;
         }
 
+        public int getSize() {
+            return size;
+        }
+
+        public long getPageId() {
+            return pageId;
+        }
+        
         public K getFirstKey() {
             return firstKey;
         }

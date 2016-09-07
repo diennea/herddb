@@ -37,11 +37,11 @@ public class BlockRangeIndexTest {
         index.put(1, "a");
         index.put(2, "b");
         index.put(3, "c");
-        index.dump();
+        dumpIndex(index);
         assertEquals("a", index.search(1).get(0));
         assertEquals("b", index.search(2).get(0));
         assertEquals("c", index.search(3).get(0));
-        assertEquals(2, index.getNumSegments());
+        assertEquals(2, index.getNumBlocks());
     }
 
     @Test
@@ -59,14 +59,14 @@ public class BlockRangeIndexTest {
         index.put(1, "a");
         index.put(1, "b");
         index.put(1, "c");
-        index.dump();
+        dumpIndex(index);
         List<String> searchResult = index.search(1);
         System.out.println("searchResult:" + searchResult);
         assertEquals(3, searchResult.size());
         assertEquals("a", searchResult.get(0));
         assertEquals("b", searchResult.get(1));
         assertEquals("c", searchResult.get(2));
-        assertEquals(2, index.getNumSegments());
+        assertEquals(2, index.getNumBlocks());
     }
 
     @Test
@@ -89,7 +89,7 @@ public class BlockRangeIndexTest {
         index.put(4, "d");
         index.put(5, "e");
         index.put(6, "f");
-        index.dump();
+        dumpIndex(index);
         List<String> searchResult = index.search(1);
         System.out.println("searchResult:" + searchResult);
         assertEquals(1, searchResult.size());
@@ -109,12 +109,12 @@ public class BlockRangeIndexTest {
         index.put(3, "c");
         index.put(2, "b");
         index.put(1, "a");
-        index.dump();
+        dumpIndex(index);
 
         assertEquals("a", index.search(1).get(0));
         assertEquals("b", index.search(2).get(0));
         assertEquals("c", index.search(3).get(0));
-        assertEquals(2, index.getNumSegments());
+        assertEquals(2, index.getNumBlocks());
     }
 
     @Test
@@ -185,6 +185,12 @@ public class BlockRangeIndexTest {
             assertTrue(result.contains("test_" + i));
         }
         assertEquals(9, result.size());
+    }
+
+    private void dumpIndex(BlockRangeIndex<?, ?> index) {
+        for (BlockRangeIndex.Block b : index.getBlocks().values()) {
+            System.out.println("BLOCK " + b);
+        }
     }
 
 }
