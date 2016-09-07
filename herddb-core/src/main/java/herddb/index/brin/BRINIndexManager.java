@@ -69,6 +69,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
     private static final int MAX_BLOCK_SIZE = 10000;
+    private static final int MAX_LOADED_BLOCKS = 1000;
     LogSequenceNumber bootSequenceNumber;
     private final AtomicLong newPageId = new AtomicLong(1);
     private final BlockRangeIndex<Bytes, Bytes> data;
@@ -76,7 +77,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     public BRINIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
-        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, storageLayer);
+        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, MAX_LOADED_BLOCKS, storageLayer);
     }
 
     private static final class PageContents {

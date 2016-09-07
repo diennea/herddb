@@ -39,10 +39,7 @@ import org.junit.Test;
 public class BlockRangeIndexStorageTest {
 
     @Test
-    public void testSimpleSplit() throws Exception {
-
-        List<Long> loadedPages = new CopyOnWriteArrayList<>();
-        List<Long> writtenPages = new CopyOnWriteArrayList<>();
+    public void testSimple() throws Exception {
 
         IndexDataStorage<Integer, String> storage = new IndexDataStorage<Integer, String>() {
 
@@ -52,7 +49,6 @@ public class BlockRangeIndexStorageTest {
 
             @Override
             public List<Map.Entry<Integer, String>> loadDataPage(long pageId) throws IOException {
-                loadedPages.add(pageId);
                 return pages.get(pageId);
             }
 
@@ -60,13 +56,12 @@ public class BlockRangeIndexStorageTest {
             public long createDataPage(List<Map.Entry<Integer, String>> values) throws IOException {
                 long newid = newPageId.incrementAndGet();
                 pages.put(newid, values);
-                writtenPages.add(newid);
                 return newid;
             }
 
         };
 
-        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(2, storage);
+        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(2, Integer.MAX_VALUE, storage);
 
         index.put(1, "a");
         index.put(2, "b");
@@ -81,12 +76,63 @@ public class BlockRangeIndexStorageTest {
         assertEquals("c", index.search(3).get(0));
         assertEquals(2, index.getNumBlocks());
 
-        BlockRangeIndex<Integer, String> indexAfterBoot = new BlockRangeIndex<>(2, storage);
+        BlockRangeIndex<Integer, String> indexAfterBoot = new BlockRangeIndex<>(2, Integer.MAX_VALUE, storage);
         indexAfterBoot.boot(metadata);
         assertEquals("a", indexAfterBoot.search(1).get(0));
         assertEquals("b", indexAfterBoot.search(2).get(0));
         assertEquals("c", indexAfterBoot.search(3).get(0));
         assertEquals(2, indexAfterBoot.getNumBlocks());
+
+    }
+
+    @Test
+    public void testUnload() throws Exception {
+
+        IndexDataStorage<Integer, String> storage = new IndexDataStorage<Integer, String>() {
+
+            AtomicLong newPageId = new AtomicLong();
+
+            private ConcurrentHashMap<Long, List<Map.Entry<Integer, String>>> pages = new ConcurrentHashMap<>();
+
+            @Override
+            public List<Map.Entry<Integer, String>> loadDataPage(long pageId) throws IOException {
+                return pages.get(pageId);
+            }
+
+            @Override
+            public long createDataPage(List<Map.Entry<Integer, String>> values) throws IOException {
+                long newid = newPageId.incrementAndGet();
+                pages.put(newid, values);
+                return newid;
+            }
+
+        };
+
+        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(2, 10, storage);
+        for (int i = 0; i < 100; i++) {
+            index.put(i, "a");
+        }
+        BlockRangeIndexMetadata<Integer> metadata = index.checkpoint();
+        assertEquals(index.getNumBlocks(), metadata.getBlocksMetadata().size());
+        assertEquals(10,index.getLoadedBlocksCount());
+
+        for (int i = 0; i < 100; i++) {
+            assertEquals("a", index.search(i).get(0));
+        }
+        assertEquals(10,index.getLoadedBlocksCount());
+        index.unloadAllBlocks();
+        assertEquals(0,index.getLoadedBlocksCount());
+
+        BlockRangeIndex<Integer, String> indexAfterBoot = new BlockRangeIndex<>(2, 10, storage);
+        indexAfterBoot.boot(metadata);
+        assertEquals(metadata.getBlocksMetadata().size(), indexAfterBoot.getNumBlocks());
+        assertEquals(0,indexAfterBoot.getLoadedBlocksCount());
+        for (int i = 0; i < 100; i++) {
+            assertEquals("a", indexAfterBoot.search(i).get(0));
+        }
+        assertEquals(10,indexAfterBoot.getLoadedBlocksCount());
+        assertEquals(metadata.getBlocksMetadata().size(), indexAfterBoot.getNumBlocks());
+        
 
     }
 }

@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,6 +53,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
     private final BlockStartKey HEAD_KEY = new BlockStartKey(null, -1);
     private final IndexDataStorage dataStorage;
+    private final int maxLoadedBlocks;
+    private final AtomicInteger loadedBlocksCount = new AtomicInteger();
 
     private final class BlockStartKey<K extends Comparable<K>> implements Comparable<BlockStartKey<K>> {
 
@@ -142,8 +145,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.pageId = pageId;
         }
 
-        public Block(BlockStartKey<SK> key, SK firstKey, SV firstValue) {
-            this.key = key;
+        public Block(SK firstKey, SV firstValue) {
+            this.key = HEAD_KEY;
             this.minKey = firstKey;
             List<SV> firstKeyValues = new ArrayList<>(maxBlockSize);
             firstKeyValues.add(firstValue);
@@ -248,6 +251,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                         mergeAddValue((SK) entry.getKey(), (SV) entry.getValue(), values);
                     }
                     loaded = true;
+                    loadedBlocksCount.incrementAndGet();
                 } catch (IOException err) {
                     throw new RuntimeException(err);
                 }
@@ -340,6 +344,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
                 // access to external field, this is the cause of most of the concurrency problems
                 blocks.put(newblock.key, newblock);
+                loadedBlocksCount.incrementAndGet();
 
                 SK firstKey = keep_values.firstKey();
                 SK lastKey = keep_values.lastKey();
@@ -374,17 +379,19 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
         }
 
-        private void unload() throws IOException {
+        private boolean unload() throws IOException {
             lock.lock();
             try {
-                if (!dirty || !loaded) {
-                    return;
+                if (!loaded) {
+                    return false;
                 }
                 if (dirty) {
                     checkpoint();
                 }
                 values = null;
                 loaded = false;
+                loadedBlocksCount.decrementAndGet();
+                return true;
             } finally {
                 lock.unlock();
             }
@@ -394,22 +401,29 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     }
 
     public BlockRangeIndex(int maxBlockSize) {
-        this.maxBlockSize = maxBlockSize;
-        this.dataStorage = new MemoryIndexDataStorage<>();
+        this(maxBlockSize, Integer.MAX_VALUE, new MemoryIndexDataStorage());
     }
 
-    public BlockRangeIndex(int maxBlockSize, IndexDataStorage dataStorage) {
+    public BlockRangeIndex(int maxBlockSize, int maxLoadedBlocks, IndexDataStorage dataStorage) {
         this.maxBlockSize = maxBlockSize;
         this.dataStorage = dataStorage;
+        this.maxLoadedBlocks = maxLoadedBlocks;
     }
 
     public int getNumBlocks() {
         return blocks.size();
     }
 
+    public int getLoadedBlocksCount() {
+        return loadedBlocksCount.get();
+    }
+
     public void put(K key, V value) {
         BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
         while (!tryPut(key, value, lookUp)) {
+        }
+        if (loadedBlocksCount.get() > maxLoadedBlocks) {
+            unloadBlocks();
         }
     }
 
@@ -432,11 +446,39 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         }
     }
 
+    private void unloadBlocks() {
+        try {
+            int diff = loadedBlocksCount.get() - maxLoadedBlocks;
+            if (diff <= 0) {
+                return;
+            }
+            int unloadedCount = 0;
+            for (Block<K, V> block : blocks.values()) {
+                if (!block.loaded) {
+                    // access out of lock                    
+                    continue;
+                }
+                boolean unloaded = block.unload();
+                if (unloaded) {
+                    unloadedCount++;
+                    if (unloadedCount >= diff) {
+                        break;
+                    }
+                }
+            }
+            LOG.log(Level.SEVERE, "try unloadBlocks {0} blocks unloaded", unloadedCount);
+        } catch (IOException error) {
+            throw new RuntimeException(error);
+        }
+    }
+
     private boolean tryPut(K key, V value, BlockStartKey<K> lookUp) {
         Map.Entry<BlockStartKey<K>, Block<K, V>> segmentEntry = blocks.floorEntry(lookUp);
         if (segmentEntry == null) {
-            Block<K, V> headBlock = new Block<>(HEAD_KEY, key, value);
-            return blocks.putIfAbsent(HEAD_KEY, headBlock) == null;
+            Block<K, V> headBlock = new Block<>(key, value);
+            boolean result = blocks.putIfAbsent(HEAD_KEY, headBlock) == null;
+            loadedBlocksCount.incrementAndGet();
+            return result;
         }
         Block<K, V> choosenSegment = segmentEntry.getValue();
         return choosenSegment.addValue(key, value, blocks);
@@ -448,13 +490,21 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         blocks.values().forEach(b -> {
             b.delete(key, value, visitedBlocks);
         });
+        if (loadedBlocksCount.get() > maxLoadedBlocks) {
+            unloadBlocks();
+        }
     }
 
     public Stream<V> query(K firstKey, K lastKey) {
+
         List<Block> candidates = findCandidates(firstKey, lastKey);
         Set<BlockStartKey<K>> visitedBlocks = new HashSet<>();
         return candidates.stream().flatMap((s) -> {
-            return s.lookUpRange(firstKey, lastKey, visitedBlocks);
+            Stream<V> lookUpRange = s.lookUpRange(firstKey, lastKey, visitedBlocks);
+            if (loadedBlocksCount.get() > maxLoadedBlocks) {
+                unloadBlocks();
+            }
+            return lookUpRange;
         });
     }
 
