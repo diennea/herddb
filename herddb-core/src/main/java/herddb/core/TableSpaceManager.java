@@ -30,10 +30,12 @@ import herddb.client.TableSpaceDumpReceiver;
 import herddb.core.system.SysclientsTableManager;
 import herddb.core.system.SyscolumnsTableManager;
 import herddb.core.system.SysconfigTableManager;
+import herddb.core.system.SysindexesTableManager;
 import herddb.core.system.SysnodesTableManager;
 import herddb.core.system.SystablesTableManager;
 import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
+import herddb.core.system.SystransactionsTableManager;
 import herddb.index.brin.BRINIndexManager;
 import herddb.log.CommitLog;
 import herddb.log.FullRecoveryNeededException;
@@ -153,7 +155,9 @@ public class TableSpaceManager {
             registerSystemTableManager(new SysclientsTableManager(this));
         } else {
             registerSystemTableManager(new SystablesTableManager(this));
+            registerSystemTableManager(new SysindexesTableManager(this));
             registerSystemTableManager(new SyscolumnsTableManager(this));
+            registerSystemTableManager(new SystransactionsTableManager(this));
         }
         registerSystemTableManager(new SystablespacesTableManager(this));
         registerSystemTableManager(new SystablespacereplicastateTableManager(this));
@@ -1195,7 +1199,10 @@ public class TableSpaceManager {
 
     public Collection<Long> getOpenTransactions() {
         return new HashSet<>(this.transactions.keySet());
+    }
 
+    public List<Transaction> getTransactions() {
+        return new ArrayList<>(this.transactions.values());
     }
 
     private class ApplyEntryOnRecovery implements BiConsumer<LogSequenceNumber, LogEntry> {

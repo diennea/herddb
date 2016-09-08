@@ -21,41 +21,48 @@ package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * Table Manager for the SYSTABLES virtual table
+ * Table Manager for the SYSTRANSACTIONS virtual table
  *
  * @author enrico.olivelli
  */
-public class SystablesTableManager extends AbstractSystemTableManager {
+public class SystransactionsTableManager extends AbstractSystemTableManager {
 
     private final static Table TABLE = Table
         .builder()
-        .name("systables")
+        .name("systransactions")
         .column("tablespace", ColumnTypes.STRING)
-        .column("table_name", ColumnTypes.STRING)
-        .column("systemtable", ColumnTypes.STRING)
-        .primaryKey("table_name", false)
+        .column("txid", ColumnTypes.LONG)
+        .column("creationTimestamp", ColumnTypes.TIMESTAMP)
+        .primaryKey("txid", false)
         .build();
 
-    public SystablesTableManager(TableSpaceManager parent) {
+    public SystransactionsTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
     }
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
-        List<Table> tables = tableSpaceManager.getAllCommittedTables();
-        return tables
-            .stream()
-            .map(r -> RecordSerializer.makeRecord(table, "tablespace", r.tablespace, "table_name", r.name, "systemtable",
-                r.name.startsWith("sys") ? "true" : "false"
-            ))
-            .collect(Collectors.toList());
+        List<Transaction> transactions = tableSpaceManager.getTransactions();
+        List<Record> result = new ArrayList<>();
+        for (Transaction tx : transactions) {
+
+            result.add(RecordSerializer.makeRecord(
+                table,
+                "tablespace", tableSpaceManager.getTableSpaceName(),
+                "txid", tx.transactionId,
+                "creationTimestamp", new java.sql.Timestamp(tx.localCreationTimestamp)
+            ));
+        }
+        return result;
     }
 
 }

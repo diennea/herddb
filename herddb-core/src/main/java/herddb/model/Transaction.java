@@ -37,8 +37,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A Transaction, that is a series of Statement which must be executed with ACID
- * semantics on a set of tables of the same TableSet
+ * A Transaction, that is a series of Statement which must be executed with ACID semantics on a set of tables of the
+ * same TableSet
  *
  * @author enrico.olivelli
  */
@@ -55,6 +55,7 @@ public class Transaction {
     public Set<String> droppedTables;
     public Set<String> droppedIndexes;
     public LogSequenceNumber lastSequenceNumber;
+    public final long localCreationTimestamp;
 
     public Transaction(long transactionId, String tableSpace, LogSequenceNumber lastSequenceNumber) {
         this.transactionId = transactionId;
@@ -64,6 +65,7 @@ public class Transaction {
         this.newRecords = new HashMap<>();
         this.deletedRecords = new HashMap<>();
         this.lastSequenceNumber = lastSequenceNumber;
+        this.localCreationTimestamp = System.currentTimeMillis();
     }
 
     public LockHandle lookupLock(String tableName, Bytes key) {
@@ -192,7 +194,7 @@ public class Transaction {
         }
     }
 
-    public synchronized void registerDeleteOnTable(String tableName, Bytes key, LogSequenceNumber sequenceNumber) {        
+    public synchronized void registerDeleteOnTable(String tableName, Bytes key, LogSequenceNumber sequenceNumber) {
         if (lastSequenceNumber.after(sequenceNumber)) {
             return;
         }

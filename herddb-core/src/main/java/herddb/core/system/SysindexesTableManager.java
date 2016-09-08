@@ -20,30 +20,34 @@
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractIndexManager;
 import herddb.core.TableSpaceManager;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Table Manager for the SYSTABLES virtual table
+ * Table Manager for the SYSINDEXES virtual table
  *
  * @author enrico.olivelli
  */
-public class SystablesTableManager extends AbstractSystemTableManager {
+public class SysindexesTableManager extends AbstractSystemTableManager {
 
     private final static Table TABLE = Table
         .builder()
-        .name("systables")
+        .name("sysindexes")
         .column("tablespace", ColumnTypes.STRING)
         .column("table_name", ColumnTypes.STRING)
-        .column("systemtable", ColumnTypes.STRING)
+        .column("index_name", ColumnTypes.STRING)
+        .column("index_type", ColumnTypes.STRING)
         .primaryKey("table_name", false)
+        .primaryKey("index_name", false)
         .build();
 
-    public SystablesTableManager(TableSpaceManager parent) {
+    public SysindexesTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
     }
 
@@ -52,8 +56,19 @@ public class SystablesTableManager extends AbstractSystemTableManager {
         List<Table> tables = tableSpaceManager.getAllCommittedTables();
         return tables
             .stream()
-            .map(r -> RecordSerializer.makeRecord(table, "tablespace", r.tablespace, "table_name", r.name, "systemtable",
-                r.name.startsWith("sys") ? "true" : "false"
+            .flatMap((Table r) -> {
+                Map<String, AbstractIndexManager> indexesOnTable = tableSpaceManager.getIndexesOnTable(r.name);
+                if (indexesOnTable == null) {
+                    // empty stream
+                    return null;
+                }
+                return indexesOnTable.values().stream().map(i -> i.getIndex());
+            })
+            .map(r -> RecordSerializer.makeRecord(table,
+                "tablespace", r.tablespace,
+                "table_name", r.table,
+                "index_name", r.name,
+                "index_type", r.type
             ))
             .collect(Collectors.toList());
     }

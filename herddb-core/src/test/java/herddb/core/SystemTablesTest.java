@@ -19,8 +19,6 @@
  */
 package herddb.core;
 
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.scan;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -35,6 +33,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertTrue;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
 
 /**
  *
@@ -54,11 +53,46 @@ public class SystemTablesTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key auto_increment,n1 int,s1 string)", Collections.emptyList());
             execute(manager, "CREATE TABLE tblspace1.tsql2 (k1 string primary key,n1 long,s1 timestamp, b1 blob)", Collections.emptyList());
+            execute(manager, "CREATE BRIN INDEX index1 on tblspace1.tsql2 (s1,b1)", Collections.emptyList());
+            execute(manager, "CREATE HASH INDEX index2 on tblspace1.tsql2 (b1)", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables", Collections.emptyList());) {
                 List<Tuple> records = scan.consume();
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes order by index_name",
+                Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertEquals(2, records.size());
+                Tuple index1 = records.get(0);
+                assertEquals("tblspace1", index1.get("tablespace"));
+                assertEquals("brin", index1.get("index_type"));
+                assertEquals("index1", index1.get("index_name"));
+                assertEquals("tsql2", index1.get("table_name"));
+
+                Tuple index2 = records.get(1);
+                assertEquals("tblspace1", index2.get("tablespace"));
+                assertEquals("hash", index2.get("index_type"));
+                assertEquals("index2", index2.get("index_name"));
+                assertEquals("tsql2", index2.get("table_name"));
+            }
+
+            execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList());
+            long txid;
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systransactions order by txid",
+                Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertEquals(1, records.size());
+                System.out.println("records:" + records);
+                txid = (Long) records.get(0).get("txid");
+            }
+            execute(manager, "COMMIT TRANSACTION 'tblspace1'," + txid, Collections.emptyList());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systransactions order by txid",
+                Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertEquals(0, records.size());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.syscolumns", Collections.emptyList());) {
@@ -67,37 +101,37 @@ public class SystemTablesTest {
                     System.out.println("found " + r.toMap());
                 });
                 assertTrue(records.stream()
-                        .filter(t
-                                -> t.get("table_name").equals("tsql")
-                                && t.get("column_name").equals("k1")
-                                && t.get("data_type").equals("string")
-                                && t.get("auto_increment").equals(1)
-                        ).findAny().isPresent());
+                    .filter(t
+                        -> t.get("table_name").equals("tsql")
+                        && t.get("column_name").equals("k1")
+                        && t.get("data_type").equals("string")
+                        && t.get("auto_increment").equals(1)
+                    ).findAny().isPresent());
                 assertTrue(records.stream()
-                        .filter(t
-                                -> t.get("table_name").equals("tsql")
-                                && t.get("column_name").equals("n1")
-                                && t.get("data_type").equals("integer")
-                                && t.get("auto_increment").equals(0)
-                        ).findAny().isPresent());
+                    .filter(t
+                        -> t.get("table_name").equals("tsql")
+                        && t.get("column_name").equals("n1")
+                        && t.get("data_type").equals("integer")
+                        && t.get("auto_increment").equals(0)
+                    ).findAny().isPresent());
                 assertTrue(records.stream()
-                        .filter(t
-                                -> t.get("table_name").equals("tsql2")
-                                && t.get("column_name").equals("s1")
-                                && t.get("data_type").equals("timestamp")
-                        ).findAny().isPresent());
+                    .filter(t
+                        -> t.get("table_name").equals("tsql2")
+                        && t.get("column_name").equals("s1")
+                        && t.get("data_type").equals("timestamp")
+                    ).findAny().isPresent());
                 assertTrue(records.stream()
-                        .filter(t
-                                -> t.get("table_name").equals("tsql2")
-                                && t.get("column_name").equals("b1")
-                                && t.get("data_type").equals("bytearray")
-                        ).findAny().isPresent());
+                    .filter(t
+                        -> t.get("table_name").equals("tsql2")
+                        && t.get("column_name").equals("b1")
+                        && t.get("data_type").equals("bytearray")
+                    ).findAny().isPresent());
                 assertTrue(records.stream()
-                        .filter(t
-                                -> t.get("table_name").equals("tsql2")
-                                && t.get("column_name").equals("n1")
-                                && t.get("data_type").equals("long")
-                        ).findAny().isPresent());
+                    .filter(t
+                        -> t.get("table_name").equals("tsql2")
+                        && t.get("column_name").equals("n1")
+                        && t.get("data_type").equals("long")
+                    ).findAny().isPresent());
             }
 
         }
