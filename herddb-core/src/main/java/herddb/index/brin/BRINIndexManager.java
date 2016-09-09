@@ -58,7 +58,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.xml.ws.Holder;
-import static org.apache.commons.lang.CharSetUtils.count;
 
 /**
  * Block-range like index
@@ -239,6 +238,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     protected Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
+        LOGGER.log(Level.SEVERE, "BRIN on " + index.name + " table " + index.name + " scanner called for " + operation);
         if (operation instanceof SecondaryIndexSeek) {
             SecondaryIndexSeek sis = (SecondaryIndexSeek) operation;
             SQLRecordKeyFunction value = sis.value;
