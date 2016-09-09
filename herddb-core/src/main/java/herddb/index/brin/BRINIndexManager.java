@@ -206,7 +206,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         tableManager.scanForIndexRebuild(r -> {
             Map<String, Object> values = r.toBean(table);
             Bytes key = RecordSerializer.serializePrimaryKey(values, table);
-            LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
+//            LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
             recordInserted(key, values);
         });
         long _stop = System.currentTimeMillis();
