@@ -237,8 +237,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    protected Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
-        LOGGER.log(Level.SEVERE, "BRIN on " + index.name + " table " + index.name + " scanner called for " + operation);
+    protected Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {        
         if (operation instanceof SecondaryIndexSeek) {
             SecondaryIndexSeek sis = (SecondaryIndexSeek) operation;
             SQLRecordKeyFunction value = sis.value;
