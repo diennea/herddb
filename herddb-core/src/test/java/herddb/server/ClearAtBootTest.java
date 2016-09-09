@@ -51,7 +51,7 @@ public class ClearAtBootTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-
+                server.waitForStandaloneBoot();
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
@@ -68,7 +68,7 @@ public class ClearAtBootTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-
+                server.waitForStandaloneBoot();
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
