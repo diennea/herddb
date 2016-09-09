@@ -57,8 +57,7 @@ import java.util.logging.Logger;
 import java.util.stream.Stream;
 
 /**
- * HASH index. The index resides entirely in memory. It is serialized fully on
- * the IndexStatus structure
+ * HASH index. The index resides entirely in memory. It is serialized fully on the IndexStatus structure
  *
  * @author enrico.olivelli
  */
@@ -81,7 +80,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         bootSequenceNumber = log.getLastSequenceNumber();
 
         dataStorageManager.fullIndexScan(tableSpaceUUID, index.name,
-                new FullIndexScanConsumer() {
+            new FullIndexScanConsumer() {
 
             @Override
             public void acceptIndexStatus(IndexStatus indexStatus) {
@@ -152,15 +151,62 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             SQLRecordKeyFunction value = sis.value;
             byte[] refvalue = value.computeNewValue(null, context, tableContext);
             Predicate<Map.Entry<Bytes, List<Bytes>>> predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
-                return Bytes.startsWith(refvalue, refvalue.length, entry.getKey().data);
+                byte[] recordValue = entry.getKey().data;
+                return Bytes.startsWith(recordValue, refvalue.length, refvalue);
             };
             return data
-                    .entrySet()
-                    .stream()
-                    .filter(predicate)
-                    .map(entry -> entry.getValue())
-                    .flatMap(l -> l.stream());
+                .entrySet()
+                .stream()
+                .filter(predicate)
+                .map(entry -> entry.getValue())
+                .flatMap(l -> l.stream());
 
+        } else if (operation instanceof SecondaryIndexRangeScan) {
+            byte[] refminvalue;
+
+            SecondaryIndexRangeScan sis = (SecondaryIndexRangeScan) operation;
+            SQLRecordKeyFunction minKey = sis.minValue;
+            if (minKey != null) {
+                refminvalue = minKey.computeNewValue(null, context, tableContext);
+            } else {
+                refminvalue = null;
+            }
+
+            byte[] refmaxvalue;
+            SQLRecordKeyFunction maxKey = sis.maxValue;
+            if (maxKey != null) {
+                refmaxvalue = maxKey.computeNewValue(null, context, tableContext);
+            } else {
+                refmaxvalue = null;
+            }
+            Predicate<Map.Entry<Bytes, List<Bytes>>> predicate;
+            if (refminvalue != null && refmaxvalue == null) {
+                predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
+                    byte[] datum = entry.getKey().data;
+                    return Bytes.compare(datum, refminvalue) >= 0;
+                };
+            } else if (refminvalue == null && refmaxvalue != null) {
+                predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
+                    byte[] datum = entry.getKey().data;
+                    return Bytes.compare(datum, refmaxvalue) <= 0;
+                };
+            } else if (refminvalue != null && refmaxvalue != null) {
+                predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
+                    byte[] datum = entry.getKey().data;
+                    return Bytes.compare(datum, refmaxvalue) <= 0
+                        && Bytes.compare(datum, refminvalue) >= 0;
+                };
+            } else {
+                predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
+                    return true;
+                };
+            }
+            return data
+                .entrySet()
+                .stream()
+                .filter(predicate)
+                .map(entry -> entry.getValue())
+                .flatMap(l -> l.stream());
         } else {
             throw new UnsupportedOperationException("unsuppported index access type " + operation);
         }

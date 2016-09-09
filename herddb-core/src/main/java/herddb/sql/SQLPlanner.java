@@ -34,6 +34,7 @@ import herddb.core.TableSpaceManager;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
 import herddb.index.SecondaryIndexPrefixScan;
+import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
@@ -108,6 +109,10 @@ import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.DropIndexStatement;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.TimeKeyExpression;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.MinorThan;
+import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
@@ -551,9 +556,10 @@ public class SQLPlanner {
                             continue;
                         }
                         String[] columnsToMatch = index.getColumnNames();
-                        SQLRecordKeyFunction indexSeekFunction = findIndexSeek(s.getWhere(), columnsToMatch,
+                        SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
                             index.getIndex(),
-                            table.name, new AtomicInteger());
+                            table.name, new AtomicInteger(),
+                            EqualsTo.class);
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
                                 where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -617,9 +623,10 @@ public class SQLPlanner {
                             continue;
                         }
                         String[] columnsToMatch = index.getColumnNames();
-                        SQLRecordKeyFunction indexSeekFunction = findIndexSeek(s.getWhere(), columnsToMatch,
+                        SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
                             index.getIndex(),
-                            table.name, new AtomicInteger());
+                            table.name, new AtomicInteger(),
+                            EqualsTo.class);
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
                                 where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -698,25 +705,25 @@ public class SQLPlanner {
                 }
             }
             return count;
-        }      
+        }
         throw new StatementExecutionException("unsupported expression type " + e.getClass() + " (" + e + ")");
     }
 
-    private Expression findConstraintOnColumnEqualsTo(Expression where, String columnName, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression findConstraintOnColumn(Expression where, String columnName, String tableAlias, AtomicInteger jdbcParameterPos, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = validateColumnEqualsToExpression(and.getLeftExpression(), columnName, tableAlias, jdbcParameterPos);
+            Expression keyOnLeft = validateColumnConstaintToExpression(and.getLeftExpression(), columnName, tableAlias, jdbcParameterPos, expressionType);
             if (keyOnLeft != null) {
                 return keyOnLeft;
             }
             int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
 
-            Expression keyOnRight = validateColumnEqualsToExpression(and.getRightExpression(), columnName, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft));
+            Expression keyOnRight = validateColumnConstaintToExpression(and.getRightExpression(), columnName, tableAlias, new AtomicInteger(jdbcParameterPos.get() + countJdbcParametersUsedByLeft), expressionType);
             if (keyOnRight != null) {
                 return keyOnRight;
             }
-        } else if (where instanceof EqualsTo) {
-            Expression keyDirect = validateColumnEqualsToExpression(where, columnName, tableAlias, jdbcParameterPos);
+        } else if (expressionType.equals(where.getClass())) {
+            Expression keyDirect = validateColumnConstaintToExpression(where, columnName, tableAlias, jdbcParameterPos, expressionType);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -726,14 +733,14 @@ public class SQLPlanner {
     }
 
     private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
-        return findIndexSeek(where, table.primaryKey, table, tableAlias, jdbcParameterPos);
+        return findIndexAccess(where, table.primaryKey, table, tableAlias, jdbcParameterPos, EqualsTo.class);
     }
 
-    private SQLRecordKeyFunction findIndexSeek(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, AtomicInteger jdbcParameterPos, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         List<Expression> expressions = new ArrayList<>();
         List<String> columns = new ArrayList<>();
         for (String pk : columnsToMatch) {
-            Expression condition = findConstraintOnColumnEqualsTo(where, pk, tableAlias, jdbcParameterPos);
+            Expression condition = findConstraintOnColumn(where, pk, tableAlias, jdbcParameterPos, expressionType);
             if (condition == null) {
                 break;
             }
@@ -784,26 +791,26 @@ public class SQLPlanner {
         }
     }
 
-    private Expression validateColumnEqualsToExpression(Expression testExpression, String columnName, String tableAlias, AtomicInteger jdbcParameterPos) throws StatementExecutionException {
+    private Expression validateColumnConstaintToExpression(Expression testExpression, String columnName, String tableAlias, AtomicInteger jdbcParameterPos, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         Expression result = null;
-        if (testExpression instanceof EqualsTo) {
-            EqualsTo e = (EqualsTo) testExpression;
+        if (expressionType.equals(testExpression.getClass())) {
+            BinaryExpression e = (BinaryExpression) testExpression;
             if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
                 net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
                 boolean okAlias = true;
                 if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
                     okAlias = false;
                 }
-                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName())) {
+                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName()) && SQLRecordPredicate.isConstant(e.getRightExpression())) {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintOnColumnEqualsTo((AndExpression) e.getLeftExpression(), columnName, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumn((AndExpression) e.getLeftExpression(), columnName, tableAlias, jdbcParameterPos, expressionType);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintOnColumnEqualsTo((AndExpression) e.getRightExpression(), columnName, tableAlias, jdbcParameterPos);
+                result = findConstraintOnColumn((AndExpression) e.getRightExpression(), columnName, tableAlias, jdbcParameterPos, expressionType);
                 if (result != null) {
                     return result;
                 }
@@ -874,9 +881,10 @@ public class SQLPlanner {
                                 continue;
                             }
                             String[] columnsToMatch = index.getColumnNames();
-                            SQLRecordKeyFunction indexSeekFunction = findIndexSeek(selectBody.getWhere(), columnsToMatch,
+                            SQLRecordKeyFunction indexSeekFunction = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new AtomicInteger());
+                                table.name, new AtomicInteger(),
+                                EqualsTo.class);
                             if (indexSeekFunction != null) {
                                 if (indexSeekFunction.isFullPrimaryKey()) {
                                     where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -884,6 +892,42 @@ public class SQLPlanner {
                                     where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
                                 }
                                 break;
+                            } else {
+                                SQLRecordKeyFunction rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger(), GreaterThanEquals.class);
+                                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                                    rangeMin = null;
+                                }
+                                if (rangeMin == null) {
+                                    rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
+                                        index.getIndex(),
+                                        table.name, new AtomicInteger(), GreaterThan.class);
+                                    if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                                        rangeMin = null;
+                                    }
+                                }
+
+                                SQLRecordKeyFunction rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger(), MinorThanEquals.class);
+                                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                                    rangeMax = null;
+                                }
+                                if (rangeMax == null) {
+                                    rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
+                                        index.getIndex(),
+                                        table.name, new AtomicInteger(), MinorThan.class);
+                                    if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                                        rangeMax = null;
+                                    }
+                                }
+
+                                if (rangeMin != null || rangeMax != null) {
+                                    where.setIndexOperation(new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax));
+                                    break;
+                                }
+
                             }
                         }
                     }

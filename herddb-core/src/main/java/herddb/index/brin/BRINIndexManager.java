@@ -26,6 +26,7 @@ import herddb.core.PostCheckpointAction;
 import herddb.core.TableSpaceManager;
 import herddb.index.IndexOperation;
 import herddb.index.SecondaryIndexPrefixScan;
+import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.log.CommitLog;
 import herddb.log.LogSequenceNumber;
@@ -237,7 +238,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    protected Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {        
+    protected Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         if (operation instanceof SecondaryIndexSeek) {
             SecondaryIndexSeek sis = (SecondaryIndexSeek) operation;
             SQLRecordKeyFunction value = sis.value;
@@ -254,6 +255,26 @@ public class BRINIndexManager extends AbstractIndexManager {
             byte[] refvalue = value.computeNewValue(null, context, tableContext);
             Bytes firstKey = Bytes.from_array(refvalue);
             Bytes lastKey = firstKey.next();
+            return data.query(firstKey, lastKey);
+
+        } else if (operation instanceof SecondaryIndexRangeScan) {
+
+            Bytes firstKey = null;
+            Bytes lastKey = null;
+
+            SecondaryIndexRangeScan sis = (SecondaryIndexRangeScan) operation;
+            SQLRecordKeyFunction minKey = sis.minValue;
+            if (minKey != null) {
+                byte[] refminvalue = minKey.computeNewValue(null, context, tableContext);
+                firstKey = Bytes.from_array(refminvalue);
+            }
+
+            SQLRecordKeyFunction maxKey = sis.maxValue;
+            if (maxKey != null) {
+                byte[] refmaxvalue = maxKey.computeNewValue(null, context, tableContext);
+                lastKey = Bytes.from_array(refmaxvalue);
+            }
+            LOGGER.log(Level.SEVERE, "range scan from " + firstKey + " to " + lastKey);
             return data.query(firstKey, lastKey);
 
         } else {

@@ -266,6 +266,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             lock.lock();
             try {
                 if (firstKey != null && lastKey != null) {
+
                     // index seek case
                     ensureBlockLoaded();
                     if (firstKey.equals(lastKey)) {
@@ -273,6 +274,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                         if (seek != null) {
                             result.addAll(seek);
                         }
+                    } else if (lastKey.compareTo(firstKey) < 0) {
+                        // no value is possible
                     } else {
                         values.subMap(firstKey, true, lastKey, true).forEach((k, seg) -> {
                             result.addAll(seg);

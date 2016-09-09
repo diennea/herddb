@@ -22,20 +22,22 @@ package herddb.index;
 import herddb.sql.SQLRecordKeyFunction;
 
 /**
- * Scan on a secondary index
+ * Scan on a secondary index, between a given range of values (inclusive)
  *
  * @author enrico.olivelli
  */
-public class SecondaryIndexPrefixScan implements IndexOperation {
+public class SecondaryIndexRangeScan implements IndexOperation {
 
     public final String indexName;
     public final String[] columnsToMatch;
-    public final SQLRecordKeyFunction value;
+    public final SQLRecordKeyFunction minValue;
+    public final SQLRecordKeyFunction maxValue;
 
-    public SecondaryIndexPrefixScan(String indexName, String[] columnsToMatch, SQLRecordKeyFunction value) {
+    public SecondaryIndexRangeScan(String indexName, String[] columnsToMatch, SQLRecordKeyFunction minValue, SQLRecordKeyFunction maxValue) {
         this.indexName = indexName;
         this.columnsToMatch = columnsToMatch;
-        this.value = value;
+        this.minValue = minValue;
+        this.maxValue = maxValue;
     }
 
     @Override
