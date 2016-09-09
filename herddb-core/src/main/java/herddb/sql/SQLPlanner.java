@@ -567,6 +567,42 @@ public class SQLPlanner {
                                 where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
                             }
                             break;
+                        } else {
+                            SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
+                                index.getIndex(),
+                                table.name, new AtomicInteger(), GreaterThanEquals.class);
+                            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                                rangeMin = null;
+                            }
+                            if (rangeMin == null) {
+                                rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger(), GreaterThan.class);
+                                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                                    rangeMin = null;
+                                }
+                            }
+
+                            SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
+                                index.getIndex(),
+                                table.name, new AtomicInteger(), MinorThanEquals.class);
+                            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                                rangeMax = null;
+                            }
+                            if (rangeMax == null) {
+                                rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger(), MinorThan.class);
+                                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                                    rangeMax = null;
+                                }
+                            }
+
+                            if (rangeMin != null || rangeMax != null) {
+                                where.setIndexOperation(new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax));
+                                break;
+                            }
+
                         }
                     }
                 }
@@ -634,6 +670,42 @@ public class SQLPlanner {
                                 where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
                             }
                             break;
+                        } else {
+                            SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
+                                index.getIndex(),
+                                table.name, new AtomicInteger(), GreaterThanEquals.class);
+                            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                                rangeMin = null;
+                            }
+                            if (rangeMin == null) {
+                                rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger(), GreaterThan.class);
+                                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                                    rangeMin = null;
+                                }
+                            }
+
+                            SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
+                                index.getIndex(),
+                                table.name, new AtomicInteger(), MinorThanEquals.class);
+                            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                                rangeMax = null;
+                            }
+                            if (rangeMax == null) {
+                                rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
+                                    index.getIndex(),
+                                    table.name, new AtomicInteger(), MinorThan.class);
+                                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                                    rangeMax = null;
+                                }
+                            }
+
+                            if (rangeMin != null || rangeMax != null) {
+                                where.setIndexOperation(new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax));
+                                break;
+                            }
+
                         }
                     }
                 }
