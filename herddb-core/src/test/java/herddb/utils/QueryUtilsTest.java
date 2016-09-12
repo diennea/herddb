@@ -85,5 +85,24 @@ public class QueryUtilsTest {
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "alter table test"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "alter table myts.test"));
     }
+    
+    @Test
+    public void testDiscoverTablespaceFromCreateIndex() {
+        String defaultTableSpace = "default";
+        String theTableSpace = "myts";
+        assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create index test on test"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create index test on myts.test"));
+        
+        assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create brin index test on test"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create brin index test on myts.test"));
+    }
+
+    @Test
+    public void testDiscoverTablespaceFromDropIndex() {
+        String defaultTableSpace = "default";
+        String theTableSpace = "myts";
+        assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "drop index test"));
+        assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "drop index myts.test"));
+    }
 
 }

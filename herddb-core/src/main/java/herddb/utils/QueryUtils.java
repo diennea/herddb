@@ -22,6 +22,8 @@ package herddb.utils;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import herddb.model.Index;
+
 /**
  * Utilities
  *
@@ -32,7 +34,7 @@ public class QueryUtils
 {
 
     /** Prefix for SELECT before tablespace.tablename */
-    private static final String PREFIX_SELECT = "select.+from\\W+";
+    private static final String PREFIX_SELECT = "select.+\\W+from\\W+";
     
     /** Prefix for UPDATE before tablespace.tablename */
     private static final String PREFIX_UPDATE = "update\\W+";
@@ -52,6 +54,14 @@ public class QueryUtils
     /** Prefix for TABLE ALTER before tablespace.tablename */
     private static final String PREFIX_TABLE_ALTER = "alter\\W+table\\W+";
     
+    /** Prefix for INDEX CREATE before tablespace.tablename */
+    private static final String PREFIX_INDEX_CREATE = 
+        "create\\W+(?:(" + Index.TYPE_HASH + "|" + Index.TYPE_BRIN + ")\\W+)?index\\W+.+\\W+on\\W+";
+    
+    /** Prefix for INDEX DROP before tablespace.tablename */
+    private static final String PREFIX_INDEX_DROP = "drop\\W+index\\W+";
+    
+    
     /** Combines prefixes and add tablespace.tablename groups */
     private static final Pattern TABLE_SPACE_NAME_PATTERN = Pattern.compile(
             "(?:" + PREFIX_SELECT +
@@ -60,7 +70,10 @@ public class QueryUtils
             "|" + PREFIX_DELETE +
             "|" + PREFIX_TABLE_CREATE +
             "|" + PREFIX_TABLE_DROP +
-            "|" + PREFIX_TABLE_ALTER + ")" +
+            "|" + PREFIX_TABLE_ALTER + 
+            "|" + PREFIX_INDEX_CREATE +
+            "|" + PREFIX_INDEX_DROP +
+            ")" +
             "(?<tablespace>\\S+\\.)?(?<tablename>\\S+)", Pattern.CASE_INSENSITIVE);
     
     /**
