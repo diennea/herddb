@@ -5,7 +5,11 @@
     <parent>
         <artifactId>herddb-parent</artifactId>
         <groupId>org.herddb</groupId>
+<<<<<<< HEAD
         <version>0.0.4-ALPHA</version>
+=======
+        <version>0.0.3</version>
+>>>>>>> upstream/master
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
