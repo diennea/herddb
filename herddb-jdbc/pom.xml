@@ -4,11 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.herddb</groupId>
-<<<<<<< HEAD
         <version>0.0.4-ALPHA</version>
-=======
-        <version>0.0.3</version>
->>>>>>> upstream/master
         <relativePath>..</relativePath>
         <artifactId>herddb-parent</artifactId>
     </parent>
