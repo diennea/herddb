@@ -184,7 +184,7 @@ public class SQLRecordPredicate extends Predicate {
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).longValue() - ((Number) b).longValue();
         }
-        throw new StatementExecutionException("cannot add " + a + " and " + b);
+        throw new StatementExecutionException("cannot subtract " + a + " and " + b);
     }
 
     private boolean objectEquals(Object a, Object b) {

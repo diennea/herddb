@@ -614,6 +614,32 @@ public class SQLPlanner {
 
     }
 
+    private int countJDBCParameters(List<Expression> expressions) {
+        int partial = 0;
+        
+        for(Expression expression : expressions) {
+            partial = countJDBCParameters(expression, partial);
+        }
+        
+        return partial;
+    }
+    
+    private int countJDBCParameters( Expression expression, int partial ) {
+        
+        if ( expression instanceof JdbcParameter )
+            return partial + 1;
+        
+        if ( expression instanceof BinaryExpression ) {
+            BinaryExpression binary = (BinaryExpression) expression;
+            
+            partial = countJDBCParameters(binary.getLeftExpression(), partial);
+            
+            return countJDBCParameters(binary.getRightExpression(), partial);
+        }
+        
+        return partial;
+    }
+    
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
@@ -638,7 +664,7 @@ public class SQLPlanner {
         }
 
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
-        int setClauseParamters = (int) s.getExpressions().stream().filter(e -> e instanceof JdbcParameter).count();
+        int setClauseParamters = countJDBCParameters(s.getExpressions());
 
         // Perform a scan and then update each row
         Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), setClauseParamters) : null;
@@ -661,7 +687,7 @@ public class SQLPlanner {
                         String[] columnsToMatch = index.getColumnNames();
                         SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
                             index.getIndex(),
-                            table.name, new IntHolder(),
+                            table.name, new IntHolder(setClauseParamters),
                             EqualsTo.class);
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
@@ -673,14 +699,14 @@ public class SQLPlanner {
                         } else {
                             SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new IntHolder(), GreaterThanEquals.class);
+                                table.name, new IntHolder(setClauseParamters), GreaterThanEquals.class);
                             if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                 rangeMin = null;
                             }
                             if (rangeMin == null) {
                                 rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(), GreaterThan.class);
+                                    table.name, new IntHolder(setClauseParamters), GreaterThan.class);
                                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                     rangeMin = null;
                                 }
@@ -688,14 +714,14 @@ public class SQLPlanner {
 
                             SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new IntHolder(), MinorThanEquals.class);
+                                table.name, new IntHolder(setClauseParamters), MinorThanEquals.class);
                             if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                 rangeMax = null;
                             }
                             if (rangeMax == null) {
                                 rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(), MinorThan.class);
+                                    table.name, new IntHolder(setClauseParamters), MinorThan.class);
                                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                     rangeMax = null;
                                 }

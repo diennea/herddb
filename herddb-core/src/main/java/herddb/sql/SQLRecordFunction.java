@@ -27,6 +27,8 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.IntHolder;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,7 +64,8 @@ public class SQLRecordFunction extends RecordFunction {
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
-        int paramIndex = jdbcParametersStartPos;
+        IntHolder paramIndex = new IntHolder(jdbcParametersStartPos);
+        
         for (int i = 0; i < columns.size(); i++) {
             Expression e = expressions.get(i);
             String columnName = columns.get(i).getColumnName();
@@ -73,7 +76,7 @@ public class SQLRecordFunction extends RecordFunction {
             columnName = column.name;
             if (e instanceof JdbcParameter) {
                 try {
-                    Object param = statementEvaluationContext.jdbcParameters.get(paramIndex++);
+                    Object param = statementEvaluationContext.jdbcParameters.get(paramIndex.value++);
                     bean.put(columnName, param);
                 } catch (IndexOutOfBoundsException missingParam) {
                     throw new StatementExecutionException("missing JDBC parameter");
@@ -90,7 +93,7 @@ public class SQLRecordFunction extends RecordFunction {
                 Column c = (Column) e;
                 bean.put(columnName, bean.get(c.getColumnName()));
             } else {
-                Object value = BuiltinFunctions.computeValue(e, bean);
+                Object value = BuiltinFunctions.computeValue(e, bean, statementEvaluationContext.jdbcParameters, paramIndex);
                 bean.put(columnName, value);
             }
         }
