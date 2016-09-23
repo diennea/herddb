@@ -19,14 +19,18 @@
  */
 package herddb.sql.functions;
 
+import java.util.List;
+import java.util.Map;
+
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
+import herddb.utils.IntHolder;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimeKeyExpression;
@@ -125,6 +129,10 @@ public class BuiltinFunctions {
     }
 
     public static Object computeValue(Expression exp, Map<String, Object> record) throws StatementExecutionException {
+        return computeValue(exp, record, null, null);
+    }
+    
+    public static Object computeValue(Expression exp, Map<String, Object> record, List<Object> jdbcParameters, IntHolder jdbcParameterPos) throws StatementExecutionException {
         Object value;
         if (exp instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
@@ -137,31 +145,41 @@ public class BuiltinFunctions {
             value = ((TimestampValue) exp).getValue();
         } else if (exp instanceof Function) {
             Function f = (Function) exp;
-            value = computeFunction(f, record);
+            value = computeFunction(f, record, jdbcParameters, jdbcParameterPos);
         } else if (exp instanceof Addition) {
             Addition add = (Addition) exp;
-            Object left = computeValue(add.getLeftExpression(), record);
-            Object right = computeValue(add.getRightExpression(), record);
+            Object left = computeValue(add.getLeftExpression(), record, jdbcParameters, jdbcParameterPos);
+            Object right = computeValue(add.getRightExpression(), record, jdbcParameters, jdbcParameterPos);
             return SQLRecordPredicate.add(left, right);
         } else if (exp instanceof Subtraction) {
             Subtraction add = (Subtraction) exp;
-            Object left = computeValue(add.getLeftExpression(), record);
-            Object right = computeValue(add.getRightExpression(), record);
+            Object left = computeValue(add.getLeftExpression(), record, jdbcParameters, jdbcParameterPos);
+            Object right = computeValue(add.getRightExpression(), record, jdbcParameters, jdbcParameterPos);
             return SQLRecordPredicate.subtract(left, right);
         } else if (exp instanceof TimeKeyExpression) {
             TimeKeyExpression ext = (TimeKeyExpression) exp;
             if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
                 return new java.sql.Timestamp(System.currentTimeMillis());
             } else {
-                throw new StatementExecutionException("unhandled select expression " + exp);
+                throw new StatementExecutionException("unhandled expression " + exp);
             }
+        } else if (exp instanceof JdbcParameter) {
+            if (jdbcParameters == null || jdbcParameterPos == null) {
+                throw new StatementExecutionException("jdbcparameter expression without parameters");
+            }
+            
+            if (jdbcParameters.size() < jdbcParameterPos.value)
+                throw new StatementExecutionException("jdbcparameter wrong argument count: expected at least " +
+                    jdbcParameterPos.value + " got " + jdbcParameters.size());
+            
+            return jdbcParameters.get(jdbcParameterPos.value++);
         } else {
-            throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+            throw new StatementExecutionException("unhandled expression type " + exp.getClass() + ": " + exp);
         }
         return value;
     }
 
-    public static Object computeFunction(Function f, Map<String, Object> record) throws StatementExecutionException {
+    public static Object computeFunction(Function f, Map<String, Object> record, List<Object> jdbcParameters, IntHolder jdbcParameterPos) throws StatementExecutionException {
         String name = f.getName().toLowerCase();
         switch (name) {
             case BuiltinFunctions.COUNT:
@@ -171,14 +189,14 @@ public class BuiltinFunctions {
                 // AGGREGATED FUNCTION
                 return null;
             case BuiltinFunctions.LOWER: {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
+                Object computed = computeValue(f.getParameters().getExpressions().get(0), record, jdbcParameters, jdbcParameterPos);
                 if (computed == null) {
                     return null;
                 }
                 return computed.toString().toLowerCase();
             }
             case BuiltinFunctions.UPPER: {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record);
+                Object computed = computeValue(f.getParameters().getExpressions().get(0), record, jdbcParameters, jdbcParameterPos);
                 if (computed == null) {
                     return null;
                 }
