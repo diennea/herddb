@@ -821,7 +821,7 @@ public class SQLPlanner {
             Expression keyOnRight = findConstraintOnColumn(and.getRightExpression(), columnName, tableAlias,
                 other, expressionType);
             if (keyOnRight != null) {
-                if (!SQLRecordPredicate.isConstant(keyOnRight)) {
+                if (keyOnRight instanceof JdbcParameter) {
                     jdbcParameterPos.value = other.value;
                 }
                 return keyOnRight;
