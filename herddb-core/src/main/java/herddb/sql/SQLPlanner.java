@@ -790,9 +790,14 @@ public class SQLPlanner {
                 return keyOnLeft;
             }
             int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
+            
+            IntHolder other = new IntHolder(jdbcParameterPos.value + countJdbcParametersUsedByLeft);
             Expression keyOnRight = findConstraintOnColumn(and.getRightExpression(), columnName, tableAlias,
-                new IntHolder(jdbcParameterPos.value + countJdbcParametersUsedByLeft), expressionType);
+                other, expressionType);
             if (keyOnRight != null) {
+                if (!SQLRecordPredicate.isConstant(keyOnRight)) {
+                    jdbcParameterPos.value = other.value;
+                }
                 return keyOnRight;
             }
         } else if (expressionType.equals(where.getClass())) {
