@@ -58,11 +58,12 @@ public class UpdateTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey4", "a", Integer.valueOf(1234))).getUpdateCount());
 
-            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET s1 = ? WHERE k1 = ?", Arrays.asList("b", "mykey")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET n1 = n1 + ? WHERE k1 = ?", Arrays.asList(Integer.valueOf(1234), "mykey")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET n1 = n1 - ? WHERE k1 = ?", Arrays.asList(Integer.valueOf(1234), "mykey")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET n1 = ? + n1 WHERE k1 = ?", Arrays.asList(Integer.valueOf(1234), "mykey")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET n1 = ? + n1 WHERE k1 = ?", Arrays.asList(Integer.valueOf(1234), "mykey")).getUpdateCount());
+            
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET n1 = ? + n1 WHERE k1 = ? AND s1 = ?", Arrays.asList(Integer.valueOf(1234), "mykey", "a")).getUpdateCount());
         }
     }
 
