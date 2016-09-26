@@ -843,19 +843,25 @@ public class SQLPlanner {
     private SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, IntHolder jdbcParameterPos, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         List<Expression> expressions = new ArrayList<>();
         List<String> columns = new ArrayList<>();
+        int jdbcParametersStartPos = Integer.MAX_VALUE;
         for (String pk : columnsToMatch) {
-            Expression condition = findConstraintOnColumn(where, pk, tableAlias, jdbcParameterPos, expressionType);
+            IntHolder position = new IntHolder(jdbcParameterPos.value);
+            Expression condition = findConstraintOnColumn(where, pk, tableAlias, position, expressionType);
             if (condition == null) {
                 break;
             }
             columns.add(pk);
             expressions.add(condition);
+            
+            if (position.value < jdbcParametersStartPos) {
+                jdbcParametersStartPos = position.value;
+            }
         }
         if (expressions.isEmpty()) {
             // no match at all, there is no direct constraint on PK
             return null;
         }
-        return new SQLRecordKeyFunction(table, columns, expressions, jdbcParameterPos.value);
+        return new SQLRecordKeyFunction(table, columns, expressions, jdbcParametersStartPos);
     }
 
     private Object resolveValue(Expression expression) throws StatementExecutionException {

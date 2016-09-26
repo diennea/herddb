@@ -67,6 +67,16 @@ public class SelectCountTest {
                     assertEquals(Long.valueOf(4), result.get(0).get("cc"));
                 }
             }
+            
+            {
+
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql  WHERE k1 = ? AND n1 = ?", Arrays.asList("mykey", Integer.valueOf(1)));) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(1, result.size());
+                    assertEquals(Long.valueOf(1), result.get(0).get(0));
+                    assertEquals(Long.valueOf(1), result.get(0).get("cc"));
+                }
+            }
         }
     }
 
