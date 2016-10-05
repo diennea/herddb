@@ -24,7 +24,9 @@ import herddb.network.ChannelEventListener;
 import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
 import herddb.server.StaticClientSideMetadataProvider;
+import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.concurrent.DefaultThreadFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +47,8 @@ public class HDBClient implements AutoCloseable {
     private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();
     private ClientSideMetadataProvider clientSideMetadataProvider;
     private ExecutorService thredpool;
-    private NioEventLoopGroup group;
+    private NioEventLoopGroup networkGroup;
+    private DefaultEventLoopGroup localEventsGroup;
 
     public HDBClient(ClientConfiguration configuration) {
         this.configuration = configuration;
@@ -61,23 +64,24 @@ public class HDBClient implements AutoCloseable {
                 return t;
             }
         });
-        this.group = new NioEventLoopGroup(0, thredpool);
+        this.networkGroup = new NioEventLoopGroup(0, thredpool);
+        this.localEventsGroup = new DefaultEventLoopGroup();
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
                 break;
             case ClientConfiguration.PROPERTY_MODE_STANDALONE:
                 this.clientSideMetadataProvider = new StaticClientSideMetadataProvider(
-                        configuration.getString(ClientConfiguration.PROPERTY_SERVER_ADDRESS, ClientConfiguration.PROPERTY_SERVER_ADDRESS_DEFAULT),
-                        configuration.getInt(ClientConfiguration.PROPERTY_SERVER_PORT, ClientConfiguration.PROPERTY_SERVER_PORT_DEFAULT),
-                        configuration.getBoolean(ClientConfiguration.PROPERTY_SERVER_SSL, ClientConfiguration.PROPERTY_SERVER_SSL_DEFAULT)
+                    configuration.getString(ClientConfiguration.PROPERTY_SERVER_ADDRESS, ClientConfiguration.PROPERTY_SERVER_ADDRESS_DEFAULT),
+                    configuration.getInt(ClientConfiguration.PROPERTY_SERVER_PORT, ClientConfiguration.PROPERTY_SERVER_PORT_DEFAULT),
+                    configuration.getBoolean(ClientConfiguration.PROPERTY_SERVER_SSL, ClientConfiguration.PROPERTY_SERVER_SSL_DEFAULT)
                 );
                 break;
             case ClientConfiguration.PROPERTY_MODE_CLUSTER:
                 this.clientSideMetadataProvider = new ZookeeperClientSideMetadataProvider(
-                        configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
-                        configuration.getInt(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
-                        configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)
+                    configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
+                    configuration.getInt(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
+                    configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)
                 );
                 break;
         }
@@ -101,8 +105,11 @@ public class HDBClient implements AutoCloseable {
         for (HDBConnection connection : connectionsAtClose) {
             connection.close();
         }
-        if (group != null) {
-            group.shutdownGracefully();
+        if (networkGroup != null) {
+            networkGroup.shutdownGracefully();
+        }
+        if (localEventsGroup != null) {
+            localEventsGroup.shutdownGracefully();
         }
         if (thredpool != null) {
             thredpool.shutdown();
@@ -121,7 +128,7 @@ public class HDBClient implements AutoCloseable {
 
     Channel createChannelTo(ServerHostData server, ChannelEventListener eventReceiver) throws IOException {
         int timeout = configuration.getInt(ClientConfiguration.PROPERTY_TIMEOUT, ClientConfiguration.PROPERTY_TIMEOUT_DEFAULT);
-        return NettyConnector.connect(server.getHost(), server.getPort(), server.isSsl(), timeout, timeout, eventReceiver, thredpool, group);
+        return NettyConnector.connect(server.getHost(), server.getPort(), server.isSsl(), timeout, timeout, eventReceiver, thredpool, networkGroup, localEventsGroup);
     }
 
 }

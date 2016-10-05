@@ -25,6 +25,8 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.DefaultEventLoopGroup;
+import io.netty.channel.MultithreadEventLoopGroup;
 import io.netty.channel.local.LocalAddress;
 import io.netty.channel.local.LocalChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -53,7 +55,7 @@ public class NettyConnector {
     private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
 
     public static NettyChannel connect(String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
-            ChannelEventListener receiver, final ExecutorService callbackExecutor, final NioEventLoopGroup group) throws IOException {
+            ChannelEventListener receiver, final ExecutorService callbackExecutor, final NioEventLoopGroup networkGroup, final DefaultEventLoopGroup localEventsGroup) throws IOException {
         try {
             final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
@@ -63,13 +65,16 @@ public class NettyConnector {
             SocketAddress address;
             String hostAddress = NetworkUtils.getAddress(inet);
 
+            MultithreadEventLoopGroup group;
             if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
                 channelType = LocalChannel.class;
                 address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
+                group = localEventsGroup;
                 LOGGER.log(Level.SEVERE, "connecting to local in-JVM server " + address);
             } else {
                 channelType = NioSocketChannel.class;
                 address = inet;
+                group = networkGroup;
                 LOGGER.log(Level.SEVERE, "connecting to remote server " + address);
             }
 

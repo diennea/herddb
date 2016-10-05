@@ -2,6 +2,7 @@ package herddb.network;
 
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.network.netty.NettyConnector;
+import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
@@ -54,7 +55,7 @@ public class LocalChannelTest {
                     System.out.println("client channelClosed");
 
                 }
-            }, executor, new NioEventLoopGroup(10, executor))) {
+            }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
                 for (int i = 0; i < 100; i++) {
                     Message result = client.sendMessageWithReply(Message.ACK("clientId"), 10000);
 //                        System.out.println("result:" + result);
