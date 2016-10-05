@@ -25,6 +25,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.local.LocalAddress;
 import io.netty.channel.local.LocalServerChannel;
@@ -56,6 +57,8 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private EventLoopGroup localBossGroup;
+    private EventLoopGroup localWorkerGroup;
     private int port = 7000;
     private String host = "localhost";
     private boolean ssl;
@@ -202,8 +205,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
                 }
             });
         }
-        bossGroup = new NioEventLoopGroup(workerThreads);
-        workerGroup = new NioEventLoopGroup(workerThreads);
+
         InetSocketAddress address = new InetSocketAddress(host, port);
         LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {
@@ -229,22 +231,25 @@ public class NettyChannelAcceptor implements AutoCloseable {
             }
         };
         if (enableRealNetwork) {
+            bossGroup = new NioEventLoopGroup(workerThreads);
+            workerGroup = new NioEventLoopGroup(workerThreads);
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
-                    .channel(NioServerSocketChannel.class)
-                    .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128);
+                .channel(NioServerSocketChannel.class)
+                .childHandler(channelInitialized)
+                .option(ChannelOption.SO_BACKLOG, 128);
 
             ChannelFuture f = b.bind(address).sync();
             this.channel = f.channel();
         }
 
         if (enableJVMNetwork) {
+            localBossGroup = new DefaultEventLoopGroup(workerThreads);
+            localWorkerGroup = new DefaultEventLoopGroup(workerThreads);
             ServerBootstrap b_local = new ServerBootstrap();
-            b_local.group(bossGroup, workerGroup)
-                    .channel(LocalServerChannel.class)
-                    .childHandler(channelInitialized)
-                    .option(ChannelOption.SO_BACKLOG, 128);
+            b_local.group(localBossGroup, localWorkerGroup)
+                .channel(LocalServerChannel.class)
+                .childHandler(channelInitialized);
 
             String hostAddress = NetworkUtils.getAddress(address);
             LocalServerRegistry.registerLocalServer(hostAddress, port, ssl);
@@ -266,6 +271,12 @@ public class NettyChannelAcceptor implements AutoCloseable {
         }
         if (bossGroup != null) {
             bossGroup.shutdownGracefully();
+        }
+        if (localWorkerGroup != null) {
+            localWorkerGroup.shutdownGracefully();
+        }
+        if (localBossGroup != null) {
+            localBossGroup.shutdownGracefully();
         }
         if (callbackExecutor != null) {
             callbackExecutor.shutdown();
