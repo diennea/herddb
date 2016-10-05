@@ -21,9 +21,11 @@ package herddb.core;
 
 import herddb.client.ClientConfiguration;
 import herddb.core.stats.ConnectionsInfoProvider;
+import herddb.file.FileMetadataStorageManager;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
+import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataChangeListener;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
@@ -519,8 +521,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
             if (createTableSpaceStatement.getWaitForTableSpaceTimeout() > 0) {
                 boolean okWait = false;
+                int poolTime = 100;
+                if (metadataStorageManager instanceof MemoryMetadataStorageManager
+                    || metadataStorageManager instanceof FileMetadataStorageManager) {
+                    poolTime = 5;
+                }
                 LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up withint " + createTableSpaceStatement.getWaitForTableSpaceTimeout() + " ms");
-                for (int i = 0; i < createTableSpaceStatement.getWaitForTableSpaceTimeout(); i += 100) {
+                final int timeout = createTableSpaceStatement.getWaitForTableSpaceTimeout();
+                for (int i = 0; i < timeout; i += poolTime) {
                     List<TableSpaceReplicaState> replicateStates = metadataStorageManager.getTableSpaceReplicaState(tableSpace.uuid);
                     for (TableSpaceReplicaState ts : replicateStates) {
                         LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up, replica state node: " + ts.nodeId + ", state: " + ts.modeToSQLString(ts.mode) + ", ts " + new java.sql.Timestamp(ts.timestamp));
@@ -532,7 +540,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     if (okWait) {
                         break;
                     }
-                    Thread.sleep(100);
+                    Thread.sleep(poolTime);
                 }
                 if (!okWait) {
                     throw new StatementExecutionException("tablespace " + tableSpace.name + ", uuid " + tableSpace.uuid + " has been created but leader " + tableSpace.leaderId + " did not start within " + createTableSpaceStatement.getWaitForTableSpaceTimeout() + " ms");
