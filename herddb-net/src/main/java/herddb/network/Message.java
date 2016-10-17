@@ -164,11 +164,12 @@ public final class Message {
         return new Message(null, TYPE_EXECUTE_STATEMENTS_RESULT, data);
     }
 
-    public static Message SASL_TOKEN_MESSAGE_REQUEST(String saslMech) {
+    public static Message SASL_TOKEN_MESSAGE_REQUEST(String saslMech, byte[] firstToken) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("mech", saslMech);
+        data.put("token", firstToken);
         return new Message(null, TYPE_SASL_TOKEN_MESSAGE_REQUEST, data);
     }
 

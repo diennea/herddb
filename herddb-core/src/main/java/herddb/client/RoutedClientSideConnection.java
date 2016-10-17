@@ -42,8 +42,13 @@ import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import javax.security.auth.Subject;
+import javax.security.sasl.SaslClient;
+import javax.security.sasl.SaslException;
 
 /**
  * A real connection to a server
@@ -73,20 +78,27 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         this.clientId = connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENTID, ClientConfiguration.PROPERTY_CLIENTID_DEFAULT);
     }
 
-    private void performAuthentication(Channel _channel) throws Exception {
+    private void performAuthentication(Channel _channel, String serverHostname) throws Exception {
 
         SaslNettyClient saslNettyClient = new SaslNettyClient(
-                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
-                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT)
+            connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
+            connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT),
+            serverHostname
         );
-        Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(SaslUtils.AUTH_DIGEST_MD5), timeout);
+
+        byte[] firstToken = new byte[0];
+        if (saslNettyClient.hasInitialResponse()) {
+            firstToken = saslNettyClient.evaluateChallenge(new byte[0]);
+        }
+        Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
 
         for (int i = 0; i < 100; i++) {
             byte[] responseToSendToServer;
             switch (saslResponse.type) {
                 case Message.TYPE_SASL_TOKEN_SERVER_RESPONSE:
                     byte[] token = (byte[]) saslResponse.parameters.get("token");
-                    responseToSendToServer = saslNettyClient.saslResponse(token);
+                    responseToSendToServer = saslNettyClient.evaluateChallenge(token);
+                    saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_TOKEN(responseToSendToServer), timeout);
                     if (saslNettyClient.isComplete()) {
                         LOGGER.severe("SASL auth completed with success");
                         return;
@@ -97,9 +109,32 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 default:
                     throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
             }
-            saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_TOKEN(responseToSendToServer), timeout);
         }
         throw new Exception("SASL negotiation took too many steps");
+    }
+
+    private byte[] createSaslToken(final byte[] saslToken, Subject subject, final SaslClient saslClient) throws SaslException {
+        if (saslToken == null) {
+            throw new SaslException("saslToken is null.");
+        }
+
+        if (subject != null) {
+            try {
+                final byte[] retval
+                    = Subject.doAs(subject, new PrivilegedExceptionAction<byte[]>() {
+                        public byte[] run() throws SaslException {
+                            return saslClient.evaluateChallenge(saslToken);
+                        }
+                    });
+                return retval;
+            } catch (PrivilegedActionException e) {
+                throw new SaslException("error", e);
+            }
+
+        } else {
+            throw new SaslException("Cannot make SASL token without subject defined. "
+                + "For diagnosis, please look for WARNs and ERRORs in your log related to the Login class.");
+        }
     }
 
     @Override
@@ -203,10 +238,10 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 if (channel != null) {
                     return channel;
                 }
-                LOGGER.log(Level.SEVERE, "{0} - connect", this);
+                LOGGER.log(Level.SEVERE, "{0} - connect to {1}:{2} ssh:{3}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
                 Channel _channel = this.connection.getClient().createChannelTo(server, this);
                 try {
-                    performAuthentication(_channel);
+                    performAuthentication(_channel, server.getHost());
                     channel = _channel;
                     return channel;
                 } catch (Exception err) {

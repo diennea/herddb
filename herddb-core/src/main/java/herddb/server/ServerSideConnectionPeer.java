@@ -108,11 +108,16 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         switch (message.type) {
             case Message.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
                 try {
+                    byte[] token = (byte[]) message.parameters.get("token");
+                    if (token == null) {
+                        token = new byte[0];
+                    }
+                    System.out.println("TYPE_SASL_TOKEN_MESSAGE_REQUEST "+new String(token));
                     String mech = (String) message.parameters.get("mech");
                     if (saslNettyServer == null) {
                         saslNettyServer = new SaslNettyServer(server, mech);
                     }
-                    byte[] responseToken = saslNettyServer.response(new byte[0]);
+                    byte[] responseToken = saslNettyServer.response(token);
                     Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
                     _channel.sendReplyMessage(message, tokenChallenge);
                 } catch (Exception err) {
@@ -123,18 +128,20 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             case Message.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
                 try {
+                    
                     if (saslNettyServer == null) {
                         Message error = Message.ERROR(null, new Exception("Authentication failed (SASL protocol error)"));
                         _channel.sendReplyMessage(message, error);
                         return;
                     }
                     byte[] token = (byte[]) message.parameters.get("token");
+                    System.out.println("TYPE_SASL_TOKEN_MESSAGE_TOKEN "+new String(token));
                     byte[] responseToken = saslNettyServer.response(token);
                     Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
                     if (saslNettyServer.isComplete()) {
                         username = saslNettyServer.getUserName();
                         authenticated = true;
-                        LOGGER.severe("client " + channel + " completed SASL authentication");
+                        LOGGER.severe("client " + channel + " completed SASL authentication as "+username);
                         saslNettyServer = null;
                     }
                     _channel.sendReplyMessage(message, tokenChallenge);
@@ -312,10 +319,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     byte[] table = (byte[]) message.parameters.get("table");
                     Table tableSchema = Table.deserialize(table);
                     tableSchema = Table
-                            .builder()
-                            .cloning(tableSchema)
-                            .tablespace(tableSpace)
-                            .build();
+                        .builder()
+                        .cloning(tableSchema)
+                        .tablespace(tableSpace)
+                        .build();
                     CreateTableStatement createTableStatement = new CreateTableStatement(tableSchema);
                     server.getManager().executeStatement(createTableStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                     _channel.sendReplyMessage(message, Message.ACK(null));
