@@ -339,8 +339,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
         @Override
         public long createDataPage(List<Map.Entry<Bytes, Bytes>> values) throws IOException {
-            try {
-                System.out.println("createDataPAge " + values);
+            try {                
                 PageContents contents = new PageContents();
                 contents.type = PageContents.TYPE_BLOCKDATA;
                 contents.pageData = values;

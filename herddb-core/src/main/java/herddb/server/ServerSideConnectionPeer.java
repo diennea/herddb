@@ -111,8 +111,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     byte[] token = (byte[]) message.parameters.get("token");
                     if (token == null) {
                         token = new byte[0];
-                    }
-                    System.out.println("TYPE_SASL_TOKEN_MESSAGE_REQUEST "+new String(token));
+                    }                    
                     String mech = (String) message.parameters.get("mech");
                     if (saslNettyServer == null) {
                         saslNettyServer = new SaslNettyServer(server, mech);
@@ -134,8 +133,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         _channel.sendReplyMessage(message, error);
                         return;
                     }
-                    byte[] token = (byte[]) message.parameters.get("token");
-                    System.out.println("TYPE_SASL_TOKEN_MESSAGE_TOKEN "+new String(token));
+                    byte[] token = (byte[]) message.parameters.get("token");                    
                     byte[] responseToken = saslNettyServer.response(token);
                     Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
                     if (saslNettyServer.isComplete()) {
