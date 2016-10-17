@@ -113,30 +113,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         throw new Exception("SASL negotiation took too many steps");
     }
 
-    private byte[] createSaslToken(final byte[] saslToken, Subject subject, final SaslClient saslClient) throws SaslException {
-        if (saslToken == null) {
-            throw new SaslException("saslToken is null.");
-        }
-
-        if (subject != null) {
-            try {
-                final byte[] retval
-                    = Subject.doAs(subject, new PrivilegedExceptionAction<byte[]>() {
-                        public byte[] run() throws SaslException {
-                            return saslClient.evaluateChallenge(saslToken);
-                        }
-                    });
-                return retval;
-            } catch (PrivilegedActionException e) {
-                throw new SaslException("error", e);
-            }
-
-        } else {
-            throw new SaslException("Cannot make SASL token without subject defined. "
-                + "For diagnosis, please look for WARNs and ERRORs in your log related to the Login class.");
-        }
-    }
-
     @Override
     public void messageReceived(Message message, Channel _channel) {
         LOGGER.log(Level.SEVERE, "{0} - received {1}", new Object[]{nodeId, message.toString()});
