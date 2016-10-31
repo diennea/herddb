@@ -22,6 +22,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.Callback;
@@ -100,10 +101,7 @@ public class SaslNettyServer {
 
                     final String _mech = "GSSAPI";   // TODO: should depend on zoo.cfg specified mechs, but if subject is non-null, it can be assumed to be GSSAPI.
 
-                    LOG.severe("serviceHostname is '" + serviceHostname + "'");
-                    LOG.severe("servicePrincipalName is '" + servicePrincipalName + "'");
-                    LOG.severe("SASL mechanism(mech) is '" + _mech + "'");
-                    LOG.severe("Subject is '" + subject + "'");
+                    LOG.log(Level.INFO,"serviceHostname is ''{0}'', servicePrincipalName is ''{1}'', SASL mechanism(mech) is ''" + _mech + "'', Subject is ''{2}''", new Object[]{serviceHostname, servicePrincipalName, subject});
 
                     try {
                         return Subject.doAs(subject, new PrivilegedExceptionAction<SaslServer>() {
