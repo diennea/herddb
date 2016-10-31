@@ -25,14 +25,11 @@ import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
 import java.io.File;
 import java.io.FileWriter;
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 import org.apache.hadoop.minikdc.MiniKdc;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
 import org.junit.After;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
@@ -60,7 +57,7 @@ public class JAASKerberosTest {
     @Before
     public void startMiniKdc() throws Exception {
 
-        createMiniKdcConf();
+        conf = MiniKdc.createConf();
         kdc = new MiniKdc(conf, kdcDir.getRoot());
         kdc.start();
 
@@ -68,14 +65,14 @@ public class JAASKerberosTest {
         String principalServerNoRealm = "herddb/" + localhostName;
         String principalServer = "herddb/" + localhostName + "@" + kdc.getRealm();
         String principalClientNoRealm = "herddbclient/" + localhostName;
-        String principalClient = principalClientNoRealm+"@"+kdc.getRealm();
-        
+        String principalClient = principalClientNoRealm + "@" + kdc.getRealm();
+
         System.out.println("adding principal: " + principalServerNoRealm);
         System.out.println("adding principal: " + principalClientNoRealm);
 
         File keytabClient = new File(workDir.getRoot(), "herddbclient.keytab");
         kdc.createPrincipal(keytabClient, principalClientNoRealm);
-        
+
         File keytabServer = new File(workDir.getRoot(), "herddbserver.keytab");
         kdc.createPrincipal(keytabServer, principalServerNoRealm);
 
@@ -120,17 +117,8 @@ public class JAASKerberosTest {
         }
 
         System.setProperty("java.security.auth.login.config", jaas_file.getAbsolutePath());
-        System.setProperty("java.security.krb5.conf", krb5file.getAbsolutePath());        
+        System.setProperty("java.security.krb5.conf", krb5file.getAbsolutePath());
 
-    }
-
-    /**
-     *
-     * /**
-     * Create a Kdc configuration
-     */
-    public void createMiniKdcConf() {
-        conf = MiniKdc.createConf();
     }
 
     @After
@@ -147,7 +135,9 @@ public class JAASKerberosTest {
 
     @Test
     public void test() throws Exception {
-        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+        ServerConfiguration serverConfig = new ServerConfiguration(folder.newFolder().toPath());
+        serverConfig.set(ServerConfiguration.PROPERTY_HOST, "localhost.localdomain");
+        try (Server server = new Server(serverConfig)) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
                 HDBConnection connection = client.openConnection()) {
