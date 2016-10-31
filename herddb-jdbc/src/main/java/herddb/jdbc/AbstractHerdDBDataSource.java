@@ -30,6 +30,11 @@ import java.sql.SQLFeatureNotSupportedException;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.commons.pool2.PooledObject;
+import org.apache.commons.pool2.PooledObjectFactory;
+import org.apache.commons.pool2.impl.DefaultPooledObject;
+import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 
 /**
  * HerdDB DataSource
@@ -39,13 +44,22 @@ import java.util.logging.Logger;
 class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     protected HDBClient client;
-    protected HDBConnection connection;
     protected final Properties properties = new Properties();
     protected int loginTimeout;
+    protected int maxActive = 100;
 
     private static final Logger LOGGER = Logger.getLogger(AbstractHerdDBDataSource.class.getName());
     protected String url;
     protected String defaultSchema = TableSpace.DEFAULT;
+    private GenericObjectPool<HDBConnection> pool;
+
+    public int getMaxActive() {
+        return maxActive;
+    }
+
+    public void setMaxActive(int maxActive) {
+        this.maxActive = maxActive;
+    }
 
     public String getDefaultSchema() {
         return defaultSchema;
@@ -104,6 +118,40 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
         this.client = client;
     }
 
+    void releaseConnection(HDBConnection connection) {
+        pool.returnObject(connection);
+    }
+
+    private class ConnectionsFactory implements PooledObjectFactory<HDBConnection> {
+
+        @Override
+        public PooledObject<HDBConnection> makeObject() throws Exception {
+            HDBConnection connection = client.openConnection();
+            connection.setDiscoverTablespaceFromSql(false);
+            return new DefaultPooledObject<>(connection);
+        }
+
+        @Override
+        public void destroyObject(PooledObject<HDBConnection> po) throws Exception {
+            LOGGER.log(Level.SEVERE, "destroyObject {0}", po.getObject());
+            po.getObject().close();
+        }
+
+        @Override
+        public boolean validateObject(PooledObject<HDBConnection> po) {
+            return true;
+        }
+
+        @Override
+        public void activateObject(PooledObject<HDBConnection> po) throws Exception {
+        }
+
+        @Override
+        public void passivateObject(PooledObject<HDBConnection> po) throws Exception {
+        }
+
+    }
+
     protected synchronized void ensureClient() throws SQLException {
         if (client == null) {
             ClientConfiguration clientConfiguration = new ClientConfiguration(properties);
@@ -111,15 +159,28 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
             clientConfiguration.readJdbcUrl(url);
             client = new HDBClient(clientConfiguration);
         }
+        if (pool == null) {
+            if (properties.containsKey("maxActive")) {
+                this.maxActive = Integer.parseInt(properties.get("maxActive").toString());
+            }
+            GenericObjectPoolConfig config = new GenericObjectPoolConfig();
+            config.setBlockWhenExhausted(true);
+            config.setMaxTotal(maxActive);
+            pool = new GenericObjectPool<>(new ConnectionsFactory(), config);
+        }
+    }
+
+    protected HDBConnection createNewConnection() throws SQLException {
+        try {
+            return pool.borrowObject();
+        } catch (Exception ex) {
+            throw new SQLException(ex);
+        }
     }
 
     protected synchronized void ensureConnection() throws SQLException {
         ensureClient();
 
-        if (this.connection == null) {
-            this.connection = client.openConnection();
-            this.connection.setDiscoverTablespaceFromSql(false);            
-        }
     }
 
     public HDBClient getClient() {
@@ -138,7 +199,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
         ensureConnection();
-        return new HerdDBConnection(connection, defaultSchema);
+        return new HerdDBConnection(this, createNewConnection(), defaultSchema);
     }
 
     private PrintWriter logWriter;
@@ -180,10 +241,6 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     @Override
     public synchronized void close() {
-        if (connection != null) {
-            connection.close();
-            connection = null;
-        }
         if (client != null) {
             client.close();
             client = null;

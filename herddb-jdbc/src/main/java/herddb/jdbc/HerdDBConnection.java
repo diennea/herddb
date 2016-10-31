@@ -59,10 +59,12 @@ public class HerdDBConnection implements java.sql.Connection {
     private long transactionId;
     private boolean autocommit = true;
     private String tableSpace;
+    private final AbstractHerdDBDataSource datasource;
 
-    public HerdDBConnection(HDBConnection connection, String defaultTablespace) throws SQLException {
+    public HerdDBConnection(AbstractHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
         this.tableSpace = defaultTablespace;
         this.connection = connection;
+        this.datasource = datasource;
     }
 
     long ensureTransaction() throws SQLException {
@@ -129,7 +131,7 @@ public class HerdDBConnection implements java.sql.Connection {
             // no transaction actually started, nothing to commit
             return;
         }
-        if (transactionId<0) {
+        if (transactionId < 0) {
             throw new SQLException("current transactionId cannot be negative");
         }
         try {
@@ -149,7 +151,7 @@ public class HerdDBConnection implements java.sql.Connection {
         if (transactionId <= 0) {
             // no transaction actually started, nothing to commit
             return;
-        }        
+        }
         try {
             connection.rollbackTransaction(tableSpace, transactionId);
         } catch (ClientSideMetadataProviderException | HDBException err) {
@@ -164,6 +166,7 @@ public class HerdDBConnection implements java.sql.Connection {
         if (transactionId > 0) {
             rollback();
         }
+        this.datasource.releaseConnection(connection);
     }
 
     @Override
