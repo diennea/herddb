@@ -10,13 +10,15 @@
 **/.settings/
 **/bin/
 
-# Gui Dev
-**/src/main/webapp/collectors/
-**/src/main/webapp/console.history.*.txt
-**/src/main/webapp/events/
-**/src/main/webapp/feedbackwal/
-**/src/main/webapp/indexes/
-**/src/main/webapp/notification.groups.xml
-**/src/main/webapp/resultsets/
-**/src/main/webapp/ssh.ser
-**/src/main/webapp/store/
+# NetBeans
+/herddb-core/nbproject/ 
+
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
