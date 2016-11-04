@@ -125,14 +125,11 @@ public class HerdDBConnection implements java.sql.Connection {
     @Override
     public void commit() throws SQLException {
         if (autocommit) {
-            throw new SQLException("connection is not in autocommit mode");
+            throw new SQLException("connection is in autocommit mode");
         }
-        if (transactionId == 0) {
+        if (transactionId == 0 || transactionId == -1) {
             // no transaction actually started, nothing to commit
             return;
-        }
-        if (transactionId < 0) {
-            throw new SQLException("current transactionId cannot be negative");
         }
         try {
             connection.commitTransaction(tableSpace, transactionId);

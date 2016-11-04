@@ -1291,7 +1291,7 @@ public class SQLPlanner {
         }
         List<Column> addColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
-        String tableName = alter.getTable().getName();
+        String tableName = alter.getTable().getName().toLowerCase();
         if (alter.getAlterExpressions() == null || alter.getAlterExpressions().size() != 1) {
             throw new StatementExecutionException("supported multi-alter operation '" + alter + "'");
         }
