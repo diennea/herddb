@@ -44,6 +44,7 @@ public class TransactionsTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
+    
     @Test
     public void test() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
@@ -129,6 +130,59 @@ public class TransactionsTest {
                     }
                     con.commit();
 
+                }
+            }
+        }
+    }
+    
+    /**
+     * Commit on a connection without any work
+     */
+    @Test
+    public void emptyTransaction() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                     Connection con = dataSource.getConnection();) {
+
+                    con.setAutoCommit(false);
+                    con.commit();
+                }
+            }
+        }
+    }
+    
+    /**
+     * Commit on a connection with just instructions that do not auto create a transaction
+     */
+    @Test
+    public void noAutoSteartTransaction() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                        Connection con = dataSource.getConnection();
+                        Connection con2 = dataSource.getConnection();
+                        Statement statement = con.createStatement();
+                        Statement statement2 = con2.createStatement();) {
+
+                    statement.execute("CREATE TABLE mytable (key string primary key, name string)");
+
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1','name1')"));
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k2','name2')"));
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k3','name3')"));
+
+                    con2.setAutoCommit(false);
+                    
+                    int update = statement2.executeUpdate("ALTER TABLE mytable ADD COLUMN other string");
+                    assertEquals(1, update);
+
+                    con2.commit();
                 }
             }
         }

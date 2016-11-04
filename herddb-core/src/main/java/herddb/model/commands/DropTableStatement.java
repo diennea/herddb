@@ -34,6 +34,12 @@ public class DropTableStatement extends DDLStatement {
         super(tableSpace);
         this.table = tableName;
     }
+    
+    @Override
+    public boolean supportsTransactionAutoCreate() {
+        /* This instruction will autocreate a transaction if issued */
+        return true;
+    }
 
     public String getTable() {
         return table;

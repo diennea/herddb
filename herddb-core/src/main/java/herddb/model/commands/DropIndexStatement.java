@@ -34,6 +34,12 @@ public class DropIndexStatement extends DDLStatement {
         super(tableSpace);
         this.indexName = indexName;
     }
+    
+    @Override
+    public boolean supportsTransactionAutoCreate() {
+        /* This instruction will autocreate a transaction if issued */
+        return true;
+    }
 
     public String getIndexName() {
         return indexName;

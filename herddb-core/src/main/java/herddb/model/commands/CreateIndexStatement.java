@@ -35,6 +35,12 @@ public class CreateIndexStatement extends DDLStatement {
         super(indexDefinition.tablespace);
         this.indexDefinition = indexDefinition;
     }
+    
+    @Override
+    public boolean supportsTransactionAutoCreate() {
+        /* This instruction will autocreate a transaction if issued */
+        return true;
+    }
 
     public Index getIndexefinition() {
         return indexDefinition;

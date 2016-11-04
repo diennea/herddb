@@ -35,5 +35,10 @@ public abstract class Statement {
     public String getTableSpace() {
         return tableSpace;
     }
+    
+    public boolean supportsTransactionAutoCreate() {
+        /* This instruction will not autocreate a transaction if issued */
+        return false;
+    }
 
 }
