@@ -824,7 +824,9 @@ public class TableSpaceManager {
             throw new StatementExecutionException("executeStatement not available on virtual tablespaces");
         }
         boolean rollbackOnError = false;
-        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
+        
+        /* Do not autostart transaction on alter table statements */
+        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID && !(statement instanceof AlterTableStatement)) {
             StatementExecutionResult newTransaction = beginTransaction();
             transactionContext = new TransactionContext(newTransaction.transactionId);
             rollbackOnError = true;
