@@ -19,13 +19,16 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.HashSet;
+
+import org.junit.Test;
+
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import java.util.Arrays;
-import java.util.HashSet;
-import static org.junit.Assert.assertTrue;
-import org.junit.Test;
 
 /**
  * Basic functionality

@@ -19,27 +19,29 @@
  */
 package herddb.core;
 
+import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.executeUpdate;
+import static herddb.core.TestUtils.scan;
+import static herddb.model.TransactionContext.NO_TRANSACTION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Random;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
-import static herddb.model.TransactionContext.NO_TRANSACTION;
 import herddb.model.TransactionResult;
 import herddb.model.commands.CreateTableSpaceStatement;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
-import java.util.Random;
-import org.junit.Ignore;
 
 /**
  *

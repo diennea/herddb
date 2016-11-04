@@ -19,10 +19,17 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.Test;
+
 import herddb.codec.RecordSerializer;
 import herddb.model.DataScanner;
 import herddb.model.Predicate;
-import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -30,13 +37,9 @@ import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.utils.Bytes;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import static org.junit.Assert.assertEquals;
-import org.junit.Test;
 
 /**
  * 

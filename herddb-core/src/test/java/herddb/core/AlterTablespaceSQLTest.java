@@ -21,6 +21,16 @@ package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.util.Collections;
+import java.util.List;
+
+import org.junit.Test;
+
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -28,15 +38,6 @@ import herddb.model.DataScanner;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.Tuple;
-import java.util.Collections;
-import java.util.List;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.scan;
 
 /**
  *

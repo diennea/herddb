@@ -19,6 +19,13 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertTrue;
+
+import java.util.Collections;
+
+import org.junit.After;
+import org.junit.Before;
+
 import herddb.log.CommitLogManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
@@ -31,10 +38,6 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.storage.DataStorageManager;
-import java.util.Collections;
-import org.junit.After;
-import static org.junit.Assert.assertTrue;
-import org.junit.Before;
 
 /**
  *

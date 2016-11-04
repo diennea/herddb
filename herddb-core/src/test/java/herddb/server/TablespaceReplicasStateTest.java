@@ -20,6 +20,20 @@
 package herddb.server;
 
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
@@ -30,18 +44,6 @@ import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.utils.ZKTestEnv;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import org.junit.After;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import static herddb.core.TestUtils.scan;
 
 /**
  * Booting two servers, one table space

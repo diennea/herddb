@@ -19,19 +19,22 @@
  */
 package herddb.server;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
-import herddb.client.HDBConnection;
-import herddb.model.TableSpace;
+import static org.junit.Assert.assertEquals;
+
 import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+
 import org.junit.Assert;
-import static org.junit.Assert.assertEquals;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import herddb.client.ClientConfiguration;
+import herddb.client.HDBClient;
+import herddb.client.HDBConnection;
+import herddb.model.TableSpace;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement atomic-counters

@@ -19,6 +19,13 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.HashSet;
+
+import org.junit.Test;
+
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -29,10 +36,6 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.Bytes;
-import java.util.Arrays;
-import java.util.HashSet;
-import static org.junit.Assert.assertTrue;
-import org.junit.Test;
 
 /**
  * Basic functionality

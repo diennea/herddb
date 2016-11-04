@@ -19,18 +19,21 @@
  */
 package herddb.server;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
-import org.junit.Assert;
-import static org.junit.Assert.assertEquals;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * Demonstates the usage of the update "newvalue" facility to implement

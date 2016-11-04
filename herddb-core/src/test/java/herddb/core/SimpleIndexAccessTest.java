@@ -21,6 +21,14 @@ package herddb.core;
 
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.Collections;
+
+import org.junit.Test;
+
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
@@ -33,11 +41,6 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
-import java.util.Arrays;
-import java.util.Collections;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import org.junit.Test;
 
 /**
  *

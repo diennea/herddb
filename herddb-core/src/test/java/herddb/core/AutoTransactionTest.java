@@ -19,26 +19,29 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.junit.Test;
+
 import herddb.codec.RecordSerializer;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Projection;
-import herddb.model.commands.InsertStatement;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.commands.GetStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.utils.Bytes;
-import java.util.HashMap;
-import java.util.Map;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import org.junit.Test;
 
 /**
  *

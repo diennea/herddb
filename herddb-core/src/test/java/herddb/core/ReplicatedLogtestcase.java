@@ -19,16 +19,18 @@
  */
 package herddb.core;
 
+import java.nio.file.Path;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.file.FileDataStorageManager;
 import herddb.server.ServerConfiguration;
 import herddb.utils.ZKTestEnv;
-import java.nio.file.Path;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * Tests using multiple nodes

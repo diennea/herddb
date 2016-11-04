@@ -19,6 +19,10 @@
  */
 package herddb.core;
 
+import java.util.Collections;
+
+import org.junit.Test;
+
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -28,8 +32,6 @@ import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
-import java.util.Collections;
-import org.junit.Test;
 
 /**
  * Tests on table creation

@@ -19,18 +19,21 @@
  */
 package herddb.server;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBConnection;
-import herddb.client.HDBClient;
-import herddb.model.TableSpace;
-import java.util.Arrays;
-import java.util.Collections;
-import org.junit.Assert;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.Collections;
+
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import herddb.client.ClientConfiguration;
+import herddb.client.HDBClient;
+import herddb.client.HDBConnection;
+import herddb.model.TableSpace;
 
 /**
  * Basic server/client boot test

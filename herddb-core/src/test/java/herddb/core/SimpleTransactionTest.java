@@ -19,6 +19,13 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import org.junit.Test;
+
 import herddb.model.ColumnTypes;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
@@ -37,11 +44,6 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import org.junit.Test;
 
 /**
  * Basic transaction tests
