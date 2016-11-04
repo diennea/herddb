@@ -46,6 +46,12 @@ public class CreateTableStatement extends DDLStatement {
         this.tableDefinition = tableDefinition;
         this.additionalIndexes = additionalIndexes;
     }
+    
+    @Override
+    public boolean supportsTransactionAutoCreate() {
+        /* This instruction will autocreate a transaction if issued */
+        return true;
+    }
 
     public Table getTableDefinition() {
         return tableDefinition;

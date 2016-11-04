@@ -19,6 +19,16 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertEquals;
+
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
@@ -26,19 +36,9 @@ import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
-import herddb.model.TableAlreadyExistsException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
-import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * Recovery from file

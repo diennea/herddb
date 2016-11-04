@@ -19,9 +19,10 @@
  */
 package herddb.core;
 
-import herddb.file.FileRecordSetFactory;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
+
+import herddb.file.FileRecordSetFactory;
 
 /**
  * @author enrico.olivelli

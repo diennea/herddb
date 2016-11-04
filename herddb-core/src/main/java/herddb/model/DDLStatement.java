@@ -30,5 +30,4 @@ public abstract class DDLStatement extends Statement {
     public DDLStatement(String tableSpace) {
         super(tableSpace);
     }
-
 }

@@ -19,6 +19,14 @@
  */
 package herddb.core;
 
+import static org.junit.Assert.assertEquals;
+
+import java.io.IOException;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.file.FileDataStorageManager;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -27,11 +35,6 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Bytes;
-import java.io.IOException;
-import static org.junit.Assert.assertEquals;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 /**
  *

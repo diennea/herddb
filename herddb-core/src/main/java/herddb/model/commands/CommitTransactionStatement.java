@@ -38,5 +38,5 @@ public class CommitTransactionStatement extends Statement {
     public long getTransactionId() {
         return transactionId;
     }
-
+    
 }

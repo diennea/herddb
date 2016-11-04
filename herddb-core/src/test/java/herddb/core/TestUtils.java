@@ -19,6 +19,9 @@
  */
 package herddb.core;
 
+import java.util.Collections;
+import java.util.List;
+
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.ScanResult;
@@ -28,8 +31,6 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.sql.TranslatedQuery;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Utility

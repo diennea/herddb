@@ -19,17 +19,14 @@
  */
 package herddb.index.brin;
 
+import static org.junit.Assert.assertEquals;
+
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
-import static org.junit.Assert.assertEquals;
+
 import org.junit.Test;
 
 /**

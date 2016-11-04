@@ -19,36 +19,24 @@
  */
 package herddb.server;
 
-import herddb.cluster.LedgersInfo;
-import herddb.cluster.ZookeeperMetadataStorageManager;
-import herddb.codec.RecordSerializer;
-import herddb.core.TestUtils;
 import static herddb.core.TestUtils.scan;
-import herddb.model.ColumnTypes;
-import herddb.model.DataScanner;
-import herddb.model.GetResult;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.Table;
-import herddb.model.TableSpace;
-import herddb.model.TransactionContext;
-import herddb.model.Tuple;
-import herddb.model.commands.AlterTableSpaceStatement;
-import herddb.model.commands.CreateTableStatement;
-import herddb.model.commands.GetStatement;
-import herddb.model.commands.InsertStatement;
-import herddb.utils.Bytes;
-import herddb.utils.ZKTestEnv;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import org.junit.After;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+
+import java.util.Collections;
+import java.util.List;
+
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import herddb.core.TestUtils;
+import herddb.model.ColumnTypes;
+import herddb.model.DataScanner;
+import herddb.model.Table;
+import herddb.model.Tuple;
+import herddb.utils.ZKTestEnv;
 
 /**
  * Booting two servers, one table space

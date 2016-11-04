@@ -22,19 +22,19 @@ package herddb.core;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+
+import java.util.Arrays;
+import java.util.Collections;
+
+import org.junit.Test;
+
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
-import java.util.Arrays;
-import java.util.Collections;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static herddb.core.TestUtils.execute;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
 
 /**
  * Tests on table creation. An heap is a table without primary key, that is that

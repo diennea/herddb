@@ -29,5 +29,5 @@ public abstract class DMLStatement extends TableAwareStatement {
     public DMLStatement(String table, String tableSpace) {
         super(table, tableSpace);
     }
-
+    
 }

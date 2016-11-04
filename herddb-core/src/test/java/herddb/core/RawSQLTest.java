@@ -19,14 +19,35 @@
  */
 package herddb.core;
 
+import static herddb.core.TestUtils.execute;
+import static herddb.core.TestUtils.executeUpdate;
+import static herddb.core.TestUtils.scan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import herddb.index.PrimaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
+import herddb.model.IndexAlreadyExistsException;
+import herddb.model.IndexDoesNotExistException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
@@ -36,34 +57,6 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import org.junit.Assert;
-import org.junit.Test;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import herddb.index.PrimaryIndexPrefixScan;
-import herddb.index.PrimaryIndexSeek;
-import static herddb.core.TestUtils.executeUpdate;
-import static herddb.core.TestUtils.scan;
-import static herddb.core.TestUtils.execute;
-import herddb.index.SecondaryIndexPrefixScan;
-import herddb.index.SecondaryIndexSeek;
-import herddb.model.ColumnTypes;
-import herddb.model.Index;
-import herddb.model.IndexAlreadyExistsException;
-import herddb.model.IndexDoesNotExistException;
-import herddb.model.Table;
-import herddb.model.TableDoesNotExistException;
-import herddb.model.commands.CreateIndexStatement;
-import herddb.model.commands.CreateTableStatement;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  *
