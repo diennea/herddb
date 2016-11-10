@@ -328,7 +328,10 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void unloadCleanPages(int count) {
-
+        
+        /* Do not unload pages if not really requested */
+        if (count < 0) return;
+        
         List<Long> pagesToUnload = new ArrayList<>();
         for (Long loadedPage : loadedPages) {
             if (!dirtyPages.contains(loadedPage)) {
@@ -639,7 +642,7 @@ public class TableManager implements AbstractTableManager {
             }
             Map<String, Object> values = record.toBean(table);
             for (AbstractIndexManager index : indexes.values()) {
-                index.recordInserted(key, values);
+                index.recordDeleted(key, values);
             }
         }
     }
