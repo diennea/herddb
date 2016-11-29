@@ -101,17 +101,18 @@ public final class Bytes implements Comparable<Bytes> {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
         if (obj == null) {
             return false;
         }
-        if (getClass() != obj.getClass()) {
+        try {
+            final Bytes other = (Bytes) obj;
+            if (other.hashCode != this.hashCode) {
+                return false;
+            }
+            return Arrays.equals(this.data, other.data);
+        } catch (ClassCastException otherClass) {
             return false;
         }
-        final Bytes other = (Bytes) obj;
-        return Arrays.equals(this.data, other.data);
     }
 
     public static void putLong(byte[] bytes, int offset, long val) {
@@ -210,7 +211,7 @@ public final class Bytes implements Comparable<Bytes> {
 
     public Bytes next() {
         BigInteger i = new BigInteger(this.data);
-        i = i.add(BigInteger.ONE);        
+        i = i.add(BigInteger.ONE);
         return Bytes.from_array(i.toByteArray());
     }
 
