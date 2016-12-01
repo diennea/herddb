@@ -22,8 +22,7 @@
             <includes>
                 <include>*.sh</include>
                 <include>service</include>
-                <include>tools</include>
-                <include>majordodo.service</include>
+                <include>tools</include>                
             </includes>
         </fileSet>        
                
@@ -36,8 +35,21 @@
             <includes>
                 <include>*:jar</include>                
             </includes>            
+            <excludes>
+                <exclude>org.herddb:herddb-cli:*</exclude>
+            </excludes>
             <outputDirectory>lib</outputDirectory>
         </dependencySet>         
+        <dependencySet>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useStrictFiltering>true</useStrictFiltering>
+            <unpack>false</unpack>           
+            <includes>                
+                <include>org.herddb:herddb-cli:*</include>
+            </includes>            
+            <outputDirectory>.</outputDirectory>
+            <outputFileNameMapping>herddb-cli.jar</outputFileNameMapping>
+        </dependencySet>
     </dependencySets>
 
 </assembly>
