@@ -38,6 +38,8 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Division;
+import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
 import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
@@ -107,6 +109,10 @@ public class SQLProjection implements Projection {
                 } else if (exp instanceof Addition) {
                     columType = ColumnTypes.LONG;
                 } else if (exp instanceof Subtraction) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof Multiplication) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof Division) {
                     columType = ColumnTypes.LONG;
                 } else if (exp instanceof JdbcParameter) {
                     columType = ColumnTypes.ANYTYPE;

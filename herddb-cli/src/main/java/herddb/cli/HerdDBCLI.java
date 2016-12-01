@@ -148,7 +148,7 @@ public class HerdDBCLI {
                     println("Dumping finished");
                 } else if (!restore.isEmpty()) {
                     Path inputfile = Paths.get(dump).toAbsolutePath();
-                    println("Restoring tablespace" + schema + " on server " + restoreto + " from file " + inputfile);
+                    println("Restoring tablespace " + schema + " on server " + restoreto + " from file " + inputfile);
                     try (InputStream fin = Files.newInputStream(inputfile)) {
                         HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
                         HDBConnection hdbconnection = hcon.getConnection();
