@@ -127,20 +127,20 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
         this.serverHostData = new ServerHostData(
-                host,
-                port,
-                "",
-                configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
-                new HashMap<>());
+            host,
+            port,
+            "",
+            configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
+            new HashMap<>());
         if (nodeId.isEmpty()) {
             nodeId = host + ":" + port;
         }
         LOGGER.log(Level.SEVERE, "local nodeID is {0}", nodeId);
         this.manager = new DBManager(nodeId,
-                metadataStorageManager,
-                buildDataStorageManager(),
-                buildCommitLogManager(),
-                tmpDirectory, serverHostData
+            metadataStorageManager,
+            buildDataStorageManager(),
+            buildCommitLogManager(),
+            tmpDirectory, serverHostData
         );
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
         this.manager.setMaxLogicalPageSize(configuration.getLong(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT));
@@ -187,8 +187,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 return new FileMetadataStorageManager(metadataDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 return new ZookeeperMetadataStorageManager(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
-                        configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
-                        configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
+                    configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
+                    configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
             default:
                 throw new RuntimeException();
         }
@@ -229,7 +229,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     public void start() throws Exception {
         boolean startBookie = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_START, ServerConfiguration.PROPERTY_BOOKKEEPER_START_DEFAULT);
-        if (startBookie) {
+        if (startBookie && embeddedBookie != null) {
             this.embeddedBookie.start();
         }
         this.manager.start();
@@ -302,12 +302,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     @Override
     public ConnectionsInfo getActualConnections() {
         return new ConnectionsInfo(connections
-                .values()
-                .stream()
-                .map(c -> {
-                    return c.toConnectionInfo();
-                })
-                .collect(Collectors.toList()));
+            .values()
+            .stream()
+            .map(c -> {
+                return c.toConnectionInfo();
+            })
+            .collect(Collectors.toList()));
     }
 
 }
