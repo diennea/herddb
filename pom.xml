@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.herddb</groupId>
     <artifactId>herddb-parent</artifactId>
-    <version>0.0.7-ALPHA1</version>
+    <version>0.0.7-ALPHA2</version>
     <packaging>pom</packaging>
     <name>Herd DB</name>    
     <url>http://herddb.org</url>
