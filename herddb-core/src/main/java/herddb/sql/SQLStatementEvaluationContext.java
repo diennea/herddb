@@ -34,6 +34,11 @@ public class SQLStatementEvaluationContext extends StatementEvaluationContext {
     public final List<Object> jdbcParameters;
     public ConcurrentIdentityHashMap<Object, Object> constants = new ConcurrentIdentityHashMap<>();
 
+    @Override
+    public List<Object> getJdbcParameters() {
+        return jdbcParameters;
+    }
+
     public SQLStatementEvaluationContext(String query, List<Object> jdbcParameters) {
         this.query = query;
         this.jdbcParameters = jdbcParameters;

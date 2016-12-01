@@ -33,6 +33,8 @@ public class ColumnTypes {
     public static final int TIMESTAMP = 4;
     public static final int NULL = 5;
 
+    public static final int ANYTYPE = 10;
+
     public static String typeToString(int type) {
         switch (type) {
             case STRING:

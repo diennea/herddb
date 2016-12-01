@@ -19,11 +19,13 @@
  */
 package herddb.sql.functions;
 
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.sql.AggregatedColumnCalculator;
 import java.util.function.Function;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
@@ -39,7 +41,9 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
     final protected Expression expression;
     final protected Function<Tuple, ? extends Comparable> valueExtractor;
 
-    protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, Expression expression) throws StatementExecutionException {
+    protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, Expression expression,
+        StatementEvaluationContext context
+    ) throws StatementExecutionException {
         this.fieldName = fieldName;
         this.expression = expression;
         if (expression instanceof Column) {
@@ -73,8 +77,13 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
             } catch (NumberFormatException err) {
                 throw new StatementExecutionException("cannot SUM expressions of type " + expression);
             }
+        } else if (this.expression instanceof JdbcParameter) {
+            JdbcParameter param = (JdbcParameter) this.expression;
+            int index = param.getIndex();
+            Object value = context.getJdbcParameters().get(index);
+            valueExtractor = (Tuple t) -> (Comparable) value;
         } else {
-            throw new StatementExecutionException("cannot SUM expressions of type " + expression);
+            throw new StatementExecutionException("cannot SUM expressions of type " + expression.getClass() + ": bad expression is " + expression);
         }
     }
 }

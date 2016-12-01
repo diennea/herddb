@@ -40,6 +40,7 @@ import herddb.index.PrimaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
@@ -52,11 +53,15 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
+import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
+import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
+import java.sql.Timestamp;
+import static org.junit.Assert.assertEquals;
 
 /**
  *
@@ -111,6 +116,76 @@ public class RawSQLTest {
     }
 
     @Test
+    public void insertFromSelect() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql2 (k2 string primary key,n2 int,s2 string,t2 timestamp)", Collections.emptyList());
+
+            java.sql.Timestamp tt1 = new java.sql.Timestamp(System.currentTimeMillis());
+            java.sql.Timestamp tt2 = new java.sql.Timestamp(System.currentTimeMillis() + 60000);
+            java.sql.Timestamp tt3 = new java.sql.Timestamp(System.currentTimeMillis() + 120000);
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), tt1)).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?)", Arrays.asList("mykey2", Integer.valueOf(1235), tt2)).getUpdateCount());
+            assertEquals(2, executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
+                + "(select k1,t1,n1 from tblspace1.tsql)", Collections.emptyList()).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
+                List<Tuple> res = scan.consume();
+                assertEquals("mykey2", res.get(0).get("k2"));
+                assertEquals("mykey", res.get(1).get("k2"));
+                assertEquals(Integer.valueOf(1235), res.get(0).get("n2"));
+                assertEquals(Integer.valueOf(1234), res.get(1).get("n2"));
+                assertEquals(tt2, res.get(0).get("t2"));
+                assertEquals(tt1, res.get(1).get("t2"));
+            }
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?)", Arrays.asList("mykey3", Integer.valueOf(1236), tt1)).getUpdateCount());
+            DMLStatementExecutionResult executeUpdateInTransaction = executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
+                + "(select k1,t1,n1 from tblspace1.tsql where n1=?)", Arrays.asList(1236), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            assertEquals(1, executeUpdateInTransaction.getUpdateCount());
+            assertTrue(executeUpdateInTransaction.transactionId > 0);
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList(), new TransactionContext(executeUpdateInTransaction.transactionId));) {
+                assertEquals(3, scan.consume().size());
+            }
+            manager.executeStatement(new RollbackTransactionStatement("tblspace1", executeUpdateInTransaction.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
+                assertEquals(2, scan.consume().size());
+            }
+
+            DMLStatementExecutionResult executeUpdateInTransaction2 = executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
+                + "(select k1,t1,n1 from tblspace1.tsql where n1=?)", Arrays.asList(1236), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            assertEquals(1, executeUpdateInTransaction2.getUpdateCount());
+            assertTrue(executeUpdateInTransaction2.transactionId > 0);
+            manager.executeStatement(new CommitTransactionStatement("tblspace1", executeUpdateInTransaction2.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
+                assertEquals(3, scan.consume().size());
+            }
+
+            DMLStatementExecutionResult executeUpdateWithParameters = executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
+                + "(select ?,?,n1 from tblspace1.tsql where n1=?)", Arrays.asList("mykey5", tt3, 1236), TransactionContext.NO_TRANSACTION);
+            assertEquals(1, executeUpdateWithParameters.getUpdateCount());
+            assertTrue(executeUpdateWithParameters.transactionId == 0);
+
+            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 "
+                + "FROM tblspace1.tsql2 "
+                + "WHERE t2 = ?", Arrays.asList(tt3));) {
+                List<Tuple> all = scan.consume();
+                assertEquals(1, all.size());
+                assertEquals(Integer.valueOf(1236), all.get(0).get("n2"));
+                assertEquals(tt3, all.get(0).get("t2"));
+                assertEquals("mykey5", all.get(0).get("k2"));
+            }
+        }
+    }
+
+    @Test
     public void atomicCounterTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
@@ -128,6 +203,58 @@ public class RawSQLTest {
             assertEquals(Long.valueOf(1234), scan(manager, "SELECT n1-1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
             assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+1=1236", Collections.emptyList()).consume().get(0).get(0));
             assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+n1=2470", Collections.emptyList()).consume().get(0).get(0));
+        }
+    }
+
+    @Test
+    public void selectWithParameters() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT ? as foo, k1, n1 FROM tblspace1.tsql", Arrays.asList("test"));) {
+                List<Tuple> all = scan.consume();
+                assertEquals(1, all.size());
+                assertEquals("test", all.get(0).get("foo"));
+                assertEquals("mykey", all.get(0).get("k1"));
+                assertEquals(Integer.valueOf(1234), all.get(0).get("n1"));
+            }
+
+            Timestamp timestamp = new java.sql.Timestamp(System.currentTimeMillis());
+            try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+                List<Tuple> all = scan.consume();
+                assertEquals(1, all.size());
+                assertEquals(Long.valueOf(1), all.get(0).get("foo"));
+                assertEquals(timestamp, all.get(0).get("bar"));
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+                List<Tuple> all = scan.consume();
+                assertEquals(1, all.size());
+                assertEquals(Long.valueOf(1), all.get(0).get("foo"));
+                assertEquals(timestamp, all.get(0).get("bar"));
+            }
+
+            executeUpdate(manager, "DELETE FROM tblspace1.tsql", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+                List<Tuple> all = scan.consume();
+                assertEquals(0, all.size());
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
+                List<Tuple> all = scan.consume();
+                assertEquals(1, all.size());
+                assertNull(all.get(0).get("foo"));
+                assertNull(all.get(0).get("bar"));
+            }
         }
     }
 

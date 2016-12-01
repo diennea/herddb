@@ -19,6 +19,7 @@
  */
 package herddb.sql.functions;
 
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import net.sf.jsqlparser.expression.Expression;
@@ -30,8 +31,8 @@ import net.sf.jsqlparser.expression.Expression;
  */
 public class MaxColumnCalculator extends AbstractSingleExpressionArgumentColumnCalculator {
 
-    public MaxColumnCalculator(String fieldName, Expression expression) throws StatementExecutionException {
-        super(fieldName, expression);
+    public MaxColumnCalculator(String fieldName, Expression expression, StatementEvaluationContext context) throws StatementExecutionException {
+        super(fieldName, expression, context);
     }
 
     Comparable result;

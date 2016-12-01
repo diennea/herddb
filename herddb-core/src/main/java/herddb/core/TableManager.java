@@ -98,14 +98,12 @@ public class TableManager implements AbstractTableManager {
     public static final Long NEW_PAGE = Long.valueOf(-1);
 
     /**
-     * a buffer which contains the rows contained into the loaded pages
-     * (map<byte[],byte[]>)
+     * a buffer which contains the rows contained into the loaded pages (map<byte[],byte[]>)
      */
     private final Map<Bytes, Record> buffer = new ConcurrentHashMap<>();
 
     /**
-     * keyToPage: a structure which maps each key to the ID of the page
-     * (map<byte[], long>) (this can be quite large)
+     * keyToPage: a structure which maps each key to the ID of the page (map<byte[], long>) (this can be quite large)
      */
     private final KeyToPageIndex keyToPage;
 
@@ -115,8 +113,7 @@ public class TableManager implements AbstractTableManager {
     private final Set<Bytes> deletedKeys = new ConcurrentSkipListSet<>();
 
     /**
-     * a structure which holds the set of the pages which are loaded in memory
-     * (set<long>)
+     * a structure which holds the set of the pages which are loaded in memory (set<long>)
      */
     private final Set<Long> loadedPages = new ConcurrentSkipListSet<>();
 
@@ -166,8 +163,7 @@ public class TableManager implements AbstractTableManager {
     private final long maxLogicalPageSize;
 
     /**
-     * This value is not empty until the transaction who creates the table does
-     * not commit
+     * This value is not empty until the transaction who creates the table does not commit
      */
     private long createdInTransaction;
 
@@ -251,7 +247,7 @@ public class TableManager implements AbstractTableManager {
         bootSequenceNumber = log.getLastSequenceNumber();
 
         dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
-                new FullTableScanConsumer() {
+            new FullTableScanConsumer() {
 
             long currentPage;
 
@@ -328,10 +324,12 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void unloadCleanPages(int count) {
-        
+
         /* Do not unload pages if not really requested */
-        if (count < 0) return;
-        
+        if (count < 0) {
+            return;
+        }
+
         List<Long> pagesToUnload = new ArrayList<>();
         for (Long loadedPage : loadedPages) {
             if (!dirtyPages.contains(loadedPage)) {
@@ -896,7 +894,7 @@ public class TableManager implements AbstractTableManager {
             for (Bytes key : buffer.keySet()) {
                 Long pageId = keyToPage.get(key);
                 if (dirtyPages.contains(pageId)
-                        || Objects.equals(pageId, NEW_PAGE)) {
+                    || Objects.equals(pageId, NEW_PAGE)) {
                     recordsOnDirtyPages.add(key);
                 }
             }
@@ -982,7 +980,7 @@ public class TableManager implements AbstractTableManager {
                 public void accept(Record record) throws StatementExecutionException {
                     Tuple tuple = new Tuple(record.toBean(table), table.columns);
                     if (applyProjectionDuringScan) {
-                        tuple = projection.map(tuple);
+                        tuple = projection.map(tuple, context);
                     }
                     recordSet.add(tuple);
                     if (remaining.decrementAndGet() == 0) {
@@ -996,7 +994,7 @@ public class TableManager implements AbstractTableManager {
                 public void accept(Record record) throws StatementExecutionException {
                     Tuple tuple = new Tuple(record.toBean(table), table.columns);
                     if (applyProjectionDuringScan) {
-                        tuple = projection.map(tuple);
+                        tuple = projection.map(tuple, context);
                     }
                     recordSet.add(tuple);
                 }
@@ -1006,7 +1004,7 @@ public class TableManager implements AbstractTableManager {
         recordSet.sort(statement.getComparator());
         recordSet.applyLimits(statement.getLimits());
         if (!applyProjectionDuringScan) {
-            recordSet.applyProjection(statement.getProjection());
+            recordSet.applyProjection(statement.getProjection(), context);
         }
         return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
     }
@@ -1098,7 +1096,7 @@ public class TableManager implements AbstractTableManager {
             if (!exit && transaction != null) {
                 for (Record record : transaction.getNewRecordsForTable(table.name)) {
                     if (!transaction.recordDeleted(table.name, record.key)
-                            && (predicate == null || predicate.evaluate(record, context))) {
+                        && (predicate == null || predicate.evaluate(record, context))) {
                         consumer.accept(record);
                     }
                 }

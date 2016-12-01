@@ -171,7 +171,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
         recordSet.writeFinished();
         recordSet.sort(statement.getComparator());
         recordSet.applyLimits(statement.getLimits());
-        recordSet.applyProjection(statement.getProjection());
+        recordSet.applyProjection(statement.getProjection(), context);
         return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
     }
 

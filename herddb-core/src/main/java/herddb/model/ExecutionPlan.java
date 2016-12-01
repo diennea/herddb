@@ -31,19 +31,26 @@ public class ExecutionPlan {
     public ScanLimits limits;
     public TupleComparator comparator;
 
-    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator, ScanLimits limits, TupleComparator comparator) {
+    public ExecutionPlan dataSource;
+
+    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator, ScanLimits limits, TupleComparator comparator, ExecutionPlan dataSource) {
         this.mainStatement = mainStatement;
         this.mainAggregator = mainAggregator;
         this.limits = limits;
         this.comparator = comparator;
+        this.dataSource = dataSource;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null);
+        return new ExecutionPlan(statement, null, null, null, null);
     }
 
     public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator);
+        return new ExecutionPlan(statement, aggregator, limits, comparator, null);
+    }
+
+    public static ExecutionPlan dataManupulationFromSelect(DMLStatement statement, ExecutionPlan dataSource) {
+        return new ExecutionPlan(statement, null, null, null, dataSource);
     }
 
     @Override

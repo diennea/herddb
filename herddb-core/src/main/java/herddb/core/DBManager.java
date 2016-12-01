@@ -49,26 +49,30 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
-import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.server.ServerConfiguration;
 import herddb.sql.SQLPlanner;
+import herddb.sql.SQLStatementEvaluationContext;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ChangeThreadName;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -212,12 +216,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
         metadataStorageManager.setMetadataChangeListener(this);
         metadataStorageManager.registerNode(NodeMetadata
-                .builder()
-                .host(hostData.getHost())
-                .port(hostData.getPort())
-                .ssl(hostData.isSsl())
-                .nodeId(nodeId)
-                .build());
+            .builder()
+            .host(hostData.getHost())
+            .port(hostData.getPort())
+            .ssl(hostData.isSsl())
+            .nodeId(nodeId)
+            .build());
 
         try {
             TableSpaceManager local_node_virtual_tables_manager = new TableSpaceManager(nodeId, virtualTableSpaceId, virtualTableSpaceId, metadataStorageManager, dataStorageManager, null, this, true);
@@ -228,7 +232,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         metadataStorageManager.ensureDefaultTableSpace(nodeId);
-        
+
         commitLogManager.start();
 
         generalLock.writeLock().lock();
@@ -359,7 +363,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             if (!availableOtherNodes.isEmpty()) {
                 int countMissing = tableSpace.expectedReplicaCount - tableSpace.replicas.size();
                 TableSpace.Builder newTableSpaceBuilder
-                        = TableSpace
+                    = TableSpace
                         .builder()
                         .cloning(tableSpace);
                 while (!availableOtherNodes.isEmpty() && countMissing > 0) {
@@ -438,18 +442,38 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
                 // transction can be auto generated during the scan 
                 transactionContext = new TransactionContext(result.transactionId);
-                return executeDataScannerPlan(plan, result, transactionContext);
+                return executeDataScannerPlan(plan, result, context, transactionContext);
+            } else if (plan.dataSource != null) {
+                try {
+                    ScanResult data = (ScanResult) executePlan(plan.dataSource, context, transactionContext);
+                    int insertCount = 0;
+                    try {
+                        // transction can be auto generated during the scan
+                        transactionContext = new TransactionContext(data.transactionId);
+                        while (data.dataScanner.hasNext()) {
+                            Tuple tuple = data.dataScanner.next();
+                            SQLStatementEvaluationContext tmp_context = new SQLStatementEvaluationContext("--", Arrays.asList(tuple.values));
+                            DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(plan.mainStatement, tmp_context, transactionContext);
+                            insertCount += res.getUpdateCount();
+                        }
+                    } finally {
+                        data.dataScanner.close();
+                    }
+                    return new DMLStatementExecutionResult(transactionContext.transactionId, insertCount);
+                } catch (DataScannerException err) {
+                    throw new StatementExecutionException(err);
+                }
             } else {
                 return executeStatement(plan.mainStatement, context, transactionContext);
             }
         }
-
     }
 
-    private StatementExecutionResult executeDataScannerPlan(ExecutionPlan plan, DataScanner result, TransactionContext transactionContext) throws StatementExecutionException {
+    private StatementExecutionResult executeDataScannerPlan(ExecutionPlan plan, DataScanner result,
+        StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         ScanResult scanResult;
         if (plan.mainAggregator != null) {
-            scanResult = new ScanResult(transactionContext.transactionId, plan.mainAggregator.aggregate(result));
+            scanResult = new ScanResult(transactionContext.transactionId, plan.mainAggregator.aggregate(result, context));
         } else {
             scanResult = new ScanResult(transactionContext.transactionId, result);
         }
@@ -611,12 +635,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
             try {
                 tableSpace = TableSpace.builder()
-                        .cloning(previous)
-                        .leader(alterTableSpaceStatement.getLeaderId())
-                        .name(alterTableSpaceStatement.getTableSpace())
-                        .replicas(alterTableSpaceStatement.getReplicas())
-                        .expectedReplicaCount(alterTableSpaceStatement.getExpectedReplicaCount())
-                        .build();
+                    .cloning(previous)
+                    .leader(alterTableSpaceStatement.getLeaderId())
+                    .name(alterTableSpaceStatement.getTableSpace())
+                    .replicas(alterTableSpaceStatement.getReplicas())
+                    .expectedReplicaCount(alterTableSpaceStatement.getExpectedReplicaCount())
+                    .build();
             } catch (IllegalArgumentException invalid) {
                 throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);
             }
@@ -712,10 +736,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             } catch (Exception err) {
                 LOGGER.log(Level.SEVERE, "error during shutdown", err);
             }
-            
+
             try {
                 commitLogManager.close();
-            }  catch (Exception err) {
+            } catch (Exception err) {
                 LOGGER.log(Level.SEVERE, "error during shutdown", err);
             }
             LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
@@ -754,7 +778,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     failedTableSpaces.add(entry.getKey());
                 } else if (entry.getValue().isLeader()) {
                     metadataStorageManager.updateTableSpaceReplicaState(
-                            TableSpaceReplicaState
+                        TableSpaceReplicaState
                             .builder()
                             .mode(TableSpaceReplicaState.MODE_LEADER)
                             .nodeId(nodeId)
@@ -764,7 +788,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     );
                 } else {
                     metadataStorageManager.updateTableSpaceReplicaState(
-                            TableSpaceReplicaState
+                        TableSpaceReplicaState
                             .builder()
                             .mode(TableSpaceReplicaState.MODE_FOLLOWER)
                             .nodeId(nodeId)
@@ -813,7 +837,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         tablesSpaces.remove(tableSpace);
         if (uuid != null) {
             metadataStorageManager.updateTableSpaceReplicaState(
-                    TableSpaceReplicaState
+                TableSpaceReplicaState
                     .builder()
                     .mode(TableSpaceReplicaState.MODE_STOPPED)
                     .nodeId(nodeId)

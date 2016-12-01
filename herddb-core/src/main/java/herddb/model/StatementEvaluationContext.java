@@ -31,8 +31,7 @@ import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
 import net.sf.jsqlparser.util.deparser.SelectDeParser;
 
 /**
- * Context for each statement evaluation. Statements are immutable and cachable
- * objects, and cannot retain state
+ * Context for each statement evaluation. Statements are immutable and cachable objects, and cannot retain state
  *
  * @author enrico.olivelli
  */
@@ -71,6 +70,10 @@ public class StatementEvaluationContext {
 
     public void setManager(DBManager manager) {
         this.manager = manager;
+    }
+
+    public List<Object> getJdbcParameters() {
+        return Collections.emptyList();
     }
 
     public List<Tuple> executeSubquery(PlainSelect select) throws StatementExecutionException {

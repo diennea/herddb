@@ -24,6 +24,7 @@ import herddb.core.MaterializedRecordSet;
 import herddb.model.Column;
 import herddb.model.Projection;
 import herddb.model.ScanLimits;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
@@ -137,12 +138,12 @@ class FileRecordSet extends MaterializedRecordSet {
     }
 
     @Override
-    public void applyProjection(Projection projection) throws StatementExecutionException {
+    public void applyProjection(Projection projection, StatementEvaluationContext context) throws StatementExecutionException {
         this.columns = projection.getColumns();
         buildFieldNames(this.columns);
         DiskArrayList<Tuple> projected = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
         for (Tuple record : buffer) {
-            projected.add(projection.map(record));
+            projected.add(projection.map(record, context));
         }
         projected.finish();
         this.buffer.close();

@@ -22,6 +22,7 @@ package herddb.core;
 import herddb.model.Column;
 import herddb.model.Projection;
 import herddb.model.ScanLimits;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
@@ -65,7 +66,7 @@ public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<T
 
     public abstract void sort(TupleComparator comparator);
 
-    public abstract void applyProjection(Projection projection) throws StatementExecutionException;
+    public abstract void applyProjection(Projection projection, StatementEvaluationContext context) throws StatementExecutionException;
 
     public abstract void applyLimits(ScanLimits limits);
 

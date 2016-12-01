@@ -225,7 +225,7 @@ public class SQLPlanner {
             } else if (stmt instanceof CreateIndex) {
                 result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
             } else if (stmt instanceof Insert) {
-                result = ExecutionPlan.simple(buildInsertStatement(defaultTableSpace, (Insert) stmt));
+                result = buildInsertStatement(defaultTableSpace, (Insert) stmt);
             } else if (stmt instanceof Delete) {
                 result = buildDeleteStatement(defaultTableSpace, (Delete) stmt);
             } else if (stmt instanceof Update) {
@@ -248,7 +248,7 @@ public class SQLPlanner {
                 cache.put(cacheKey, result);
             }
             return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
-        } catch (JSQLParserException | DataScannerException | net.sf.jsqlparser.parser.TokenMgrError err) {
+        } catch (JSQLParserException | net.sf.jsqlparser.parser.TokenMgrError err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
 
@@ -433,7 +433,7 @@ public class SQLPlanner {
         return type;
     }
 
-    private Statement buildInsertStatement(String defaultTableSpace, Insert s) throws StatementExecutionException {
+    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
@@ -458,54 +458,97 @@ public class SQLPlanner {
         int index = 0;
 
         ExpressionList list = (ExpressionList) s.getItemsList();
-        if (s.getColumns() != null) {
+        if (list != null) {
+            if (s.getColumns() != null) {
+                for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
+                    Column column = table.getColumn(c.getColumnName());
+                    if (column == null) {
+                        throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
+                    }
+                    Expression expression;
+                    try {
+                        expression = list.getExpressions().get(index++);
+                    } catch (IndexOutOfBoundsException badQuery) {
+                        throw new StatementExecutionException("bad number of VALUES in INSERT clause");
+                    }
+
+                    if (table.isPrimaryKeyColumn(column.name)) {
+                        keyExpressionToColumn.add(column.name);
+                        keyValueExpression.add(expression);
+
+                    }
+                    valuesColumns.add(c);
+                    valuesExpressions.add(expression);
+                }
+            } else {
+                for (Column column : table.columns) {
+
+                    Expression expression = list.getExpressions().get(index++);
+                    if (table.isPrimaryKeyColumn(column.name)) {
+                        keyExpressionToColumn.add(column.name);
+                        keyValueExpression.add(expression);
+                    }
+                    valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
+                    valuesExpressions.add(expression);
+                }
+            }
+
+            RecordFunction keyfunction;
+            if (keyValueExpression.isEmpty() && table.auto_increment) {
+                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+            } else {
+                if (keyValueExpression.size() != table.primaryKey.length) {
+                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                }
+                keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
+            }
+            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
+
+            try {
+                return ExecutionPlan.simple(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction));
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
+        } else {
+            Select select = s.getSelect();
+            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true);
+            if (s.getColumns() == null) {
+                throw new StatementExecutionException("for INSERT ... SELECT you have to declare the columns to be filled in (use INSERT INTO TABLE(c,c,c,) SELECT .....)");
+            }
+            IntHolder holder = new IntHolder(0);
             for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
                 Column column = table.getColumn(c.getColumnName());
                 if (column == null) {
                     throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
                 }
-                Expression expression;
-                try {
-                    expression = list.getExpressions().get(index++);
-                } catch (IndexOutOfBoundsException badQuery) {
-                    throw new StatementExecutionException("bad number of VALUES in INSERT clause");
-                }
+                JdbcParameter readFromResultSetAsJdbcParameter = new JdbcParameter();
+                readFromResultSetAsJdbcParameter.setIndex(holder.value++);
 
                 if (table.isPrimaryKeyColumn(column.name)) {
                     keyExpressionToColumn.add(column.name);
-                    keyValueExpression.add(expression);
-
+                    keyValueExpression.add(readFromResultSetAsJdbcParameter);
                 }
                 valuesColumns.add(c);
-                valuesExpressions.add(expression);
+                valuesExpressions.add(readFromResultSetAsJdbcParameter);
             }
-        } else {
-            for (Column column : table.columns) {
 
-                Expression expression = list.getExpressions().get(index++);
-                if (table.isPrimaryKeyColumn(column.name)) {
-                    keyExpressionToColumn.add(column.name);
-                    keyValueExpression.add(expression);
+            RecordFunction keyfunction;
+            if (keyValueExpression.isEmpty() && table.auto_increment) {
+                keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+            } else {
+                if (keyValueExpression.size() != table.primaryKey.length) {
+                    throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
                 }
-                valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
-                valuesExpressions.add(expression);
+                keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
             }
-        }
-        RecordFunction keyfunction;
-        if (keyValueExpression.isEmpty() && table.auto_increment) {
-            keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
-        } else {
-            if (keyValueExpression.size() != table.primaryKey.length) {
-                throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
-            }
-            keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
-        }
-        RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
+            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
 
-        try {
-            return new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction);
-        } catch (IllegalArgumentException err) {
-            throw new StatementExecutionException(err);
+            try {
+                return ExecutionPlan.dataManupulationFromSelect(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction),
+                    datasource);
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
         }
     }
 
@@ -548,7 +591,8 @@ public class SQLPlanner {
                         SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
                             index.getIndex(),
                             table.name,
-                            EqualsTo.class);
+                            EqualsTo.class
+                        );
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
                                 where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -556,32 +600,40 @@ public class SQLPlanner {
                                 where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
                             }
                             break;
+
                         } else {
                             SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, GreaterThanEquals.class);
+                                table.name, GreaterThanEquals.class
+                            );
                             if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                 rangeMin = null;
+
                             }
                             if (rangeMin == null) {
                                 rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, GreaterThan.class);
+                                    table.name, GreaterThan.class
+                                );
                                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                     rangeMin = null;
+
                                 }
                             }
 
                             SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, MinorThanEquals.class);
+                                table.name, MinorThanEquals.class
+                            );
                             if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                 rangeMax = null;
+
                             }
                             if (rangeMax == null) {
                                 rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, MinorThan.class);
+                                    table.name, MinorThan.class
+                                );
                                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                     rangeMax = null;
                                 }
@@ -650,7 +702,8 @@ public class SQLPlanner {
                         SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
                             index.getIndex(),
                             table.name,
-                            EqualsTo.class);
+                            EqualsTo.class
+                        );
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
                                 where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -658,32 +711,40 @@ public class SQLPlanner {
                                 where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
                             }
                             break;
+
                         } else {
                             SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, GreaterThanEquals.class);
+                                table.name, GreaterThanEquals.class
+                            );
                             if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                 rangeMin = null;
+
                             }
                             if (rangeMin == null) {
                                 rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, GreaterThan.class);
+                                    table.name, GreaterThan.class
+                                );
                                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                     rangeMin = null;
+
                                 }
                             }
 
                             SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, MinorThanEquals.class);
+                                table.name, MinorThanEquals.class
+                            );
                             if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                 rangeMax = null;
+
                             }
                             if (rangeMax == null) {
                                 rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, MinorThan.class);
+                                    table.name, MinorThan.class
+                                );
                                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                     rangeMax = null;
                                 }
@@ -734,10 +795,12 @@ public class SQLPlanner {
         }
 
         return null;
+
     }
 
     private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias) throws StatementExecutionException {
-        return findIndexAccess(where, table.primaryKey, table, tableAlias, EqualsTo.class);
+        return findIndexAccess(where, table.primaryKey, table, tableAlias, EqualsTo.class
+        );
     }
 
     private SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
@@ -825,7 +888,7 @@ public class SQLPlanner {
         return result;
     }
 
-    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan) throws StatementExecutionException, DataScannerException {
+    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
         String tableSpace = fromTable.getSchemaName();
@@ -890,7 +953,8 @@ public class SQLPlanner {
                             SQLRecordKeyFunction indexSeekFunction = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                 index.getIndex(),
                                 table.name,
-                                EqualsTo.class);
+                                EqualsTo.class
+                            );
                             if (indexSeekFunction != null) {
                                 if (indexSeekFunction.isFullPrimaryKey()) {
                                     where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
@@ -898,32 +962,40 @@ public class SQLPlanner {
                                     where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
                                 }
                                 break;
+
                             } else {
                                 SQLRecordKeyFunction rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, GreaterThanEquals.class);
+                                    table.name, GreaterThanEquals.class
+                                );
                                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                     rangeMin = null;
+
                                 }
                                 if (rangeMin == null) {
                                     rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                         index.getIndex(),
-                                        table.name, GreaterThan.class);
+                                        table.name, GreaterThan.class
+                                    );
                                     if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                         rangeMin = null;
+
                                     }
                                 }
 
                                 SQLRecordKeyFunction rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, MinorThanEquals.class);
+                                    table.name, MinorThanEquals.class
+                                );
                                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                     rangeMax = null;
+
                                 }
                                 if (rangeMax == null) {
                                     rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                         index.getIndex(),
-                                        table.name, MinorThan.class);
+                                        table.name, MinorThan.class
+                                    );
                                     if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                         rangeMax = null;
                                     }

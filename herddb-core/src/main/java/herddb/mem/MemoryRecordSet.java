@@ -23,6 +23,7 @@ import herddb.core.*;
 import herddb.model.Column;
 import herddb.model.Projection;
 import herddb.model.ScanLimits;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
@@ -75,14 +76,14 @@ public class MemoryRecordSet extends MaterializedRecordSet {
     }
 
     @Override
-    public void applyProjection(Projection projection) throws StatementExecutionException {
+    public void applyProjection(Projection projection, StatementEvaluationContext context) throws StatementExecutionException {
         if (!writeFinished) {
             throw new IllegalStateException("RecordSet is still in write mode");
         }
         this.columns = projection.getColumns();
         List<Tuple> projected = new ArrayList<>(size);
         for (Tuple record : buffer) {
-            projected.add(projection.map(record));
+            projected.add(projection.map(record, context));
         }
         this.buffer = projected;
     }

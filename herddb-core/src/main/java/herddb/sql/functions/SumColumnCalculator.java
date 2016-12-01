@@ -19,6 +19,7 @@
  */
 package herddb.sql.functions;
 
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import net.sf.jsqlparser.expression.Expression;
@@ -30,8 +31,8 @@ import net.sf.jsqlparser.expression.Expression;
  */
 public class SumColumnCalculator extends AbstractSingleExpressionArgumentColumnCalculator {
 
-    public SumColumnCalculator(String fieldName, Expression expression) throws StatementExecutionException {
-        super(fieldName, expression);
+    public SumColumnCalculator(String fieldName, Expression expression, StatementEvaluationContext context) throws StatementExecutionException {
+        super(fieldName, expression, context);
     }
 
     long result;

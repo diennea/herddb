@@ -36,6 +36,7 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Projection;
 import herddb.model.ScanLimits;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
@@ -114,7 +115,7 @@ public abstract class RecordSetSuite {
                 expected_s1.remove((String) t.get("s1"));
                 expected_n1.remove((Long) t.get("n1"));
                 expected_i1.remove((Integer) t.get("i1"));
-                assertEquals(ts,t.get("t1"));
+                assertEquals(ts, t.get("t1"));
                 assertNull(t.get("null1"));
             }
             assertTrue(expected_n1.isEmpty());
@@ -327,22 +328,22 @@ public abstract class RecordSetSuite {
                 }
 
                 @Override
-                public Tuple map(Tuple tuple) throws StatementExecutionException {
+                public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
                     Object[] projected_values = new Object[2];
                     projected_values[0] = tuple.get("n1");
                     projected_values[1] = tuple.get("s1");
                     return new Tuple(fieldNames_projected, projected_values);
                 }
-            });
+            }, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
             for (Tuple t : rs) {
-                System.out.println("t:"+t.toMap());
+                System.out.println("t:" + t.toMap());
                 expected_s2.remove((String) t.get("s2"));
                 expected_n2.remove((Integer) t.get("n2"));
             }
             assertTrue(expected_s2.isEmpty());
             assertTrue(expected_n2.isEmpty());
-            assertEquals("n2",rs.getColumns()[0].name);
-            assertEquals("s2",rs.getColumns()[1].name);
+            assertEquals("n2", rs.getColumns()[0].name);
+            assertEquals("s2", rs.getColumns()[1].name);
         }
 
     }
@@ -380,21 +381,21 @@ public abstract class RecordSetSuite {
                 }
 
                 @Override
-                public Tuple map(Tuple tuple) throws StatementExecutionException {
+                public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
                     Object[] projected_values = new Object[2];
                     projected_values[0] = tuple.get("n1");
                     projected_values[1] = tuple.get("s1");
                     return new Tuple(fieldNames_projected, projected_values);
                 }
-            });
+            }, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
             for (Tuple t : rs) {
                 expected_s2.remove((String) t.get("s2"));
                 expected_n2.remove((Integer) t.get("n2"));
             }
             assertTrue(expected_s2.isEmpty());
             assertTrue(expected_n2.isEmpty());
-            assertEquals("n2",rs.getColumns()[0].name);
-            assertEquals("s2",rs.getColumns()[1].name);
+            assertEquals("n2", rs.getColumns()[0].name);
+            assertEquals("s2", rs.getColumns()[1].name);
         }
 
     }

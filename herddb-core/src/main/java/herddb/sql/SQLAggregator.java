@@ -27,6 +27,7 @@ import herddb.model.Aggregator;
 import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.sql.functions.BuiltinFunctions;
@@ -87,8 +88,8 @@ public class SQLAggregator implements Aggregator {
     }
 
     @Override
-    public DataScanner aggregate(DataScanner scanner) throws StatementExecutionException {
-        return new AggregatedDataScanner(scanner);
+    public DataScanner aggregate(DataScanner scanner, StatementEvaluationContext context) throws StatementExecutionException {
+        return new AggregatedDataScanner(scanner, context);
     }
 
     private static final class Group {
@@ -108,10 +109,12 @@ public class SQLAggregator implements Aggregator {
         private final DataScanner wrapped;
 
         private DataScanner aggregatedScanner;
+        private StatementEvaluationContext context;
 
-        public AggregatedDataScanner(DataScanner wrapped) throws StatementExecutionException {
+        public AggregatedDataScanner(DataScanner wrapped, StatementEvaluationContext context) throws StatementExecutionException {
             super(wrapped.transactionId, createOutputColumns(selectItems, wrapped));
             this.wrapped = wrapped;
+            this.context = context;
         }
 
         private Bytes key(Tuple tuple) throws DataScannerException {
@@ -199,6 +202,46 @@ public class SQLAggregator implements Aggregator {
             }
         }
 
+        private Group createGroup(Bytes key) throws DataScannerException, StatementExecutionException {
+            // NO GROUP BY, aggregating the whole dataset
+            AggregatedColumnCalculator[] columns = new AggregatedColumnCalculator[selectItems.size()];
+            int i = 0;
+            for (SelectItem item : selectItems) {
+                boolean done = false;
+                if (item instanceof SelectExpressionItem) {
+                    SelectExpressionItem sei = (SelectExpressionItem) item;
+
+                    Expression expression = sei.getExpression();
+                    if (expression instanceof Function) {
+                        Function f = (Function) expression;
+                        String fieldName = f.toString();
+                        if (sei.getAlias() != null && sei.getAlias().getName() != null) {
+                            fieldName = sei.getAlias().getName();
+                        }
+                        AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(f, fieldName, context);
+                        if (calculator != null) {
+                            columns[i] = calculator;
+                            done = true;
+                        }
+                    } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
+                        net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
+                        String fieldName = c.getColumnName();
+                        if (sei.getAlias() != null && sei.getAlias().getName() != null) {
+                            fieldName = sei.getAlias().getName();
+                        }
+                        columns[i] = new ColumnValue(fieldName);
+                        done = true;
+
+                    }
+                }
+                i++;
+                if (!done) {
+                    throw new DataScannerException("unhandled aggregate function " + item);
+                }
+            }
+            return new Group(key, columns);
+        }
+
         @Override
         public boolean hasNext() throws DataScannerException {
             if (aggregatedScanner == null) {
@@ -269,46 +312,6 @@ public class SQLAggregator implements Aggregator {
             }
         }
         return columns;
-    }
-
-    private Group createGroup(Bytes key) throws DataScannerException, StatementExecutionException {
-        // NO GROUP BY, aggregating the whole dataset
-        AggregatedColumnCalculator[] columns = new AggregatedColumnCalculator[selectItems.size()];
-        int i = 0;
-        for (SelectItem item : selectItems) {
-            boolean done = false;
-            if (item instanceof SelectExpressionItem) {
-                SelectExpressionItem sei = (SelectExpressionItem) item;
-
-                Expression expression = sei.getExpression();
-                if (expression instanceof Function) {
-                    Function f = (Function) expression;
-                    String fieldName = f.toString();
-                    if (sei.getAlias() != null && sei.getAlias().getName() != null) {
-                        fieldName = sei.getAlias().getName();
-                    }
-                    AggregatedColumnCalculator calculator = BuiltinFunctions.getColumnCalculator(f, fieldName);
-                    if (calculator != null) {
-                        columns[i] = calculator;
-                        done = true;
-                    }
-                } else if (expression instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-                    String fieldName = c.getColumnName();
-                    if (sei.getAlias() != null && sei.getAlias().getName() != null) {
-                        fieldName = sei.getAlias().getName();
-                    }
-                    columns[i] = new ColumnValue(fieldName);
-                    done = true;
-
-                }
-            }
-            i++;
-            if (!done) {
-                throw new DataScannerException("unhandled aggregate function " + item);
-            }
-        }
-        return new Group(key, columns);
     }
 
 }

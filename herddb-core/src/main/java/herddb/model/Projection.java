@@ -34,7 +34,7 @@ public interface Projection {
             }
 
             @Override
-            public Tuple map(Tuple tuple) throws StatementExecutionException {
+            public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
                 return tuple;
             }
         };
@@ -54,7 +54,7 @@ public interface Projection {
             }
 
             @Override
-            public Tuple map(Tuple tuple) throws StatementExecutionException {
+            public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
                 Object[] values = new Object[columns.length];
                 for (int i = 0; i < values.length; i++) {
                     Object v = tuple.get(columns[i].name);
@@ -67,5 +67,5 @@ public interface Projection {
 
     public Column[] getColumns();
 
-    public abstract Tuple map(Tuple tuple) throws StatementExecutionException;
+    public abstract Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException;
 }

@@ -21,6 +21,7 @@ package herddb.model.predicates;
 
 import herddb.model.Column;
 import herddb.model.Projection;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
@@ -50,7 +51,7 @@ public class KeyOnlyProjection implements Projection {
     }
 
     @Override
-    public Tuple map(Tuple tuple) throws StatementExecutionException {
+    public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
         Object[] values = new Object[fieldNames.length];
         for (int i = 0; i < values.length; i++) {
             values[i] = tuple.get(fieldNames[i]);

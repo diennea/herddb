@@ -32,5 +32,5 @@ public interface Aggregator {
      * @param scanner
      * @return
      */
-    public DataScanner aggregate(DataScanner scanner) throws StatementExecutionException;
+    public DataScanner aggregate(DataScanner scanner, StatementEvaluationContext context) throws StatementExecutionException;
 }

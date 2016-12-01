@@ -22,6 +22,7 @@ package herddb.sql;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Projection;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
@@ -32,6 +33,7 @@ import java.util.Map;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
+import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
@@ -106,6 +108,8 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.LONG;
                 } else if (exp instanceof Subtraction) {
                     columType = ColumnTypes.LONG;
+                } else if (exp instanceof JdbcParameter) {
+                    columType = ColumnTypes.ANYTYPE;
                 } else {
                     throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
                 }
@@ -161,17 +165,17 @@ public class SQLProjection implements Projection {
     }
 
     @Override
-    public Tuple map(Tuple tuple) throws StatementExecutionException {
+    public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
         Map<String, Object> record = tuple.toMap();
         List<Object> values = new ArrayList<>(output.size());
         for (OutputColumn col : output) {
             Object value;
-            value = BuiltinFunctions.computeValue(col.expression, record);
+            value = BuiltinFunctions.computeValue(col.expression, record, context.getJdbcParameters());
             values.add(value);
         }
         return new Tuple(
-                fieldNames,
-                values.toArray()
+            fieldNames,
+            values.toArray()
         );
     }
 

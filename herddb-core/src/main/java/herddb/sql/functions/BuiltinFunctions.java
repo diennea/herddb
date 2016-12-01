@@ -24,6 +24,7 @@ import java.util.Map;
 
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.SQLRecordPredicate;
@@ -72,17 +73,18 @@ public class BuiltinFunctions {
         return null;
     }
 
-    public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName) throws StatementExecutionException {
+    public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName,
+        StatementEvaluationContext context) throws StatementExecutionException {
         String fuctionName = f.getName().toLowerCase();
         switch (fuctionName) {
             case COUNT:
                 return new CountColumnCalculator(fieldName);
             case SUM:
-                return new SumColumnCalculator(fieldName, f.getParameters().getExpressions().get(0));
+                return new SumColumnCalculator(fieldName, f.getParameters().getExpressions().get(0), context);
             case MIN:
-                return new MinColumnCalculator(fieldName, f.getParameters().getExpressions().get(0));
+                return new MinColumnCalculator(fieldName, f.getParameters().getExpressions().get(0), context);
             case MAX:
-                return new MaxColumnCalculator(fieldName, f.getParameters().getExpressions().get(0));
+                return new MaxColumnCalculator(fieldName, f.getParameters().getExpressions().get(0), context);
             default:
                 return null;
         }
