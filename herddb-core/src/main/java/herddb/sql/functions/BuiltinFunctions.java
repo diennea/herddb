@@ -129,10 +129,10 @@ public class BuiltinFunctions {
     }
 
     public static Object computeValue(Expression exp, Map<String, Object> record) throws StatementExecutionException {
-        return computeValue(exp, record, null, null);
+        return computeValue(exp, record, null);
     }
-    
-    public static Object computeValue(Expression exp, Map<String, Object> record, List<Object> jdbcParameters, IntHolder jdbcParameterPos) throws StatementExecutionException {
+
+    public static Object computeValue(Expression exp, Map<String, Object> record, List<Object> jdbcParameters) throws StatementExecutionException {
         Object value;
         if (exp instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
@@ -145,16 +145,16 @@ public class BuiltinFunctions {
             value = ((TimestampValue) exp).getValue();
         } else if (exp instanceof Function) {
             Function f = (Function) exp;
-            value = computeFunction(f, record, jdbcParameters, jdbcParameterPos);
+            value = computeFunction(f, record, jdbcParameters);
         } else if (exp instanceof Addition) {
             Addition add = (Addition) exp;
-            Object left = computeValue(add.getLeftExpression(), record, jdbcParameters, jdbcParameterPos);
-            Object right = computeValue(add.getRightExpression(), record, jdbcParameters, jdbcParameterPos);
+            Object left = computeValue(add.getLeftExpression(), record, jdbcParameters);
+            Object right = computeValue(add.getRightExpression(), record, jdbcParameters);
             return SQLRecordPredicate.add(left, right);
         } else if (exp instanceof Subtraction) {
             Subtraction add = (Subtraction) exp;
-            Object left = computeValue(add.getLeftExpression(), record, jdbcParameters, jdbcParameterPos);
-            Object right = computeValue(add.getRightExpression(), record, jdbcParameters, jdbcParameterPos);
+            Object left = computeValue(add.getLeftExpression(), record, jdbcParameters);
+            Object right = computeValue(add.getRightExpression(), record, jdbcParameters);
             return SQLRecordPredicate.subtract(left, right);
         } else if (exp instanceof TimeKeyExpression) {
             TimeKeyExpression ext = (TimeKeyExpression) exp;
@@ -164,22 +164,22 @@ public class BuiltinFunctions {
                 throw new StatementExecutionException("unhandled expression " + exp);
             }
         } else if (exp instanceof JdbcParameter) {
-            if (jdbcParameters == null || jdbcParameterPos == null) {
+            if (jdbcParameters == null) {
                 throw new StatementExecutionException("jdbcparameter expression without parameters");
             }
-            
-            if (jdbcParameters.size() < jdbcParameterPos.value)
-                throw new StatementExecutionException("jdbcparameter wrong argument count: expected at least " +
-                    jdbcParameterPos.value + " got " + jdbcParameters.size());
-            
-            return jdbcParameters.get(jdbcParameterPos.value++);
+            int index = ((JdbcParameter) exp).getIndex();
+            if (jdbcParameters.size() < index) {
+                throw new StatementExecutionException("jdbcparameter wrong argument count: expected at least "
+                    + index + " got " + jdbcParameters.size());
+            }
+            return jdbcParameters.get(index);
         } else {
             throw new StatementExecutionException("unhandled expression type " + exp.getClass() + ": " + exp);
         }
         return value;
     }
 
-    public static Object computeFunction(Function f, Map<String, Object> record, List<Object> jdbcParameters, IntHolder jdbcParameterPos) throws StatementExecutionException {
+    public static Object computeFunction(Function f, Map<String, Object> record, List<Object> jdbcParameters) throws StatementExecutionException {
         String name = f.getName().toLowerCase();
         switch (name) {
             case BuiltinFunctions.COUNT:
@@ -189,14 +189,14 @@ public class BuiltinFunctions {
                 // AGGREGATED FUNCTION
                 return null;
             case BuiltinFunctions.LOWER: {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record, jdbcParameters, jdbcParameterPos);
+                Object computed = computeValue(f.getParameters().getExpressions().get(0), record, jdbcParameters);
                 if (computed == null) {
                     return null;
                 }
                 return computed.toString().toLowerCase();
             }
             case BuiltinFunctions.UPPER: {
-                Object computed = computeValue(f.getParameters().getExpressions().get(0), record, jdbcParameters, jdbcParameterPos);
+                Object computed = computeValue(f.getParameters().getExpressions().get(0), record, jdbcParameters);
                 if (computed == null) {
                     return null;
                 }

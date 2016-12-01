@@ -219,6 +219,7 @@ public class SQLPlanner {
         try {
             ExecutionPlan result;
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
+            assignJdbcParametersIndexes(stmt);
             if (stmt instanceof CreateTable) {
                 result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
             } else if (stmt instanceof CreateIndex) {
@@ -455,8 +456,7 @@ public class SQLPlanner {
         List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
 
         int index = 0;
-        int countJdbcParametersBeforeKey = -1;
-        int countJdbcParameters = 0;
+
         ExpressionList list = (ExpressionList) s.getItemsList();
         if (s.getColumns() != null) {
             for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
@@ -474,13 +474,10 @@ public class SQLPlanner {
                 if (table.isPrimaryKeyColumn(column.name)) {
                     keyExpressionToColumn.add(column.name);
                     keyValueExpression.add(expression);
-                    if (countJdbcParametersBeforeKey < 0) {
-                        countJdbcParametersBeforeKey = countJdbcParameters;
-                    }
+
                 }
                 valuesColumns.add(c);
                 valuesExpressions.add(expression);
-                countJdbcParameters += countJdbcParametersUsedByExpression(expression);
             }
         } else {
             for (Column column : table.columns) {
@@ -489,19 +486,11 @@ public class SQLPlanner {
                 if (table.isPrimaryKeyColumn(column.name)) {
                     keyExpressionToColumn.add(column.name);
                     keyValueExpression.add(expression);
-                    if (countJdbcParametersBeforeKey < 0) {
-                        countJdbcParametersBeforeKey = countJdbcParameters;
-                    }
                 }
                 valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
                 valuesExpressions.add(expression);
-                countJdbcParameters += countJdbcParametersUsedByExpression(expression);
             }
         }
-        if (countJdbcParametersBeforeKey < 0) {
-            countJdbcParametersBeforeKey = 0;
-        }
-
         RecordFunction keyfunction;
         if (keyValueExpression.isEmpty() && table.auto_increment) {
             keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
@@ -509,7 +498,7 @@ public class SQLPlanner {
             if (keyValueExpression.size() != table.primaryKey.length) {
                 throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
             }
-            keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression, countJdbcParametersBeforeKey);
+            keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
         }
         RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
 
@@ -538,9 +527,9 @@ public class SQLPlanner {
         Table table = tableManager.getTable();
 
         // Perform a scan and then delete each row
-        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), 0) : null;
+        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
         if (where != null) {
-            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new IntHolder());
+            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name);
             if (keyFunction != null) {
                 if (keyFunction.isFullPrimaryKey()) {
                     where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
@@ -558,7 +547,7 @@ public class SQLPlanner {
                         String[] columnsToMatch = index.getColumnNames();
                         SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
                             index.getIndex(),
-                            table.name, new IntHolder(),
+                            table.name,
                             EqualsTo.class);
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
@@ -570,14 +559,14 @@ public class SQLPlanner {
                         } else {
                             SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new IntHolder(), GreaterThanEquals.class);
+                                table.name, GreaterThanEquals.class);
                             if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                 rangeMin = null;
                             }
                             if (rangeMin == null) {
                                 rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(), GreaterThan.class);
+                                    table.name, GreaterThan.class);
                                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                     rangeMin = null;
                                 }
@@ -585,14 +574,14 @@ public class SQLPlanner {
 
                             SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new IntHolder(), MinorThanEquals.class);
+                                table.name, MinorThanEquals.class);
                             if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                 rangeMax = null;
                             }
                             if (rangeMax == null) {
                                 rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(), MinorThan.class);
+                                    table.name, MinorThan.class);
                                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                     rangeMax = null;
                                 }
@@ -614,32 +603,6 @@ public class SQLPlanner {
 
     }
 
-    private int countJDBCParameters(List<Expression> expressions) {
-        int partial = 0;
-        
-        for(Expression expression : expressions) {
-            partial = countJDBCParameters(expression, partial);
-        }
-        
-        return partial;
-    }
-    
-    private int countJDBCParameters( Expression expression, int partial ) {
-        
-        if ( expression instanceof JdbcParameter )
-            return partial + 1;
-        
-        if ( expression instanceof BinaryExpression ) {
-            BinaryExpression binary = (BinaryExpression) expression;
-            
-            partial = countJDBCParameters(binary.getLeftExpression(), partial);
-            
-            return countJDBCParameters(binary.getRightExpression(), partial);
-        }
-        
-        return partial;
-    }
-    
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
@@ -664,12 +627,11 @@ public class SQLPlanner {
         }
 
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
-        int setClauseParamters = countJDBCParameters(s.getExpressions());
 
         // Perform a scan and then update each row
-        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere(), setClauseParamters) : null;
+        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
         if (where != null) {
-            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name, new IntHolder(setClauseParamters));
+            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name);
             if (keyFunction != null) {
                 if (keyFunction.isFullPrimaryKey()) {
                     where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
@@ -687,7 +649,7 @@ public class SQLPlanner {
                         String[] columnsToMatch = index.getColumnNames();
                         SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
                             index.getIndex(),
-                            table.name, new IntHolder(setClauseParamters),
+                            table.name,
                             EqualsTo.class);
                         if (indexSeekFunction != null) {
                             if (indexSeekFunction.isFullPrimaryKey()) {
@@ -699,14 +661,14 @@ public class SQLPlanner {
                         } else {
                             SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new IntHolder(setClauseParamters), GreaterThanEquals.class);
+                                table.name, GreaterThanEquals.class);
                             if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                 rangeMin = null;
                             }
                             if (rangeMin == null) {
                                 rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(setClauseParamters), GreaterThan.class);
+                                    table.name, GreaterThan.class);
                                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                     rangeMin = null;
                                 }
@@ -714,14 +676,14 @@ public class SQLPlanner {
 
                             SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new IntHolder(setClauseParamters), MinorThanEquals.class);
+                                table.name, MinorThanEquals.class);
                             if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                 rangeMax = null;
                             }
                             if (rangeMax == null) {
                                 rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(setClauseParamters), MinorThan.class);
+                                    table.name, MinorThan.class);
                                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                     rangeMax = null;
                                 }
@@ -742,92 +704,30 @@ public class SQLPlanner {
 
     }
 
-    private Predicate buildSimplePredicate(Expression where, Table table, String tableAlias, int parameterPos) {
+    private Predicate buildSimplePredicate(Expression where, Table table, String tableAlias) {
         if (where instanceof EqualsTo || where == null) {
             // surely this is the only predicate on the PK, we can skip it
             return null;
         }
-        return new SQLRecordPredicate(table, tableAlias, where, parameterPos);
+        return new SQLRecordPredicate(table, tableAlias, where);
 
     }
 
-    private int countJdbcParametersUsedByExpression(Expression e) throws StatementExecutionException {
-        if (e == null) {
-            return 0;
-        }
-        if (e instanceof net.sf.jsqlparser.schema.Column
-            || e instanceof StringValue
-            || e instanceof NullValue
-            || e instanceof TimeKeyExpression
-            || e instanceof TimestampValue
-            || e instanceof LongValue) {
-            return 0;
-        }
-        if (e instanceof BinaryExpression) {
-            BinaryExpression bi = (BinaryExpression) e;
-            return countJdbcParametersUsedByExpression(bi.getLeftExpression()) + countJdbcParametersUsedByExpression(bi.getRightExpression());
-        }
-        if (e instanceof JdbcParameter) {
-            return 1;
-        }
-        if (e instanceof Parenthesis) {
-            return countJdbcParametersUsedByExpression(((Parenthesis) e).getExpression());
-        }
-        if (e instanceof Function) {
-            int count = 0;
-            Function f = (Function) e;
-            if (f.getParameters() != null && f.getParameters().getExpressions() != null) {
-                for (Expression ex : f.getParameters().getExpressions()) {
-                    count += countJdbcParametersUsedByExpression(ex);
-                }
-            }
-            return count;
-        }
-        if (e instanceof InExpression) {
-            int count = 0;
-            InExpression in = (InExpression) e;
-            count += countJdbcParametersUsedByExpression(in.getLeftExpression());
-            if (in.getLeftItemsList() != null) {
-                ItemsList list = in.getRightItemsList();
-                if (list instanceof SubSelect) {
-                    throw new StatementExecutionException("unsupported IN clause " + e);
-                } else if (list instanceof ExpressionList) {
-                    ExpressionList el = (ExpressionList) list;
-                    if (el.getExpressions() != null) {
-                        for (Expression ex : el.getExpressions()) {
-                            count += countJdbcParametersUsedByExpression(ex);
-                        }
-                    }
-                } else {
-                    throw new StatementExecutionException("unsupported IN clause " + e);
-                }
-            }
-            return count;
-        }
-        throw new StatementExecutionException("unsupported expression type " + e.getClass() + " (" + e + ")");
-    }
-
-    private Expression findConstraintOnColumn(Expression where, String columnName, String tableAlias, IntHolder jdbcParameterPos, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+    private Expression findConstraintOnColumn(Expression where, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
-            Expression keyOnLeft = findConstraintOnColumn(and.getLeftExpression(), columnName, tableAlias,
-                jdbcParameterPos, expressionType);
+            Expression keyOnLeft = findConstraintOnColumn(and.getLeftExpression(), columnName, tableAlias, expressionType);
             if (keyOnLeft != null) {
                 return keyOnLeft;
             }
-            int countJdbcParametersUsedByLeft = countJdbcParametersUsedByExpression(and.getLeftExpression());
-            
-            IntHolder other = new IntHolder(jdbcParameterPos.value + countJdbcParametersUsedByLeft);
+
             Expression keyOnRight = findConstraintOnColumn(and.getRightExpression(), columnName, tableAlias,
-                other, expressionType);
+                expressionType);
             if (keyOnRight != null) {
-                if (keyOnRight instanceof JdbcParameter) {
-                    jdbcParameterPos.value = other.value;
-                }
                 return keyOnRight;
             }
         } else if (expressionType.equals(where.getClass())) {
-            Expression keyDirect = validateColumnConstaintToExpression(where, columnName, tableAlias, jdbcParameterPos, expressionType);
+            Expression keyDirect = validateColumnConstaintToExpression(where, columnName, tableAlias, expressionType);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -836,32 +736,28 @@ public class SQLPlanner {
         return null;
     }
 
-    private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias, IntHolder jdbcParameterPos) throws StatementExecutionException {
-        return findIndexAccess(where, table.primaryKey, table, tableAlias, jdbcParameterPos, EqualsTo.class);
+    private SQLRecordKeyFunction findPrimaryKeyIndexSeek(Expression where, Table table, String tableAlias) throws StatementExecutionException {
+        return findIndexAccess(where, table.primaryKey, table, tableAlias, EqualsTo.class);
     }
 
-    private SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, IntHolder jdbcParameterPos, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+    private SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         List<Expression> expressions = new ArrayList<>();
         List<String> columns = new ArrayList<>();
-        int jdbcParametersStartPos = Integer.MAX_VALUE;
+
         for (String pk : columnsToMatch) {
-            IntHolder position = new IntHolder(jdbcParameterPos.value);
-            Expression condition = findConstraintOnColumn(where, pk, tableAlias, position, expressionType);
+            Expression condition = findConstraintOnColumn(where, pk, tableAlias, expressionType);
             if (condition == null) {
                 break;
             }
             columns.add(pk);
             expressions.add(condition);
-            
-            if (position.value < jdbcParametersStartPos) {
-                jdbcParametersStartPos = position.value;
-            }
+
         }
         if (expressions.isEmpty()) {
             // no match at all, there is no direct constraint on PK
             return null;
         }
-        return new SQLRecordKeyFunction(table, columns, expressions, jdbcParametersStartPos);
+        return new SQLRecordKeyFunction(table, columns, expressions);
     }
 
     private Object resolveValue(Expression expression) throws StatementExecutionException {
@@ -901,7 +797,7 @@ public class SQLPlanner {
         }
     }
 
-    private Expression validateColumnConstaintToExpression(Expression testExpression, String columnName, String tableAlias, IntHolder jdbcParameterPos, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+    private Expression validateColumnConstaintToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         Expression result = null;
         if (expressionType.equals(testExpression.getClass())) {
             BinaryExpression e = (BinaryExpression) testExpression;
@@ -915,12 +811,12 @@ public class SQLPlanner {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintOnColumn((AndExpression) e.getLeftExpression(), columnName, tableAlias, jdbcParameterPos, expressionType);
+                result = findConstraintOnColumn((AndExpression) e.getLeftExpression(), columnName, tableAlias, expressionType);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintOnColumn((AndExpression) e.getRightExpression(), columnName, tableAlias, jdbcParameterPos, expressionType);
+                result = findConstraintOnColumn((AndExpression) e.getRightExpression(), columnName, tableAlias, expressionType);
                 if (result != null) {
                     return result;
                 }
@@ -973,9 +869,9 @@ public class SQLPlanner {
         }
         if (scan) {
 
-            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere(), 0) : null;
+            Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, tableAlias, selectBody.getWhere()) : null;
             if (where != null) {
-                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias, new IntHolder());
+                SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias);
                 if (keyFunction != null) {
                     if (keyFunction.isFullPrimaryKey()) {
                         where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
@@ -993,7 +889,7 @@ public class SQLPlanner {
                             String[] columnsToMatch = index.getColumnNames();
                             SQLRecordKeyFunction indexSeekFunction = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                 index.getIndex(),
-                                table.name, new IntHolder(),
+                                table.name,
                                 EqualsTo.class);
                             if (indexSeekFunction != null) {
                                 if (indexSeekFunction.isFullPrimaryKey()) {
@@ -1005,14 +901,14 @@ public class SQLPlanner {
                             } else {
                                 SQLRecordKeyFunction rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(), GreaterThanEquals.class);
+                                    table.name, GreaterThanEquals.class);
                                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                     rangeMin = null;
                                 }
                                 if (rangeMin == null) {
                                     rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                         index.getIndex(),
-                                        table.name, new IntHolder(), GreaterThan.class);
+                                        table.name, GreaterThan.class);
                                     if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                                         rangeMin = null;
                                     }
@@ -1020,14 +916,14 @@ public class SQLPlanner {
 
                                 SQLRecordKeyFunction rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                     index.getIndex(),
-                                    table.name, new IntHolder(), MinorThanEquals.class);
+                                    table.name, MinorThanEquals.class);
                                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                     rangeMax = null;
                                 }
                                 if (rangeMax == null) {
                                     rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
                                         index.getIndex(),
-                                        table.name, new IntHolder(), MinorThan.class);
+                                        table.name, MinorThan.class);
                                     if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                                         rangeMax = null;
                                     }
@@ -1102,12 +998,12 @@ public class SQLPlanner {
                 throw new StatementExecutionException("unsupported GET without WHERE");
             }
             // SELECT * FROM WHERE KEY=? AND ....
-            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias, new IntHolder());
+            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, tableAlias);
             if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
                 throw new StatementExecutionException("unsupported where " + selectBody.getWhere() + " " + selectBody.getWhere().getClass());
             }
 
-            Predicate where = buildSimplePredicate(selectBody.getWhere(), table, tableAlias, 0);
+            Predicate where = buildSimplePredicate(selectBody.getWhere(), table, tableAlias);
 
             try {
                 return ExecutionPlan.simple(new GetStatement(tableSpace, tableName, keyFunction, where));
@@ -1356,5 +1252,9 @@ public class SQLPlanner {
         }
         throw new StatementExecutionException("unsupported function " + name);
     }
-    
+
+    private void assignJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
+        stmt.accept(new JdbcParameterIndexAssigner());
+    }
+
 }

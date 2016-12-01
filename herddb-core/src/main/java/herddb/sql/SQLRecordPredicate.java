@@ -79,25 +79,21 @@ public class SQLRecordPredicate extends Predicate {
     private final Table table;
     private final String tableAlias;
     private final Expression where;
-    private final int firstParameterPos;
 
     private class EvaluationState {
 
-        int parameterPos;
         final List<Object> parameters;
         final SQLStatementEvaluationContext sqlContext;
 
-        public EvaluationState(int parameterPos, List<Object> parameters, SQLStatementEvaluationContext sqlContext) {
-            this.parameterPos = parameterPos;
+        public EvaluationState(List<Object> parameters, SQLStatementEvaluationContext sqlContext) {
             this.parameters = parameters;
             this.sqlContext = sqlContext;
         }
     }
 
-    public SQLRecordPredicate(Table table, String tableAlias, Expression where, int parameterPos) {
+    public SQLRecordPredicate(Table table, String tableAlias, Expression where) {
         this.table = table;
         this.where = where;
-        this.firstParameterPos = parameterPos;
         this.tableAlias = tableAlias;
     }
 
@@ -105,7 +101,7 @@ public class SQLRecordPredicate extends Predicate {
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = record.toBean(table);
-        EvaluationState state = new EvaluationState(firstParameterPos, sqlContext.jdbcParameters, sqlContext);
+        EvaluationState state = new EvaluationState(sqlContext.jdbcParameters, sqlContext);
         return toBoolean(evaluateExpression(where, bean, state));
     }
 
@@ -214,7 +210,8 @@ public class SQLRecordPredicate extends Predicate {
 
     private Object evaluateExpression(Expression expression, Map<String, Object> bean, EvaluationState state) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
-            return state.parameters.get(state.parameterPos++);
+            int index = ((JdbcParameter) expression).getIndex();
+            return state.parameters.get(index);
         }
         if (expression instanceof AndExpression) {
             AndExpression a = (AndExpression) expression;
@@ -403,7 +400,7 @@ public class SQLRecordPredicate extends Predicate {
 
     @Override
     public String toString() {
-        return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + tableAlias + ", where=" + where + ", firstParameterPos=" + firstParameterPos + ",indexOp=" + getIndexOperation() + '}';
+        return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + tableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
     }
 
 }

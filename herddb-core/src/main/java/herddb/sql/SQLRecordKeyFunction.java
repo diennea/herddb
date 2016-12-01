@@ -48,13 +48,11 @@ public class SQLRecordKeyFunction extends RecordFunction {
     private final List<Expression> expressions;
     private final herddb.model.Column[] columns;
     private final String[] pkColumnNames;
-    private final int jdbcParametersStartPos;
     private final ColumnsList table;
     private final boolean fullPrimaryKey;
     private final boolean isConstant;
 
-    public SQLRecordKeyFunction(ColumnsList table, List<String> expressionToColumn, List<Expression> expressions, int jdbcParametersStartPos) {
-        this.jdbcParametersStartPos = jdbcParametersStartPos;
+    public SQLRecordKeyFunction(ColumnsList table, List<String> expressionToColumn, List<Expression> expressions) {
         this.table = table;
         this.columns = new Column[expressions.size()];
         this.expressions = new ArrayList<>();
@@ -97,17 +95,17 @@ public class SQLRecordKeyFunction extends RecordFunction {
             }
         }
 
-        int paramIndex = jdbcParametersStartPos;
         Map<String, Object> pk = new HashMap<>();
         for (int i = 0; i < expressions.size(); i++) {
             herddb.model.Column c = columns[i];
             Expression expression = expressions.get(i);
             Object value;
             if (expression instanceof JdbcParameter) {
+                int index = ((JdbcParameter) expression).getIndex();
                 try {
-                    value = statementEvaluationContext.jdbcParameters.get(paramIndex++);
+                    value = statementEvaluationContext.jdbcParameters.get(index);
                 } catch (IndexOutOfBoundsException missingParam) {
-                    throw new StatementExecutionException("missing JDBC parameter");
+                    throw new StatementExecutionException("missing JDBC parameter " + index);
                 }
             } else if (expression instanceof LongValue) {
                 value = ((LongValue) expression).getValue();
