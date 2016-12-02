@@ -46,6 +46,7 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.client.TableSpaceDumpReceiver;
+import herddb.core.stats.TableManagerStats;
 import herddb.core.system.SysclientsTableManager;
 import herddb.core.system.SyscolumnsTableManager;
 import herddb.core.system.SysconfigTableManager;
@@ -54,6 +55,7 @@ import herddb.core.system.SysnodesTableManager;
 import herddb.core.system.SystablesTableManager;
 import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
+import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
@@ -156,6 +158,7 @@ public class TableSpaceManager {
             registerSystemTableManager(new SysclientsTableManager(this));
         } else {
             registerSystemTableManager(new SystablesTableManager(this));
+            registerSystemTableManager(new SystablestatsTableManager(this));
             registerSystemTableManager(new SysindexesTableManager(this));
             registerSystemTableManager(new SyscolumnsTableManager(this));
             registerSystemTableManager(new SystransactionsTableManager(this));
@@ -557,12 +560,10 @@ public class TableSpaceManager {
     }
 
     public List<Table> getAllCommittedTables() {
-        generalLock.readLock().lock();
-        try {
-            return tables.values().stream().filter(s -> s.getCreatedInTransaction() == 0).map(AbstractTableManager::getTable).collect(Collectors.toList());
-        } finally {
-            generalLock.readLock().unlock();
-        }
+        // No LOCK is necessary, since tables is a concurrent map and this function is only for
+        // system monitoring
+        return tables.values().stream().filter(s -> s.getCreatedInTransaction() == 0).map(AbstractTableManager::getTable).collect(Collectors.toList());
+
     }
 
     private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
@@ -654,8 +655,8 @@ public class TableSpaceManager {
         }
 
         @Override
-        public void beginTable(Table table) throws DataStorageManagerException {
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name);
+        public void beginTable(Table table, Map<String, Object> stats) throws DataStorageManagerException {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats);
             dataStorageManager.dropTable(tableSpaceUUID, table.name);
             currentTable = bootTable(table, 0);
         }
@@ -689,8 +690,10 @@ public class TableSpaceManager {
                 Table table = tableManager.getTable();
                 byte[] serialized = table.serialize();
                 Map<String, Object> beginTableData = new HashMap<>();
+                TableManagerStats stats = tableManager.getStats();
                 beginTableData.put("command", "beginTable");
                 beginTableData.put("table", serialized);
+                beginTableData.put("estimatedSize", stats.getTablesize());
                 _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, beginTableData), timeout);
 
                 List<KeyValue> batch = new ArrayList<>();
@@ -825,7 +828,7 @@ public class TableSpaceManager {
             throw new StatementExecutionException("executeStatement not available on virtual tablespaces");
         }
         boolean rollbackOnError = false;
-        
+
         /* Do not autostart transaction on alter table statements */
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID && statement.supportsTransactionAutoCreate()) {
             StatementExecutionResult newTransaction = beginTransaction();

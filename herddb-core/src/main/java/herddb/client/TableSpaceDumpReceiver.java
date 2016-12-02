@@ -24,6 +24,7 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.storage.DataStorageManagerException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Receives a full dump of a TableSpace
@@ -35,7 +36,7 @@ public class TableSpaceDumpReceiver {
     public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
     }
 
-    public void beginTable(Table table) throws DataStorageManagerException {
+    public void beginTable(Table table, Map<String,Object> stats) throws DataStorageManagerException {
     }
 
     public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {

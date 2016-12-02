@@ -20,6 +20,7 @@
 package herddb.core;
 
 import static herddb.core.TestUtils.scan;
+import herddb.file.FileMetadataStorageManager;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -35,6 +36,8 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.TableSpace;
 import herddb.model.Tuple;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
 /**
  *
@@ -47,6 +50,29 @@ public class SysnodesTest {
     public void listNodesTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM SYSNODES", Collections.emptyList());) {
+                List<Tuple> tuples = scan.consume();
+                assertEquals(1, tuples.size());
+                for (Tuple t : tuples) {
+                    System.out.println("node: " + t.toMap());
+                    assertNotNull(t.get("nodeid"));
+                    assertNotNull(t.get("address"));
+                }
+            }
+        }
+    }
+
+    @Rule
+    public TemporaryFolder tmpFolder = new TemporaryFolder();
+
+    @Test
+    public void listNodesFileManagerTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager(nodeId, new FileMetadataStorageManager(tmpFolder.getRoot().toPath()),
+            new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 

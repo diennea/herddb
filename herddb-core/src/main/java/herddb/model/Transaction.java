@@ -26,7 +26,6 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import java.io.IOException;
-import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -47,9 +46,9 @@ public class Transaction {
     public final long transactionId;
     public final String tableSpace;
     public final Map<String, Map<Bytes, LockHandle>> locks;
-    public final Map<String, List<Record>> changedRecords;
-    public final Map<String, List<Record>> newRecords;
-    public final Map<String, List<Bytes>> deletedRecords;
+    public final Map<String, Map<Bytes, Record>> changedRecords;
+    public final Map<String, Map<Bytes, Record>> newRecords;
+    public final Map<String, Set<Bytes>> deletedRecords;
     public Map<String, Table> newTables;
     public Map<String, Index> newIndexes;
     public Set<String> droppedTables;
@@ -120,14 +119,14 @@ public class Transaction {
             return;
         }
         this.lastSequenceNumber = sequenceNumber;
-        List<Record> ll = newRecords.get(tableName);
+        Map<Bytes, Record> ll = newRecords.get(tableName);
         if (ll == null) {
-            ll = new ArrayList<>();
+            ll = new HashMap<>();
             newRecords.put(tableName, ll);
         }
-        ll.add(new Record(key, value));
+        ll.put(key, new Record(key, value));
 
-        List<Bytes> deleted = deletedRecords.get(tableName);
+        Set<Bytes> deleted = deletedRecords.get(tableName);
         if (deleted != null) {
             deleted.remove(key);
         }
@@ -167,30 +166,15 @@ public class Transaction {
             return;
         }
         this.lastSequenceNumber = sequenceNumber;
-        List<Record> ll = changedRecords.get(tableName);
+        Map<Bytes, Record> ll = changedRecords.get(tableName);
         if (ll == null) {
-            ll = new ArrayList<>();
+            ll = new HashMap<>();
             changedRecords.put(tableName, ll);
         }
-
-        for (int i = 0; i < ll.size(); i++) {
-            Record r = ll.get(i);
-            if (r.key.equals(key)) {
-                if (value == null) {
-                    // DELETE
-                    ll.remove(i);
-                    return;
-                } else {
-                    // MULTIPLE UPDATE ON SAME KEY
-                    ll.set(i, new Record(key, value));
-                    return;
-                }
-            }
-        }
-        if (value != null) {
-            // FIRST UPDATE OF A KEY IN CURRENT TRANSACTION
-            // record was not found in current transaction buffer
-            ll.add(new Record(key, value));
+        if (value == null) {
+            ll.remove(key);
+        } else {
+            ll.put(key, new Record(key, value));
         }
     }
 
@@ -200,51 +184,44 @@ public class Transaction {
         }
         registerRecordUpdate(tableName, key, null, sequenceNumber);
 
-        List<Bytes> ll = deletedRecords.get(tableName);
+        Set<Bytes> ll = deletedRecords.get(tableName);
         if (ll == null) {
-            ll = new ArrayList<>();
+            ll = new HashSet<>();
             deletedRecords.put(tableName, ll);
-        }
-        for (int i = 0; i < ll.size(); i++) {
-            Bytes r = ll.get(i);
-            if (r.equals(key)) {
-                //already tracked the delete
-                break;
-            }
         }
         ll.add(key);
     }
 
     public boolean recordDeleted(String tableName, Bytes key) {
-        List<Bytes> deleted = deletedRecords.get(tableName);
+        Set<Bytes> deleted = deletedRecords.get(tableName);
         return deleted != null && deleted.contains(key);
 
     }
 
     public Record recordInserted(String tableName, Bytes key) {
-        List<Record> inserted = newRecords.get(tableName);
+        Map<Bytes, Record> inserted = newRecords.get(tableName);
         if (inserted == null) {
             return null;
         }
-        return inserted.stream().filter(r -> r.key.equals(key)).findAny().orElse(null);
+        return inserted.get(key);
 
     }
 
     public Record recordUpdated(String tableName, Bytes key) {
-        List<Record> updated = changedRecords.get(tableName);
+        Map<Bytes, Record> updated = changedRecords.get(tableName);
         if (updated == null) {
             return null;
         }
-        return updated.stream().filter(r -> r.key.equals(key)).findAny().orElse(null);
+        return updated.get(key);
 
     }
 
     public Iterable<Record> getNewRecordsForTable(String tableName) {
-        List<Record> inserted = newRecords.get(tableName);
+        Map<Bytes, Record> inserted = newRecords.get(tableName);
         if (inserted == null) {
             return Collections.emptyList();
         } else {
-            return inserted;
+            return inserted.values();
         }
     }
 
@@ -297,25 +274,25 @@ public class Transaction {
         out.writeLong(lastSequenceNumber.ledgerId);
         out.writeLong(lastSequenceNumber.offset);
         out.writeVInt(changedRecords.size());
-        for (Map.Entry<String, List<Record>> table : changedRecords.entrySet()) {
+        for (Map.Entry<String, Map<Bytes, Record>> table : changedRecords.entrySet()) {
             out.writeUTF(table.getKey());
             out.writeVInt(table.getValue().size());
-            for (Record r : table.getValue()) {
+            for (Record r : table.getValue().values()) {
                 out.writeArray(r.key.data);
                 out.writeArray(r.value.data);
             }
         }
         out.writeVInt(newRecords.size());
-        for (Map.Entry<String, List<Record>> table : newRecords.entrySet()) {
+        for (Map.Entry<String, Map<Bytes, Record>> table : newRecords.entrySet()) {
             out.writeUTF(table.getKey());
             out.writeVInt(table.getValue().size());
-            for (Record r : table.getValue()) {
+            for (Record r : table.getValue().values()) {
                 out.writeArray(r.key.data);
                 out.writeArray(r.value.data);
             }
         }
         out.writeVInt(deletedRecords.size());
-        for (Map.Entry<String, List<Bytes>> table : deletedRecords.entrySet()) {
+        for (Map.Entry<String, Set<Bytes>> table : deletedRecords.entrySet()) {
             out.writeUTF(table.getKey());
             out.writeVInt(table.getValue().size());
             for (Bytes key : table.getValue()) {
@@ -368,11 +345,13 @@ public class Transaction {
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();
             int numRecords = in.readVInt();
-            List<Record> records = new ArrayList<>(numRecords);
+            Map<Bytes, Record> records = new HashMap<>();
             for (int k = 0; k < numRecords; k++) {
                 byte[] key = in.readArray();
                 byte[] value = in.readArray();
-                records.add(new Record(Bytes.from_array(key), Bytes.from_array(value)));
+                Bytes bKey = Bytes.from_array(key);
+                Record record = new Record(bKey, Bytes.from_array(value));
+                records.put(bKey, record);
             }
             t.changedRecords.put(table, records);
         }
@@ -380,11 +359,13 @@ public class Transaction {
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();
             int numRecords = in.readVInt();
-            List<Record> records = new ArrayList<>(numRecords);
+            Map<Bytes, Record> records = new HashMap<>();
             for (int k = 0; k < numRecords; k++) {
                 byte[] key = in.readArray();
                 byte[] value = in.readArray();
-                records.add(new Record(Bytes.from_array(key), Bytes.from_array(value)));
+                Bytes bKey = Bytes.from_array(key);
+                Record record = new Record(bKey, Bytes.from_array(value));
+                records.put(bKey, record);
             }
             t.newRecords.put(table, records);
         }
@@ -392,7 +373,7 @@ public class Transaction {
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();
             int numRecords = in.readVInt();
-            List<Bytes> records = new ArrayList<>(numRecords);
+            Set<Bytes> records = new HashSet<>();
             for (int k = 0; k < numRecords; k++) {
                 byte[] key = in.readArray();
                 records.add(Bytes.from_array(key));

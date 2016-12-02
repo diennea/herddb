@@ -35,10 +35,10 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import static java.sql.DriverManager.println;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import javax.xml.ws.Holder;
 
@@ -49,34 +49,38 @@ import javax.xml.ws.Holder;
  */
 public class BackupUtils {
 
-    public static void dumpTableSpace(String schema, HDBConnection connection, OutputStream fout) throws Exception {
+    public static void dumpTableSpace(String schema, int fetchSize, HDBConnection connection, OutputStream fout, ProgressListener listener) throws Exception {
         try (ExtendedDataOutputStream eout = new ExtendedDataOutputStream(fout)) {
-            dumpTablespace(schema, connection, eout);
+            dumpTablespace(schema, fetchSize, connection, eout, listener);
         }
     }
 
-    private static void dumpTablespace(String schema, HDBConnection hdbconnection, ExtendedDataOutputStream out) throws Exception {
+    private static void dumpTablespace(String schema, int fetchSize, HDBConnection hdbconnection, ExtendedDataOutputStream out, ProgressListener listener) throws Exception {
 
         Holder<Throwable> errorHolder = new Holder<>();
         CountDownLatch waiter = new CountDownLatch(1);
         hdbconnection.dumpTableSpace(schema, new TableSpaceDumpReceiver() {
 
-            long tableCount;
+            long tableRecordsCount;
+            String currentTable;
 
             @Override
             public void onError(Throwable error) throws DataStorageManagerException {
+                listener.log("Fatal error: " + error, Collections.singletonMap("error", error));
                 errorHolder.value = error;
                 waiter.countDown();
             }
 
             @Override
             public void finish() throws DataStorageManagerException {
+                listener.log("Dump finished for tablespace " + schema, Collections.singletonMap("tablespace", schema));
                 waiter.countDown();
             }
 
             @Override
             public void endTable() throws DataStorageManagerException {
-                println("endTable, records " + tableCount);
+                listener.log("endTable " + currentTable + ", records " + tableRecordsCount, Collections.singletonMap("table", currentTable));
+                currentTable = null;
                 try {
                     out.writeVInt(Integer.MIN_VALUE); // EndOfTableMarker
                 } catch (IOException err) {
@@ -92,16 +96,18 @@ public class BackupUtils {
                         out.writeArray(r.key.data);
                         out.writeArray(r.value.data);
                     }
-                    tableCount += record.size();
+                    tableRecordsCount += record.size();
                 } catch (IOException err) {
                     throw new DataStorageManagerException(err);
                 }
+                listener.log("table " + currentTable + ", dumped " + tableRecordsCount + " records", Collections.singletonMap("count", tableRecordsCount));
             }
 
             @Override
-            public void beginTable(Table table) throws DataStorageManagerException {
-                println("beginTable " + table.name);
-                tableCount = 0;
+            public void beginTable(Table table, Map<String, Object> stats) throws DataStorageManagerException {
+                currentTable = table.name;
+                listener.log("beginTable " + currentTable + ", stats " + stats, Collections.singletonMap("table", table.name));
+                tableRecordsCount = 0;
                 try {
                     out.writeArray(table.serialize());
                 } catch (IOException err) {
@@ -111,21 +117,23 @@ public class BackupUtils {
 
             @Override
             public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-                println("Backup at log position: " + logSequenceNumber);
+                listener.log("dumping tablespace " + schema + ", log position " + logSequenceNumber, Collections.singletonMap("tablespace", schema));
             }
 
-        }, 64 * 1024);
+        }, fetchSize);
         if (errorHolder.value != null) {
             throw new Exception(errorHolder.value);
         }
         waiter.await();
     }
 
-    public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, InputStream fin) throws Exception {
+    public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, InputStream fin, ProgressListener listener) throws Exception {
         try (ExtendedDataInputStream ii = new ExtendedDataInputStream(new BufferedInputStream(fin, 64 * 1024 * 1024))) {
+            listener.log("Creating tablespace " + schema + " with leader " + node, Collections.singletonMap("tablespace", schema));
             hdbconnection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLESPACE '" + schema + "','leader:" + node + "','wait:60000'", 0, Collections.emptyList());
 
             TableSpaceRestoreSource source = new TableSpaceRestoreSource() {
+                long currentTableSize;
 
                 @Override
                 public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
@@ -133,14 +141,18 @@ public class BackupUtils {
                         int numRecords = ii.readVInt();
                         if (Integer.MIN_VALUE == numRecords) {
                             // EndOfTableMarker
+                            listener.log("table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
                             return null;
                         }
+                        listener.log("sending " + numRecords + ", total " + currentTableSize,
+                            Collections.singletonMap("count", numRecords));
                         List<KeyValue> records = new ArrayList<>(numRecords);
                         for (int i = 0; i < numRecords; i++) {
                             byte[] key = ii.readArray();
                             byte[] value = ii.readArray();
                             records.add(new KeyValue(key, value));
                         }
+                        currentTableSize += numRecords;
                         return records;
                     } catch (IOException err) {
                         throw new DataStorageManagerException(err);
@@ -149,9 +161,12 @@ public class BackupUtils {
 
                 @Override
                 public Table nextTable() throws DataStorageManagerException {
+                    currentTableSize = 0;
                     try {
                         byte[] table = ii.readArray();
-                        return Table.deserialize(table);
+                        Table tableMetadata = Table.deserialize(table);
+                        listener.log("starting table " + tableMetadata.name, Collections.singletonMap("table", tableMetadata.name));
+                        return tableMetadata;
                     } catch (EOFException end) {
                         return null;
                     } catch (IOException err) {

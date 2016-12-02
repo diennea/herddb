@@ -20,10 +20,13 @@
 package herddb.core.system;
 
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractTableManager;
 import herddb.core.TableSpaceManager;
+import herddb.core.stats.TableManagerStats;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,31 +35,51 @@ import java.util.stream.Collectors;
  *
  * @author enrico.olivelli
  */
-public class SystablesTableManager extends AbstractSystemTableManager {
+public class SystablestatsTableManager extends AbstractSystemTableManager {
 
     private final static Table TABLE = Table
         .builder()
-        .name("systables")
+        .name("systablestats")
         .column("tablespace", ColumnTypes.STRING)
         .column("table_name", ColumnTypes.STRING)
         .column("systemtable", ColumnTypes.STRING)
+        .column("tablesize", ColumnTypes.LONG)
+        .column("loadedpages", ColumnTypes.INTEGER)
+        .column("maxloadedpages", ColumnTypes.INTEGER)
+        .column("dirtypages", ColumnTypes.INTEGER)
+        .column("dirtyrecords", ColumnTypes.LONG)
+        .column("maxlogicalpagesize", ColumnTypes.LONG)
         .primaryKey("tablespace", false)
         .primaryKey("table_name", false)
         .build();
 
-    public SystablesTableManager(TableSpaceManager parent) {
+    public SystablestatsTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
     }
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
         List<Table> tables = tableSpaceManager.getAllCommittedTables();
-        return tables
-            .stream()
-            .map(r -> RecordSerializer.makeRecord(table, "tablespace", r.tablespace, "table_name", r.name, "systemtable",
-                r.name.startsWith("sys") ? "true" : "false"
-            ))
-            .collect(Collectors.toList());
+        List<Record> result = new ArrayList<>();
+        for (Table r : tables) {
+            AbstractTableManager tableManager = tableSpaceManager.getTableManager(r.name);
+            if (tableManager != null) {
+                TableManagerStats stats = tableManager.getStats();
+                result.add(RecordSerializer.makeRecord(
+                    table,
+                    "tablespace", r.tablespace,
+                    "table_name", r.name,
+                    "systemtable", r.name.startsWith("sys") ? "true" : "false",
+                    "tablesize", stats.getTablesize(),
+                    "loadedpages", stats.getLoadedpages(),
+                    "maxloadedpages", stats.getMaxloadedpages(),
+                    "dirtypages", stats.getDirtypages(),
+                    "dirtyrecords", stats.getDirtyrecords(),
+                    "maxlogicalpagesize", stats.getMaxLogicalPageSize()
+                ));
+            }
+        }
+        return result;
     }
 
 }

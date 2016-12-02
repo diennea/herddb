@@ -18,6 +18,7 @@ package herddb.cli;
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
 import herddb.backup.BackupUtils;
+import herddb.backup.ProgressListener;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBConnection;
 import herddb.jdbc.HerdDBConnection;
@@ -68,6 +69,10 @@ public class HerdDBCLI {
         options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
         options.addOption("d", "dump", true, "Dump tablespace");
         options.addOption("r", "restore", true, "Restore tablespace");
+        options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
+        options.addOption("ns", "newschema", true, "Name for new restored tablespace");
+        options.addOption("dfs", "dumpfetchsize", true, "Fetch size for dump operations."
+            + "Defaults to chunks of 100000 records");
         org.apache.commons.cli.CommandLine commandLine;
         try {
             commandLine = parser.parse(options, args);
@@ -97,8 +102,10 @@ public class HerdDBCLI {
         String file = commandLine.getOptionValue("file", "");
         String dump = commandLine.getOptionValue("dump", "");
         String restore = commandLine.getOptionValue("restore", "");
-        String restoreto = commandLine.getOptionValue("restoreto", "");
+        String newschema = commandLine.getOptionValue("newschema", "");
+        String leader = commandLine.getOptionValue("newleader", "");
         String script = commandLine.getOptionValue("script", "");
+        int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
         boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         try (HerdDBDataSource datasource = new HerdDBDataSource()) {
             datasource.setUrl(url);
@@ -106,7 +113,7 @@ public class HerdDBCLI {
             datasource.setPassword(password);
 
             try (Connection connection = datasource.getConnection();
-                    Statement statement = connection.createStatement()) {
+                Statement statement = connection.createStatement()) {
                 connection.setSchema(schema);
                 if (!query.isEmpty()) {
                     executeStatement(verbose, ignoreerrors, query, statement);
@@ -140,19 +147,54 @@ public class HerdDBCLI {
                     println("Dumping tables " + tablesToDump + " from tablespace " + schema + " to " + outputfile);
 
                     try (OutputStream fout = Files.newOutputStream(outputfile, StandardOpenOption.CREATE_NEW);
-                            SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout);) {
+                        SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout);) {
                         HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
                         HDBConnection hdbconnection = hcon.getConnection();
-                        BackupUtils.dumpTableSpace(schema, hdbconnection, oo);
+                        BackupUtils.dumpTableSpace(schema, dumpfetchsize, hdbconnection, oo, new ProgressListener() {
+                            @Override
+                            public void log(String message, Map<String, Object> context) {
+                                println(message);
+                            }
+
+                        });
                     }
                     println("Dumping finished");
                 } else if (!restore.isEmpty()) {
-                    Path inputfile = Paths.get(dump).toAbsolutePath();
-                    println("Restoring tablespace " + schema + " on server " + restoreto + " from file " + inputfile);
+                    Path inputfile = Paths.get(restore).toAbsolutePath();
+                    if (leader.isEmpty() || newschema.isEmpty()) {
+                        println("options 'newleader' and 'newschema' are required");
+                        HelpFormatter formatter = new HelpFormatter();
+                        formatter.printHelp("herddb", options, true);
+                        System.exit(1);
+                        return;
+                    }
+                    List<String> nodes = new ArrayList<>();
+                    try (ResultSet rs = statement.executeQuery("SELECT nodeid FROM sysnodes")) {
+                        while (rs.next()) {
+                            String nodeid = rs.getString(1);
+                            nodes.add(nodeid);
+                        }
+                    }
+
+                    println("Restoring tablespace " + newschema + " with leader " + leader + " from file " + inputfile);
+                    if (!nodes.contains(leader)) {
+                        println("There is no node with node id '" + leader + "'");
+                        println("Valid nodes:");
+                        for (String nodeid : nodes) {
+                            println("* " + nodeid);
+                        }
+                        return;
+                    }
                     try (InputStream fin = Files.newInputStream(inputfile)) {
                         HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
                         HDBConnection hdbconnection = hcon.getConnection();
-                        BackupUtils.restoreTableSpace(schema, restoreto, hdbconnection, fin);
+                        BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, fin, new ProgressListener() {
+                            @Override
+                            public void log(String message, Map<String, Object> context) {
+                                println(message);
+                            }
+
+                        });
                     }
                     println("Restore finished");
                 } else {

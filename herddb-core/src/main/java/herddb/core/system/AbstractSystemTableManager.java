@@ -97,6 +97,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
             public int getDirtyrecords() {
                 return 0;
             }
+
+            @Override
+            public long getMaxLogicalPageSize() {
+                return 0;
+            }
         };
     }
 

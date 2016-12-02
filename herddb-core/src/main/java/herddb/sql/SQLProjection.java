@@ -190,4 +190,9 @@ public class SQLProjection implements Projection {
         return columns;
     }
 
+    @Override
+    public String toString() {
+        return "SQLProjection{" + "columns=" + columns + ", output=" + output + ", fieldNames=" + fieldNames + ", tableAlias=" + tableAlias + '}';
+    }
+
 }

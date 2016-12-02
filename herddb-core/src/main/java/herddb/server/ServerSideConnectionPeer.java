@@ -111,7 +111,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     byte[] token = (byte[]) message.parameters.get("token");
                     if (token == null) {
                         token = new byte[0];
-                    }                    
+                    }
                     String mech = (String) message.parameters.get("mech");
                     if (saslNettyServer == null) {
                         saslNettyServer = new SaslNettyServer(server, mech);
@@ -127,19 +127,19 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             case Message.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
                 try {
-                    
+
                     if (saslNettyServer == null) {
                         Message error = Message.ERROR(null, new Exception("Authentication failed (SASL protocol error)"));
                         _channel.sendReplyMessage(message, error);
                         return;
                     }
-                    byte[] token = (byte[]) message.parameters.get("token");                    
+                    byte[] token = (byte[]) message.parameters.get("token");
                     byte[] responseToken = saslNettyServer.response(token);
                     Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
                     if (saslNettyServer.isComplete()) {
                         username = saslNettyServer.getUserName();
                         authenticated = true;
-                        LOGGER.severe("client " + channel + " completed SASL authentication as "+username);
+                        LOGGER.severe("client " + channel + " completed SASL authentication as " + username);
                         saslNettyServer = null;
                     }
                     _channel.sendReplyMessage(message, tokenChallenge);
@@ -343,6 +343,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     String tableSpace = (String) message.parameters.get("tableSpace");
                     String table = (String) message.parameters.get("table");
                     List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
+                    LOGGER.log(Level.INFO, "Received " + data.size() + " records for restore of table " + table + " in tableSpace " + tableSpace);
+                    long _start = System.currentTimeMillis();
                     BeginTransactionStatement bt = new BeginTransactionStatement(tableSpace);
                     long txId = ((TransactionResult) server.getManager().executeStatement(bt, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
                     TransactionContext transactionContext = new TransactionContext(txId);
@@ -350,7 +352,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         InsertStatement insertStatement = new InsertStatement(tableSpace, table, new Record(Bytes.from_array(kv.key), Bytes.from_array(kv.value)));
                         server.getManager().executeStatement(insertStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
                     }
+                    long _stop = System.currentTimeMillis();
                     server.getManager().executeStatement(new CommitTransactionStatement(tableSpace, txId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    long _stopCommit = System.currentTimeMillis();
+                    LOGGER.log(Level.INFO, "Time restore " + data.size() + " records: data " + (_stop - _start) + " ms. with commit: " + (_stopCommit - _start) + " ms. ");
                     _channel.sendReplyMessage(message, Message.ACK(null));
                 } catch (StatementExecutionException err) {
                     Message error = Message.ERROR(null, err);

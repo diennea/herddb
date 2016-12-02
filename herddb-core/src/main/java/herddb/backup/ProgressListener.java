@@ -17,24 +17,19 @@
  under the License.
 
  */
-package herddb.core.stats;
+package herddb.backup;
+
+import java.util.Map;
 
 /**
- * Runtime Statistics for a TableManager
+ * Receives updates about backup/restore activity
  *
  * @author enrico.olivelli
  */
-public interface TableManagerStats {
+public interface ProgressListener {
 
-    public int getLoadedpages();
+    public default void log(String message, Map<String, Object> context) {
+        System.out.println("PROGRESSLISTENER: " + message + " " + context);
+    }
 
-    public int getMaxloadedpages();
-
-    public long getTablesize();
-
-    public int getDirtypages();
-
-    public int getDirtyrecords();
-
-    public long getMaxLogicalPageSize();
 }

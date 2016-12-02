@@ -523,22 +523,22 @@ public class TableManager implements AbstractTableManager {
             forceFlushTableData = true;
         }
 
-        List<Record> changedRecords = transaction.changedRecords.get(table.name);
+        Map<Bytes, Record> changedRecords = transaction.changedRecords.get(table.name);
         // transaction is still holding locks on each record, so we can change records        
-        List<Record> newRecords = transaction.newRecords.get(table.name);
+        Map<Bytes, Record> newRecords = transaction.newRecords.get(table.name);
         if (newRecords != null) {
-            for (Record record : newRecords) {
+            for (Record record : newRecords.values()) {
                 ensurePageLoadedOnApply(record.key, recovery);
                 applyInsert(record.key, record.value);
             }
         }
         if (changedRecords != null) {
-            for (Record r : changedRecords) {
+            for (Record r : changedRecords.values()) {
                 ensurePageLoadedOnApply(r.key, recovery);
                 applyUpdate(r.key, r.value);
             }
         }
-        List<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
+        Set<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
         if (deletedRecords != null) {
             for (Bytes key : deletedRecords) {
                 ensurePageLoadedOnApply(key, recovery);
@@ -1161,6 +1161,10 @@ public class TableManager implements AbstractTableManager {
             return dirtyRecords.get();
         }
 
+        @Override
+        public long getMaxLogicalPageSize() {
+            return maxLogicalPageSize;
+        }
     };
 
     @Override

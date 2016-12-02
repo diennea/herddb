@@ -142,7 +142,7 @@ public class DownloadTableSpaceTest {
                     }
 
                     @Override
-                    public void beginTable(Table table) {
+                    public void beginTable(Table table, Map<String,Object> stats) {
                         System.out.println("beginTable " + table);
                         this.table = table;
                     }

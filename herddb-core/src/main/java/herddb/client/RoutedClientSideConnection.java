@@ -37,18 +37,13 @@ import herddb.network.ChannelEventListener;
 import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
-import herddb.network.netty.NettyConnector;
 import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import javax.security.auth.Subject;
-import javax.security.sasl.SaslClient;
-import javax.security.sasl.SaslException;
 
 /**
  * A real connection to a server
@@ -141,7 +136,10 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         case "beginTable": {
                             byte[] tableDefinition = (byte[]) values.get("table");
                             Table table = Table.deserialize(tableDefinition);
-                            receiver.beginTable(table);
+                            Long estimatedSize = (Long) values.get("estimatedSize");
+                            Map<String, Object> stats = new HashMap<>();
+                            stats.put("estimatedSize", estimatedSize);
+                            receiver.beginTable(table, stats);
                             break;
                         }
                         case "endTable": {

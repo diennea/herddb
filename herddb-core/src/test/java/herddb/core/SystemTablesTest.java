@@ -65,6 +65,12 @@ public class SystemTablesTest {
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
             }
 
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systablestats", Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
+            }
+
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes order by index_name",
                 Collections.emptyList());) {
                 List<Tuple> records = scan.consume();
@@ -106,34 +112,34 @@ public class SystemTablesTest {
                 assertTrue(records.stream()
                     .filter(t
                         -> t.get("table_name").equals("tsql")
-                        && t.get("column_name").equals("k1")
-                        && t.get("data_type").equals("string")
-                        && t.get("auto_increment").equals(1)
+                    && t.get("column_name").equals("k1")
+                    && t.get("data_type").equals("string")
+                    && t.get("auto_increment").equals(1)
                     ).findAny().isPresent());
                 assertTrue(records.stream()
                     .filter(t
                         -> t.get("table_name").equals("tsql")
-                        && t.get("column_name").equals("n1")
-                        && t.get("data_type").equals("integer")
-                        && t.get("auto_increment").equals(0)
+                    && t.get("column_name").equals("n1")
+                    && t.get("data_type").equals("integer")
+                    && t.get("auto_increment").equals(0)
                     ).findAny().isPresent());
                 assertTrue(records.stream()
                     .filter(t
                         -> t.get("table_name").equals("tsql2")
-                        && t.get("column_name").equals("s1")
-                        && t.get("data_type").equals("timestamp")
+                    && t.get("column_name").equals("s1")
+                    && t.get("data_type").equals("timestamp")
                     ).findAny().isPresent());
                 assertTrue(records.stream()
                     .filter(t
                         -> t.get("table_name").equals("tsql2")
-                        && t.get("column_name").equals("b1")
-                        && t.get("data_type").equals("bytearray")
+                    && t.get("column_name").equals("b1")
+                    && t.get("data_type").equals("bytearray")
                     ).findAny().isPresent());
                 assertTrue(records.stream()
                     .filter(t
                         -> t.get("table_name").equals("tsql2")
-                        && t.get("column_name").equals("n1")
-                        && t.get("data_type").equals("long")
+                    && t.get("column_name").equals("n1")
+                    && t.get("data_type").equals("long")
                     ).findAny().isPresent());
             }
 

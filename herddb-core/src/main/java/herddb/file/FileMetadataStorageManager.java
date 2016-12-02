@@ -22,6 +22,7 @@ package herddb.file;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.DDLException;
+import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.TableSpaceDoesNotExistException;
@@ -48,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -62,6 +64,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     private final Path baseDirectory;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     private final Map<String, TableSpace> tableSpaces = new HashMap<>();
+    private final List<NodeMetadata> nodes = new ArrayList<>();
     private final static Logger LOGGER = Logger.getLogger(FileMetadataStorageManager.class.getName());
     private final ConcurrentMap<String, Map<String, TableSpaceReplicaState>> statesForTableSpace = new ConcurrentHashMap<>();
 
@@ -101,6 +104,19 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             return tableSpaces.get(name);
         } finally {
             lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public void registerNode(NodeMetadata nodeMetadata) throws MetadataStorageManagerException {
+        lock.writeLock().lock();
+        try {
+            if (nodes.stream().filter(s -> s.nodeId.equals(nodeMetadata.nodeId)).findAny().isPresent()) {
+                throw new MetadataStorageManagerException("node " + nodeMetadata.nodeId + " already exists");
+            }
+            nodes.add(nodeMetadata);
+        } finally {
+            lock.writeLock().unlock();
         }
     }
 
@@ -158,8 +174,8 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
                 LOGGER.log(Level.SEVERE, "reading metadata file " + p.toAbsolutePath().toString());
                 if (filename.endsWith(".metadata")) {
                     try (InputStream in = Files.newInputStream(p);
-                            DigestInputStream diin = new DigestInputStream(in, FileDataStorageManager.createMD5());
-                            ExtendedDataInputStream iin = new ExtendedDataInputStream(diin);) {
+                        DigestInputStream diin = new DigestInputStream(in, FileDataStorageManager.createMD5());
+                        ExtendedDataInputStream iin = new ExtendedDataInputStream(diin);) {
                         TableSpace ts = TableSpace.deserialize(iin, 0);
                         byte[] computedDigest = diin.getMessageDigest().digest();
                         byte[] storedDigest = iin.readArray();
@@ -182,8 +198,8 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         Path file_tmp = baseDirectory.resolve(tableSpace.name + "." + System.nanoTime() + ".tmpmetadata");
         Path file = baseDirectory.resolve(tableSpace.name + ".metadata");
         try (OutputStream out = Files.newOutputStream(file_tmp, StandardOpenOption.CREATE_NEW);
-                DigestOutputStream diout = new DigestOutputStream(out, FileDataStorageManager.createMD5());
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(diout)) {
+            DigestOutputStream diout = new DigestOutputStream(out, FileDataStorageManager.createMD5());
+            ExtendedDataOutputStream dout = new ExtendedDataOutputStream(diout)) {
             tableSpace.serialize(dout);
             dout.writeArray(diout.getMessageDigest().digest());
         } catch (IOException err) {
@@ -202,6 +218,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         try {
             FileUtils.cleanDirectory(baseDirectory);
             Files.createDirectories(baseDirectory);
+            nodes.clear();
             tableSpaces.clear();
         } catch (IOException err) {
             LOGGER.log(Level.SEVERE, "cannot clear local data", err);
@@ -227,17 +244,27 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
             TableSpace exists = tableSpaces.get(TableSpace.DEFAULT);
             if (exists == null) {
                 TableSpace defaultTableSpace = TableSpace
-                        .builder()
-                        .leader(localNodeId)
-                        .replica(localNodeId)
-                        .name(TableSpace.DEFAULT)
-                        .build();
+                    .builder()
+                    .leader(localNodeId)
+                    .replica(localNodeId)
+                    .name(TableSpace.DEFAULT)
+                    .build();
                 registerTableSpace(defaultTableSpace);
             }
         } catch (DDLException err) {
             throw new MetadataStorageManagerException(err);
         } finally {
             lock.writeLock().unlock();
+        }
+    }
+
+    @Override
+    public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
+        lock.readLock().lock();
+        try {
+            return new ArrayList<>(nodes);
+        } finally {
+            lock.readLock().unlock();
         }
     }
 
