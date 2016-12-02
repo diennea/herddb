@@ -19,6 +19,7 @@
  */
 package herddb.codec;
 
+import com.google.common.collect.ImmutableMap;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
@@ -191,7 +192,8 @@ public final class RecordSerializer {
 
     public static Map<String, Object> toBean(Record record, Table table) {
         try {
-            Map<String, Object> res = new HashMap<>();
+            ImmutableMap.Builder<String, Object> res = new ImmutableMap.Builder<>();
+
             if (table.primaryKey.length == 1) {
                 Object key = deserializeSingleColumnPrimaryKey(record.key.data, table);
                 res.put(table.primaryKey[0], key);
@@ -215,7 +217,7 @@ public final class RecordSerializer {
                     }
                 }
             }
-            return res;
+            return res.build();
         } catch (IOException err) {
             throw new IllegalArgumentException("malformed record", err);
         }
@@ -223,7 +225,19 @@ public final class RecordSerializer {
 
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, Map<String, Object> res) {
         try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+            ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+            for (String primaryKeyColumn : table.primaryKey) {
+                byte[] value = din.readArray();
+                res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
+            }
+        } catch (IOException err) {
+            throw new IllegalArgumentException("malformed record", err);
+        }
+    }
+
+    private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, ImmutableMap.Builder<String, Object> res) {
+        try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
+            ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
             for (String primaryKeyColumn : table.primaryKey) {
                 byte[] value = din.readArray();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));

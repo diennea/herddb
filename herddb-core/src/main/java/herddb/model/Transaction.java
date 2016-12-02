@@ -69,7 +69,7 @@ public class Transaction {
 
     public LockHandle lookupLock(String tableName, Bytes key) {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
-        if (ll == null) {
+        if (ll == null || ll.isEmpty()) {
             return null;
         }
         return ll.get(key);
