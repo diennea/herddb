@@ -67,5 +67,9 @@ public interface Projection {
 
     public Column[] getColumns();
 
-    public abstract Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException;
+    public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException;
+
+    public default Tuple map(Record record, Table table, StatementEvaluationContext context) throws StatementExecutionException {
+        return map(new Tuple(record.toBean(table), table.columns), context);
+    }
 }

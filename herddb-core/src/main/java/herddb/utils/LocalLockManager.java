@@ -26,6 +26,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.StampedLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.commons.collections.map.HashedMap;
 
 /**
  * Handle locks by key
@@ -40,14 +41,14 @@ public class LocalLockManager {
         return new StampedLock();
     }
     private final ReentrantLock generalLock = new ReentrantLock(true);
-    private final Map<Bytes, StampedLock> liveLocks = new HashMap<>();
+    private final HashedMap liveLocks = new HashedMap();
     private final Map<Bytes, AtomicInteger> locksCounter = new HashMap<>();
 
     private StampedLock makeLockForKey(Bytes key) {
         StampedLock lock;
         generalLock.lock();
         try {
-            lock = liveLocks.get(key);
+            lock = (StampedLock) liveLocks.get(key);
             if (lock == null) {
                 lock = makeLock();
                 liveLocks.put(key, lock);
@@ -65,7 +66,7 @@ public class LocalLockManager {
         StampedLock lock;
         generalLock.lock();
         try {
-            lock = liveLocks.get(key);
+            lock = (StampedLock) liveLocks.get(key);
             if (lock == null) {
                 LOGGER.log(Level.SEVERE, "no lock object exists for key {0}", key);
                 throw new IllegalStateException("no lock object exists for key " + key);

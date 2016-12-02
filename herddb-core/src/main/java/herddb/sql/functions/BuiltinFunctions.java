@@ -113,8 +113,8 @@ public class BuiltinFunctions {
         }
     }
 
-    public static int typeOfFunction(String name) throws StatementExecutionException {
-        switch (name.toLowerCase()) {
+    public static int typeOfFunction(String lowerCaseName) throws StatementExecutionException {
+        switch (lowerCaseName) {
             case BuiltinFunctions.COUNT:
             case BuiltinFunctions.SUM:
             case BuiltinFunctions.MIN:
@@ -125,7 +125,7 @@ public class BuiltinFunctions {
             case BuiltinFunctions.UPPER:
                 return ColumnTypes.STRING;
             default:
-                throw new StatementExecutionException("unhandled function " + name);
+                throw new StatementExecutionException("unhandled function " + lowerCaseName);
 
         }
     }

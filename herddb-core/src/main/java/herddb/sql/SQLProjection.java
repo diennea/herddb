@@ -22,6 +22,7 @@ package herddb.sql;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Projection;
+import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -55,6 +56,7 @@ public class SQLProjection implements Projection {
     private final List<OutputColumn> output;
     private final String[] fieldNames;
     private final String tableAlias;
+    private final boolean onlyCountFunctions;
 
     private static final class OutputColumn {
 
@@ -72,6 +74,7 @@ public class SQLProjection implements Projection {
         this.tableAlias = tableAlias;
         List<OutputColumn> raw_output = new ArrayList<>();
         int pos = 0;
+        int countSimpleFunctions = 0;
         for (SelectItem item : selectItems) {
             pos++;
             if (item instanceof SelectExpressionItem) {
@@ -105,7 +108,11 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.TIMESTAMP;
                 } else if (exp instanceof Function) {
                     Function f = (Function) exp;
-                    columType = BuiltinFunctions.typeOfFunction(f.getName());
+                    String lcaseName = f.getName().toLowerCase();
+                    columType = BuiltinFunctions.typeOfFunction(lcaseName);
+                    if (lcaseName.equals(BuiltinFunctions.COUNT)) {
+                        countSimpleFunctions++;
+                    }
                 } else if (exp instanceof Addition) {
                     columType = ColumnTypes.LONG;
                 } else if (exp instanceof Subtraction) {
@@ -143,6 +150,7 @@ public class SQLProjection implements Projection {
             this.columns[i] = c;
             this.fieldNames[i] = c.name;
         }
+        this.onlyCountFunctions = countSimpleFunctions == fieldNames.length;
     }
 
     private static void addExpressionsForFunctionArguments(Function f, List<OutputColumn> output, Table table) throws StatementExecutionException {
@@ -183,6 +191,16 @@ public class SQLProjection implements Projection {
             fieldNames,
             values.toArray()
         );
+    }
+
+    @Override
+    public Tuple map(Record record, Table table, StatementEvaluationContext context) throws StatementExecutionException {
+        if (onlyCountFunctions) {
+            return new Tuple(fieldNames, new Object[fieldNames.length]);
+        } else {
+            Tuple rawtuple = new Tuple(record.toBean(table), table.columns);
+            return map(rawtuple, context);
+        }
     }
 
     @Override

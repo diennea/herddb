@@ -978,9 +978,11 @@ public class TableManager implements AbstractTableManager {
             accessTableData(statement, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record record) throws StatementExecutionException {
-                    Tuple tuple = new Tuple(record.toBean(table), table.columns);
+                    Tuple tuple;
                     if (applyProjectionDuringScan) {
-                        tuple = projection.map(tuple, context);
+                        tuple = projection.map(record, table, context);
+                    } else {
+                        tuple = new Tuple(record.toBean(table), table.columns);
                     }
                     recordSet.add(tuple);
                     if (remaining.decrementAndGet() == 0) {
@@ -992,9 +994,11 @@ public class TableManager implements AbstractTableManager {
             accessTableData(statement, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record record) throws StatementExecutionException {
-                    Tuple tuple = new Tuple(record.toBean(table), table.columns);
+                    Tuple tuple;
                     if (applyProjectionDuringScan) {
-                        tuple = projection.map(tuple, context);
+                        tuple = projection.map(record, table, context);
+                    } else {
+                        tuple = new Tuple(record.toBean(table), table.columns);
                     }
                     recordSet.add(tuple);
                 }

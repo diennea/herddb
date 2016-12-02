@@ -34,6 +34,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.collections.map.HashedMap;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID semantics on a set of tables of the
@@ -45,7 +46,7 @@ public class Transaction {
 
     public final long transactionId;
     public final String tableSpace;
-    public final Map<String, Map<Bytes, LockHandle>> locks;
+    public final Map<String, HashedMap> locks;
     public final Map<String, Map<Bytes, Record>> changedRecords;
     public final Map<String, Map<Bytes, Record>> newRecords;
     public final Map<String, Set<Bytes>> deletedRecords;
@@ -68,17 +69,17 @@ public class Transaction {
     }
 
     public LockHandle lookupLock(String tableName, Bytes key) {
-        Map<Bytes, LockHandle> ll = locks.get(tableName);
+        HashedMap ll = locks.get(tableName);
         if (ll == null || ll.isEmpty()) {
             return null;
         }
-        return ll.get(key);
+        return (LockHandle) ll.get(key);
     }
 
     public void registerLockOnTable(String tableName, LockHandle handle) {
-        Map<Bytes, LockHandle> ll = locks.get(tableName);
+        HashedMap ll = locks.get(tableName);
         if (ll == null) {
-            ll = new HashMap<>();
+            ll = new HashedMap();
             locks.put(tableName, ll);
         }
         ll.put(handle.key, handle);
