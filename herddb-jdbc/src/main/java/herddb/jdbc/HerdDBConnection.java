@@ -22,8 +22,8 @@ package herddb.jdbc;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
-import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import static herddb.model.TransactionContext.AUTOTRANSACTION_ID;
 import herddb.utils.QueryUtils;
 import java.sql.Array;
 import java.sql.Blob;
@@ -112,8 +112,9 @@ public class HerdDBConnection implements java.sql.Connection {
             this.autocommit = false;
             return;
         }
-        if (!this.autocommit && autoCommit) {
+        if (!this.autocommit && autoCommit) {            
             commit();
+            this.autocommit = true;
         }
     }
 
@@ -127,7 +128,7 @@ public class HerdDBConnection implements java.sql.Connection {
         if (autocommit) {
             throw new SQLException("connection is in autocommit mode");
         }
-        if (transactionId == 0 || transactionId == -1) {
+        if (transactionId == 0 || transactionId == AUTOTRANSACTION_ID) {
             // no transaction actually started, nothing to commit
             return;
         }
