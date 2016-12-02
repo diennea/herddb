@@ -57,7 +57,7 @@ public class ScanHugeTableTest {
                     PreparedStatement ps = con.prepareStatement("INSERT INTO mytable (n1, name) values(?,?)");) {
                     s.execute("CREATE TABLE mytable (n1 int primary key, name string)");
 
-                    int size = 1_000_0000;
+                    int size = 1_000_000;
                     {
                         long _start = System.currentTimeMillis();
                         con.setAutoCommit(false);
@@ -78,14 +78,31 @@ public class ScanHugeTableTest {
                     }
 
                     con.setAutoCommit(true);
-                    long _start = System.currentTimeMillis();
-                    try (ResultSet rs = s.executeQuery("SELECT COUNT(*) from mytable")) {
-                        assertTrue(rs.next());
-                        long res = rs.getLong(1);
-                        assertEquals(size, res);
+                    {
+                        long _start = System.currentTimeMillis();
+                        try (ResultSet rs = s.executeQuery("SELECT COUNT(*) from mytable")) {
+                            assertTrue(rs.next());
+                            long res = rs.getLong(1);
+                            assertEquals(size, res);
+                        }
+                        long _stop = System.currentTimeMillis();
+                        System.out.println("count: " + (_stop - _start) + " ms");
                     }
-                    long _stop = System.currentTimeMillis();
-                    System.out.println("read: " + (_stop - _start) + " ms");
+                    {
+                        long _start = System.currentTimeMillis();
+                        try (ResultSet rs = s.executeQuery("SELECT * from mytable")) {
+                            int i = 0;
+                            while (rs.next()) {
+                                if (i % 100000 == 0) {
+                                    System.out.println("read " + i + " records");
+                                }
+                                i++;
+                            }
+                            assertEquals(size, i);
+                        }
+                        long _stop = System.currentTimeMillis();
+                        System.out.println("read: " + (_stop - _start) + " ms");
+                    }
 
                 }
             }
