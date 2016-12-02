@@ -95,6 +95,7 @@ import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.ItemsList;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.MultiExpressionList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
@@ -457,8 +458,12 @@ public class SQLPlanner {
 
         int index = 0;
 
-        ExpressionList list = (ExpressionList) s.getItemsList();
-        if (list != null) {
+        ItemsList itemlist = (ItemsList) s.getItemsList();
+        if (itemlist != null) {
+            if (itemlist instanceof MultiExpressionList) {
+                throw new StatementExecutionException("multi values insert is not supported yet");
+            }
+            ExpressionList list = (ExpressionList) itemlist;
             if (s.getColumns() != null) {
                 for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
                     Column column = table.getColumn(c.getColumnName());

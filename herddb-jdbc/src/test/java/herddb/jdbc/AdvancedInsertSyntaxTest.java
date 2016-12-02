@@ -27,11 +27,13 @@ import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashSet;
 import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -41,13 +43,41 @@ import org.junit.rules.TemporaryFolder;
  *
  * @author enrico.olivelli
  */
-public class InsertFromSelectOtherTableTest {
+public class AdvancedInsertSyntaxTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
     @Test
-    public void testBatch() throws Exception {
+    public void testInsertMultiValues() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                    Connection con = dataSource.getConnection();
+                    Statement create = con.createStatement();
+                    PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values"
+                        + "(?),(?)");) {
+                    create.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
+
+                    try {
+                        statement.setString(1, "v1");
+                        statement.setString(2, "v2");
+                        statement.executeUpdate();
+                        fail();
+                    } catch (SQLException err) {
+                        assertTrue(err.getMessage().contains("multi values insert is not supported yet"));
+                    }
+
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testInsertFromSelect() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
