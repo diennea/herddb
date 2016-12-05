@@ -59,6 +59,8 @@ public final class ServerConfiguration {
     public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";
     public static final String PROPERTY_METADATADIR = "server.metadataDir";
     public static final String PROPERTY_METADATADIR_DEFAULT = "metadata";
+    public static final String PROPERTY_ADVERTISED_HOST = "server.advertised.host";
+    public static final String PROPERTY_ADVERTISED_PORT  = "server.advertised.port";
     public static final String PROPERTY_HOST = "server.host";
     public static final String PROPERTY_HOST_AUTODISCOVERY = "";
     public static final String PROPERTY_HOST_DEFAULT = "localhost";

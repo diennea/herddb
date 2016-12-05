@@ -72,10 +72,27 @@ public class ServerMain implements AutoCloseable {
             Properties configuration = new Properties();
             File configFile;
             if (args.length > 0) {
-                configFile = new File(args[0]).getAbsoluteFile();
-                System.out.println("Reading configuration from " + configFile);
-                try (FileReader reader = new FileReader(configFile)) {
-                    configuration.load(reader);
+                for (int i = 0; i < args.length; i++) {
+                    String arg = args[i];
+                    if (!arg.startsWith("-")) {
+                        configFile = new File(args[i]).getAbsoluteFile();
+                        System.out.println("Reading configuration from " + configFile);
+                        try (FileReader reader = new FileReader(configFile)) {
+                            configuration.load(reader);
+                        }
+                    } else if (arg.equals("--use-env")) {
+                        System.getenv().forEach((key, value) -> {
+                            System.out.println("Considering env as system property " + key + " -> " + value);
+                            System.setProperty(key, value);
+                        });
+                    } else if (arg.startsWith("-D")) {
+                        int equals = arg.indexOf('=');
+                        if (equals > 0) {
+                            String key = arg.substring(2, equals);
+                            String value = arg.substring(equals + 1);
+                            System.setProperty(key, value);
+                        }
+                    }
                 }
             } else {
                 configFile = new File("conf/server.properties").getAbsoluteFile();
@@ -88,6 +105,13 @@ public class ServerMain implements AutoCloseable {
                     throw new Exception("Cannot find " + configFile.getAbsolutePath());
                 }
             }
+
+            System.getProperties().forEach((k, v) -> {
+                String key = k + "";
+                if (!key.startsWith("java") && !key.startsWith("user")) {
+                    configuration.put(k, v);
+                }
+            });
 
             Runtime.getRuntime().addShutdownHook(new Thread("ctrlc-hook") {
 

@@ -139,6 +139,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException(err);
             }
         }
+
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
         if (port <= 0) {
             try {
@@ -152,13 +153,20 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException(err);
             }
         }
+        String advertised_host = configuration.getString(ServerConfiguration.PROPERTY_ADVERTISED_HOST, host);
+        int advertised_port = configuration.getInt(ServerConfiguration.PROPERTY_ADVERTISED_PORT, port);
 
+        HashMap<String, String> realData = new HashMap<>();
+        realData.put(ServerConfiguration.PROPERTY_HOST, host);
+        realData.put(ServerConfiguration.PROPERTY_PORT, port + "");
+        LOGGER.severe("Public endpoint: "+ServerConfiguration.PROPERTY_ADVERTISED_HOST+"="+advertised_host);
+        LOGGER.severe("Public endpoint: "+ServerConfiguration.PROPERTY_ADVERTISED_PORT+"="+advertised_port);
         this.serverHostData = new ServerHostData(
-            host,
-            port,
+            advertised_host,
+            advertised_port,
             "",
             configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
-            new HashMap<>());
+            realData);
 
         if (nodeId.isEmpty()) {
             LocalNodeIdManager localNodeIdManager = new LocalNodeIdManager(dataDirectory);
@@ -213,8 +221,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {
-        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(serverHostData.getHost(),
-            serverHostData.getPort(), serverHostData.isSsl());
+        String realHost = serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_HOST);
+        int realPort = Integer.parseInt(serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_PORT));
+        LOGGER.severe("Binding network acceptor to " + realHost + ":" + realPort + " ssl:" + serverHostData.isSsl());
+        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost,
+            realPort, serverHostData.isSsl());
         if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
             acceptor.setEnableRealNetwork(false);
         }

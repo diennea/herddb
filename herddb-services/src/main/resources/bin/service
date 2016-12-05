@@ -37,6 +37,9 @@
 
 SERVICE=$1
 shift
+COMMAND=$1
+shift
+OTHERPARAMS=$@
 
 BASE_DIR=
 RUN_AS_USER=
@@ -111,7 +114,7 @@ start() {
     fi
   fi
 
-  $PRERUN "$BASE_DIR/bin/java-utils.sh -daemon $SERVICE -Dpidfile=$PIDFILENAME $MAINCLASS"
+  $PRERUN "$BASE_DIR/bin/java-utils.sh -daemon $SERVICE -Dpidfile=$PIDFILENAME $MAINCLASS $OTHERPARAMS"
   RETVAL=$?
   return
 }
@@ -130,7 +133,7 @@ console() {
     fi
   fi
 
-  $PRERUN "$BASE_DIR/bin/java-utils.sh $SERVICE -Dpidfile=$PIDFILENAME $MAINCLASS"
+  $PRERUN "$BASE_DIR/bin/java-utils.sh $SERVICE -Dpidfile=$PIDFILENAME $MAINCLASS $OTHERPARAMS"
   RETVAL=$?
   return
 }
@@ -279,7 +282,8 @@ checkuser() {
   fi
 }
 
-case "$1" in
+
+case "$COMMAND" in
   start)
     checkuser
     start
