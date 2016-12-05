@@ -24,13 +24,15 @@ import herddb.model.InvalidTableException;
 import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceReplicaState;
+import herddb.server.ServerConfiguration;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
+import org.apache.zookeeper.server.ServerConfig;
 
 /**
- * Store of all metadata of the system: definition of tables, tablesets,
- * available nodes
+ * Store of all metadata of the system: definition of tables, tablesets, available nodes
  *
  * @author enrico.olivelli
  */
@@ -100,8 +102,7 @@ public abstract class MetadataStorageManager implements AutoCloseable {
     }
 
     /**
-     * Notifies on metadata storage manage the state of the node against a given
-     * tablespace
+     * Notifies on metadata storage manage the state of the node against a given tablespace
      *
      * @param state
      * @throws MetadataStorageManagerException
@@ -136,6 +137,18 @@ public abstract class MetadataStorageManager implements AutoCloseable {
 
     public void clear() throws MetadataStorageManagerException {
 
+    }
+
+    public String generateNewNodeId(ServerConfiguration config) throws MetadataStorageManagerException {
+        List<NodeMetadata> actualNodes = listNodes();
+        NodeIdGenerator generator = new NodeIdGenerator();
+        for (int i = 0; i < 10000; i++) {
+            String _nodeId = generator.nextId();
+            if (!actualNodes.stream().filter(node -> _nodeId.equals(node.nodeId)).findFirst().isPresent()) {
+                return _nodeId;
+            }
+        }
+        throw new MetadataStorageManagerException("cannot find a new node id");
     }
 
 }

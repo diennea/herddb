@@ -36,12 +36,14 @@ import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataStorageManager;
+import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.TableSpace;
 import herddb.network.Channel;
 import herddb.network.ServerHostData;
 import herddb.network.ServerSideConnection;
 import herddb.network.ServerSideConnectionAcceptor;
 import herddb.network.netty.NettyChannelAcceptor;
+import herddb.network.netty.NetworkUtils;
 import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
@@ -125,15 +127,54 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
         this.metadataStorageManager = buildMetadataStorageManager();
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
+        if (host.trim().isEmpty()) {
+            try {
+                String _host = NetworkUtils.getLocalNetworkAddress();
+                LOGGER.log(Level.SEVERE, "As configuration parameter "
+                    + ServerConfiguration.PROPERTY_HOST + " is {0}, I have choosen to use {1}."
+                    + " Set to a non-empty value in order to use a fixed hostname", new Object[]{host, _host});
+                host = _host;
+            } catch (IOException err) {
+                LOGGER.log(Level.SEVERE, "Cannot get local host name", err);
+                throw new RuntimeException(err);
+            }
+        }
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
+        if (port <= 0) {
+            try {
+                int _port = NetworkUtils.assignFirstFreePort();
+                LOGGER.log(Level.SEVERE, "As configuration parameter "
+                    + ServerConfiguration.PROPERTY_PORT + " is {0},I have choosen to listen on port {1}."
+                    + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
+                port = _port;
+            } catch (IOException err) {
+                LOGGER.log(Level.SEVERE, "Cannot find a free port", err);
+                throw new RuntimeException(err);
+            }
+        }
+
         this.serverHostData = new ServerHostData(
             host,
             port,
             "",
             configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
             new HashMap<>());
+
         if (nodeId.isEmpty()) {
-            nodeId = host + ":" + port;
+            LocalNodeIdManager localNodeIdManager = new LocalNodeIdManager(dataDirectory);
+            try {
+                nodeId = localNodeIdManager.readLocalNodeId();
+                if (nodeId == null) {
+                    // we need to eagerly start the metadataStorageManager, for instance to open the connection to ZK
+                    metadataStorageManager.start();
+                    nodeId = metadataStorageManager.generateNewNodeId(configuration);
+                    LOGGER.severe("Generated new node id " + nodeId);
+                    localNodeIdManager.persistLocalNodeId(nodeId);
+                }
+            } catch (IOException | MetadataStorageManagerException error) {
+                LOGGER.log(Level.SEVERE, "Fatal error while generating the local node ID", error);
+                throw new RuntimeException(new Exception("Fatal error while generating the local node ID: " + error, error));
+            }
         }
         LOGGER.log(Level.SEVERE, "local nodeID is {0}", nodeId);
         this.manager = new DBManager(nodeId,
@@ -158,12 +199,13 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
+                LOGGER.severe("JDBC URL is not available. This server will not be accessible outside the JVM");
                 break;
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                LOGGER.severe("JDBC URL: jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort());
+                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this server: jdbc:herddb:server:{0}:{1}", new Object[]{serverHostData.getHost(), Integer.toString(serverHostData.getPort())});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                LOGGER.severe("JDBC URL: jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
+                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this HerdDB cluster: jdbc:herddb:zookeeper:{0}{1}", new Object[]{configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT), configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)});
                 this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration);
                 break;
         }
@@ -171,7 +213,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {
-        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(serverHostData.getHost(), serverHostData.getPort(), serverHostData.isSsl());
+        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(serverHostData.getHost(),
+            serverHostData.getPort(), serverHostData.isSsl());
         if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
             acceptor.setEnableRealNetwork(false);
         }
@@ -228,7 +271,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public void start() throws Exception {
-        boolean startBookie = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_START, ServerConfiguration.PROPERTY_BOOKKEEPER_START_DEFAULT);
+        boolean startBookie = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_START,
+            ServerConfiguration.PROPERTY_BOOKKEEPER_START_DEFAULT);
         if (startBookie && embeddedBookie != null) {
             this.embeddedBookie.start();
         }

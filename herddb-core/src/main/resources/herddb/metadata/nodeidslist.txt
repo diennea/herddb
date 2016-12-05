@@ -1,0 +1,15 @@
+mucca
+capra
+maiale
+cane
+pecora
+vitello
+gatto
+gallina
+galletto
+pulcino
+toro
+papera
+cavallo
+asino
+coniglio

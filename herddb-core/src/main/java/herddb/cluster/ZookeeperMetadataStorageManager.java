@@ -64,6 +64,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     private final String tableSpacesPath;
     private final String tableSpacesReplicasPath;
     private final String nodesPath;
+    private volatile boolean started;
     private final CountDownLatch firstConnectionLatch = new CountDownLatch(1);
     private final Watcher mainWatcher = new Watcher() {
         @Override
@@ -89,11 +90,15 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     public void start() throws MetadataStorageManagerException {
+        if (started) {
+            return;
+        }
         LOGGER.log(Level.SEVERE, "start, zkAddress " + zkAddress + ", zkSessionTimeout:" + zkSessionTimeout + ", basePath:" + basePath);
         try {
             this.zooKeeper = new ZooKeeper(zkAddress, zkSessionTimeout, mainWatcher);
             firstConnectionLatch.await(zkSessionTimeout, TimeUnit.SECONDS); // TODO: use another timeout?
             ensureRoot();
+            started = true;
         } catch (IOException | InterruptedException | KeeperException err) {
             throw new MetadataStorageManagerException(err);
         }
@@ -128,8 +133,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     }
 
     /**
-     * Let (embedded) brokers read actual list of ledgers used. in order to
-     * perform extrernal clean ups
+     * Let (embedded) brokers read actual list of ledgers used. in order to perform extrernal clean ups
      *
      * @param zk
      * @param ledgersPath
@@ -334,6 +338,9 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
+        if (zooKeeper == null) {
+            throw new MetadataStorageManagerException("metadata storage manager not yet started");
+        }
         try {
             List<String> children = zooKeeper.getChildren(nodesPath, mainWatcher, null);
             List<NodeMetadata> result = new ArrayList<>();

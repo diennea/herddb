@@ -15,7 +15,11 @@
  */
 package herddb.network.netty;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.UnknownHostException;
 
 /**
  * Network utility
@@ -30,5 +34,17 @@ public class NetworkUtils {
         } else {
             return address.getHostName();
         }
+    }
+
+    public static int assignFirstFreePort() throws IOException {
+        try (
+            ServerSocket socket = new ServerSocket(0);) {
+            return socket.getLocalPort();
+
+        }
+    }
+
+    public static String getLocalNetworkAddress() throws UnknownHostException {
+        return InetAddress.getLocalHost().getHostName();
     }
 }

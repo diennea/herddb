@@ -67,6 +67,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     private final List<NodeMetadata> nodes = new ArrayList<>();
     private final static Logger LOGGER = Logger.getLogger(FileMetadataStorageManager.class.getName());
     private final ConcurrentMap<String, Map<String, TableSpaceReplicaState>> statesForTableSpace = new ConcurrentHashMap<>();
+    private volatile boolean started;
 
     public FileMetadataStorageManager(Path baseDirectory) {
         this.baseDirectory = baseDirectory;
@@ -74,9 +75,13 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     public void start() throws MetadataStorageManagerException {
+        if (started) {
+            return;
+        }
         try {
             Files.createDirectories(baseDirectory);
             reloadFromDisk();
+            started = true;
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
         }

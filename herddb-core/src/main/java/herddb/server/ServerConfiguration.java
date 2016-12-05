@@ -60,6 +60,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_METADATADIR = "server.metadataDir";
     public static final String PROPERTY_METADATADIR_DEFAULT = "metadata";
     public static final String PROPERTY_HOST = "server.host";
+    public static final String PROPERTY_HOST_AUTODISCOVERY = "";
     public static final String PROPERTY_HOST_DEFAULT = "localhost";
     public static final String PROPERTY_PORT = "server.port";
     public static final String PROPERTY_SSL = "server.ssl";
@@ -71,7 +72,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_START = "server.bookkeeper.start";
     public static final boolean PROPERTY_BOOKKEEPER_START_DEFAULT = false;
 
-    public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "server.bookie.port";
+    public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "server.bookkeeper.port";
     public static final int PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT = 3181;
 
     public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble";
@@ -91,6 +92,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
     public static final String PROPERTY_ZOOKEEPER_PATH_DEFAULT = "/herd";
     public static final int PROPERTY_PORT_DEFAULT = 7000;
+    public static final int PROPERTY_PORT_AUTODISCOVERY = 0;
     public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
 
     public static final String PROPERTY_USERS_FILE = "server.users.file";
