@@ -215,13 +215,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         metadataStorageManager.setMetadataChangeListener(this);
-        metadataStorageManager.registerNode(NodeMetadata
+        NodeMetadata nodeMetadata = NodeMetadata
             .builder()
             .host(hostData.getHost())
             .port(hostData.getPort())
             .ssl(hostData.isSsl())
             .nodeId(nodeId)
-            .build());
+            .build();
+        LOGGER.log(Level.SEVERE, "Registering on metadata storage manager my data: {0}", nodeMetadata);
+        metadataStorageManager.registerNode(nodeMetadata);
 
         try {
             TableSpaceManager local_node_virtual_tables_manager = new TableSpaceManager(nodeId, virtualTableSpaceId, virtualTableSpaceId, metadataStorageManager, dataStorageManager, null, this, true);

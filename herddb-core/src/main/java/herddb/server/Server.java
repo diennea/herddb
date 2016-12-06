@@ -127,6 +127,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
         this.metadataStorageManager = buildMetadataStorageManager();
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
+        int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
+        LOGGER.severe("Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "=" + host + ", " + ServerConfiguration.PROPERTY_PORT + "=" + port);
         if (host.trim().isEmpty()) {
             try {
                 String _host = NetworkUtils.getLocalNetworkAddress();
@@ -139,8 +141,6 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException(err);
             }
         }
-
-        int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
         if (port <= 0) {
             try {
                 int _port = NetworkUtils.assignFirstFreePort();
@@ -159,8 +159,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         HashMap<String, String> realData = new HashMap<>();
         realData.put(ServerConfiguration.PROPERTY_HOST, host);
         realData.put(ServerConfiguration.PROPERTY_PORT, port + "");
-        LOGGER.severe("Public endpoint: "+ServerConfiguration.PROPERTY_ADVERTISED_HOST+"="+advertised_host);
-        LOGGER.severe("Public endpoint: "+ServerConfiguration.PROPERTY_ADVERTISED_PORT+"="+advertised_port);
+        LOGGER.severe("Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_HOST + "=" + advertised_host);
+        LOGGER.severe("Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_PORT + "=" + advertised_port);
         this.serverHostData = new ServerHostData(
             advertised_host,
             advertised_port,

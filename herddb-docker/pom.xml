@@ -65,8 +65,8 @@
                 <configuration>
                     <imageName>herd</imageName>
                     <dockerDirectory>${project.build.directory}/classes</dockerDirectory>
-                    <!-- copy the service's jar file from target into the root directory of the image --> 
                     
+                    <!--<noCache>true</noCache>-->
                     <resources>
                         <resource>
                             <targetPath>/</targetPath>

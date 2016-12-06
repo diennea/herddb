@@ -495,27 +495,30 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void channelClosed(Channel channel) {
-        LOGGER.log(Level.SEVERE, "channelClosed {0}", this);
+        LOGGER.log(Level.INFO, "channelClosed {0}", this);
         freeResources();
         this.server.connectionClosed(this);
     }
 
     private void freeResources() {
-        LOGGER.log(Level.SEVERE, "freeResources {0}, {1} open transactions", new Object[]{this, openTransactions.size()});
-        for (Map.Entry<String, Set<Long>> openTransaction : openTransactions.entrySet()) {
-            String tableSpace = openTransaction.getKey();
-            for (Long tx : openTransaction.getValue()) {
-                try {
-                    LOGGER.log(Level.SEVERE, "rolling back trasaction tx=" + tx + " on tablespace " + tableSpace);
-                    RollbackTransactionStatement statement = new RollbackTransactionStatement(tableSpace, tx);
-                    StatementExecutionResult result = server.getManager().executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                    LOGGER.log(Level.SEVERE, "rollback outcome trasaction tx=" + tx + " on tablespace " + tableSpace + ": " + result);
-                } catch (Throwable t) {
-                    LOGGER.log(Level.SEVERE, "error while rolling back trasaction tx=" + tx + " on tablespace " + tableSpace + " :" + t, t);
+        if (!openTransactions.isEmpty()) {
+            LOGGER.log(Level.SEVERE, "freeResources {0}, {1} open transactions", new Object[]{this, openTransactions.size()});
+            for (Map.Entry<String, Set<Long>> openTransaction : openTransactions.entrySet()) {
+                String tableSpace = openTransaction.getKey();
+                for (Long tx : openTransaction.getValue()) {
+                    try {
+                        LOGGER.log(Level.SEVERE, "rolling back trasaction tx=" + tx + " on tablespace " + tableSpace);
+                        RollbackTransactionStatement statement = new RollbackTransactionStatement(tableSpace, tx);
+                        StatementExecutionResult result = server.getManager().executeStatement(statement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        LOGGER.log(Level.SEVERE, "rollback outcome trasaction tx=" + tx + " on tablespace " + tableSpace + ": " + result);
+                    } catch (Throwable t) {
+                        LOGGER.log(Level.SEVERE, "error while rolling back trasaction tx=" + tx + " on tablespace " + tableSpace + " :" + t, t);
+                    }
                 }
             }
+
+            openTransactions.clear();
         }
-        openTransactions.clear();
         scanners.values().forEach(s -> s.close());
         scanners.clear();
     }

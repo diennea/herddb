@@ -343,6 +343,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         }
         try {
             List<String> children = zooKeeper.getChildren(nodesPath, mainWatcher, null);
+            LOGGER.severe("listNodes: for " + nodesPath + ": " + children);
             List<NodeMetadata> result = new ArrayList<>();
             for (String child : children) {
                 NodeMetadata nodeMetadata = getNode(child);
@@ -387,11 +388,14 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     @Override
     public void registerNode(NodeMetadata nodeMetadata) throws MetadataStorageManagerException {
         try {
+            String path = nodesPath + "/" + nodeMetadata.nodeId;
+            LOGGER.severe("registerNode at " + path + " -> " + nodeMetadata);
             byte[] data = nodeMetadata.serialize();
             try {
-                zooKeeper.create(nodesPath + "/" + nodeMetadata.nodeId, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                zooKeeper.create(path, data, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
             } catch (KeeperException.NodeExistsException ok) {
-                zooKeeper.setData(nodesPath + "/" + nodeMetadata.nodeId, data, -1);
+                LOGGER.severe("registerNode at " + path + " " + ok);
+                zooKeeper.setData(path, data, -1);
             }
             notifyMetadataChanged();
         } catch (IOException | InterruptedException | KeeperException err) {

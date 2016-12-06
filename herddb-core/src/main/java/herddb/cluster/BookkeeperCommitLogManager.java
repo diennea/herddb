@@ -28,6 +28,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.DefaultEnsemblePlacementPolicy;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.apache.zookeeper.KeeperException;
 
@@ -49,10 +50,13 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration) {
         config = new ClientConfiguration();
         config.setThrottleValue(0);
+        config.setEnsemblePlacementPolicy(DefaultEnsemblePlacementPolicy.class);
         for (String key : serverConfiguration.keys()) {
             if (key.startsWith("bookie.")) {
                 String _key = key.substring("bookie.".length());
-                config.setProperty(_key, serverConfiguration.getString(_key, null));
+                String value = serverConfiguration.getString(key, null);
+                LOG.log(Level.SEVERE, "Setting BookKeeper client configuration: {0}={1}", new Object[]{_key, value});
+                config.setProperty(_key, value);
             }
 
         }
@@ -63,7 +67,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public void start() throws LogNotAvailableException {
         try {
             this.bookKeeper
-                    = BookKeeper
+                = BookKeeper
                     .forConfig(config)
                     .setZookeeper(metadataStorageManager.getZooKeeper())
                     .build();

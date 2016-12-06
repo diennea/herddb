@@ -48,7 +48,7 @@ public class NodeMetadata {
 
     @Override
     public String toString() {
-        return "NodeMetadata{" + "nodeId=" + nodeId + ", metadataStorageVersion=" + metadataStorageVersion + '}';
+        return "NodeMetadata{" + "nodeId=" + nodeId + ", metadataStorageVersion=" + metadataStorageVersion + ", host=" + host + ", port=" + port + ", ssl=" + ssl + '}';
     }
 
     public static Builder builder() {
@@ -64,7 +64,7 @@ public class NodeMetadata {
         int flags = in.readInt(); // for future implementations
         String host = in.readUTF();
         int port = in.readInt();
-        boolean ssl = in.readInt() == 1;        
+        boolean ssl = in.readInt() == 1;
         return new NodeMetadata(nodeId, metadataStorageVersion, host, port, ssl);
     }
 
@@ -81,12 +81,12 @@ public class NodeMetadata {
         out.writeInt(0); // flags for future implementations
         out.writeUTF(host);
         out.writeInt(port);
-        out.writeInt(ssl ? 1 : 0);        
+        out.writeInt(ssl ? 1 : 0);
     }
 
     public static class Builder {
 
-        private String nodeId  = "localhost";
+        private String nodeId = "localhost";
         private String host = "localhost";
         private int port = 7000;
         private boolean ssl = false;

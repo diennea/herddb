@@ -10,9 +10,34 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Services</name>
-    <artifactId>herddb-services</artifactId>
-    <build>
+    <artifactId>herddb-services</artifactId>   
+    <properties>
+        <buildTimestamp>${maven.build.timestamp}</buildTimestamp>
+    </properties>
+    <build>        
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.4</version>
+                <configuration>                    
+                    <shortRevisionLength>11</shortRevisionLength>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>                             
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>  
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>

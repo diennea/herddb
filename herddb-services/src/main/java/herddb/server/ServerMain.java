@@ -21,18 +21,13 @@ package herddb.server;
 
 import java.io.File;
 import java.io.FileReader;
-import java.net.InetSocketAddress;
 import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import herddb.daemons.PidFileLocker;
+import java.io.InputStream;
 
 /**
  * Created by enrico.olivelli on 23/03/2015.
@@ -68,41 +63,40 @@ public class ServerMain implements AutoCloseable {
 
     public static void main(String... args) {
         try {
-
+            LOG.severe("Starting HerdDB version " + version());
             Properties configuration = new Properties();
-            File configFile;
-            if (args.length > 0) {
-                for (int i = 0; i < args.length; i++) {
-                    String arg = args[i];
-                    if (!arg.startsWith("-")) {
-                        configFile = new File(args[i]).getAbsoluteFile();
-                        System.out.println("Reading configuration from " + configFile);
-                        try (FileReader reader = new FileReader(configFile)) {
-                            configuration.load(reader);
-                        }
-                    } else if (arg.equals("--use-env")) {
-                        System.getenv().forEach((key, value) -> {
-                            System.out.println("Considering env as system property " + key + " -> " + value);
-                            System.setProperty(key, value);
-                        });
-                    } else if (arg.startsWith("-D")) {
-                        int equals = arg.indexOf('=');
-                        if (equals > 0) {
-                            String key = arg.substring(2, equals);
-                            String value = arg.substring(equals + 1);
-                            System.setProperty(key, value);
-                        }
+
+            boolean configFileFromParameter = false;
+            for (int i = 0; i < args.length; i++) {
+                String arg = args[i];
+                if (!arg.startsWith("-")) {
+                    File configFile = new File(args[i]).getAbsoluteFile();
+                    LOG.severe("Reading configuration from " + configFile);
+                    try (FileReader reader = new FileReader(configFile)) {
+                        configuration.load(reader);
+                    }
+                    configFileFromParameter = true;
+                } else if (arg.equals("--use-env")) {
+                    System.getenv().forEach((key, value) -> {
+                        System.out.println("Considering env as system property " + key + " -> " + value);
+                        System.setProperty(key, value);
+                    });
+                } else if (arg.startsWith("-D")) {
+                    int equals = arg.indexOf('=');
+                    if (equals > 0) {
+                        String key = arg.substring(2, equals);
+                        String value = arg.substring(equals + 1);
+                        System.setProperty(key, value);
                     }
                 }
-            } else {
-                configFile = new File("conf/server.properties").getAbsoluteFile();
+            }
+            if (!configFileFromParameter) {
+                File configFile = new File("conf/server.properties").getAbsoluteFile();
                 System.out.println("Reading configuration from " + configFile);
                 if (configFile.isFile()) {
                     try (FileReader reader = new FileReader(configFile)) {
                         configuration.load(reader);
                     }
-                } else {
-                    throw new Exception("Cannot find " + configFile.getAbsolutePath());
                 }
             }
 
@@ -135,6 +129,7 @@ public class ServerMain implements AutoCloseable {
             System.exit(1);
         }
     }
+    private static final Logger LOG = Logger.getLogger(ServerMain.class.getName());
 
     public boolean isStarted() {
         return started;
@@ -166,8 +161,16 @@ public class ServerMain implements AutoCloseable {
         server = new Server(config);
         server.start();
 
-        System.out.println("HerdDB server starter");
+        System.out.println("HerdDB server starter. Node id "+server.getNodeId());
         started = true;
+    }
+
+    private static String version() throws Exception {
+        try (InputStream in = ServerMain.class.getClassLoader().getResourceAsStream("herddb.package.version.properties");) {
+            Properties p = new Properties();
+            p.load(in);
+            return p.getProperty("version", "?");
+        }
     }
 
 }
