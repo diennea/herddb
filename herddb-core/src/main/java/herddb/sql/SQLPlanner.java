@@ -442,7 +442,7 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at "+manager.getNodeId());
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
@@ -566,7 +566,7 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at "+manager.getNodeId());
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
@@ -669,7 +669,7 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here");
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at "+manager.getNodeId());
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {

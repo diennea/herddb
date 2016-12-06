@@ -67,10 +67,10 @@ public class EmbeddedBookie implements AutoCloseable {
                 LOG.log(Level.SEVERE, "As configuration parameter "
                     + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT + " is {0},I have choosen to listen on port {1}."
                     + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
-                persistLocalBookiePort(bookie_dir, _port);
-                port = _port;
+                persistLocalBookiePort(bookie_dir, _port);                
             }
-        }
+            port = _port;
+        }        
         conf.setBookiePort(port);
         Files.createDirectories(bookie_dir);
         Path bookie_data_dir = bookie_dir.resolve("bookie_data").toAbsolutePath();
@@ -97,7 +97,7 @@ public class EmbeddedBookie implements AutoCloseable {
             }
         }
         long _start = System.currentTimeMillis();
-        LOG.severe("Booting Apache Bookkeeper");
+        LOG.severe("Booting Apache Bookkeeper on port " + port);
 
         Files.createDirectories(bookie_dir);
         dumpBookieConfiguration(bookie_dir, conf);
@@ -174,7 +174,7 @@ public class EmbeddedBookie implements AutoCloseable {
     public Integer readLocalBookiePort(Path dataPath) throws IOException {
         Path file = dataPath.resolve("bookie_port");
         try {
-            LOG.log(Level.INFO, "Looking for local port into file {0}", file);
+            LOG.log(Level.SEVERE, "Looking for local port into file {0}", file);
             if (!Files.isRegularFile(file)) {
                 LOG.log(Level.SEVERE, "Cannot find file {0}", file);
                 return null;
@@ -186,7 +186,9 @@ public class EmbeddedBookie implements AutoCloseable {
                 if (line.startsWith("#") || line.isEmpty()) {
                     continue;
                 }
-                return Integer.parseInt(line);
+                int res = Integer.parseInt(line);
+                LOG.log(Level.SEVERE, "Found local port {0} into file {1}", new Object[]{Integer.toString(res), file});
+                return res;
             }
             throw new IOException("Cannot find any valid line inside file " + file.toAbsolutePath());
         } catch (IOException error) {
