@@ -61,7 +61,7 @@ public class EmbeddedBookie implements AutoCloseable {
         conf.setUseHostNameAsBookieID(true);
         Path bookie_dir = baseDirectory.resolve("bookie");
         if (port <= 0) {
-            Integer _port = readLocalBookiePort(baseDirectory);
+            Integer _port = readLocalBookiePort(bookie_dir);
             if (_port == null) {
                 _port = NetworkUtils.assignFirstFreePort();
                 LOG.log(Level.SEVERE, "As configuration parameter "
