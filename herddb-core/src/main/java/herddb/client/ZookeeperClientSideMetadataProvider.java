@@ -102,13 +102,16 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
         try {
             for (int i = 0; i < MAX_TRIALS; i++) {
                 try {
-                    Stat stat = new Stat();
-                    byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + tableSpace, false, stat);
-                    String leader = TableSpace.deserialize(result, stat.getVersion()).leaderId;
-                    tableSpaceLeaders.put(tableSpace, leader);
-                    return leader;
-                } catch (KeeperException.NoNodeException ex) {
-                    return null;
+                    try {
+                        return readAsTableSpace(zooKeeper, tableSpace);
+                    } catch (KeeperException.NoNodeException ex) {
+                        try {
+                            // use the nodeid as tablespace
+                            return readAsNode(zooKeeper, tableSpace);
+                        } catch (KeeperException.NoNodeException ex2) {
+                            return null;
+                        }
+                    }
                 } catch (KeeperException.ConnectionLossException ex) {
                     LOG.log(Level.SEVERE, "tmp error getTableSpaceLeader for " + tableSpace + ": " + ex);
                     try {
@@ -129,7 +132,27 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                 }
             }
         }
-        throw new ClientSideMetadataProviderException("Could not find a leader for tablespace " + tableSpace + " in time");
+
+        throw new ClientSideMetadataProviderException(
+            "Could not find a leader for tablespace " + tableSpace + " in time");
+    }
+
+    private String readAsTableSpace(ZooKeeper zooKeeper, String tableSpace) throws IOException, InterruptedException, KeeperException {
+        Stat stat = new Stat();
+        byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + tableSpace, false, stat);
+        String leader = TableSpace.deserialize(result, stat.getVersion()).leaderId;
+        tableSpaceLeaders.put(tableSpace, leader);
+        return leader;
+    }
+
+    private String readAsNode(ZooKeeper zooKeeper, String tableSpace) throws IOException, InterruptedException, KeeperException {
+        Stat stat = new Stat();
+        byte[] result = zooKeeper.getData(basePath + "/nodes/" + tableSpace, false, stat);
+        NodeMetadata md = NodeMetadata.deserialize(result, stat.getVersion());
+        LOG.severe("node metadata:" + md);
+        String leader = md.nodeId;
+        tableSpaceLeaders.put(tableSpace, leader);
+        return leader;
     }
 
     @Override
