@@ -740,7 +740,7 @@ public class TableManager implements AbstractTableManager {
             } else {
                 pk_logical_value = key.to_long();
             }
-            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, new EnsureIncrementAccumulator());
+            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureIncrementAccumulator.INSTANCE);
         }
         Long pageId = keyToPage.put(key, NEW_PAGE);
         if (pageId != null) {
