@@ -133,7 +133,6 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
         @Override
         public void destroyObject(PooledObject<HDBConnection> po) throws Exception {
-            LOGGER.log(Level.SEVERE, "destroyObject {0}", po.getObject());
             po.getObject().close();
         }
 
@@ -166,6 +165,8 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
             GenericObjectPoolConfig config = new GenericObjectPoolConfig();
             config.setBlockWhenExhausted(true);
             config.setMaxTotal(maxActive);
+            config.setMaxIdle(maxActive);
+            config.setMinIdle(maxActive / 2);
             pool = new GenericObjectPool<>(new ConnectionsFactory(), config);
         }
     }
