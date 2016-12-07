@@ -21,11 +21,15 @@ Running multiple HerdDB using docker
 docker run -p 2181:2181 --name zookeeper --restart always -d zookeeper
 
 # start as many 
-# HerdDB inside the container will by default bind to port 7000, it cannot known the real coordinates outside the container
-# so you have to override server.advertised.host and server.advertised.port configuration parameters
-docker run -d  -p 8000:7000 -e server.mode=cluster -e server.bookkeeper.start=true -e server.advertised.host=$(hostname) -e server.advertised.port=8000  -e server.zookeeper.address=$(hostname):2181 herd:latest
-docker run -d  -p 9000:7000 -e server.mode=cluster -e server.bookkeeper.start=true -e server.advertised.host=$(hostname) -e server.advertised.port=9000  -e server.zookeeper.address=$(hostname):2181 herd:latest
+# HerdDB inside the container will by default bind to port 7000, you have to pass server.port=0 in order to let the server choose a random port
+docker run -d  --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
+docker run -d  --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
+docker run -d  --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
+docker run -d  --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
+docker run -d  --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
+docker run -d  --network host -e server.mode=cluster -e server.bookkeeper.start=true -e server.port=0 -e server.zookeeper.address=$(hostname):2181 herd:latest
 
+Remember that the 'default'tablespace will be served by the first instance, so you should keep it running. If the leader of 'default' tablespace is lost you can recover by issuing ALTER TABLESPACE commands directly to other nodes and change the leader
 
 # unzip a herddb-service package and hust run
 bin/herddb-cli.sh -x jdbc:herddb:zookeeper:$(hostname):2181 -q "select * from sysnodes"
