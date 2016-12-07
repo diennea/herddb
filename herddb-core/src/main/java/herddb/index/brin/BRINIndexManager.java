@@ -174,7 +174,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                 if (newPageId.get() <= pageId) {
                     newPageId.set(pageId + 1);
                 }
-                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length);
+                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length + " bytes");
                 try {
                     PageContents pg = PageContents.deserialize(pagedata);
                     switch (pg.type) {
@@ -194,7 +194,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         } else {
             this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
         }
-        LOGGER.log(Level.SEVERE, "loaded index {1} {2} blocks", new Object[]{index.name, this.data.getNumBlocks()});
+        LOGGER.log(Level.SEVERE, "loaded index {0} {1} blocks", new Object[]{index.name, this.data.getNumBlocks()});
     }
 
     @Override
@@ -339,7 +339,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
         @Override
         public long createDataPage(List<Map.Entry<Bytes, Bytes>> values) throws IOException {
-            try {                
+            try {
                 PageContents contents = new PageContents();
                 contents.type = PageContents.TYPE_BLOCKDATA;
                 contents.pageData = values;
