@@ -181,6 +181,9 @@ public class BRINIndexManager extends AbstractIndexManager {
                         case PageContents.TYPE_METADATA:
                             metadataBlock.value = pg;
                             break;
+                        case PageContents.TYPE_BLOCKDATA:
+                            LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", data page " + pageId + " contains " + pg.pageData.size() + " entries");
+                            break;
                     }
                 } catch (IOException err) {
                     throw new RuntimeException(err);
