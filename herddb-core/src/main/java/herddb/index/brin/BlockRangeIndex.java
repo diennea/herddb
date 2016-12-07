@@ -19,6 +19,7 @@
  */
 package herddb.index.brin;
 
+import herddb.utils.EnsureIntegerIncrementAccumulator;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -569,10 +570,12 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     public void boot(BlockRangeIndexMetadata<K> metadata) {
         LOG.severe("boot index, with " + metadata.getBlocksMetadata().size() + " blocks");
         this.blocks.clear();
+
         for (BlockRangeIndexMetadata.BlockMetadata<K> blockData : metadata.getBlocksMetadata()) {
             Block<K, V> block = new Block<>(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size, blockData.pageId);
             blocks.put(block.key, block);
-            LOG.severe("boot block at " + block.key);
+            LOG.severe("boot block at " + block.key + " " + block.minKey + " - " + block.maxKey);
+            blockIdGenerator.accumulateAndGet(block.key.blockId, EnsureIntegerIncrementAccumulator.INSTANCE);
         }
     }
 

@@ -33,6 +33,7 @@ import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
 import herddb.index.SecondaryIndexSeek;
+import herddb.index.brin.BRINIndexManager;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.Index;
@@ -66,33 +67,33 @@ public class SimpleBrinIndexRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                    .builder()
-                    .onTable(table)
-                    .type(Index.TYPE_BRIN)
-                    .column("name", ColumnTypes.STRING).
-                    build();
+                .builder()
+                .onTable(table)
+                .type(Index.TYPE_BRIN)
+                .column("name", ColumnTypes.STRING).
+                build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('a','n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('b','n1')", Collections.emptyList());
@@ -114,10 +115,10 @@ public class SimpleBrinIndexRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
@@ -131,7 +132,7 @@ public class SimpleBrinIndexRecoveryTest {
         }
 
     }
-    
+
     @Test
     public void createRecoveryIndex_withduoblecheckpoint() throws Exception {
 
@@ -142,33 +143,33 @@ public class SimpleBrinIndexRecoveryTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                    .builder()
-                    .onTable(table)
-                    .type(Index.TYPE_BRIN)
-                    .column("name", ColumnTypes.STRING).
-                    build();
+                .builder()
+                .onTable(table)
+                .type(Index.TYPE_BRIN)
+                .column("name", ColumnTypes.STRING).
+                build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('a','n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('b','n1')", Collections.emptyList());
@@ -191,10 +192,10 @@ public class SimpleBrinIndexRecoveryTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true);
@@ -203,6 +204,86 @@ public class SimpleBrinIndexRecoveryTest {
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(3, scan1.consume().size());
+            }
+
+        }
+
+    }
+
+    @Test
+    public void createRecoveryIndex_withrepeatedkey() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+        int id = 0;
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost",
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
+
+            CreateTableStatement st2 = new CreateTableStatement(table);
+            manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            Index index = Index
+                .builder()
+                .onTable(table)
+                .type(Index.TYPE_BRIN)
+                .column("name", ColumnTypes.STRING).
+                build();
+
+            CreateIndexStatement st3 = new CreateIndexStatement(index);
+            manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            long tx = TestUtils.beginTransaction(manager, table.tablespace);
+            for (int i = 0; i < BRINIndexManager.MAX_BLOCK_SIZE * 2; i++) {
+                id++;
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), new TransactionContext(tx));
+            }
+            TestUtils.commitTransaction(manager, table.tablespace, tx);
+
+            // some data on disk
+            manager.checkpoint();
+
+            // some data to be recovered from log
+            tx = TestUtils.beginTransaction(manager, table.tablespace);
+            for (int i = 0; i < BRINIndexManager.MAX_BLOCK_SIZE; i++) {
+                id++;
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), new TransactionContext(tx));
+            }
+            TestUtils.commitTransaction(manager, table.tablespace, tx);
+        }
+
+        System.out.println("QUI");
+        try (DBManager manager = new DBManager("localhost",
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
+            manager.start();
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='my_repeatad_key'", Collections.emptyList(), true, true);
+
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(id, scan1.consume().size());
             }
 
         }

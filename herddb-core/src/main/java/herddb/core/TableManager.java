@@ -19,7 +19,7 @@
  */
 package herddb.core;
 
-import herddb.utils.EnsureIncrementAccumulator;
+import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
@@ -740,7 +740,7 @@ public class TableManager implements AbstractTableManager {
             } else {
                 pk_logical_value = key.to_long();
             }
-            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureIncrementAccumulator.INSTANCE);
+            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
         }
         Long pageId = keyToPage.put(key, NEW_PAGE);
         if (pageId != null) {

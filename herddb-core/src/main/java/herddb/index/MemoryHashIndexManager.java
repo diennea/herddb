@@ -76,7 +76,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
     @Override
     public void start() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "loading in memory all the keys for index {1}", new Object[]{index.name});
+        LOGGER.log(Level.SEVERE, "loading in memory all the keys for mem index {0}", new Object[]{index.name});
         bootSequenceNumber = log.getLastSequenceNumber();
 
         dataStorageManager.fullIndexScan(tableSpaceUUID, index.name,

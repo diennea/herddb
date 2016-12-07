@@ -68,8 +68,8 @@ import javax.xml.ws.Holder;
 public class BRINIndexManager extends AbstractIndexManager {
 
     private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
-    private static final int MAX_BLOCK_SIZE = 10000;
-    private static final int MAX_LOADED_BLOCKS = 1000;
+    public static final int MAX_BLOCK_SIZE = 10000;
+    public static final int MAX_LOADED_BLOCKS = 1000;
     LogSequenceNumber bootSequenceNumber;
     private final AtomicLong newPageId = new AtomicLong(1);
     private final BlockRangeIndex<Bytes, Bytes> data;
@@ -157,7 +157,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public void start() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "loading in memory all the keys for index {1}", new Object[]{index.name});
+        LOGGER.log(Level.SEVERE, "string index {0}", new Object[]{index.name});
         bootSequenceNumber = log.getLastSequenceNumber();
         Holder<PageContents> metadataBlock = new Holder<>();
         dataStorageManager.fullIndexScan(tableSpaceUUID, index.name,
