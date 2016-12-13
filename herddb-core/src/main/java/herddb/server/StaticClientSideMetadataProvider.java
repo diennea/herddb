@@ -32,7 +32,7 @@ import java.util.HashMap;
 public class StaticClientSideMetadataProvider implements ClientSideMetadataProvider {
 
     private final ServerHostData serverHostData;
-    private final String nodeId;
+    private volatile String nodeId;
 
     public StaticClientSideMetadataProvider(Server server) {
         this.serverHostData = server.getServerHostData();

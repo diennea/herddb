@@ -88,16 +88,9 @@ public class HerdDBEmbeddedDataSource extends AbstractHerdDBDataSource {
             ServerConfiguration serverConfiguration = new ServerConfiguration(properties);
             serverConfiguration.readJdbcUrl(url);
             String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);
-            if (startServer) {
-                LOGGER.log(Level.SEVERE, "Booting Embedded HerdDB Server, url:" + url + ", properties:" + serverConfiguration);
-                server = new Server(serverConfiguration);
-                try {
-                    server.start();
-                } catch (Exception ex) {
-                    throw new SQLException("Cannot boot embedded server " + ex, ex);
-                }
-            } else if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
-                LOGGER.log(Level.SEVERE, "Booting Local Embedded HerdDB, url:" + url + ", properties:" + serverConfiguration);
+            if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)
+                || (ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode) && startServer)) {
+                LOGGER.log(Level.SEVERE, "Booting Local Embedded HerdDB mode, url:" + url + ", properties:" + serverConfiguration);
                 server = new Server(serverConfiguration);
                 try {
                     server.start();
