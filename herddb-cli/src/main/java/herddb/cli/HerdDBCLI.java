@@ -26,6 +26,7 @@ import herddb.jdbc.HerdDBDataSource;
 import herddb.model.TableSpace;
 import herddb.utils.SimpleBufferedOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +49,12 @@ import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.jline.reader.EndOfFileException;
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.UserInterruptException;
+import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
 
 /**
  *
@@ -67,6 +74,7 @@ public class HerdDBCLI {
         options.addOption("f", "file", true, "SQL Script to execute (statement separated by 'GO' lines)");
         options.addOption("g", "script", true, "Groovy Script to execute");
         options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
+        options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
         options.addOption("d", "dump", true, "Dump tablespace");
         options.addOption("r", "restore", true, "Restore tablespace");
         options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
@@ -107,6 +115,7 @@ public class HerdDBCLI {
         String script = commandLine.getOptionValue("script", "");
         int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
         boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
+        boolean sqlconsole = commandLine.hasOption("sqlconsole");
         try (HerdDBDataSource datasource = new HerdDBDataSource()) {
             datasource.setUrl(url);
             datasource.setUsername(username);
@@ -115,7 +124,9 @@ public class HerdDBCLI {
             try (Connection connection = datasource.getConnection();
                 Statement statement = connection.createStatement()) {
                 connection.setSchema(schema);
-                if (!query.isEmpty()) {
+                if (sqlconsole) {
+                    runSqlConsole(connection, statement);
+                } else if (!query.isEmpty()) {
                     executeStatement(verbose, ignoreerrors, query, statement);
                 } else if (!file.isEmpty()) {
                     StringBuilder currentStatement = new StringBuilder();
@@ -261,5 +272,30 @@ public class HerdDBCLI {
 
     private static void println(Object msg) {
         System.out.println(msg);
+    }
+
+    private static void runSqlConsole(Connection connection, Statement statement) throws IOException, SQLException {
+        Terminal terminal = TerminalBuilder.builder()
+            .system(true)
+            .build();
+        LineReader reader = LineReaderBuilder.builder()
+            .terminal(terminal)
+            .build();
+        String prompt = "herd:";
+        while (true) {
+            String line = null;
+            try {
+                line = reader.readLine(prompt);
+                if (line == null) {
+                    return;
+                }
+                executeStatement(true, false, line, statement);
+            } catch (UserInterruptException e) {
+                // Ignore
+            } catch (EndOfFileException e) {
+                return;
+            }
+
+        }
     }
 }
