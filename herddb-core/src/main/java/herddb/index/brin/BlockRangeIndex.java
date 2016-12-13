@@ -194,8 +194,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                     // put #1 -> causes split
                     // put #2 -> designates this block for put, but the split is taking place
                     // put #1 returns
-                    // put #2 needs to addValue to the 'next' (split result) block not to this
-                    LOG.severe("addValue failed at " + key + " next:" + _next);
+                    // put #2 needs to addValue to the 'next' (split result) block not to this                    
                     return false;
                 }
                 ensureBlockLoaded();
@@ -345,9 +344,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
                 // access to external field, this is the cause of most of the concurrency problems
                 blocks.put(newblock.key, newblock);
-
-                LOG.severe("created a new block at " + newblock.key);
-
+                
                 loadedBlocksCount.incrementAndGet();
 
                 SK firstKey = keep_values.firstKey();
@@ -423,11 +420,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     }
 
     public void put(K key, V value) {
-        BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
-        int trials = 0;
-        while (!tryPut(key, value, lookUp)) {
-            trials++;
-            LOG.severe("tryPut failed! at " + key + " #" + trials);
+        BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);        
+        while (!tryPut(key, value, lookUp)) {            
         }
         if (loadedBlocksCount.get() > maxLoadedBlocks) {
             unloadBlocks();
@@ -484,12 +478,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         if (segmentEntry == null) {
             Block<K, V> headBlock = new Block<>(key, value);
             boolean result = blocks.putIfAbsent(HEAD_KEY, headBlock) == null;
-            loadedBlocksCount.incrementAndGet();
-            if (result) {
-                LOG.severe("created a new block at HEAD_KEY");
-            } else {
-                LOG.severe("failed to a new block at HEAD_KEY");
-            }
+            loadedBlocksCount.incrementAndGet();            
             return result;
         }
         Block<K, V> choosenSegment = segmentEntry.getValue();

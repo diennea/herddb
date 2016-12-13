@@ -26,7 +26,6 @@ import herddb.network.netty.NettyConnector;
 import herddb.server.StaticClientSideMetadataProvider;
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.util.concurrent.DefaultThreadFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +34,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * HerdDB Client
@@ -42,6 +43,8 @@ import java.util.concurrent.ThreadFactory;
  * @author enrico.olivelli
  */
 public class HDBClient implements AutoCloseable {
+
+    private static final Logger LOG = Logger.getLogger(HDBClient.class.getName());
 
     private final ClientConfiguration configuration;
     private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();
@@ -56,6 +59,7 @@ public class HDBClient implements AutoCloseable {
     }
 
     private void init() {
+        LOG.log(Level.SEVERE, "init {0}", this);
         this.thredpool = Executors.newCachedThreadPool(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -101,6 +105,7 @@ public class HDBClient implements AutoCloseable {
 
     @Override
     public void close() {
+        LOG.log(Level.SEVERE, "close {0}", this);
         List<HDBConnection> connectionsAtClose = new ArrayList<>(this.connections.values());
         for (HDBConnection connection : connectionsAtClose) {
             connection.close();

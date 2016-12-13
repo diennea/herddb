@@ -265,10 +265,7 @@ public class TableManager implements AbstractTableManager {
             }
 
             @Override
-            public void acceptRecord(Record record) {
-                if (LOGGER.isLoggable(Level.FINEST)) {
-                    LOGGER.log(Level.FINEST, "accept record key " + record.key + " page " + currentPage);
-                }
+            public void acceptRecord(Record record) {                
                 if (currentPage < 0) {
                     throw new IllegalStateException();
                 }

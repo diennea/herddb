@@ -133,6 +133,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
         @Override
         public void destroyObject(PooledObject<HDBConnection> po) throws Exception {
+            LOGGER.log(Level.SEVERE, "destroyObject {0}", po.getObject());
             po.getObject().close();
         }
 
