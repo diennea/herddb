@@ -278,7 +278,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                 byte[] refmaxvalue = maxKey.computeNewValue(null, context, tableContext);
                 lastKey = Bytes.from_array(refmaxvalue);
             }
-            LOGGER.log(Level.SEVERE, "range scan from " + firstKey + " to " + lastKey);
+            LOGGER.log(Level.FINE, "range scan on {0}.{1}, from {2} to {1}", new Object[]{index.table, index.name, firstKey, lastKey});
             return data.query(firstKey, lastKey);
 
         } else {
