@@ -20,21 +20,23 @@
  */
 package herddb.network.netty;
 
-import herddb.network.KeyValue;
-import herddb.network.Message;
-import io.netty.buffer.ByteBuf;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
+
+import herddb.network.KeyValue;
+import herddb.network.Message;
+import herddb.utils.ByteBufUtils;
+import io.netty.buffer.ByteBuf;
 
 /**
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
 public class MessageUtils {
 
@@ -48,182 +50,73 @@ public class MessageUtils {
     private static final byte OPCODE_MAP_VALUE = 7;
     private static final byte OPCODE_STRING_VALUE = 8;
     private static final byte OPCODE_LONG_VALUE = 9;
-    private static final byte OPCODE_INT_VALUE = 10;
-    private static final byte OPCODE_NULL_VALUE = 11;
-    private static final byte OPCODE_LIST_VALUE = 12;
-    private static final byte OPCODE_BYTEARRAY_VALUE = 13;
-    private static final byte OPCODE_TIMESTAMP_VALUE = 14;
-    private static final byte OPCODE_BYTE_VALUE = 15;
-    private static final byte OPCODE_KEYVALUE_VALUE = 16;
-    private static final byte OPCODE_BOOLEAN_VALUE = 17;
+    private static final byte OPCODE_V_LONG_VALUE = 10;
+    private static final byte OPCODE_Z_LONG_VALUE = 11;
+    private static final byte OPCODE_INT_VALUE = 12;
+    private static final byte OPCODE_V_INT_VALUE = 13;
+    private static final byte OPCODE_Z_INT_VALUE = 14;
+    private static final byte OPCODE_NULL_VALUE = 15;
+    private static final byte OPCODE_LIST_VALUE = 16;
+    private static final byte OPCODE_BYTEARRAY_VALUE = 17;
+    private static final byte OPCODE_TIMESTAMP_VALUE = 18;
+    private static final byte OPCODE_BYTE_VALUE = 19;
+    private static final byte OPCODE_KEYVALUE_VALUE = 20;
+    private static final byte OPCODE_BOOLEAN_VALUE = 21;
 
-    private static void writeUTF8String(ByteBuf buf, String s) {
-        byte[] asarray = s.getBytes(StandardCharsets.UTF_8);
-        buf.writeInt(asarray.length);
-        buf.writeBytes(asarray);
-    }
+    /**
+     * When writing int <b>greater than this</b> value are better written directly as int because in vint
+     * encoding will use at least 4 bytes
+     */
+    private static final int WRITE_MAX_V_INT_LIMIT = -1 >>> 11;
 
-    private static String readUTF8String(ByteBuf buf) {
-        int len = buf.readInt();
-        byte[] s = new byte[len];
-        buf.readBytes(s);
-        return new String(s, StandardCharsets.UTF_8);
-    }
+    /**
+     * When writing negative int <b>smaller than this</b> value are better written directly as int because in
+     * zint encoding will use at least 8 bytes
+     */
+    private static final int WRITE_MAX_Z_INT_LIMIT = -1 << 20;
 
-    public static void encodeMessage(ByteBuf encoded, Message m) {
-        encoded.writeByte(VERSION);
-        encoded.writeInt(m.type);
-        writeUTF8String(encoded, m.messageId);
+    /**
+     * When writing long <b>greater than this</b> value are better written directly as long because in vint
+     * encoding will use at least 4 bytes
+     */
+    private static final long WRITE_MAX_V_LONG_LIMIT = -1L >>> 15;
+
+    /**
+     * When writing negative long <b>smaller than this</b> value are better written directly as long because
+     * in zlong encoding will use at least 8 bytes
+     */
+    private static final long WRITE_MAX_Z_LONG_LIMIT = -1L << 48;
+    
+    public static void encodeMessage(ByteBuf buffer, Message m) {
+        
+        buffer.writeByte(VERSION);
+        ByteBufUtils.writeVInt(buffer, m.type);
+        writeUTF8String(buffer, m.messageId);
         if (m.replyMessageId != null) {
-            encoded.writeByte(OPCODE_REPLYMESSAGEID);
-            writeUTF8String(encoded, m.replyMessageId);
+            buffer.writeByte(OPCODE_REPLYMESSAGEID);
+            writeUTF8String(buffer, m.replyMessageId);
         }
         if (m.clientId != null) {
-            encoded.writeByte(OPCODE_WORKERPROCESSID);
-            writeUTF8String(encoded, m.clientId);
+            buffer.writeByte(OPCODE_WORKERPROCESSID);
+            writeUTF8String(buffer, m.clientId);
         }
         if (m.parameters != null) {
-            encoded.writeByte(OPCODE_PARAMETERS);
-            encoded.writeInt(m.parameters.size());
+            buffer.writeByte(OPCODE_PARAMETERS);
+            ByteBufUtils.writeVInt(buffer, m.parameters.size());
             for (Map.Entry<String, Object> p : m.parameters.entrySet()) {
-                writeEncodedSimpleValue(encoded, p.getKey());
-                writeEncodedSimpleValue(encoded, p.getValue());
+                writeEncodedSimpleValue(buffer, p.getKey());
+                writeEncodedSimpleValue(buffer, p.getValue());
             }
         }
-
     }
-
-    private static void writeEncodedSimpleValue(ByteBuf encoded, Object o) {
-        if (o == null) {
-            encoded.writeByte(OPCODE_NULL_VALUE);
-        } else if (o instanceof String) {
-            encoded.writeByte(OPCODE_STRING_VALUE);
-            writeUTF8String(encoded, (String) o);
-        } else if (o instanceof java.sql.Timestamp) {
-            encoded.writeByte(OPCODE_TIMESTAMP_VALUE);
-            encoded.writeLong(((java.sql.Timestamp) o).getTime());
-        } else if (o instanceof java.lang.Byte) {
-            encoded.writeByte(OPCODE_BYTE_VALUE);
-            encoded.writeByte(((Byte) o));
-        } else if (o instanceof KeyValue) {
-            KeyValue kv = (KeyValue) o;
-            encoded.writeByte(OPCODE_KEYVALUE_VALUE);
-            encoded.writeInt(kv.key.length);
-            encoded.writeBytes(kv.key);
-            encoded.writeInt(kv.value.length);
-            encoded.writeBytes(kv.value);
-        } else if (o instanceof Integer) {
-            encoded.writeByte(OPCODE_INT_VALUE);
-            encoded.writeInt((Integer) o);
-        } else if (o instanceof Boolean) {
-            encoded.writeByte(OPCODE_BOOLEAN_VALUE);
-            encoded.writeByte(((Boolean) o).booleanValue() ? 1 : 0);
-        } else if (o instanceof Long) {
-            encoded.writeByte(OPCODE_LONG_VALUE);
-            encoded.writeLong((Long) o);
-        } else if (o instanceof Set) {
-            Set set = (Set) o;
-            encoded.writeByte(OPCODE_SET_VALUE);
-            encoded.writeInt(set.size());
-            for (Object o2 : set) {
-                writeEncodedSimpleValue(encoded, o2);
-            }
-        } else if (o instanceof List) {
-            List set = (List) o;
-            encoded.writeByte(OPCODE_LIST_VALUE);
-            encoded.writeInt(set.size());
-            for (Object o2 : set) {
-                writeEncodedSimpleValue(encoded, o2);
-            }
-
-        } else if (o instanceof byte[]) {
-            byte[] set = (byte[]) o;
-            encoded.writeByte(OPCODE_BYTEARRAY_VALUE);
-            encoded.writeInt(set.length);
-            encoded.writeBytes(set);
-        } else if (o instanceof Map) {
-            Map set = (Map) o;
-            encoded.writeByte(OPCODE_MAP_VALUE);
-            encoded.writeInt(set.size());
-            for (Map.Entry entry : (Iterable<Entry>) set.entrySet()) {
-                writeEncodedSimpleValue(encoded, entry.getKey());
-                writeEncodedSimpleValue(encoded, entry.getValue());
-            }
-        } else {
-            throw new RuntimeException("unsupported class " + o.getClass());
-        }
-    }
-
-    private static Object readEncodedSimpleValue(ByteBuf encoded) {
-        byte _opcode = encoded.readByte();
-        switch (_opcode) {
-            case OPCODE_NULL_VALUE:
-                return null;
-            case OPCODE_STRING_VALUE:
-                return readUTF8String(encoded);
-            case OPCODE_INT_VALUE:
-                return encoded.readInt();
-            case OPCODE_BOOLEAN_VALUE:
-                return encoded.readByte() == 1 ? true : false;
-            case OPCODE_MAP_VALUE: {
-                int len = encoded.readInt();
-                Map<Object, Object> ret = new HashMap<>();
-                for (int i = 0; i < len; i++) {
-                    Object mapkey = readEncodedSimpleValue(encoded);
-                    Object value = readEncodedSimpleValue(encoded);
-                    ret.put(mapkey, value);
-                }
-                return ret;
-            }
-            case OPCODE_SET_VALUE: {
-                int len = encoded.readInt();
-                Set<Object> ret = new HashSet<>();
-                for (int i = 0; i < len; i++) {
-                    Object o = readEncodedSimpleValue(encoded);
-                    ret.add(o);
-                }
-                return ret;
-            }
-            case OPCODE_LIST_VALUE: {
-                int len = encoded.readInt();
-                List<Object> ret = new ArrayList<>(len);
-                for (int i = 0; i < len; i++) {
-                    Object o = readEncodedSimpleValue(encoded);
-                    ret.add(o);
-                }
-                return ret;
-            }
-            case OPCODE_BYTEARRAY_VALUE: {
-                int len = encoded.readInt();
-                byte[] ret = new byte[len];
-                encoded.readBytes(ret);
-                return ret;
-            }
-            case OPCODE_LONG_VALUE:
-                return encoded.readLong();
-            case OPCODE_TIMESTAMP_VALUE:
-                return new java.sql.Timestamp(encoded.readLong());
-            case OPCODE_BYTE_VALUE:
-                return encoded.readByte();
-            case OPCODE_KEYVALUE_VALUE:
-                int len_key = encoded.readInt();
-                byte[] key = new byte[len_key];
-                encoded.readBytes(key);
-                int len_value = encoded.readInt();
-                byte[] value = new byte[len_value];
-                encoded.readBytes(value);
-                return new KeyValue(key, value);
-            default:
-                throw new RuntimeException("invalid opcode: " + _opcode);
-        }
-    }
-
+    
     public static Message decodeMessage(ByteBuf encoded) {
         byte version = encoded.readByte();
         if (version != VERSION) {
             throw new RuntimeException("bad protocol version " + version);
         }
-        int type = encoded.readInt();
+        
+        int type = ByteBufUtils.readVInt(encoded);
         String messageId = readUTF8String(encoded);
         String replyMessageId = null;
         String workerProcessId = null;
@@ -238,7 +131,7 @@ public class MessageUtils {
                     workerProcessId = readUTF8String(encoded);
                     break;
                 case OPCODE_PARAMETERS:
-                    int size = encoded.readInt();
+                    int size = ByteBufUtils.readVInt(encoded);
                     for (int i = 0; i < size; i++) {
                         Object key = readEncodedSimpleValue(encoded);
                         Object value = readEncodedSimpleValue(encoded);
@@ -255,7 +148,183 @@ public class MessageUtils {
         }
         m.messageId = messageId;
         return m;
+    }
 
+    private static void writeUTF8String(ByteBuf buffer, String s) {
+        byte[] array = s.getBytes(StandardCharsets.UTF_8);
+        ByteBufUtils.writeArray(buffer, array);
+    }
+
+    private static String readUTF8String(ByteBuf buffer) {
+        byte[] array = ByteBufUtils.readArray(buffer);
+        return new String(array, StandardCharsets.UTF_8);
+    }
+    
+    @SuppressWarnings("rawtypes")
+    private static void writeEncodedSimpleValue(ByteBuf encoded, Object o) {
+        if (o == null) {
+            encoded.writeByte(OPCODE_NULL_VALUE);
+        } else if (o instanceof String) {
+            encoded.writeByte(OPCODE_STRING_VALUE);
+            writeUTF8String(encoded, (String) o);
+        } else if (o instanceof java.sql.Timestamp) {
+            encoded.writeByte(OPCODE_TIMESTAMP_VALUE);
+            ByteBufUtils.writeVLong(encoded, ((java.sql.Timestamp) o).getTime());
+        } else if (o instanceof java.lang.Byte) {
+            encoded.writeByte(OPCODE_BYTE_VALUE);
+            encoded.writeByte(((Byte) o));
+        } else if (o instanceof KeyValue) {
+            KeyValue kv = (KeyValue) o;
+            encoded.writeByte(OPCODE_KEYVALUE_VALUE);
+            ByteBufUtils.writeArray(encoded, kv.key);
+            ByteBufUtils.writeArray(encoded, kv.value);
+            
+        } else if (o instanceof Integer) {
+            
+            int i = (int) o;
+            
+            if ( i < 0 ) {
+                if (i < WRITE_MAX_Z_INT_LIMIT) {
+                    encoded.writeByte(OPCODE_INT_VALUE);
+                    encoded.writeInt(i);
+                } else {
+                    encoded.writeByte(OPCODE_Z_INT_VALUE);
+                    ByteBufUtils.writeZInt(encoded, i);
+                }
+            } else {
+                if ( i > WRITE_MAX_V_INT_LIMIT ) {
+                    encoded.writeByte(OPCODE_INT_VALUE);
+                    encoded.writeInt(i);
+                } else {
+                    encoded.writeByte(OPCODE_V_INT_VALUE);
+                    ByteBufUtils.writeVInt(encoded, i);
+                }
+            }
+            
+        } else if (o instanceof Long) {
+            
+            long l = (long) o;
+            
+            if ( l < 0 ) {
+                if (l < WRITE_MAX_Z_LONG_LIMIT) {
+                    encoded.writeByte(OPCODE_LONG_VALUE);
+                    encoded.writeLong(l);
+                } else {
+                    encoded.writeByte(OPCODE_Z_LONG_VALUE);
+                    ByteBufUtils.writeZLong(encoded, l);
+                }
+            } else {
+                if ( l > WRITE_MAX_V_LONG_LIMIT ) {
+                    encoded.writeByte(OPCODE_LONG_VALUE);
+                    encoded.writeLong(l);
+                } else {
+                    encoded.writeByte(OPCODE_V_LONG_VALUE);
+                    ByteBufUtils.writeVLong(encoded, l);
+                }
+            }
+            
+        } else if (o instanceof Boolean) {
+            encoded.writeByte(OPCODE_BOOLEAN_VALUE);
+            encoded.writeByte(((Boolean) o).booleanValue() ? 1 : 0);
+        } else if (o instanceof Set) {
+            Set set = (Set) o;
+            encoded.writeByte(OPCODE_SET_VALUE);
+            ByteBufUtils.writeVInt(encoded, set.size());
+            for (Object o2 : set) {
+                writeEncodedSimpleValue(encoded, o2);
+            }
+        } else if (o instanceof List) {
+            List set = (List) o;
+            encoded.writeByte(OPCODE_LIST_VALUE);
+            ByteBufUtils.writeVInt(encoded, set.size());
+            for (Object o2 : set) {
+                writeEncodedSimpleValue(encoded, o2);
+            }
+        } else if (o instanceof Map) {
+            Map set = (Map) o;
+            encoded.writeByte(OPCODE_MAP_VALUE);
+            ByteBufUtils.writeVInt(encoded, set.size());
+            for (Map.Entry entry : (Iterable<Map.Entry>) set.entrySet()) {
+                writeEncodedSimpleValue(encoded, entry.getKey());
+                writeEncodedSimpleValue(encoded, entry.getValue());
+            }
+        } else if (o instanceof byte[]) {
+            byte[] set = (byte[]) o;
+            encoded.writeByte(OPCODE_BYTEARRAY_VALUE);
+            ByteBufUtils.writeArray(encoded, set);
+        } else {
+            throw new RuntimeException("unsupported class " + o.getClass());
+        }
+    }
+
+    private static Object readEncodedSimpleValue(ByteBuf encoded) {
+        byte _opcode = encoded.readByte();
+        switch (_opcode) {
+            case OPCODE_NULL_VALUE:
+                return null;
+            case OPCODE_STRING_VALUE:
+                return readUTF8String(encoded);
+                
+            case OPCODE_INT_VALUE:
+                return encoded.readInt();
+            case OPCODE_V_INT_VALUE:
+                return ByteBufUtils.readVInt(encoded);
+            case OPCODE_Z_INT_VALUE:
+                return ByteBufUtils.readZInt(encoded);
+
+            case OPCODE_LONG_VALUE:
+                return encoded.readLong();
+            case OPCODE_V_LONG_VALUE:
+                return ByteBufUtils.readVLong(encoded);
+            case OPCODE_Z_LONG_VALUE:
+                return ByteBufUtils.readZLong(encoded);
+                
+            case OPCODE_BOOLEAN_VALUE:
+                return encoded.readByte() == 1 ? true : false;
+                
+            case OPCODE_MAP_VALUE: {
+                int len = ByteBufUtils.readVInt(encoded);
+                Map<Object, Object> ret = new HashMap<>();
+                for (int i = 0; i < len; i++) {
+                    Object mapkey = readEncodedSimpleValue(encoded);
+                    Object value = readEncodedSimpleValue(encoded);
+                    ret.put(mapkey, value);
+                }
+                return ret;
+            }
+            case OPCODE_SET_VALUE: {
+                int len = ByteBufUtils.readVInt(encoded);
+                Set<Object> ret = new HashSet<>();
+                for (int i = 0; i < len; i++) {
+                    Object o = readEncodedSimpleValue(encoded);
+                    ret.add(o);
+                }
+                return ret;
+            }
+            case OPCODE_LIST_VALUE: {
+                int len = ByteBufUtils.readVInt(encoded);
+                List<Object> ret = new ArrayList<>(len);
+                for (int i = 0; i < len; i++) {
+                    Object o = readEncodedSimpleValue(encoded);
+                    ret.add(o);
+                }
+                return ret;
+            }
+            case OPCODE_BYTEARRAY_VALUE: {
+                return ByteBufUtils.readArray(encoded);
+            }
+                
+            case OPCODE_TIMESTAMP_VALUE:
+                return new java.sql.Timestamp(ByteBufUtils.readVLong(encoded));
+            case OPCODE_BYTE_VALUE:
+                return encoded.readByte();
+            case OPCODE_KEYVALUE_VALUE:
+                byte[] key = ByteBufUtils.readArray(encoded);
+                byte[] value = ByteBufUtils.readArray(encoded);
+                return new KeyValue(key, value);
+            default:
+                throw new RuntimeException("invalid opcode: " + _opcode);
+        }
     }
 
 }
