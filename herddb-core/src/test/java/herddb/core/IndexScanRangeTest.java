@@ -135,7 +135,8 @@ public class IndexScanRangeTest {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(
+                    TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -188,7 +189,8 @@ public class IndexScanRangeTest {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager
+                    .getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -241,7 +243,7 @@ public class IndexScanRangeTest {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -251,7 +253,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=1", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=1", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -261,7 +263,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -271,7 +273,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>= 1 and n1<=2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>= 1 and n1<=2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -281,7 +283,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<= 1 and n1>=2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<= 1 and n1>=2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -291,7 +293,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>1", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>1", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -301,7 +303,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<3", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<3", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -311,7 +313,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<1", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<1", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -321,7 +323,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -331,7 +333,7 @@ public class IndexScanRangeTest {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1> 1 and n1<3", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1> 1 and n1<3", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -341,7 +343,7 @@ public class IndexScanRangeTest {
             }
             
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1' and n1>=1 and n1<=2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1' and n1>=1 and n1<=2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -395,7 +397,7 @@ public class IndexScanRangeTest {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<n2", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<n2", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 
@@ -465,7 +467,7 @@ public class IndexScanRangeTest {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1' and n1>=0 and n1<=1", Collections.emptyList(), true, true);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1' and n1>=0 and n1<=1", Collections.emptyList(), true, true, false);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);

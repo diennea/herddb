@@ -265,7 +265,7 @@ public class TableManager implements AbstractTableManager {
             }
 
             @Override
-            public void acceptRecord(Record record) {                
+            public void acceptRecord(Record record) {
                 if (currentPage < 0) {
                     throw new IllegalStateException();
                 }
@@ -424,7 +424,7 @@ public class TableManager implements AbstractTableManager {
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
-            return new DMLStatementExecutionResult(entry.transactionId, 1, key, Bytes.from_array(value));
+            return new DMLStatementExecutionResult(entry.transactionId, 1, key, insert.isReturnValues() ? Bytes.from_array(value) : null);
         } catch (LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
@@ -471,7 +471,8 @@ public class TableManager implements AbstractTableManager {
             }
         }, transaction, true);
 
-        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value, lastValue.value != null ? Bytes.from_array(lastValue.value) : null);
+        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+            update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
 
     }
 
@@ -496,7 +497,8 @@ public class TableManager implements AbstractTableManager {
                 updateCount.incrementAndGet();
             }
         }, transaction, true);
-        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value, lastValue.value != null ? Bytes.from_array(lastValue.value) : null);
+        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+            delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
     }
 
     private void ensurePageLoadedOnApply(Bytes key, boolean recovery) throws DataStorageManagerException {

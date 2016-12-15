@@ -121,7 +121,7 @@ public class BackupRestoreTest {
                     });
                     byte[] backupData = oo.toByteArray();
 
-                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, Collections.emptyList());
+                    connection.executeUpdate(TableSpace.DEFAULT, "DELETE FROM t1", 0, false, Collections.emptyList());
 
                     assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1", Collections.emptyList(), 0, 0, 10).consume().size());
 

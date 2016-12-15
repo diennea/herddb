@@ -26,8 +26,19 @@ package herddb.model;
  */
 public abstract class DMLStatement extends TableAwareStatement {
 
+    private boolean returnValues = false;
+
     public DMLStatement(String table, String tableSpace) {
         super(table, tableSpace);
     }
-    
+
+    public boolean isReturnValues() {
+        return returnValues;
+    }
+
+    public DMLStatement setReturnValues(boolean returnValues) {
+        this.returnValues = returnValues;
+        return this;
+    }
+
 }

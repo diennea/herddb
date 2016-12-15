@@ -235,10 +235,10 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
+    DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, params);
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, returnValues, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -265,10 +265,10 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    List<DMLResult> executeUpdates(String tableSpace, String query, long tx, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
+    List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENTS(clientId, tableSpace, query, tx, batch);
+            Message message = Message.EXECUTE_STATEMENTS(clientId, tableSpace, query, tx, returnValues, batch);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -301,7 +301,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     GetResult executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, params);
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, query, tx, false, params);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -326,7 +326,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "BEGIN TRANSACTION '" + tableSpace + "'", 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "BEGIN TRANSACTION '" + tableSpace + "'",
+                0, false, null);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -346,7 +347,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "COMMIT TRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "COMMIT TRANSACTION '" + tableSpace + "'," + tx,
+                0, false, null);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -364,7 +366,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "ROLLBACK TRANSACTION '" + tableSpace + "'," + tx, 0, Collections.emptyList());
+            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "ROLLBACK TRANSACTION '" + tableSpace + "'," + tx,
+                0, false, null);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;

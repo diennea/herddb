@@ -42,7 +42,7 @@ import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.ColumnsList;
-import herddb.model.DataScannerException;
+import herddb.model.DMLStatement;
 import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
 import herddb.model.Projection;
@@ -74,24 +74,21 @@ import herddb.model.commands.UpdateStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
 import herddb.utils.SQLUtils;
+import java.util.Collections;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
-import net.sf.jsqlparser.expression.NullValue;
-import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
-import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
-import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.ItemsList;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
@@ -114,7 +111,6 @@ import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
-import net.sf.jsqlparser.statement.select.SubSelect;
 import net.sf.jsqlparser.statement.select.Top;
 import net.sf.jsqlparser.statement.update.Update;
 
@@ -208,9 +204,16 @@ public class SQLPlanner {
         }
     }
 
-    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache) throws StatementExecutionException {
+    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters,
+        boolean scan, boolean allowCache, boolean returnValues) throws StatementExecutionException {
+        if (parameters == null) {
+            parameters = Collections.emptyList();
+        }
         query = rewriteExecuteSyntax(query);
-        String cacheKey = "scan:" + scan + ",defaultTableSpace:" + defaultTableSpace + ", query:" + query;
+        String cacheKey = "scan:" + scan
+            + ",defaultTableSpace:" + defaultTableSpace
+            + ", query:" + query
+            + ",returnValues:" + returnValues;
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
@@ -226,11 +229,11 @@ public class SQLPlanner {
             } else if (stmt instanceof CreateIndex) {
                 result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
             } else if (stmt instanceof Insert) {
-                result = buildInsertStatement(defaultTableSpace, (Insert) stmt);
+                result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
             } else if (stmt instanceof Delete) {
-                result = buildDeleteStatement(defaultTableSpace, (Delete) stmt);
+                result = buildDeleteStatement(defaultTableSpace, (Delete) stmt, returnValues);
             } else if (stmt instanceof Update) {
-                result = buildUpdateStatement(defaultTableSpace, (Update) stmt);
+                result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
             } else if (stmt instanceof Select) {
                 result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan);
             } else if (stmt instanceof Execute) {
@@ -434,7 +437,7 @@ public class SQLPlanner {
         return type;
     }
 
-    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s) throws StatementExecutionException {
+    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s, boolean returnValues) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
@@ -442,7 +445,7 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at "+manager.getNodeId());
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
@@ -510,7 +513,7 @@ public class SQLPlanner {
             RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
 
             try {
-                return ExecutionPlan.simple(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction));
+                return ExecutionPlan.simple(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues));
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
@@ -549,7 +552,9 @@ public class SQLPlanner {
             RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
 
             try {
-                return ExecutionPlan.dataManupulationFromSelect(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction),
+                return ExecutionPlan.dataManupulationFromSelect(
+                    new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction)
+                        .setReturnValues(returnValues),
                     datasource);
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
@@ -557,7 +562,7 @@ public class SQLPlanner {
         }
     }
 
-    private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete s) throws StatementExecutionException {
+    private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete s, boolean returnValues) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName().toLowerCase();
@@ -566,7 +571,7 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at "+manager.getNodeId());
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
@@ -655,12 +660,13 @@ public class SQLPlanner {
             }
         }
 
-        DeleteStatement st = new DeleteStatement(tableSpace, tableName, null, where);
+        DMLStatement st = new DeleteStatement(tableSpace, tableName, null, where).setReturnValues(returnValues);
         return ExecutionPlan.simple(st);
 
     }
 
-    private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s) throws StatementExecutionException {
+    private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s,
+        boolean returnValues) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName().toLowerCase();
@@ -669,7 +675,7 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at "+manager.getNodeId());
+            throw new StatementExecutionException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
@@ -765,7 +771,8 @@ public class SQLPlanner {
                 }
             }
         }
-        UpdateStatement st = new UpdateStatement(tableSpace, tableName, null, function, where);
+        DMLStatement st = new UpdateStatement(tableSpace, tableName, null, function, where)
+            .setReturnValues(returnValues);
         return ExecutionPlan.simple(st);
 
     }
@@ -907,7 +914,7 @@ public class SQLPlanner {
         }
         TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
         if (tableSpaceManager == null) {
-            throw new TableSpaceDoesNotExistException("no such tablespace " + tableSpace + " here at "+manager.getNodeId());
+            throw new TableSpaceDoesNotExistException("no such tablespace " + tableSpace + " here at " + manager.getNodeId());
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {

@@ -219,7 +219,9 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             int i = 0;
 
             parent.discoverTableSpace(sql);
-            List<DMLResult> dmlresults = parent.getConnection().executeUpdates(parent.getTableSpace(), sql, parent.ensureTransaction(), this.batch);
+            List<DMLResult> dmlresults = parent.getConnection().executeUpdates(
+                parent.getTableSpace(), sql,
+                parent.ensureTransaction(), false, this.batch);
 
             for (DMLResult dmlresult : dmlresults) {
                 results[i++] = (int) dmlresult.updateCount;
@@ -464,13 +466,14 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public long executeLargeUpdate() throws SQLException {
-        return doExecuteLargeUpdate(parameters);
+        return doExecuteLargeUpdateWithParameters(parameters, false);
     }
 
-    private long doExecuteLargeUpdate(List<Object> actualParameters) throws SQLException {
+    private long doExecuteLargeUpdateWithParameters(List<Object> actualParameters, boolean returnValues) throws SQLException {
         try {
             parent.discoverTableSpace(sql);
-            DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(), sql, parent.ensureTransaction(), actualParameters);
+            DMLResult result = parent.getConnection().executeUpdate(parent.getTableSpace(),
+                sql, parent.ensureTransaction(), returnValues, actualParameters);
             parent.statementFinished(result.transactionId);
             lastUpdateCount = result.updateCount;
             lastKey = result.key;

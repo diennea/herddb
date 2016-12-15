@@ -64,11 +64,11 @@ public class SimpleClientServerAutoTransactionTest {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 DMLResult executeUpdateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.AUTOTRANSACTION_ID, Arrays.asList("test", 1, 2));
+                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", TransactionContext.AUTOTRANSACTION_ID, false, Arrays.asList("test", 1, 2));
 
                 long tx = executeUpdateResult.transactionId;
                 long countInsert = executeUpdateResult.updateCount;

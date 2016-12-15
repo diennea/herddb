@@ -130,7 +130,7 @@ public class BackupUtils {
     public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, InputStream fin, ProgressListener listener) throws Exception {
         try (ExtendedDataInputStream ii = new ExtendedDataInputStream(new BufferedInputStream(fin, 64 * 1024 * 1024))) {
             listener.log("Creating tablespace " + schema + " with leader " + node, Collections.singletonMap("tablespace", schema));
-            hdbconnection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLESPACE '" + schema + "','leader:" + node + "','wait:60000'", 0, Collections.emptyList());
+            hdbconnection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLESPACE '" + schema + "','leader:" + node + "','wait:60000'", 0, false, Collections.emptyList());
 
             TableSpaceRestoreSource source = new TableSpaceRestoreSource() {
                 long currentTableSize;

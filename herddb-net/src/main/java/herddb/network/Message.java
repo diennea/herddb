@@ -58,23 +58,38 @@ public final class Message {
         return new Message(clientId, TYPE_CLIENT_SHUTDOWN, new HashMap<>());
     }
 
-    public static Message EXECUTE_STATEMENT(String clientId, String tableSpace, String query, long tx, List<Object> params) {
+    public static Message EXECUTE_STATEMENT(String clientId, String tableSpace, String query, long tx,
+        boolean returnValues,
+        List<Object> params) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("tableSpace", tableSpace);
-        data.put("tx", tx);
+        if (tx != 0) {
+            data.put("tx", tx);
+        }
+        if (returnValues) {
+            data.put("returnValues", Boolean.TRUE);
+        }
         data.put("query", query);
-        data.put("params", params);
+        if (params != null && !params.isEmpty()) {
+            data.put("params", params);
+        }
         return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
     }
 
-    public static Message EXECUTE_STATEMENTS(String clientId, String tableSpace, String query, long tx, List<List<Object>> params) {
+    public static Message EXECUTE_STATEMENTS(String clientId, String tableSpace, String query,
+        long tx, boolean returnValues, List<List<Object>> params) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("tableSpace", tableSpace);
-        data.put("tx", tx);
+        if (tx != 0) {
+            data.put("tx", tx);
+        }
+        if (returnValues) {
+            data.put("returnValues", Boolean.TRUE);
+        }
         data.put("query", query);
         data.put("params", params);
         return new Message(clientId, TYPE_EXECUTE_STATEMENTS, data);
@@ -149,7 +164,9 @@ public final class Message {
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("updateCount", updateCount);
-        data.put("data", otherdata);
+        if (otherdata != null && !otherdata.isEmpty()) {
+            data.put("data", otherdata);
+        }
         data.put("tx", tx);
         return new Message(null, TYPE_EXECUTE_STATEMENT_RESULT, data);
     }

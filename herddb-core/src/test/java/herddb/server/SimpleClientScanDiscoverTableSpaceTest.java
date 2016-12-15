@@ -52,15 +52,15 @@ public class SimpleClientScanDiscoverTableSpaceTest {
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
-                connection.executeUpdate(TableSpace.DEFAULT, "EXECUTE CREATETABLESPACE 'foo','wait:100000'", 0, Collections.emptyList());
+                connection.executeUpdate(TableSpace.DEFAULT, "EXECUTE CREATETABLESPACE 'foo','wait:100000'", 0, false, Collections.emptyList());
                 
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE foo.mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
+                        "CREATE TABLE foo.mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 for (int i = 0; i < 99; i++) {
-                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO foo.mytable (id,n1,n2) values(?,?,?)", 0, Arrays.asList("test_" + i, 1, 2)).updateCount);
+                    Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO foo.mytable (id,n1,n2) values(?,?,?)", 0, false, Arrays.asList("test_" + i, 1, 2)).updateCount);
                 }
 
                 assertEquals(99, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM foo.mytable", Collections.emptyList(), 0, 0, 10).consume().size());

@@ -51,11 +51,12 @@ public class GeneratedKeysTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                    Connection con = dataSource.getConnection();
+                    Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
 
-                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')"));
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')",
+                        Statement.RETURN_GENERATED_KEYS));
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
                         int count = 0;
@@ -64,20 +65,20 @@ public class GeneratedKeysTest {
                         }
                         assertEquals(1, count);
                     }
-                    Object key =  null;
+                    Object key = null;
                     try (ResultSet generatedKeys = statement.getGeneratedKeys();) {
                         if (generatedKeys.next()) {
                             key = generatedKeys.getObject(1);
                         }
                     }
                     assertNotNull(key);
-                    assertEquals(Integer.valueOf(1),key);
+                    assertEquals(Integer.valueOf(1), key);
                 }
             }
         }
 
     }
-    
+
     @Test
     public void test_long() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
@@ -86,11 +87,11 @@ public class GeneratedKeysTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                    Connection con = dataSource.getConnection();
+                    Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 long primary key auto_increment, name string)");
 
-                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')"));
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (name) values('name1')", Statement.RETURN_GENERATED_KEYS));
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
                         int count = 0;
@@ -99,14 +100,14 @@ public class GeneratedKeysTest {
                         }
                         assertEquals(1, count);
                     }
-                    Object key =  null;
+                    Object key = null;
                     try (ResultSet generatedKeys = statement.getGeneratedKeys();) {
                         if (generatedKeys.next()) {
                             key = generatedKeys.getObject(1);
                         }
                     }
                     assertNotNull(key);
-                    assertEquals(Long.valueOf(1),key);
+                    assertEquals(Long.valueOf(1), key);
                 }
             }
         }

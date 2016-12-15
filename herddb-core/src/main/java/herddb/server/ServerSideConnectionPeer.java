@@ -56,6 +56,7 @@ import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -165,27 +166,38 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
                 String query = (String) message.parameters.get("query");
                 String tableSpace = (String) message.parameters.get("tableSpace");
+                Boolean returnValues = (Boolean) message.parameters.get("returnValues");
+                if (returnValues == null) {
+                    returnValues = false;
+                }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
                     TransactionContext transactionContext = new TransactionContext(txId);
-                    TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace, query, parameters, false, true);
+                    TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace,
+                        query, parameters, false, true, returnValues);
                     Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
-                    StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                    StatementExecutionResult result = server
+                        .getManager()
+                        .executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
                     if (result instanceof DMLStatementExecutionResult) {
                         DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                         Map<String, Object> otherData = null;
-                        if (dml.getKey() != null) {
+                        if (returnValues && dml.getKey() != null) {
                             TableAwareStatement tableStatement = (TableAwareStatement) statement;
-                            Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
-                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                            Table table = server
+                                .getManager()
+                                .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+
                             otherData = new HashMap<>();
+                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
                             otherData.put("key", key);
                             if (dml.getNewvalue() != null) {
                                 Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
                                 otherData.put("newvalue", newvalue);
                             }
+
                         }
                         _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData, dml.transactionId));
                     } else if (result instanceof GetResult) {
@@ -242,6 +254,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 long transactionId = txId;
                 String query = (String) message.parameters.get("query");
                 String tableSpace = (String) message.parameters.get("tableSpace");
+                Boolean returnValues = (Boolean) message.parameters.get("returnValues");
+                if (returnValues == null) {
+                    returnValues = false;
+                }
                 List<List<Object>> batch = (List<List<Object>>) message.parameters.get("params");
                 try {
 
@@ -251,7 +267,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         List<Object> parameters = batch.get(i);
 
                         TransactionContext transactionContext = new TransactionContext(transactionId);
-                        TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace, query, parameters, false, true);
+                        TranslatedQuery translatedQuery = server
+                            .getManager()
+                            .getPlanner().translate(tableSpace, query, parameters, false, true, returnValues);
                         Statement statement = translatedQuery.plan.mainStatement;
 
                         StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -262,8 +280,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                         if (result instanceof DMLStatementExecutionResult) {
                             DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
-                            Map<String, Object> otherData = new HashMap<>();
-                            if (dml.getKey() != null) {
+                            Map<String, Object> otherData = Collections.emptyMap();
+                            if (returnValues && dml.getKey() != null) {
                                 TableAwareStatement tableStatement = (TableAwareStatement) statement;
                                 Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
                                 Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
@@ -387,7 +405,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
                 try {
-                    TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace, query, parameters, true, true);
+                    TranslatedQuery translatedQuery = server
+                        .getManager()
+                        .getPlanner().translate(tableSpace, query, parameters, true, true, false);
                     Statement statement = translatedQuery.plan.mainStatement;
                     TransactionContext transactionContext = new TransactionContext(txId);
                     if (statement instanceof ScanStatement) {

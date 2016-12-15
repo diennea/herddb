@@ -133,14 +133,14 @@ public class HDBConnection implements AutoCloseable {
         throw new HDBException("client is closed");
     }
 
-    public DMLResult executeUpdate(String tableSpace, String query, long tx, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
+    public DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, List<Object> params) throws ClientSideMetadataProviderException, HDBException {
         if (discoverTablespaceFromSql) {
             tableSpace = discoverTablespace(tableSpace, query);
         }
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-                return route.executeUpdate(tableSpace, query, tx, params);
+                return route.executeUpdate(tableSpace, query, tx, returnValues, params);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
                 sleepOnRetry();
@@ -149,14 +149,14 @@ public class HDBConnection implements AutoCloseable {
         throw new HDBException("client is closed");
     }
 
-    public List<DMLResult> executeUpdates(String tableSpace, String query, long tx, List<List<Object>> batch) throws ClientSideMetadataProviderException, HDBException {
+    public List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues, List<List<Object>> batch) throws ClientSideMetadataProviderException, HDBException {
         if (discoverTablespaceFromSql) {
             tableSpace = discoverTablespace(tableSpace, query);
         }
         while (!closed) {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-                return route.executeUpdates(tableSpace, query, tx, batch);
+                return route.executeUpdates(tableSpace, query, tx, returnValues, batch);
             } catch (RetryRequestException retry) {
                 LOGGER.log(Level.SEVERE, "error " + retry, retry);
                 sleepOnRetry();
@@ -234,7 +234,7 @@ public class HDBConnection implements AutoCloseable {
         }
         String leaderId = client.getClientSideMetadataProvider().getTableSpaceLeader(tableSpace);
         if (leaderId == null) {
-            throw new HDBException("no such tablespace " + tableSpace+" (no leader found)");
+            throw new HDBException("no such tablespace " + tableSpace + " (no leader found)");
         }
         return getRouteToServer(leaderId);
     }
@@ -281,7 +281,5 @@ public class HDBConnection implements AutoCloseable {
         }
         return true;
     }
-    
-    
 
 }

@@ -79,37 +79,38 @@ public class SimpleClientServerTest {
             server.start();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                    HDBConnection connection = client.openConnection()) {
+                HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, Collections.emptyList()).updateCount;
+                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 long tx = connection.beginTransaction(TableSpace.DEFAULT);
 
                 long countInsert = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test", 1, 2)).updateCount;
+                    "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, Arrays.asList("test", 1, 2)).updateCount;
                 Assert.assertEquals(1, countInsert);
                 long countInsert2 = connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, Arrays.asList("test2", 2, 3)).updateCount;
+                    "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false, Arrays.asList("test2", 2, 3)).updateCount;
                 Assert.assertEquals(1, countInsert2);
-                
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
-                        "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());
+                    "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());
                 Map<String, Object> record = res.data;
                 Assert.assertNotNull(record);
                 assertEquals("test", record.get("id"));
                 assertEquals(Long.valueOf(1), record.get("n1"));
                 assertEquals(Integer.valueOf(2), record.get("n2"));
 
-                List<DMLResult> executeUpdates = connection.executeUpdates(TableSpace.DEFAULT, "UPDATE mytable set n2=? WHERE id=?", tx,
-                        Arrays.asList(
-                                Arrays.asList(1,"test"),
-                                Arrays.asList(2,"test2"),
-                                Arrays.asList(3,"test_not_exists")
-                        )
+                List<DMLResult> executeUpdates = connection.executeUpdates(TableSpace.DEFAULT,
+                    "UPDATE mytable set n2=? WHERE id=?", tx,
+                    false,
+                    Arrays.asList(
+                        Arrays.asList(1, "test"),
+                        Arrays.asList(2, "test2"),
+                        Arrays.asList(3, "test_not_exists")
+                    )
                 );
                 assertEquals(3, executeUpdates.size());
                 assertEquals(1, executeUpdates.get(0).updateCount);
