@@ -19,6 +19,18 @@
  */
 package herddb.backup;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+
+import javax.xml.ws.Holder;
+
 import herddb.client.HDBConnection;
 import herddb.client.TableSpaceDumpReceiver;
 import herddb.client.TableSpaceRestoreSource;
@@ -30,17 +42,8 @@ import herddb.network.KeyValue;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
-import java.io.BufferedInputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import javax.xml.ws.Holder;
+import herddb.utils.NonClosingInputStream;
+import herddb.utils.NonClosingOutputStream;
 
 /**
  * Backup Restore Utility
@@ -50,11 +53,14 @@ import javax.xml.ws.Holder;
 public class BackupUtils {
 
     public static void dumpTableSpace(String schema, int fetchSize, HDBConnection connection, OutputStream fout, ProgressListener listener) throws Exception {
-        try (ExtendedDataOutputStream eout = new ExtendedDataOutputStream(fout)) {
-            dumpTablespace(schema, fetchSize, connection, eout, listener);
+        
+        /* Do not close externally provided streams */
+        try (NonClosingOutputStream nos = new NonClosingOutputStream(fout);
+             ExtendedDataOutputStream eos = new ExtendedDataOutputStream(nos)) {
+            dumpTablespace(schema, fetchSize, connection, eos, listener);
         }
     }
-
+    
     private static void dumpTablespace(String schema, int fetchSize, HDBConnection hdbconnection, ExtendedDataOutputStream out, ProgressListener listener) throws Exception {
 
         Holder<Throwable> errorHolder = new Holder<>();
@@ -126,56 +132,67 @@ public class BackupUtils {
         }
         waiter.await();
     }
-
+    
     public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, InputStream fin, ProgressListener listener) throws Exception {
-        try (ExtendedDataInputStream ii = new ExtendedDataInputStream(new BufferedInputStream(fin, 64 * 1024 * 1024))) {
-            listener.log("Creating tablespace " + schema + " with leader " + node, Collections.singletonMap("tablespace", schema));
-            hdbconnection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLESPACE '" + schema + "','leader:" + node + "','wait:60000'", 0, false, Collections.emptyList());
-
-            TableSpaceRestoreSource source = new TableSpaceRestoreSource() {
-                long currentTableSize;
-
-                @Override
-                public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
-                    try {
-                        int numRecords = ii.readVInt();
-                        if (Integer.MIN_VALUE == numRecords) {
-                            // EndOfTableMarker
-                            listener.log("table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
-                            return null;
-                        }
-                        listener.log("sending " + numRecords + ", total " + currentTableSize,
-                            Collections.singletonMap("count", numRecords));
-                        List<KeyValue> records = new ArrayList<>(numRecords);
-                        for (int i = 0; i < numRecords; i++) {
-                            byte[] key = ii.readArray();
-                            byte[] value = ii.readArray();
-                            records.add(new KeyValue(key, value));
-                        }
-                        currentTableSize += numRecords;
-                        return records;
-                    } catch (IOException err) {
-                        throw new DataStorageManagerException(err);
-                    }
-                }
-
-                @Override
-                public Table nextTable() throws DataStorageManagerException {
-                    currentTableSize = 0;
-                    try {
-                        byte[] table = ii.readArray();
-                        Table tableMetadata = Table.deserialize(table);
-                        listener.log("starting table " + tableMetadata.name, Collections.singletonMap("table", tableMetadata.name));
-                        return tableMetadata;
-                    } catch (EOFException end) {
-                        return null;
-                    } catch (IOException err) {
-                        throw new DataStorageManagerException(err);
-                    }
-                }
-
-            };
-            hdbconnection.restoreTableSpace(schema, source);
+        
+        /* Do not close externally provided streams */
+        try (NonClosingInputStream nis = new NonClosingInputStream(fin);
+             ExtendedDataInputStream eis = new ExtendedDataInputStream(nis)) {
+            restoreTableSpace(schema, node, hdbconnection, eis, listener);
         }
+    }
+
+    public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, ExtendedDataInputStream in, ProgressListener listener) throws Exception {
+            
+        listener.log("creating tablespace " + schema + " with leader " + node, Collections.singletonMap("tablespace", schema));
+        hdbconnection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLESPACE '" + schema + "','leader:" + node + "','wait:60000'", 0, false, Collections.emptyList());
+
+        TableSpaceRestoreSource source = new TableSpaceRestoreSource() {
+            long currentTableSize;
+
+            @Override
+            public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
+                try {
+                    int numRecords = in.readVInt();
+                    if (Integer.MIN_VALUE == numRecords) {
+                        // EndOfTableMarker
+                        listener.log("table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
+                        return null;
+                    }
+                    listener.log("sending " + numRecords + ", total " + currentTableSize,
+                        Collections.singletonMap("count", numRecords));
+                    List<KeyValue> records = new ArrayList<>(numRecords);
+                    for (int i = 0; i < numRecords; i++) {
+                        byte[] key = in.readArray();
+                        byte[] value = in.readArray();
+                        records.add(new KeyValue(key, value));
+                    }
+                    currentTableSize += numRecords;
+                    return records;
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
+            }
+
+            @Override
+            public Table nextTable() throws DataStorageManagerException {
+                currentTableSize = 0;
+                try {
+                    byte[] table = in.readArray();
+                    Table tableMetadata = Table.deserialize(table);
+                    listener.log("starting table " + tableMetadata.name, Collections.singletonMap("table", tableMetadata.name));
+                    return tableMetadata;
+                } catch (EOFException end) {
+                    return null;
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
+            }
+
+        };
+        hdbconnection.restoreTableSpace(schema, source);
+        
+        listener.log("restore finished for tablespace " + schema, Collections.singletonMap("tablespace", schema));
+        
     }
 }

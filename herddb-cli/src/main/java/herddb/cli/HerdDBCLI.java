@@ -25,6 +25,8 @@ import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
 import herddb.model.TableSpace;
 import herddb.utils.SimpleBufferedOutputStream;
+
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -158,7 +160,7 @@ public class HerdDBCLI {
                     println("Dumping tables " + tablesToDump + " from tablespace " + schema + " to " + outputfile);
 
                     try (OutputStream fout = Files.newOutputStream(outputfile, StandardOpenOption.CREATE_NEW);
-                        SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout);) {
+                        SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout, 16 * 1024 * 1024);) {
                         HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
                         HDBConnection hdbconnection = hcon.getConnection();
                         BackupUtils.dumpTableSpace(schema, dumpfetchsize, hdbconnection, oo, new ProgressListener() {
@@ -196,10 +198,11 @@ public class HerdDBCLI {
                         }
                         return;
                     }
-                    try (InputStream fin = Files.newInputStream(inputfile)) {
+                    try (InputStream fin = Files.newInputStream(inputfile);
+                         InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
                         HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
                         HDBConnection hdbconnection = hcon.getConnection();
-                        BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, fin, new ProgressListener() {
+                        BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, bin, new ProgressListener() {
                             @Override
                             public void log(String message, Map<String, Object> context) {
                                 println(message);

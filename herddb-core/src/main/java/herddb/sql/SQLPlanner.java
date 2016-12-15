@@ -449,7 +449,7 @@ public class SQLPlanner {
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
+            throw new StatementExecutionException("no such table " + tableName + " in tablespace " + tableSpace);
         }
         Table table = tableManager.getTable();
 
@@ -471,7 +471,7 @@ public class SQLPlanner {
                 for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
                     Column column = table.getColumn(c.getColumnName());
                     if (column == null) {
-                        throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
+                        throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
                     }
                     Expression expression;
                     try {
@@ -527,7 +527,7 @@ public class SQLPlanner {
             for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
                 Column column = table.getColumn(c.getColumnName());
                 if (column == null) {
-                    throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
+                    throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
                 }
                 JdbcParameter readFromResultSetAsJdbcParameter = new JdbcParameter();
                 readFromResultSetAsJdbcParameter.setIndex(holder.value++);
@@ -575,7 +575,7 @@ public class SQLPlanner {
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
+            throw new StatementExecutionException("no such table " + tableName + " in tablespace " + tableSpace);
         }
         Table table = tableManager.getTable();
 
@@ -679,13 +679,13 @@ public class SQLPlanner {
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new StatementExecutionException("no such table " + tableName + " in tablepace " + tableSpace);
+            throw new StatementExecutionException("no such table " + tableName + " in tablespace " + tableSpace);
         }
         Table table = tableManager.getTable();
         for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
             Column column = table.getColumn(c.getColumnName());
             if (column == null) {
-                throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablepace " + tableSpace);
+                throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
             }
         }
 
@@ -918,7 +918,7 @@ public class SQLPlanner {
         }
         AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
         if (tableManager == null) {
-            throw new TableDoesNotExistException("no such table " + tableName + " in tablepace " + tableSpace);
+            throw new TableDoesNotExistException("no such table " + tableName + " in tablespace " + tableSpace);
         }
 
         Table table = tableManager.getTable();
