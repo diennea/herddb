@@ -73,7 +73,7 @@ public class MessageUtils {
      * When writing negative int <b>smaller than this</b> value are better written directly as int because in
      * zint encoding will use at least 8 bytes
      */
-    private static final int WRITE_MAX_Z_INT_LIMIT = -1 << 20;
+    private static final int WRITE_MIN_Z_INT_LIMIT = -1 << 20;
 
     /**
      * When writing long <b>greater than this</b> value are better written directly as long because in vint
@@ -85,7 +85,7 @@ public class MessageUtils {
      * When writing negative long <b>smaller than this</b> value are better written directly as long because
      * in zlong encoding will use at least 8 bytes
      */
-    private static final long WRITE_MAX_Z_LONG_LIMIT = -1L << 48;
+    private static final long WRITE_MIN_Z_LONG_LIMIT = -1L << 48;
     
     public static void encodeMessage(ByteBuf buffer, Message m) {
         
@@ -184,7 +184,7 @@ public class MessageUtils {
             int i = (int) o;
             
             if ( i < 0 ) {
-                if (i < WRITE_MAX_Z_INT_LIMIT) {
+                if (i < WRITE_MIN_Z_INT_LIMIT) {
                     encoded.writeByte(OPCODE_INT_VALUE);
                     encoded.writeInt(i);
                 } else {
@@ -206,7 +206,7 @@ public class MessageUtils {
             long l = (long) o;
             
             if ( l < 0 ) {
-                if (l < WRITE_MAX_Z_LONG_LIMIT) {
+                if (l < WRITE_MIN_Z_LONG_LIMIT) {
                     encoded.writeByte(OPCODE_LONG_VALUE);
                     encoded.writeLong(l);
                 } else {
