@@ -57,10 +57,12 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     private final String sql;
     private final List<Object> parameters = new ArrayList<>();
     private final List<List<Object>> batch = new ArrayList<>();
+    private final boolean returnValues;
 
-    public HerdDBPreparedStatement(HerdDBConnection parent, String sql) {
+    public HerdDBPreparedStatement(HerdDBConnection parent, String sql, boolean returnValues) {
         super(parent);
         this.sql = sql;
+        this.returnValues = returnValues;
     }
 
     @Override
@@ -74,7 +76,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             throw new SQLException(ex);
         }
     }
-
+    
     private void ensureParameterPos(int index) {
         while (parameters.size() < index) {
             parameters.add(null);
@@ -466,7 +468,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public long executeLargeUpdate() throws SQLException {
-        return doExecuteLargeUpdateWithParameters(parameters, false);
+        return doExecuteLargeUpdateWithParameters(parameters, returnValues);
     }
 
     private long doExecuteLargeUpdateWithParameters(List<Object> actualParameters, boolean returnValues) throws SQLException {
