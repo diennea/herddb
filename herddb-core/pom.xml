@@ -66,6 +66,11 @@
             <version>${libs.guava}</version>
         </dependency>
         <dependency>
+            <groupId>org.apache.bookkeeper.stats</groupId>
+            <artifactId>codahale-metrics-provider</artifactId>
+            <version>${libs.bookkeeper}</version> 
+        </dependency>
+        <dependency>
             <groupId>org.apache.bookkeeper</groupId>
             <artifactId>bookkeeper-server</artifactId>
             <version>${libs.bookkeeper}</version>

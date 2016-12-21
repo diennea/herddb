@@ -34,6 +34,9 @@ import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
+import org.apache.bookkeeper.stats.CodahaleMetricsProvider;
+import org.apache.bookkeeper.stats.StatsProvider;
+import org.apache.bookkeeper.util.ReflectionUtils;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -46,6 +49,7 @@ public class EmbeddedBookie implements AutoCloseable {
     private final ServerConfiguration configuration;
     private final Path baseDirectory;
     private BookieServer bookieServer;
+    private StatsProvider statsProvider;
 
     public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration) {
         this.configuration = configuration;
@@ -56,6 +60,9 @@ public class EmbeddedBookie implements AutoCloseable {
         org.apache.bookkeeper.conf.ServerConfiguration conf = new org.apache.bookkeeper.conf.ServerConfiguration();
         conf.setZkTimeout(configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT));
         conf.setZkServers(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT));
+        conf.setStatisticsEnabled(true);
+        conf.setProperty("codahaleStatsJmxEndpoint", "Bookie");
+        conf.setStatsProviderClass(CodahaleMetricsProvider.class);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT);
 
         conf.setUseHostNameAsBookieID(true);
@@ -124,7 +131,10 @@ public class EmbeddedBookie implements AutoCloseable {
             }
         }
 
-        bookieServer = new BookieServer(conf);
+        Class<? extends StatsProvider> statsProviderClass
+            = conf.getStatsProviderClass();
+        statsProvider = ReflectionUtils.newInstance(statsProviderClass);
+        statsProvider.start(conf);
         bookieServer.start();
         for (int i = 0; i < 100; i++) {
             if (bookieServer.getBookie().isRunning()) {
@@ -168,6 +178,9 @@ public class EmbeddedBookie implements AutoCloseable {
             } finally {
                 bookieServer = null;
             }
+        }
+        if (statsProvider != null) {
+            statsProvider.stop();
         }
     }
 
