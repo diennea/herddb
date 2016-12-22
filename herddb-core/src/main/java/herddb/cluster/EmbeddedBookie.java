@@ -135,6 +135,7 @@ public class EmbeddedBookie implements AutoCloseable {
             = conf.getStatsProviderClass();
         statsProvider = ReflectionUtils.newInstance(statsProviderClass);
         statsProvider.start(conf);
+        bookieServer = new BookieServer(conf, statsProvider.getStatsLogger(""));
         bookieServer.start();
         for (int i = 0; i < 100; i++) {
             if (bookieServer.getBookie().isRunning()) {
