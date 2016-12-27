@@ -1,8 +1,7 @@
 # Basic Environment and Java variables
 
 #JAVA_HOME=
-JAVA_OPTS="-Duser.language=en -Xmx4g -Xms1g -XX:+UseParallelGC -XX:+AggressiveOpts -XX:+UseFastAccessorMethods -Djava.net.preferIPv4Stack=true -XX:MaxDirectMemorySize=1g  -Djava.util.logging.config.file=conf/logging.properties"
-
+JAVA_OPTS="-XX:+UseG1GC -Duser.language=en -Xmx4g -Xms1g -XX:+AggressiveOpts -XX:+UseFastAccessorMethods -Djava.net.preferIPv4Stack=true -XX:MaxDirectMemorySize=1g  -Djava.util.logging.config.file=conf/logging.properties"
 
 if [ -z "$JAVA_HOME" ]; then
   JAVA_PATH=`which java 2>/dev/null`
