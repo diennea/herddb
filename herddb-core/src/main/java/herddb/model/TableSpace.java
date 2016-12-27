@@ -30,10 +30,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * A set of Tables. All tables in the same TableSpace are handled by the same
- * server at once. All the operations on the tables of a TableSet share the same
- * transaction log, so a transaction can span only tables which belong to the
- * same TableSapce.
+ * A set of Tables. All tables in the same TableSpace are handled by the same server at once. All the operations on the
+ * tables of a TableSet share the same transaction log, so a transaction can span only tables which belong to the same
+ * TableSapce.
  *
  * @author enrico.olivelli
  */
@@ -49,8 +48,7 @@ public class TableSpace {
      */
     public final String leaderId;
     /**
-     * Nodes which contain data for the TableSpace. the leaderId MUST be
-     * contained in this set
+     * Nodes which contain data for the TableSpace. the leaderId MUST be contained in this set
      */
     public final Set<String> replicas;
 
@@ -59,15 +57,22 @@ public class TableSpace {
      */
     public final int expectedReplicaCount;
 
+    /**
+     * Maximum time (in ms) to wait for a leader to ping its presence before auto-healing
+     */
+    public final long maxLeaderInactivityTime;
+
     public final Object metadataStorageVersion;
 
-    private TableSpace(String uuid, String name, String leaderId, Set<String> replicas, int expectedReplicaCount, Object metadataStorageVersion) {
+    private TableSpace(String uuid, String name, String leaderId, Set<String> replicas, int expectedReplicaCount,
+        long maxLeaderInactivityTime, Object metadataStorageVersion) {
         this.name = name;
         this.uuid = uuid;
         this.leaderId = leaderId;
         this.replicas = replicas;
         this.expectedReplicaCount = expectedReplicaCount;
         this.metadataStorageVersion = metadataStorageVersion;
+        this.maxLeaderInactivityTime = maxLeaderInactivityTime;
     }
 
     public static Builder builder() {
@@ -89,7 +94,8 @@ public class TableSpace {
         for (int i = 0; i < numreplicas; i++) {
             replicas.add(in.readUTF());
         }
-        return new TableSpace(uuid, name, leaderId, replicas, expectedReplicaCount, metadataStorageVersion);
+        long maxLeaderInactivityTime = in.readLong();
+        return new TableSpace(uuid, name, leaderId, replicas, expectedReplicaCount, maxLeaderInactivityTime, metadataStorageVersion);
     }
 
     public byte[] serialize() throws IOException {
@@ -110,6 +116,7 @@ public class TableSpace {
         for (String replica : replicas) {
             out.writeUTF(replica);
         }
+        out.writeLong(maxLeaderInactivityTime);
     }
 
     public static class Builder {
@@ -119,6 +126,7 @@ public class TableSpace {
         private String uuid;
         private String leaderId;
         private int expectedReplicaCount = 1;
+        private long maxLeaderInactivityTime = 0;
 
         private Builder() {
         }
@@ -130,6 +138,7 @@ public class TableSpace {
             this.replicas.addAll(tableSpace.replicas);
             this.leaderId = tableSpace.leaderId;
             this.expectedReplicaCount = tableSpace.expectedReplicaCount;
+            this.maxLeaderInactivityTime = tableSpace.maxLeaderInactivityTime;
             return this;
         }
 
@@ -148,6 +157,11 @@ public class TableSpace {
             return this;
         }
 
+        public Builder maxLeaderInactivityTime(long maxLeaderInactivityTime) {
+            this.maxLeaderInactivityTime = maxLeaderInactivityTime;
+            return this;
+        }
+
         public Builder replica(String id) {
             this.replicas.add(id);
             return this;
@@ -155,7 +169,7 @@ public class TableSpace {
 
         public Builder replicas(Set<String> replicas) {
             this.replicas.clear();
-            this.replicas.addAll(replicas);           
+            this.replicas.addAll(replicas);
             return this;
         }
 
@@ -186,14 +200,17 @@ public class TableSpace {
             if (expectedReplicaCount <= 0) {
                 throw new IllegalArgumentException("expectedReplicaCount must be > 0");
             }
-            return new TableSpace(uuid, name, leaderId, Collections.unmodifiableSet(replicas), expectedReplicaCount, null);
+            if (maxLeaderInactivityTime > 0 && maxLeaderInactivityTime < 5000) {
+                throw new IllegalArgumentException("maxLeaderInactivityTime must be >= 5000");
+            }
+            return new TableSpace(uuid, name, leaderId, Collections.unmodifiableSet(replicas), expectedReplicaCount, maxLeaderInactivityTime, null);
         }
 
     }
 
     @Override
     public String toString() {
-        return "TableSpace{" + "name=" + name + ", leaderId=" + leaderId + ", replicas=" + replicas + ", expectedReplicaCount=" + expectedReplicaCount + ", metadataStorageVersion=" + metadataStorageVersion + '}';
+        return "TableSpace{" + "uuid=" + uuid + ", name=" + name + ", leaderId=" + leaderId + ", replicas=" + replicas + ", expectedReplicaCount=" + expectedReplicaCount + ", maxLeaderInactivityTime=" + maxLeaderInactivityTime + ", metadataStorageVersion=" + metadataStorageVersion + '}';
     }
 
 }

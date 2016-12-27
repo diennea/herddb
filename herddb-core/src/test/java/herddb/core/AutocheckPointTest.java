@@ -67,7 +67,7 @@ public class AutocheckPointTest {
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
@@ -114,7 +114,7 @@ public class AutocheckPointTest {
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
                 tmoDir, null)) {
             manager.start();
-            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0);
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 

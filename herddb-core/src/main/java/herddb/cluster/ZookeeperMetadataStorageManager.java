@@ -252,7 +252,13 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
         try {
             TableSpaceList list = listTablesSpaces();
             if (!list.tableSpaces.contains(TableSpace.DEFAULT)) {
-                TableSpace tableSpace = TableSpace.builder().leader(localNodeId).replica(localNodeId).name(TableSpace.DEFAULT).build();
+                TableSpace tableSpace = TableSpace.builder()
+                    .leader(localNodeId)
+                    .replica(localNodeId)
+                    .expectedReplicaCount(1)
+                    .maxLeaderInactivityTime(0)
+                    .name(TableSpace.DEFAULT)
+                    .build();
                 createTableSpaceNode(tableSpace);
             }
         } catch (TableSpaceAlreadyExistsException err) {

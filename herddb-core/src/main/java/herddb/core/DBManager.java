@@ -536,7 +536,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private StatementExecutionResult createTableSpace(CreateTableSpaceStatement createTableSpaceStatement) throws StatementExecutionException {
         TableSpace tableSpace;
         try {
-            tableSpace = TableSpace.builder().leader(createTableSpaceStatement.getLeaderId()).name(createTableSpaceStatement.getTableSpace()).replicas(createTableSpaceStatement.getReplicas()).expectedReplicaCount(createTableSpaceStatement.getExpectedReplicaCount()).build();
+            tableSpace = TableSpace
+                .builder()
+                .leader(createTableSpaceStatement.getLeaderId())
+                .name(createTableSpaceStatement.getTableSpace())
+                .replicas(createTableSpaceStatement.getReplicas())
+                .expectedReplicaCount(createTableSpaceStatement.getExpectedReplicaCount())
+                .maxLeaderInactivityTime(createTableSpaceStatement.getMaxleaderinactivitytime())
+                .build();
         } catch (IllegalArgumentException invalid) {
             throw new StatementExecutionException("invalid CREATE TABLESPACE statement: " + invalid.getMessage(), invalid);
         }
@@ -642,6 +649,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     .name(alterTableSpaceStatement.getTableSpace())
                     .replicas(alterTableSpaceStatement.getReplicas())
                     .expectedReplicaCount(alterTableSpaceStatement.getExpectedReplicaCount())
+                    .maxLeaderInactivityTime(alterTableSpaceStatement.getMaxleaderinactivitytime())
                     .build();
             } catch (IllegalArgumentException invalid) {
                 throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);
@@ -700,6 +708,20 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxLogicalPageSize = maxLogicalPageSize;
     }
 
+    private void tryBecameLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "node {0}, try to become leader of {1}", new Object[]{nodeId, tableSpace.name});
+        TableSpace.Builder newTableSpaceBuilder
+            = TableSpace
+                .builder()
+                .cloning(tableSpace)
+                .leader(nodeId);
+        TableSpace newTableSpace = newTableSpaceBuilder.build();
+        boolean ok = metadataStorageManager.updateTableSpace(newTableSpace, tableSpace);
+        if (!ok) {
+            LOGGER.log(Level.SEVERE, "updating tableSpace {0} metadata failed", tableSpace.name);
+        }
+    }
+
     private class Activator implements Runnable {
 
         @Override
@@ -753,11 +775,13 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private void processTableSpaces() {
         generalLock.writeLock().lock();
         Collection<String> actualTablesSpaces;
+        Map<String, TableSpace> actualTableSpaceMetadata = new HashMap<>();
         try {
             actualTablesSpaces = metadataStorageManager.listTableSpaces();
 
             for (String tableSpace : actualTablesSpaces) {
                 TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);
+                actualTableSpaceMetadata.put(tableSpaceMetadata.uuid, tableSpaceMetadata);
                 try {
                     handleTableSpace(tableSpaceMetadata);
                 } catch (Exception err) {
@@ -770,6 +794,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         } finally {
             generalLock.writeLock().unlock();
         }
+        List<TableSpaceManager> followingActiveTableSpaces = new ArrayList<>();
         Set<String> failedTableSpaces = new HashSet<>();
         for (Map.Entry<String, TableSpaceManager> entry : tablesSpaces.entrySet()) {
             try {
@@ -798,6 +823,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                             .timestamp(System.currentTimeMillis())
                             .build()
                     );
+                    followingActiveTableSpaces.add(entry.getValue());
                 }
             } catch (MetadataStorageManagerException error) {
                 LOGGER.log(Level.SEVERE, "cannot access tablespace " + entry.getKey() + " metadata", error);
@@ -817,6 +843,47 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 generalLock.writeLock().unlock();
             }
         }
+        if (!followingActiveTableSpaces.isEmpty()) {
+            long now = System.currentTimeMillis();
+            try {
+                for (TableSpaceManager tableSpaceManager : followingActiveTableSpaces) {
+                    String tableSpaceUuid = tableSpaceManager.getTableSpaceUUID();
+                    TableSpace tableSpaceInfo = actualTableSpaceMetadata.get(tableSpaceUuid);
+
+                    if (tableSpaceInfo != null
+                        && tableSpaceInfo.maxLeaderInactivityTime > 0
+                        && !tableSpaceManager.isFailed()) {
+                        List<TableSpaceReplicaState> allReplicas
+                            = metadataStorageManager.getTableSpaceReplicaState(tableSpaceUuid);
+                        TableSpaceReplicaState leaderState = allReplicas
+                            .stream()
+                            .filter(t -> t.mode == TableSpaceReplicaState.MODE_LEADER
+                            && !t.nodeId.equals(nodeId)
+                            )
+                            .findAny()
+                            .orElse(null);
+                        if (leaderState == null) {
+                            LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " should be " + tableSpaceInfo.leaderId + ", but it never sent pings or it disappeared");
+                            tryBecameLeaderFor(tableSpaceInfo);
+                        } else {
+                            long delta = now - leaderState.timestamp;
+                            if (tableSpaceInfo.maxLeaderInactivityTime > delta) {
+                                LOGGER.log(Level.FINER, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is healty");
+                            } else {
+                                LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is failed. trying to take leadership");
+                                tryBecameLeaderFor(tableSpaceInfo);
+                                // only one change at a time
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (MetadataStorageManagerException | DDLException error) {
+                LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
+                return;
+            }
+        }
+
         long now = System.currentTimeMillis();
         if (checkpointPeriod > 0 && now - lastCheckPointTs.get() > checkpointPeriod) {
             lastCheckPointTs.set(now);

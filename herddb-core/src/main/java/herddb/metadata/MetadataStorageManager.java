@@ -150,5 +150,5 @@ public abstract class MetadataStorageManager implements AutoCloseable {
         }
         throw new MetadataStorageManagerException("cannot find a new node id");
     }
-
+  
 }

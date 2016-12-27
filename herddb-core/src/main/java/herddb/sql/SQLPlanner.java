@@ -1154,6 +1154,7 @@ public class SQLPlanner {
                 String leader = null;
                 Set<String> replica = new HashSet<>();
                 int expectedreplicacount = 1;
+                long maxleaderinactivitytime = 0;
                 int wait = 0;
                 for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
                     String property = (String) resolveValue(execute.getExprList().getExpressions().get(i));
@@ -1182,6 +1183,17 @@ public class SQLPlanner {
                             } catch (NumberFormatException err) {
                                 throw new StatementExecutionException("invalid expectedreplicacount " + value + ": " + err);
                             }
+                            break;
+                        case "maxleaderinactivitytime":
+                            try {
+                                maxleaderinactivitytime = Long.parseLong(value.trim());
+                                if (maxleaderinactivitytime < 0) {
+                                    throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + " must be positive or zero");
+                                }
+                            } catch (NumberFormatException err) {
+                                throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + ": " + err);
+                            }
+                            break;
                         default:
                             throw new StatementExecutionException("bad property " + pName);
                     }
@@ -1192,7 +1204,7 @@ public class SQLPlanner {
                 if (replica.isEmpty()) {
                     replica.add(leader);
                 }
-                return new CreateTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, wait);
+                return new CreateTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, wait, maxleaderinactivitytime);
             }
             case "ALTERTABLESPACE": {
                 if (execute.getExprList().getExpressions().size() < 2) {
@@ -1207,6 +1219,7 @@ public class SQLPlanner {
                     Set<String> replica = tableSpace.replicas;
                     String leader = tableSpace.leaderId;
                     int expectedreplicacount = tableSpace.expectedReplicaCount;
+                    long maxleaderinactivitytime = tableSpace.maxLeaderInactivityTime;
                     for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
                         String property = (String) resolveValue(execute.getExprList().getExpressions().get(i));
                         int colon = property.indexOf(':');
@@ -1232,11 +1245,21 @@ public class SQLPlanner {
                                     throw new StatementExecutionException("invalid expectedreplicacount " + value + ": " + err);
                                 }
                                 break;
+                            case "maxleaderinactivitytime":
+                                try {
+                                    maxleaderinactivitytime = Long.parseLong(value.trim());
+                                    if (maxleaderinactivitytime <= 0) {
+                                        throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + " must be positive");
+                                    }
+                                } catch (NumberFormatException err) {
+                                    throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + ": " + err);
+                                }
+                                break;
                             default:
                                 throw new StatementExecutionException("bad property " + pName);
                         }
                     }
-                    return new AlterTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount);
+                    return new AlterTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, maxleaderinactivitytime);
                 } catch (MetadataStorageManagerException err) {
                     throw new StatementExecutionException(err);
                 }

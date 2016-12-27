@@ -55,7 +55,7 @@ import org.apache.bookkeeper.client.LedgerHandle;
  */
 public class BookkeeperCommitLog extends CommitLog {
 
-    private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());    
 
     private String sharedSecret = "dodo";
     private final BookKeeper bookKeeper;

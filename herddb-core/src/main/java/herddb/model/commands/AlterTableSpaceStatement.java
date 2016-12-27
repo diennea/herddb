@@ -32,12 +32,18 @@ public class AlterTableSpaceStatement extends DDLStatement {
     private final Set<String> replicas;
     private final String leaderId;
     private final int expectedReplicaCount;
+    private final long maxleaderinactivitytime;
 
-    public AlterTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount) {
+    public AlterTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount, long maxleaderinactivitytime) {
         super(tableSpace);
         this.replicas = replicas;
         this.leaderId = leaderId;
         this.expectedReplicaCount = expectedReplicaCount;
+        this.maxleaderinactivitytime = maxleaderinactivitytime;
+    }
+
+    public long getMaxleaderinactivitytime() {
+        return maxleaderinactivitytime;
     }
 
     public int getExpectedReplicaCount() {

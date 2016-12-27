@@ -33,13 +33,15 @@ public class CreateTableSpaceStatement extends DDLStatement {
     private final String leaderId;
     private final int expectedReplicaCount;
     private final int waitForTableSpaceTimeout;
+    private final long maxleaderinactivitytime;
 
-    public CreateTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount, int waitForTableSpaceTimeout) {
+    public CreateTableSpaceStatement(String tableSpace, Set<String> replicas, String leaderId, int expectedReplicaCount, int waitForTableSpaceTimeout, long maxleaderinactivitytime) {
         super(tableSpace);
         this.replicas = replicas;
         this.leaderId = leaderId;
         this.expectedReplicaCount = expectedReplicaCount;
         this.waitForTableSpaceTimeout = waitForTableSpaceTimeout;
+        this.maxleaderinactivitytime = maxleaderinactivitytime;
     }
 
     public int getWaitForTableSpaceTimeout() {
@@ -56,6 +58,10 @@ public class CreateTableSpaceStatement extends DDLStatement {
 
     public int getExpectedReplicaCount() {
         return expectedReplicaCount;
+    }
+
+    public long getMaxleaderinactivitytime() {
+        return maxleaderinactivitytime;
     }
 
 }

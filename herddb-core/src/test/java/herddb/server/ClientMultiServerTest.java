@@ -110,7 +110,7 @@ public class ClientMultiServerTest {
                 server_2.start();
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
@@ -143,7 +143,7 @@ public class ClientMultiServerTest {
                     }
                     // switch leader to server2
                     server_2.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                            new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                            new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                     // wait that server_1 leaves leadership                    
                     for (int i = 0; i < 100; i++) {

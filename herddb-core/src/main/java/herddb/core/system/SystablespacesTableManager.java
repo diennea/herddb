@@ -47,6 +47,7 @@ public class SystablespacesTableManager extends AbstractSystemTableManager {
             .column("leader", ColumnTypes.STRING)
             .column("replica", ColumnTypes.STRING)
             .column("expectedreplicacount", ColumnTypes.INTEGER)
+            .column("maxleaderinactivitytime", ColumnTypes.LONG)
             .primaryKey("tablespace_name", false)
             .build();
 
@@ -68,6 +69,7 @@ public class SystablespacesTableManager extends AbstractSystemTableManager {
                             "uuid", t.uuid,
                             "leader", t.leaderId,
                             "expectedreplicacount", t.expectedReplicaCount,
+                            "maxleaderinactivitytime", t.maxLeaderInactivityTime,
                             "replica", t.replicas.stream().collect(Collectors.joining(","))
                     ));
                 }

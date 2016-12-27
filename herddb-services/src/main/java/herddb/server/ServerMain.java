@@ -28,6 +28,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import herddb.daemons.PidFileLocker;
 import java.io.InputStream;
+import java.util.logging.LogManager;
 
 /**
  * Created by enrico.olivelli on 23/03/2015.
@@ -106,6 +107,8 @@ public class ServerMain implements AutoCloseable {
                     configuration.put(k, v);
                 }
             });
+
+            LogManager.getLogManager().readConfiguration();
 
             Runtime.getRuntime().addShutdownHook(new Thread("ctrlc-hook") {
 

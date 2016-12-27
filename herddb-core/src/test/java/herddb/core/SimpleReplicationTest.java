@@ -50,7 +50,7 @@ public class SimpleReplicationTest extends ReplicatedLogtestcase {
         final String tableSpaceName = "t2";
         try (DBManager manager1 = startDBManager("node1")) {
 
-            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager1.executeStatement(new CreateTableSpaceStatement(tableSpaceName, new HashSet<>(Arrays.asList("node1", "node2")), "node1", 2, 0, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(manager1.waitForTablespace(tableSpaceName, 10000, true));
             try (DBManager manager2 = startDBManager("node2")) {
                 assertTrue(manager2.waitForTablespace(tableSpaceName, 10000, false));
