@@ -199,7 +199,7 @@ public class HerdDBCLI {
                         return;
                     }
                     try (InputStream fin = Files.newInputStream(inputfile);
-                         InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
+                        InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
                         HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
                         HDBConnection hdbconnection = hcon.getConnection();
                         BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, bin, new ProgressListener() {
@@ -218,7 +218,7 @@ public class HerdDBCLI {
                     return;
                 }
             }
-
+            System.exit(0);
         } catch (Exception error) {
             if (verbose) {
                 error.printStackTrace();
@@ -292,7 +292,7 @@ public class HerdDBCLI {
                 if (line == null) {
                     return;
                 }
-                executeStatement(true, false, line, statement);
+                executeStatement(true, true, line, statement);
             } catch (UserInterruptException e) {
                 // Ignore
             } catch (EndOfFileException e) {

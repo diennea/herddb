@@ -25,6 +25,7 @@ import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.impl.EmptyScanResultSet;
 import herddb.client.impl.SingletonScanResultSet;
+import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.model.TransactionContext;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -59,7 +60,7 @@ public class HerdDBStatement implements java.sql.Statement {
             parent.statementFinished(scanResult.transactionId);
             return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
-            throw new SQLException(ex);
+            throw SQLExceptionUtils.wrapException(ex);
         }
     }
 
@@ -252,7 +253,7 @@ public class HerdDBStatement implements java.sql.Statement {
             lastKey = result.key;
             return lastUpdateCount;
         } catch (ClientSideMetadataProviderException | HDBException err) {
-            throw new SQLException(err);
+            throw SQLExceptionUtils.wrapException(err);
         }
     }
 

@@ -246,7 +246,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
             long updateCount = (Long) reply.parameters.get("updateCount");
             long transactionId = (Long) reply.parameters.get("tx");
@@ -276,7 +276,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
 
             long transactionId = (Long) reply.parameters.get("tx");
@@ -309,7 +309,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
             long found = (Long) reply.parameters.get("updateCount");
             long transactionId = (Long) reply.parameters.get("tx");
@@ -335,7 +335,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
             Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
             return (Long) data.get("tx");
@@ -356,7 +356,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -375,7 +375,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -397,7 +397,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
             List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
             List<String> columnNames = (List<String>) reply.parameters.get("columns");
@@ -427,7 +427,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply + "");
+                throw new HDBException(reply);
             }
 
         } catch (InterruptedException | TimeoutException err) {
@@ -444,7 +444,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 Message message_create_table = Message.REQUEST_TABLE_RESTORE(clientId, tableSpace, table.serialize());
                 Message reply_create_table = _channel.sendMessageWithReply(message_create_table, timeout);
                 if (reply_create_table.type == Message.TYPE_ERROR) {
-                    throw new HDBException(reply_create_table + "");
+                    throw new HDBException(reply_create_table);
                 }
 
                 List<KeyValue> chunk = source.nextTableDataChunk();
@@ -452,7 +452,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     Message message = Message.PUSH_TABLE_DATA(clientId, tableSpace, table.name, chunk);
                     Message reply = _channel.sendMessageWithReply(message, timeout);
                     if (reply.type == Message.TYPE_ERROR) {
-                        throw new HDBException(reply + "");
+                        throw new HDBException(reply);
                     }
                     chunk = source.nextTableDataChunk();
                 }
@@ -525,7 +525,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(clientId, scannerId, fetchSize), 10000);
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
                 if (result.type == Message.TYPE_ERROR) {
-                    throw new HDBException("server side scanner error: " + result.parameters);
+                    throw new HDBException(result);
                 }
                 if (result.type != Message.TYPE_RESULTSET_CHUNK) {
                     finished = true;

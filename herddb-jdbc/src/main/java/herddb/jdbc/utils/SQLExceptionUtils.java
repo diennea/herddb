@@ -17,36 +17,26 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.jdbc.utils;
 
-import herddb.network.Message;
-import java.util.Collections;
-import java.util.Map;
+import herddb.client.HDBException;
+import java.sql.SQLException;
 
 /**
- * Generic client side exception
+ * Utility to report SQLException correctly to the client
  *
  * @author enrico.olivelli
  */
-public class HDBException extends Exception {
+public class SQLExceptionUtils {
 
-    public HDBException(String message) {
-        super(message);
+    public static SQLException wrapException(Exception exception) {
+        SQLException res;
+        if (exception instanceof HDBException) {
+            HDBException ex = (HDBException) exception;
+            res = new SQLException(ex.getMessage(), ex);
+        } else {
+            res = new SQLException(exception);
+        }
+        return res;
     }
-
-    public HDBException(Message reply) {
-        super(reply.type == reply.TYPE_ERROR
-            ? reply.parameters.get("error") + "" : reply + "",
-            new Exception("server-side-error:" + reply));
-
-    }
-
-    public HDBException(Throwable cause) {
-        super(cause);
-    }
-
-    public HDBException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
 }

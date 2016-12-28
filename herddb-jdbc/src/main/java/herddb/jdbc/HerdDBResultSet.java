@@ -22,6 +22,7 @@ package herddb.jdbc;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.ScanResultSetMetadata;
+import herddb.jdbc.utils.SQLExceptionUtils;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -74,7 +75,7 @@ public class HerdDBResultSet implements ResultSet {
                 return false;
             }
         } catch (HDBException ex) {
-            throw new SQLException(ex);
+            throw SQLExceptionUtils.wrapException(ex);
         }
     }
 

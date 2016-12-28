@@ -22,6 +22,7 @@ package herddb.jdbc;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
+import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.model.TableSpace;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -176,7 +177,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
         try {
             return pool.borrowObject();
         } catch (Exception ex) {
-            throw new SQLException(ex);
+            throw SQLExceptionUtils.wrapException(ex);
         }
     }
 

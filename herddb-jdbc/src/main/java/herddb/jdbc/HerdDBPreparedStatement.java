@@ -23,6 +23,7 @@ import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.DMLResult;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
+import herddb.jdbc.utils.SQLExceptionUtils;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -73,7 +74,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             this.parent.statementFinished(scanResult.transactionId);
             return lastResultSet = new HerdDBResultSet(scanResult);
         } catch (ClientSideMetadataProviderException | HDBException | InterruptedException ex) {
-            throw new SQLException(ex);
+            throw SQLExceptionUtils.wrapException(ex);
         }
     }
     
@@ -233,7 +234,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             }
             return results;
         } catch (ClientSideMetadataProviderException | HDBException err) {
-            throw new SQLException(err);
+            throw SQLExceptionUtils.wrapException(err);
         } finally {
             batch.clear();
         }
@@ -286,12 +287,13 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        setTimestamp(parameterIndex, x);
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
-        throw new SQLException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        ensureParameterPos(parameterIndex);
+        parameters.set(parameterIndex - 1, null);
     }
 
     @Override
@@ -481,7 +483,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             lastKey = result.key;
             return lastUpdateCount;
         } catch (ClientSideMetadataProviderException | HDBException err) {
-            throw new SQLException(err);
+            throw SQLExceptionUtils.wrapException(err);
         }
     }
 

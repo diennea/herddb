@@ -22,6 +22,7 @@ package herddb.jdbc;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
+import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.model.TransactionContext;
 import static herddb.model.TransactionContext.AUTOTRANSACTION_ID;
 import herddb.utils.QueryUtils;
@@ -139,7 +140,7 @@ public class HerdDBConnection implements java.sql.Connection {
         try {
             connection.commitTransaction(tableSpace, transactionId);
         } catch (ClientSideMetadataProviderException | HDBException err) {
-            throw new SQLException(err);
+            throw SQLExceptionUtils.wrapException(err);
         } finally {
             transactionId = 0;
         }
@@ -157,7 +158,7 @@ public class HerdDBConnection implements java.sql.Connection {
         try {
             connection.rollbackTransaction(tableSpace, transactionId);
         } catch (ClientSideMetadataProviderException | HDBException err) {
-            throw new SQLException(err);
+            throw SQLExceptionUtils.wrapException(err);
         } finally {
             transactionId = 0;
         }
