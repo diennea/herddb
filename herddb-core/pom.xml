@@ -53,7 +53,13 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${libs.slf4j}</version>
-        </dependency>        
+        </dependency>     
+        <dependency>
+            <groupId>net.jpountz.lz4</groupId>
+            <artifactId>lz4</artifactId>
+            <version>${libs.lz4}</version>
+            <type>jar</type>
+        </dependency>   
         <dependency>
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-test</artifactId>
@@ -69,7 +75,7 @@
             <groupId>org.apache.bookkeeper.stats</groupId>
             <artifactId>codahale-metrics-provider</artifactId>
             <version>${libs.bookkeeper}</version> 
-             <exclusions>
+            <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
                     <artifactId>slf4j-log4j12</artifactId>                    

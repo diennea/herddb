@@ -61,6 +61,7 @@
         <libs.curator>2.8.0</libs.curator>
         <libs.guava>20.0</libs.guava>        
         <libs.slf4j>1.7.21</libs.slf4j>        
+        <libs.lz4>1.3.0</libs.lz4>
         <libs.bookkeeper>4.4.0</libs.bookkeeper>
     </properties>
         

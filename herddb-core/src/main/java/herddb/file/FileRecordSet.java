@@ -54,6 +54,7 @@ class FileRecordSet extends MaterializedRecordSet {
         this.tmpDirectory = factory.tmpDirectory;
         buildFieldNames(columns);
         this.buffer = new DiskArrayList<>(swapThreshold, factory.tmpDirectory, new TupleSerializer(columns, fieldNames));
+        this.buffer.enableCompression();
 
     }
 
@@ -127,6 +128,7 @@ class FileRecordSet extends MaterializedRecordSet {
                 copyInMemory.sort(comparator);
                 buffer.close();
                 DiskArrayList<Tuple> newBuffer = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
+                newBuffer.enableCompression();
                 for (Tuple t : copyInMemory) {
                     newBuffer.add(t);
                 }
@@ -142,6 +144,7 @@ class FileRecordSet extends MaterializedRecordSet {
         this.columns = projection.getColumns();
         buildFieldNames(this.columns);
         DiskArrayList<Tuple> projected = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
+        projected.enableCompression();
         for (Tuple record : buffer) {
             projected.add(projection.map(record, context));
         }
@@ -165,12 +168,14 @@ class FileRecordSet extends MaterializedRecordSet {
 
                 // new empty buffer
                 buffer = new DiskArrayList<>(Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
+                buffer.enableCompression();
                 buffer.finish();
                 return;
             }
 
             int samplesize = maxlen - limits.getOffset();
             DiskArrayList<Tuple> copy = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
+            copy.enableCompression();
             int firstIndex = limits.getOffset();
             int lastIndex = limits.getOffset() + samplesize;
             int i = 0;
@@ -193,7 +198,7 @@ class FileRecordSet extends MaterializedRecordSet {
             if (maxlen < limits.getMaxRows()) {
                 return;
             }
-            buffer.truncate(limits.getMaxRows());            
+            buffer.truncate(limits.getMaxRows());
         }
 
     }

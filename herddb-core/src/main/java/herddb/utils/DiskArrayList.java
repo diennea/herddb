@@ -30,8 +30,8 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import net.jpountz.lz4.LZ4BlockInputStream;
+import net.jpountz.lz4.LZ4BlockOutputStream;
 
 /**
  * ArrayList backed by disk
@@ -212,7 +212,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
             in = Files.newInputStream(tmpFile);
             bin = new BufferedInputStream(in, DISK_BUFFER_SIZE);
             if (compressionEnabled) {
-                zippedin = new GZIPInputStream(bin);
+                zippedin = new LZ4BlockInputStream(bin);
                 oin = new ExtendedDataInputStream(zippedin);
             } else {
                 oin = new ExtendedDataInputStream(bin);
@@ -279,7 +279,7 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
             out = Files.newOutputStream(tmpFile);
             bout = new SimpleBufferedOutputStream(out, DISK_BUFFER_SIZE);
             if (compressionEnabled) {
-                zippedout = new GZIPOutputStream(bout);
+                zippedout = new LZ4BlockOutputStream(out);
                 oout = new ExtendedDataOutputStream(zippedout);
             } else {
                 oout = new ExtendedDataOutputStream(bout);
@@ -332,12 +332,12 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
     }
     private OutputStream out;
     private SimpleBufferedOutputStream bout;
-    private GZIPOutputStream zippedout;
+    private OutputStream zippedout;
     private ExtendedDataOutputStream oout;
     private InputStream in;
     private BufferedInputStream bin;
     private ExtendedDataInputStream oin;
-    private GZIPInputStream zippedin;
+    private InputStream zippedin;
     private Path tmpFile;
     private boolean writing;
     private boolean written;
