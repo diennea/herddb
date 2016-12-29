@@ -26,6 +26,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Lock sul pid file, per evitare avvii concorrenti del servizio
@@ -36,7 +40,16 @@ public class PidFileLocker implements AutoCloseable {
 
     private final Path file;
     private final byte[] pid;
+    private volatile boolean closed;
     private final static String PIDFILE = System.getProperty("pidfile", "");
+    private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "pid-file-locker");
+            t.setDaemon(true);
+            return t;
+        }
+    });
 
     public PidFileLocker(Path basePath) {
         this.file = basePath.resolve(PIDFILE);
@@ -56,10 +69,17 @@ public class PidFileLocker implements AutoCloseable {
             throw new IOException("file " + file.toAbsolutePath() + " already exists");
         }
         Files.write(file, pid, StandardOpenOption.CREATE_NEW);
+        timer.scheduleWithFixedDelay(() -> {
+            try {
+                check();
+            } catch (Exception err) {
+                Runtime.getRuntime().halt(1);
+            }
+        }, 10, 10, TimeUnit.SECONDS);
     }
 
     public void check() throws Exception {
-        if (PIDFILE.isEmpty()) {
+        if (PIDFILE.isEmpty() || closed) {
             return;
         }
         if (!Files.isRegularFile(file)) {
@@ -82,6 +102,8 @@ public class PidFileLocker implements AutoCloseable {
 
     @Override
     public void close() {
+        closed = true;
+        timer.shutdown();
         if (PIDFILE.isEmpty()) {
             return;
         }

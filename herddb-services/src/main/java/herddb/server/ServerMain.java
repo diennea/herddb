@@ -49,6 +49,7 @@ public class ServerMain implements AutoCloseable {
 
     @Override
     public void close() {
+
         if (server != null) {
             try {
                 server.close();
@@ -164,7 +165,7 @@ public class ServerMain implements AutoCloseable {
         server = new Server(config);
         server.start();
 
-        System.out.println("HerdDB server starter. Node id "+server.getNodeId());
+        System.out.println("HerdDB server starter. Node id " + server.getNodeId());
         started = true;
     }
 
