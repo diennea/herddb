@@ -19,6 +19,9 @@
  */
 package herddb.model;
 
+import herddb.model.commands.ScanStatement;
+import java.util.List;
+
 /**
  * Data access execution plan.
  *
@@ -26,36 +29,51 @@ package herddb.model;
  */
 public class ExecutionPlan {
 
-    public Statement mainStatement;
-    public Aggregator mainAggregator;
-    public ScanLimits limits;
-    public TupleComparator comparator;
+    public final Statement mainStatement;
+    public final Aggregator mainAggregator;
+    public final ScanLimits limits;
+    public final TupleComparator comparator;
+    public final List<ScanStatement> joinStatements;
+    public final TuplePredicate joinFilter;
+    public final ExecutionPlan dataSource;
 
-    public ExecutionPlan dataSource;
-
-    private ExecutionPlan(Statement mainStatement, Aggregator mainAggregator, ScanLimits limits, TupleComparator comparator, ExecutionPlan dataSource) {
+    private ExecutionPlan(Statement mainStatement,
+        Aggregator mainAggregator,
+        ScanLimits limits,
+        TupleComparator comparator,
+        ExecutionPlan dataSource,
+        List<ScanStatement> joinStatements,
+        TuplePredicate joinFilter) {
         this.mainStatement = mainStatement;
         this.mainAggregator = mainAggregator;
         this.limits = limits;
         this.comparator = comparator;
         this.dataSource = dataSource;
+        this.joinStatements = joinStatements;
+        this.joinFilter = joinFilter;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null, null);
+        return new ExecutionPlan(statement, null, null, null, null, null, null);
     }
 
     public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator, null);
+        return new ExecutionPlan(statement, aggregator, limits, comparator, null, null, null);
     }
 
-    public static ExecutionPlan dataManupulationFromSelect(DMLStatement statement, ExecutionPlan dataSource) {
-        return new ExecutionPlan(statement, null, null, null, dataSource);
+    public static ExecutionPlan joinedScan(List<ScanStatement> statements,
+        TuplePredicate joinFilter,
+         ScanLimits limits, TupleComparator comparator) {
+        return new ExecutionPlan(null, null, limits, comparator, null, statements, joinFilter);
+    }
+
+    public static ExecutionPlan dataManipulationFromSelect(DMLStatement statement, ExecutionPlan dataSource) {
+        return new ExecutionPlan(statement, null, null, null, dataSource, null, null);
     }
 
     @Override
     public String toString() {
-        return "ExecutionPlan{" + "mainStatement=" + mainStatement + ", mainAggregator=" + mainAggregator + ", limits=" + limits + ", comparator=" + comparator + '}';
+        return "ExecutionPlan{" + "mainStatement=" + mainStatement + ", mainAggregator=" + mainAggregator + ", limits=" + limits + ", comparator=" + comparator + ", joinStatements=" + joinStatements + ", dataSource=" + dataSource + '}';
     }
 
 }

@@ -32,12 +32,12 @@ import java.util.Iterator;
 public class SimpleDataScanner extends DataScanner {
 
     private final MaterializedRecordSet recordSet;
-    private final Iterator<Tuple> iterator;
+    private Iterator<Tuple> iterator;
     private Tuple next;
     private boolean finished;
 
     public SimpleDataScanner(long transactionId, MaterializedRecordSet recordSet) {
-        super(transactionId,recordSet.columns);
+        super(transactionId, recordSet.columns);
         this.recordSet = recordSet;
         this.iterator = this.recordSet.iterator();
     }
@@ -79,6 +79,13 @@ public class SimpleDataScanner extends DataScanner {
         Tuple _next = next;
         next = null;
         return _next;
+    }
+
+    @Override
+    public void rewind() throws DataScannerException {
+        this.finished = false;
+        this.iterator = this.recordSet.iterator();
+        this.next = null;
     }
 
 }

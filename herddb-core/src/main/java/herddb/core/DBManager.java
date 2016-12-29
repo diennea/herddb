@@ -20,6 +20,7 @@
 package herddb.core;
 
 import herddb.client.ClientConfiguration;
+import herddb.core.join.DataScannerJoinExecutor;
 import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileMetadataStorageManager;
 import herddb.log.CommitLog;
@@ -29,6 +30,7 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataChangeListener;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.Column;
 import herddb.model.DDLException;
 import herddb.model.DDLStatement;
 import herddb.model.DDLStatementExecutionResult;
@@ -41,6 +43,7 @@ import herddb.model.GetResult;
 import herddb.model.LimitedDataScanner;
 import herddb.model.NodeMetadata;
 import herddb.model.NotLeaderException;
+import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.TableSpace;
 import herddb.model.Statement;
@@ -51,11 +54,12 @@ import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
+import herddb.model.TupleComparator;
+import herddb.model.TuplePredicate;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
-import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.Message;
@@ -68,9 +72,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.ChangeThreadName;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Collections;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -465,6 +467,17 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 } catch (DataScannerException err) {
                     throw new StatementExecutionException(err);
                 }
+            } else if (plan.joinStatements != null) {
+                List<DataScanner> scanResults = new ArrayList<>();
+                for (ScanStatement statement : plan.joinStatements) {
+                    DataScanner result = scan(statement, context, transactionContext);
+                    // transction can be auto generated during the scan
+                    transactionContext = new TransactionContext(result.transactionId);
+                    scanResults.add(result);
+                }
+                return executeJoinedScansPlan(scanResults, context, transactionContext,
+                    plan);
+
             } else {
                 return executeStatement(plan.mainStatement, context, transactionContext);
             }
@@ -500,6 +513,45 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         } else {
             return scanResult;
+        }
+    }
+
+    private StatementExecutionResult executeJoinedScansPlan(List<DataScanner> scanResults,
+        StatementEvaluationContext context,
+        TransactionContext transactionContext,
+        ExecutionPlan plan) throws StatementExecutionException {
+        try {
+            List<Column> composedSchema = new ArrayList<>();
+            for (DataScanner ds : scanResults) {
+                composedSchema.addAll(Arrays.asList(ds.getSchema()));
+            }
+            Column[] finalSchema = new Column[composedSchema.size()];
+            composedSchema.toArray(finalSchema);
+            MaterializedRecordSet finalResultSet = recordSetFactory.createRecordSet(finalSchema);
+
+            DataScannerJoinExecutor joinExecutor;
+            if (plan.joinFilter != null) {
+                TuplePredicate joinFilter = plan.joinFilter;
+                joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                    if (joinFilter.matches(t, context)) {
+                        finalResultSet.add(t);
+                    }
+                });
+            } else {
+                joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, finalResultSet::add);
+            }
+            joinExecutor.executeJoin();
+
+            finalResultSet.writeFinished();
+            finalResultSet.sort(plan.comparator);
+            finalResultSet.applyLimits(plan.limits);
+
+            return new ScanResult(
+                transactionContext.transactionId,
+                new SimpleDataScanner(transactionContext.transactionId,
+                    finalResultSet));
+        } catch (DataScannerException err) {
+            throw new StatementExecutionException(err);
         }
     }
 

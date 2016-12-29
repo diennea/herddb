@@ -204,6 +204,10 @@ public final class DiskArrayList<T> implements AutoCloseable, Iterable<T> {
         if (!swapped) {
             throw new IllegalStateException("scrittura non avvenuta");
         }
+        if (in != null) {
+            // rewind support
+            closeReader();
+        }
         try {
             in = Files.newInputStream(tmpFile);
             bin = new BufferedInputStream(in, DISK_BUFFER_SIZE);

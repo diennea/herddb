@@ -26,6 +26,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import herddb.model.TuplePredicate;
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +65,7 @@ import net.sf.jsqlparser.statement.select.SubSelect;
  *
  * @author enrico.olivelli
  */
-public class SQLRecordPredicate extends Predicate {
+public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     private static final Logger LOGGER = Logger.getLogger(SQLRecordPredicate.class.getName());
 
@@ -77,7 +78,7 @@ public class SQLRecordPredicate extends Predicate {
     }
 
     private final Table table;
-    private final String tableAlias;
+    private final String validatedTableAlias;
     private final Expression where;
 
     private class EvaluationState {
@@ -94,7 +95,16 @@ public class SQLRecordPredicate extends Predicate {
     public SQLRecordPredicate(Table table, String tableAlias, Expression where) {
         this.table = table;
         this.where = where;
-        this.tableAlias = tableAlias;
+        this.validatedTableAlias = tableAlias;
+    }
+
+    @Override
+    public boolean matches(Tuple a, StatementEvaluationContext context) throws StatementExecutionException {
+        SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
+        Map<String, Object> bean = a.toMap();
+        EvaluationState state = new EvaluationState(sqlContext.jdbcParameters, sqlContext);
+        boolean result = toBoolean(evaluateExpression(where, bean, state));        
+        return result;
     }
 
     @Override
@@ -230,8 +240,10 @@ public class SQLRecordPredicate extends Predicate {
         }
         if (expression instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) expression;
-            if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
-                throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
+            if (validatedTableAlias != null) {
+                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(validatedTableAlias)) {
+                    throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
+                }
             }
             return bean.get(c.getColumnName().toLowerCase());
         }
@@ -400,7 +412,7 @@ public class SQLRecordPredicate extends Predicate {
 
     @Override
     public String toString() {
-        return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + tableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
+        return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + validatedTableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
     }
 
 }

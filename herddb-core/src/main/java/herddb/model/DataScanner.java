@@ -88,4 +88,8 @@ public abstract class DataScanner implements AutoCloseable {
     public boolean isFinished() throws DataScannerException {
         return !hasNext();
     }
+
+    public void rewind() throws DataScannerException {
+        throw new RuntimeException("yet implemented");
+    }
 }
