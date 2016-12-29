@@ -70,8 +70,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);
@@ -115,8 +114,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(2, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("k2", t.fieldNames[1]);
@@ -156,8 +154,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 >= 2"
                     + "   and t2.n2 >= 4", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(2, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("k2", t.fieldNames[1]);
@@ -179,8 +176,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);
@@ -224,8 +220,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(3, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);
@@ -262,8 +257,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(3, t.fieldNames.length);
                     assertEquals("k2", t.fieldNames[0]);
                     assertEquals("n2", t.fieldNames[1]);
@@ -300,8 +294,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(1, t.fieldNames.length);
                     assertEquals("s2", t.fieldNames[0]);
                 }
@@ -336,8 +329,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 4", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);
@@ -368,8 +360,7 @@ public class SimpleJoinTest {
                     + " JOIN tblspace1.table2 t2"
                     + " WHERE t1.n1 <= t2.n2", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);
@@ -413,8 +404,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 <= t2.n2 "
                     + "and t2.n2 <= 3", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);
@@ -445,8 +435,7 @@ public class SimpleJoinTest {
                     + " JOIN tblspace1.table2 t2 ON t1.n1 <= t2.n2 "
                     + " and t2.n2 <= 3", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);
@@ -471,14 +460,8 @@ public class SimpleJoinTest {
 
             }
 
-            /* ********************************************************************
-            TODO LIST
-
-            // BUG. TODO! load on result set the fields which are used in the JOIN and directly on tables
-
-
             {
-                List<Tuple> tuples = scan(manager, "SELECT t1.k1, t2.k2, t1.n1, t2.n2 FROM"
+                List<Tuple> tuples = scan(manager, "SELECT t1.k1, t2.k2 FROM"
                     + " tblspace1.table1 t1 "
                     + " JOIN tblspace1.table2 t2 "
                     + " WHERE t1.n1 + 3 = t2.n2", Collections.emptyList()).consume();
@@ -498,8 +481,47 @@ public class SimpleJoinTest {
 
             }
 
+            {
+                List<Tuple> tuples = scan(manager, "SELECT t2.n2, t1.s1, t2.k2 FROM"
+                    + " tblspace1.table1 t1"
+                    + " JOIN tblspace1.table2 t2"
+                    + " WHERE t1.n1 > 0"
+                    + "   and t2.n2 >= 1", Collections.emptyList()).consume();
+                for (Tuple t : tuples) {
 
-            // BUG. TODO! respect the order to SelectItems
+                    assertEquals(3, t.fieldNames.length);
+                    assertEquals("n2", t.fieldNames[0]);
+                    assertEquals("s1", t.fieldNames[1]);
+                    assertEquals("k2", t.fieldNames[2]);
+                }
+                assertEquals(4, tuples.size());
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s1", "A",
+                    "k2", "c", "n2", 3
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s1", "A",
+                    "k2", "d", "n2", 4
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s1", "B",
+                    "k2", "c", "n2", 3
+                ))));
+
+                assertTrue(
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "s1", "B",
+                    "k2", "d", "n2", 4
+                ))));
+
+            }
+
             {
                 List<Tuple> tuples = scan(manager, "SELECT t2.*, t1.* FROM"
                     + " tblspace1.table1 t1"
@@ -507,8 +529,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-                    System.out.println("tuple: " + t);
-                    System.out.println("tuple: " + t.toMap());
+
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k2", t.fieldNames[0]);
                     assertEquals("n2", t.fieldNames[1]);
@@ -545,7 +566,95 @@ public class SimpleJoinTest {
 
             }
 
-            *****************************/
+            {
+                List<Tuple> tuples = scan(manager, "SELECT * FROM"
+                    + " tblspace1.table1 t1"
+                    + " JOIN tblspace1.table2 t2 "
+                    + " ORDER BY n2,n1", Collections.emptyList()).consume();
+                for (Tuple t : tuples) {
+
+                    assertEquals(6, t.fieldNames.length);
+                    assertEquals("k1", t.fieldNames[0]);
+                    assertEquals("n1", t.fieldNames[1]);
+                    assertEquals("s1", t.fieldNames[2]);
+                    assertEquals("k2", t.fieldNames[3]);
+                    assertEquals("n2", t.fieldNames[4]);
+                    assertEquals("s2", t.fieldNames[5]);
+                }
+                assertEquals(4, tuples.size());
+
+                int i = 0;
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
+                    )));
+
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
+                    )));
+
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "d", "n2", 4, "s2", "A"
+                    )));
+
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "d", "n2", 4, "s2", "A"
+                    )));
+
+            }
+
+            {
+                List<Tuple> tuples = scan(manager, "SELECT * FROM"
+                    + " tblspace1.table1 t1"
+                    + " JOIN tblspace1.table2 t2 "
+                    + " ORDER BY n2 desc,n1", Collections.emptyList()).consume();
+                for (Tuple t : tuples) {
+
+                    assertEquals(6, t.fieldNames.length);
+                    assertEquals("k1", t.fieldNames[0]);
+                    assertEquals("n1", t.fieldNames[1]);
+                    assertEquals("s1", t.fieldNames[2]);
+                    assertEquals("k2", t.fieldNames[3]);
+                    assertEquals("n2", t.fieldNames[4]);
+                    assertEquals("s2", t.fieldNames[5]);
+                }
+                assertEquals(4, tuples.size());
+
+                int i = 0;
+
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "d", "n2", 4, "s2", "A"
+                    )));
+
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "d", "n2", 4, "s2", "A"
+                    )));
+
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "a", "n1", 1, "s1", "A",
+                        "k2", "c", "n2", 3, "s2", "A"
+                    )));
+
+                assertTrue(
+                    tuples.get(i++).toMap().equals(MapUtils.map(
+                        "k1", "b", "n1", 2, "s1", "B",
+                        "k2", "c", "n2", 3, "s2", "A"
+                    )));
+
+            }
+
         }
     }
 

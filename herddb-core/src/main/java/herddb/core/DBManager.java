@@ -530,15 +530,32 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             MaterializedRecordSet finalResultSet = recordSetFactory.createRecordSet(finalSchema);
 
             DataScannerJoinExecutor joinExecutor;
-            if (plan.joinFilter != null) {
-                TuplePredicate joinFilter = plan.joinFilter;
-                joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
-                    if (joinFilter.matches(t, context)) {
-                        finalResultSet.add(t);
-                    }
-                });
+            if (plan.joinProjection != null) {
+                if (plan.joinFilter != null) {
+                    TuplePredicate joinFilter = plan.joinFilter;
+                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                        if (joinFilter.matches(t, context)) {
+                            finalResultSet.add(plan.joinProjection.map(t, context));
+                        }
+                    });
+                } else {
+                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                        finalResultSet.add(plan.joinProjection.map(t, context));
+                    });
+                }
             } else {
-                joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, finalResultSet::add);
+                if (plan.joinFilter != null) {
+                    TuplePredicate joinFilter = plan.joinFilter;
+                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                        if (joinFilter.matches(t, context)) {
+                            finalResultSet.add(t);
+                        }
+                    });
+                } else {
+                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                        finalResultSet.add(t);
+                    });
+                }
             }
             joinExecutor.executeJoin();
 

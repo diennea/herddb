@@ -76,6 +76,7 @@ import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
 import herddb.utils.SQLUtils;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.JSQLParserException;
@@ -906,12 +907,13 @@ public class SQLPlanner {
     }
 
     private TableAliasDiscovery discoverMainTableAlias(Expression expression) throws StatementExecutionException {
-        TableAliasDiscovery discovery = new TableAliasDiscovery();
+        TableAliasDiscovery discovery = new TableAliasDiscovery(expression);
         expression.accept(discovery);
         return discovery;
     }
 
-    private Expression collectConditionsForAlias(String alias, Expression expression, List<Expression> conditionsOnJoinedResult) throws StatementExecutionException {
+    private Expression collectConditionsForAlias(String alias, Expression expression,
+        List<TableAliasDiscovery> conditionsOnJoinedResult, String mainTableName) throws StatementExecutionException {
         if (expression == null) {
             // no constraint on table
             return null;
@@ -942,18 +944,19 @@ public class SQLPlanner {
                 return null;
             }
         } else {
-            conditionsOnJoinedResult.add(expression);
+            conditionsOnJoinedResult.add(discoveredMainAlias);
             return null;
         }
     }
 
-    private Expression composeAndExpression(List<Expression> conditionsOnJoinedResult) {
+    private Expression composeAndExpression(List<TableAliasDiscovery> conditionsOnJoinedResult) {
         if (conditionsOnJoinedResult.size() == 1) {
-            return conditionsOnJoinedResult.get(0);
+            return conditionsOnJoinedResult.get(0).getExpression();
         }
-        AndExpression result = result = new AndExpression(conditionsOnJoinedResult.get(0), conditionsOnJoinedResult.get(1));
+        AndExpression result = result = new AndExpression(conditionsOnJoinedResult.get(0).getExpression(),
+            conditionsOnJoinedResult.get(1).getExpression());
         for (int i = 2; i < conditionsOnJoinedResult.size(); i++) {
-            result = new AndExpression(result, conditionsOnJoinedResult.get(i));
+            result = new AndExpression(result, conditionsOnJoinedResult.get(i).getExpression());
         }
         return result;
     }
@@ -966,6 +969,7 @@ public class SQLPlanner {
         Projection projection;
         List<SelectItem> selectItems = new ArrayList<>();
         boolean allColumns;
+        Predicate predicate;
 
         public JoinSupport(TableRef tableRef, AbstractTableManager tableManager) {
             this.tableRef = tableRef;
@@ -1006,7 +1010,7 @@ public class SQLPlanner {
                     || join.isOuter()
                     || join.isSimple()) {
                     throw new StatementExecutionException("unsupported JOIN type: " + join);
-                }                
+                }
                 net.sf.jsqlparser.schema.Table joinedTable = (net.sf.jsqlparser.schema.Table) join.getRightItem();
                 TableRef joinedTableRef = TableRef.buildFrom(joinedTable, defaultTableSpace);
                 if (!joinedTableRef.tableSpace.equalsIgnoreCase(mainTable.tableSpace)) {
@@ -1069,6 +1073,7 @@ public class SQLPlanner {
             for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
                 JoinSupport support = join.getValue();
                 support.projection = Projection.IDENTITY(support.table.columns);
+                support.allColumns = true;
             }
         } else {
             if (!joinPresent) {
@@ -1247,40 +1252,74 @@ public class SQLPlanner {
                     }
                 }
 
-                List<Expression> conditionsOnJoinedResult = new ArrayList<>();
+                List<TableAliasDiscovery> conditionsOnJoinedResult = new ArrayList<>();
                 List<ScanStatement> scans = new ArrayList<>();
                 for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
                     String alias = join.getKey();
                     JoinSupport joinSupport = join.getValue();
-                    Expression collectedConditionsForAlias = collectConditionsForAlias(alias, selectBody.getWhere(), conditionsOnJoinedResult);
+                    Expression collectedConditionsForAlias = collectConditionsForAlias(alias, selectBody.getWhere(),
+                        conditionsOnJoinedResult, mainTableAlias);
                     LOG.severe("Collected WHERE for alias " + alias + ": " + collectedConditionsForAlias);
-                    Predicate predicate;
+
                     if (collectedConditionsForAlias == null) {
-                        predicate = null;
+                        joinSupport.predicate = null;
                     } else {
-                        predicate = new SQLRecordPredicate(
+                        joinSupport.predicate = new SQLRecordPredicate(
                             join.getValue().table, alias, collectedConditionsForAlias);
                     }
-                    ScanStatement statement = new ScanStatement(tableSpace,
-                        joinSupport.table.name,
-                        joinSupport.projection, predicate, null, null);
-                    scans.add(statement);
+
                 }
                 for (Join join : selectBody.getJoins()) {
                     if (join.getOnExpression() != null) {
-                        conditionsOnJoinedResult.add(join.getOnExpression());
+                        TableAliasDiscovery discoverMainTableAliasForJoinCondition =
+                            discoverMainTableAlias(join.getOnExpression());
+                        conditionsOnJoinedResult.add(discoverMainTableAliasForJoinCondition);
+                        LOG.severe("Collected ON-condition on final JOIN result: " + join.getOnExpression());
                     }
                 }
-                for (Expression e : conditionsOnJoinedResult) {
-                    LOG.severe("Collected WHERE on final JOIN result: " + e);
+                for (TableAliasDiscovery e : conditionsOnJoinedResult) {
+                    LOG.severe("Collected WHERE on final JOIN result: " + e.getExpression());
+                    for (Map.Entry<String, List<net.sf.jsqlparser.schema.Column>> entry : e.getColumnsByTable().entrySet()) {
+                        String tableAlias = entry.getKey();
+                        List<net.sf.jsqlparser.schema.Column> filteredColumnsOnJoin = entry.getValue();
+                        LOG.severe("for  TABLE " + tableAlias + " we need to load " + filteredColumnsOnJoin);
+                        JoinSupport support = joins.get(tableAlias);
+                        if (support == null) {
+                            throw new StatementExecutionException("invalid table alias " + tableAlias);
+                        }
+                        if (!support.allColumns) {
+                            for (net.sf.jsqlparser.schema.Column c : filteredColumnsOnJoin) {
+                                support.selectItems.add(new SelectExpressionItem(c));
+                            }
+                            support.projection = new SQLProjection(support.table, support.tableRef.tableAlias, support.selectItems);
+                        }
+                    }
+
                 }
-                TuplePredicate joinedDataResult = null;
+                Map<String, Table> tables = new HashMap<>();
+                for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
+                    JoinSupport joinSupport = join.getValue();
+                    tables.put(join.getKey(), joinSupport.table);
+                    ScanStatement statement = new ScanStatement(tableSpace,
+                        joinSupport.table.name,
+                        joinSupport.projection, joinSupport.predicate, null, null);
+                    scans.add(statement);
+                }
+                TuplePredicate joinFilter = null;
                 if (!conditionsOnJoinedResult.isEmpty()) {
-                    joinedDataResult = new SQLRecordPredicate(null, null, composeAndExpression(conditionsOnJoinedResult));
+                    joinFilter = new SQLRecordPredicate(null, null, composeAndExpression(conditionsOnJoinedResult));
+                }
+                Projection joinProjection = null;
+                if (!allColumns) {
+                    joinProjection = new SQLProjection(tableSpace, tables, selectBody.getSelectItems());
+                }
+                TupleComparator comparatorOnPlan = null;
+                if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
+                    comparatorOnPlan = new SQLTupleComparator(mainTableAlias, selectBody.getOrderByElements());;
                 }
 
                 try {
-                    return ExecutionPlan.joinedScan(scans, joinedDataResult, limitsOnPlan, null);
+                    return ExecutionPlan.joinedScan(scans, joinFilter, joinProjection, limitsOnPlan, comparatorOnPlan);
                 } catch (IllegalArgumentException err) {
                     throw new StatementExecutionException(err);
                 }

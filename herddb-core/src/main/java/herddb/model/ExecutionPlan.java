@@ -35,6 +35,7 @@ public class ExecutionPlan {
     public final TupleComparator comparator;
     public final List<ScanStatement> joinStatements;
     public final TuplePredicate joinFilter;
+    public final Projection joinProjection;
     public final ExecutionPlan dataSource;
 
     private ExecutionPlan(Statement mainStatement,
@@ -43,7 +44,8 @@ public class ExecutionPlan {
         TupleComparator comparator,
         ExecutionPlan dataSource,
         List<ScanStatement> joinStatements,
-        TuplePredicate joinFilter) {
+        TuplePredicate joinFilter,
+        Projection joinProjection) {
         this.mainStatement = mainStatement;
         this.mainAggregator = mainAggregator;
         this.limits = limits;
@@ -51,29 +53,31 @@ public class ExecutionPlan {
         this.dataSource = dataSource;
         this.joinStatements = joinStatements;
         this.joinFilter = joinFilter;
+        this.joinProjection = joinProjection;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null, null, null, null);
+        return new ExecutionPlan(statement, null, null, null, null, null, null, null);
     }
 
     public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator, null, null, null);
+        return new ExecutionPlan(statement, aggregator, limits, comparator, null, null, null, null);
     }
 
     public static ExecutionPlan joinedScan(List<ScanStatement> statements,
         TuplePredicate joinFilter,
-         ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(null, null, limits, comparator, null, statements, joinFilter);
+        Projection joinProjection,
+        ScanLimits limits, TupleComparator comparator) {
+        return new ExecutionPlan(null, null, limits, comparator, null, statements, joinFilter, joinProjection);
     }
 
     public static ExecutionPlan dataManipulationFromSelect(DMLStatement statement, ExecutionPlan dataSource) {
-        return new ExecutionPlan(statement, null, null, null, dataSource, null, null);
+        return new ExecutionPlan(statement, null, null, null, dataSource, null, null, null);
     }
 
     @Override
     public String toString() {
-        return "ExecutionPlan{" + "mainStatement=" + mainStatement + ", mainAggregator=" + mainAggregator + ", limits=" + limits + ", comparator=" + comparator + ", joinStatements=" + joinStatements + ", dataSource=" + dataSource + '}';
+        return "ExecutionPlan{" + "mainStatement=" + mainStatement + ", mainAggregator=" + mainAggregator + ", limits=" + limits + ", comparator=" + comparator + ", joinStatements=" + joinStatements + ", joinFilter=" + joinFilter + ", joinProjection=" + joinProjection + ", dataSource=" + dataSource + '}';
     }
 
 }

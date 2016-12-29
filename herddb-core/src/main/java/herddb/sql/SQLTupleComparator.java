@@ -37,10 +37,12 @@ public class SQLTupleComparator implements TupleComparator {
     SQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {
         this.orderByElements = orderByElements;
 
-        for (OrderByElement element : orderByElements) {
-            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) element.getExpression();
-            if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
-                throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
+        if (tableAlias != null) {
+            for (OrderByElement element : orderByElements) {
+                net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) element.getExpression();
+                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                    throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
+                }
             }
         }
     }
@@ -74,14 +76,14 @@ public class SQLTupleComparator implements TupleComparator {
             return 1;
         } else {
             if (valueA instanceof Number
-                    && valueB instanceof Number) {
+                && valueB instanceof Number) {
                 double doubleA = ((Number) valueA).doubleValue();
                 double doubleB = ((Number) valueB).doubleValue();
                 return Double.compare(doubleA, doubleB);
             }
 
             if (valueA instanceof Comparable
-                    && valueB instanceof Comparable) {
+                && valueB instanceof Comparable) {
                 try {
                     return ((Comparable<Object>) valueA).compareTo((Object) valueB);
                 } catch (Throwable t) {

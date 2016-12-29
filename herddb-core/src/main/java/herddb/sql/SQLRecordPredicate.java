@@ -103,7 +103,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = a.toMap();
         EvaluationState state = new EvaluationState(sqlContext.jdbcParameters, sqlContext);
-        boolean result = toBoolean(evaluateExpression(where, bean, state));        
+        boolean result = toBoolean(evaluateExpression(where, bean, state));
         return result;
     }
 
@@ -412,7 +412,11 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     @Override
     public String toString() {
-        return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + validatedTableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
+        if (table != null) {
+            return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + validatedTableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
+        } else {
+            return "SQLRecordPredicate{" + "table=null" + ", tableAlias=" + validatedTableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
+        }
     }
 
 }

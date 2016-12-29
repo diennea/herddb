@@ -19,6 +19,10 @@
  */
 package herddb.sql;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import net.sf.jsqlparser.expression.AllComparisonExpression;
 import net.sf.jsqlparser.expression.AnalyticExpression;
 import net.sf.jsqlparser.expression.AnyComparisonExpression;
@@ -28,6 +32,7 @@ import net.sf.jsqlparser.expression.CastExpression;
 import net.sf.jsqlparser.expression.DateTimeLiteralExpression;
 import net.sf.jsqlparser.expression.DateValue;
 import net.sf.jsqlparser.expression.DoubleValue;
+import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitor;
 import net.sf.jsqlparser.expression.ExtractExpression;
 import net.sf.jsqlparser.expression.Function;
@@ -94,6 +99,16 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
 
     private String mainTableAlias;
     private boolean containsMixedAliases;
+    private final Map<String, List<Column>> columnsByTable = new HashMap<>();
+    private final Expression expression;
+
+    public Expression getExpression() {
+        return expression;
+    }
+
+    public Map<String, List<Column>> getColumnsByTable() {
+        return columnsByTable;
+    }
 
     public String getMainTableAlias() {
         return mainTableAlias;
@@ -103,11 +118,17 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
         return containsMixedAliases;
     }
 
-    private void accumulate(Table fromTable) {
-        if (fromTable == null | containsMixedAliases) {
+    private void accumulate(Column column) {
+        Table fromTable = column.getTable();
+        if (fromTable == null || containsMixedAliases) {
             return;
         }
-        String tableName = fromTable.getName().toLowerCase();
+        String tableName;
+        if (fromTable.getName() != null) {
+            tableName = fromTable.getName().toLowerCase();;
+        } else {
+            throw new IllegalArgumentException("you have to full qualify column names while using JOIN clauses");
+        }
         String tableAlias = tableName;
         if (fromTable.getAlias() != null && fromTable.getAlias().getName() != null) {
             tableAlias = fromTable.getAlias().getName();
@@ -118,6 +139,12 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
             containsMixedAliases = true;
             mainTableAlias = null;
         }
+        List<Column> columnsForTable = columnsByTable.get(tableAlias);
+        if (columnsForTable == null) {
+            columnsForTable = new ArrayList<>();
+            columnsByTable.put(tableAlias, columnsForTable);
+        }
+        columnsForTable.add(column);
     }
 
     @Override
@@ -127,7 +154,9 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
 
     @Override
     public void visit(Function fnctn) {
-        fnctn.getParameters().getExpressions().forEach(e -> e.accept(this));
+        if (fnctn.getParameters() != null && fnctn.getParameters().getExpressions() != null) {
+            fnctn.getParameters().getExpressions().forEach(e -> e.accept(this));
+        }
     }
 
     @Override
@@ -215,8 +244,8 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
         acceptBinaryExpression(ae);
     }
 
-    public TableAliasDiscovery() {
-
+    public TableAliasDiscovery(Expression expression) {
+        this.expression = expression;
     }
 
     @Override
@@ -280,7 +309,7 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
 
     @Override
     public void visit(Column column) {
-        accumulate(column.getTable());
+        accumulate(column);
     }
 
     @Override

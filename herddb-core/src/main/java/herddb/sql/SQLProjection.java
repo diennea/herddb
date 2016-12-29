@@ -42,6 +42,7 @@ import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.expression.operators.arithmetic.Division;
 import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
 import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
+import net.sf.jsqlparser.statement.select.AllTableColumns;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
 
@@ -55,7 +56,6 @@ public class SQLProjection implements Projection {
     private final Column[] columns;
     private final List<OutputColumn> output;
     private final String[] fieldNames;
-    private final String tableAlias;
     private final boolean onlyCountFunctions;
 
     private static final class OutputColumn {
@@ -71,7 +71,6 @@ public class SQLProjection implements Projection {
     }
 
     public SQLProjection(Table table, String tableAlias, List<SelectItem> selectItems) throws StatementExecutionException {
-        this.tableAlias = tableAlias;
         List<OutputColumn> raw_output = new ArrayList<>();
         int pos = 0;
         int countSimpleFunctions = 0;
@@ -94,7 +93,7 @@ public class SQLProjection implements Projection {
                     }
                     Column column = table.getColumn(c.getColumnName());
                     if (column == null) {
-                        throw new StatementExecutionException("invalid column name " + c.getColumnName());
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName()+" in table "+table.name);
                     }
                     if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
@@ -150,6 +149,119 @@ public class SQLProjection implements Projection {
             this.columns[i] = c;
             this.fieldNames[i] = c.name;
         }
+        this.onlyCountFunctions = countSimpleFunctions == fieldNames.length;
+    }
+
+    public SQLProjection(String defaultTableSpace, Map<String, Table> tables, List<SelectItem> selectItems) throws StatementExecutionException {
+        List<OutputColumn> raw_output = new ArrayList<>();
+        int pos = 0;
+        int countSimpleFunctions = 0;
+        for (SelectItem item : selectItems) {
+            pos++;
+            if (item instanceof SelectExpressionItem) {
+                SelectExpressionItem si = (SelectExpressionItem) item;
+                Alias alias = si.getAlias();
+
+                int columType;
+                String fieldName = null;
+                if (alias != null && alias.getName() != null) {
+                    fieldName = alias.getName();
+                }
+                Expression exp = si.getExpression();
+                if (exp instanceof net.sf.jsqlparser.schema.Column) {
+                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
+                    if (fieldName == null) {
+                        fieldName = c.getColumnName();
+                    }
+                    TableRef tableRef = TableRef.buildFrom(c.getTable(), defaultTableSpace);
+                    String aliasName = tableRef.tableAlias;
+                    Table table = tables.get(aliasName);
+                    if (table == null) {
+                        throw new StatementExecutionException("invalid alias name " + aliasName);
+                    }
+                    Column column = table.getColumn(c.getColumnName());
+                    if (column == null) {
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName());
+                    }
+                    columType = column.type;
+                } else if (exp instanceof StringValue) {
+                    columType = ColumnTypes.STRING;
+                } else if (exp instanceof LongValue) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof TimestampValue) {
+                    columType = ColumnTypes.TIMESTAMP;
+                } else if (exp instanceof Function) {
+                    Function f = (Function) exp;
+                    String lcaseName = f.getName().toLowerCase();
+                    columType = BuiltinFunctions.typeOfFunction(lcaseName);
+                    if (lcaseName.equals(BuiltinFunctions.COUNT)) {
+                        countSimpleFunctions++;
+                    }
+                } else if (exp instanceof Addition) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof Subtraction) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof Multiplication) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof Division) {
+                    columType = ColumnTypes.LONG;
+                } else if (exp instanceof JdbcParameter) {
+                    columType = ColumnTypes.ANYTYPE;
+                } else {
+                    throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
+                }
+                if (fieldName == null) {
+                    fieldName = "item" + pos;
+                }
+                Column col = Column.column(fieldName, columType);
+                OutputColumn outputColumn = new OutputColumn(col, exp);
+                raw_output.add(outputColumn);
+            } else if (item instanceof AllTableColumns) {
+                AllTableColumns c = (AllTableColumns) item;
+                TableRef tableRef = TableRef.buildFrom(c.getTable(), defaultTableSpace);
+                String aliasName = tableRef.tableAlias;
+                Table table = tables.get(aliasName);
+                if (table == null) {
+                    throw new StatementExecutionException("invalid alias name " + aliasName);
+                }
+                for (herddb.model.Column tablecol : table.columns) {
+                    net.sf.jsqlparser.schema.Column fakeCol = new net.sf.jsqlparser.schema.Column(c.getTable(), tablecol.name);
+                    OutputColumn outputColumn = new OutputColumn(tablecol, fakeCol);
+                    raw_output.add(outputColumn);
+                }
+            } else {
+                throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
+            }
+        }
+        List<OutputColumn> complete_output = new ArrayList<>(raw_output);
+        for (OutputColumn col : raw_output) {
+            if (col.expression instanceof Function) {
+                TableAliasDiscovery discovery = new TableAliasDiscovery(col.expression);
+                String alias = discovery.getMainTableAlias();
+                if (alias == null) {
+                    throw new StatementExecutionException("unhandled select item with function " + col.expression);
+                }
+                Table table = tables.get(alias);
+                if (table == null) {
+                    throw new StatementExecutionException("bad select item with table alias  " + alias + " -> " + col.expression);
+                }
+                addExpressionsForFunctionArguments((Function) col.expression, complete_output, table);
+            }
+        }
+
+        this.output = complete_output;
+
+        this.columns = new Column[output.size()];
+
+        this.fieldNames = new String[output.size()];
+        for (int i = 0;
+            i < output.size();
+            i++) {
+            Column c = output.get(i).column;
+            this.columns[i] = c;
+            this.fieldNames[i] = c.name;
+        }
+
         this.onlyCountFunctions = countSimpleFunctions == fieldNames.length;
     }
 
@@ -210,7 +322,7 @@ public class SQLProjection implements Projection {
 
     @Override
     public String toString() {
-        return "SQLProjection{" + "columns=" + columns + ", output=" + output + ", fieldNames=" + fieldNames + ", tableAlias=" + tableAlias + '}';
+        return "SQLProjection{" + "columns=" + columns + ", output=" + output + ", fieldNames=" + fieldNames + ", onlyCountFunctions=" + onlyCountFunctions + '}';
     }
 
 }
