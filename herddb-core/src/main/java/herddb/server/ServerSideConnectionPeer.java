@@ -408,9 +408,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     TranslatedQuery translatedQuery = server
                         .getManager()
                         .getPlanner().translate(tableSpace, query, parameters, true, true, false);
-                    Statement statement = translatedQuery.plan.mainStatement;
                     TransactionContext transactionContext = new TransactionContext(txId);
-                    if (statement instanceof ScanStatement) {
+                    if (translatedQuery.plan.mainStatement instanceof ScanStatement
+                        || translatedQuery.plan.joinStatements != null) {
 
                         ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                         if (maxRows > 0) {
@@ -435,7 +435,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         }
                         _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
                     } else {
-                        _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": " + statement.getClass())));
+                        _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
                     }
                 } catch (StatementExecutionException | DataScannerException err) {
                     LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
