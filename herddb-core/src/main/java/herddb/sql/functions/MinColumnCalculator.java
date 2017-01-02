@@ -43,7 +43,7 @@ public class MinColumnCalculator extends AbstractSingleExpressionArgumentColumnC
     }
 
     @Override
-    public void consume(Tuple tuple) {
+    public void consume(Tuple tuple) throws StatementExecutionException {
         Comparable value = valueExtractor.apply(tuple);
         if (value != null) {
             if (result == null || result.compareTo(value) > 0) {

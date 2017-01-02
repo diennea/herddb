@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 
 /**
@@ -31,6 +32,6 @@ public interface AggregatedColumnCalculator {
 
     public String getFieldName();
 
-    public void consume(Tuple tuple);
+    public void consume(Tuple tuple) throws StatementExecutionException;
     
 }

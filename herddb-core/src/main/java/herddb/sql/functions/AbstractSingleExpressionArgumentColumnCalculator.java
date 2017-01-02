@@ -23,6 +23,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.sql.AggregatedColumnCalculator;
+import herddb.sql.SQLRecordPredicate;
 import java.util.function.Function;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -39,7 +40,13 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
 
     final protected String fieldName;
     final protected Expression expression;
-    final protected Function<Tuple, ? extends Comparable> valueExtractor;
+    final protected ValueComputer valueExtractor;
+
+    @FunctionalInterface
+    public static interface ValueComputer {
+
+        public Comparable apply(Tuple tuple) throws StatementExecutionException;
+    }
 
     protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, Expression expression,
         StatementEvaluationContext context
@@ -83,7 +90,7 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
             Object value = context.getJdbcParameters().get(index);
             valueExtractor = (Tuple t) -> (Comparable) value;
         } else {
-            throw new StatementExecutionException("cannot SUM expressions of type " + expression.getClass() + ": bad expression is " + expression);
+            valueExtractor = (Tuple t) -> (Comparable) SQLRecordPredicate.evaluateExpression(this.expression, t.toMap(), context, null);
         }
     }
 }

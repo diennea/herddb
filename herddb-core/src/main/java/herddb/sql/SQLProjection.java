@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Alias;
+import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -57,20 +58,24 @@ public class SQLProjection implements Projection {
     private final List<OutputColumn> output;
     private final String[] fieldNames;
     private final boolean onlyCountFunctions;
+    private final String tableAlias;
 
     private static final class OutputColumn {
 
         final Column column;
         final Expression expression;
+        final net.sf.jsqlparser.schema.Column directColumnReference;
 
-        public OutputColumn(Column column, Expression expression) {
+        public OutputColumn(Column column, Expression expression, net.sf.jsqlparser.schema.Column directColumnReference) {
             this.column = column;
             this.expression = expression;
+            this.directColumnReference = directColumnReference;
         }
 
     }
 
     public SQLProjection(Table table, String tableAlias, List<SelectItem> selectItems) throws StatementExecutionException {
+        this.tableAlias = tableAlias;
         List<OutputColumn> raw_output = new ArrayList<>();
         int pos = 0;
         int countSimpleFunctions = 0;
@@ -86,6 +91,7 @@ public class SQLProjection implements Projection {
                     fieldName = alias.getName();
                 }
                 Expression exp = si.getExpression();
+                net.sf.jsqlparser.schema.Column directColumnReference = null;
                 if (exp instanceof net.sf.jsqlparser.schema.Column) {
                     net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
                     if (fieldName == null) {
@@ -93,12 +99,13 @@ public class SQLProjection implements Projection {
                     }
                     Column column = table.getColumn(c.getColumnName());
                     if (column == null) {
-                        throw new StatementExecutionException("invalid column name " + c.getColumnName()+" in table "+table.name);
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName() + " in table " + table.name);
                     }
                     if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
                     }
                     columType = column.type;
+                    directColumnReference = c;
                 } else if (exp instanceof StringValue) {
                     columType = ColumnTypes.STRING;
                 } else if (exp instanceof LongValue) {
@@ -122,6 +129,8 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.LONG;
                 } else if (exp instanceof JdbcParameter) {
                     columType = ColumnTypes.ANYTYPE;
+                } else if (exp instanceof CaseExpression) {
+                    columType = ColumnTypes.ANYTYPE;
                 } else {
                     throw new StatementExecutionException("unhandled select expression type " + exp.getClass() + ": " + exp);
                 }
@@ -129,7 +138,7 @@ public class SQLProjection implements Projection {
                     fieldName = "item" + pos;
                 }
                 Column col = Column.column(fieldName, columType);
-                OutputColumn outputColumn = new OutputColumn(col, exp);
+                OutputColumn outputColumn = new OutputColumn(col, exp, directColumnReference);
                 raw_output.add(outputColumn);
             } else {
                 throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
@@ -137,9 +146,9 @@ public class SQLProjection implements Projection {
         }
         List<OutputColumn> complete_output = new ArrayList<>(raw_output);
         for (OutputColumn col : raw_output) {
-            if (col.expression instanceof Function) {
-                addExpressionsForFunctionArguments((Function) col.expression, complete_output, table);
-            }
+            ColumnReferencesDiscovery discovery = new ColumnReferencesDiscovery(col.expression, tableAlias);
+            col.expression.accept(discovery);
+            addExpressionsForFunctionArguments(discovery, complete_output, table);
         }
         this.output = complete_output;
         this.columns = new Column[output.size()];
@@ -153,6 +162,7 @@ public class SQLProjection implements Projection {
     }
 
     public SQLProjection(String defaultTableSpace, Map<String, Table> tables, List<SelectItem> selectItems) throws StatementExecutionException {
+        this.tableAlias = null;
         List<OutputColumn> raw_output = new ArrayList<>();
         int pos = 0;
         int countSimpleFunctions = 0;
@@ -168,6 +178,7 @@ public class SQLProjection implements Projection {
                     fieldName = alias.getName();
                 }
                 Expression exp = si.getExpression();
+                net.sf.jsqlparser.schema.Column directColumnReference = null;
                 if (exp instanceof net.sf.jsqlparser.schema.Column) {
                     net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
                     if (fieldName == null) {
@@ -184,6 +195,7 @@ public class SQLProjection implements Projection {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName());
                     }
                     columType = column.type;
+                    directColumnReference = c;
                 } else if (exp instanceof StringValue) {
                     columType = ColumnTypes.STRING;
                 } else if (exp instanceof LongValue) {
@@ -214,7 +226,7 @@ public class SQLProjection implements Projection {
                     fieldName = "item" + pos;
                 }
                 Column col = Column.column(fieldName, columType);
-                OutputColumn outputColumn = new OutputColumn(col, exp);
+                OutputColumn outputColumn = new OutputColumn(col, exp, directColumnReference);
                 raw_output.add(outputColumn);
             } else if (item instanceof AllTableColumns) {
                 AllTableColumns c = (AllTableColumns) item;
@@ -226,7 +238,7 @@ public class SQLProjection implements Projection {
                 }
                 for (herddb.model.Column tablecol : table.columns) {
                     net.sf.jsqlparser.schema.Column fakeCol = new net.sf.jsqlparser.schema.Column(c.getTable(), tablecol.name);
-                    OutputColumn outputColumn = new OutputColumn(tablecol, fakeCol);
+                    OutputColumn outputColumn = new OutputColumn(tablecol, fakeCol, null);
                     raw_output.add(outputColumn);
                 }
             } else {
@@ -235,18 +247,18 @@ public class SQLProjection implements Projection {
         }
         List<OutputColumn> complete_output = new ArrayList<>(raw_output);
         for (OutputColumn col : raw_output) {
-            if (col.expression instanceof Function) {
-                TableAliasDiscovery discovery = new TableAliasDiscovery(col.expression);
-                String alias = discovery.getMainTableAlias();
-                if (alias == null) {
-                    throw new StatementExecutionException("unhandled select item with function " + col.expression);
-                }
-                Table table = tables.get(alias);
-                if (table == null) {
-                    throw new StatementExecutionException("bad select item with table alias  " + alias + " -> " + col.expression);
-                }
-                addExpressionsForFunctionArguments((Function) col.expression, complete_output, table);
+            ColumnReferencesDiscovery discovery = new ColumnReferencesDiscovery(col.expression);
+            col.expression.accept(discovery);
+            String alias = discovery.getMainTableAlias();
+            if (alias == null) {
+                throw new StatementExecutionException("unhandled select item with function " + col.expression);
             }
+            Table table = tables.get(alias);
+            if (table == null) {
+                throw new StatementExecutionException("bad select item with table alias  " + alias + " -> " + col.expression);
+            }
+            addExpressionsForFunctionArguments(discovery, complete_output, table);
+
         }
 
         this.output = complete_output;
@@ -265,26 +277,29 @@ public class SQLProjection implements Projection {
         this.onlyCountFunctions = countSimpleFunctions == fieldNames.length;
     }
 
-    private static void addExpressionsForFunctionArguments(Function f, List<OutputColumn> output, Table table) throws StatementExecutionException {
-        if (f.getParameters() != null && f.getParameters().getExpressions() != null) {
-            for (Expression e : f.getParameters().getExpressions()) {
-                if (e instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e;
-                    String columnName = c.getColumnName();
-                    boolean found = false;
-                    for (OutputColumn outputColumn : output) {
-                        if (columnName.equalsIgnoreCase(outputColumn.column.name)) {
-                            found = true;
-                            break;
-                        }
+    private static void addExpressionsForFunctionArguments(ColumnReferencesDiscovery discovery, List<OutputColumn> output, Table table) throws StatementExecutionException {
+        List<net.sf.jsqlparser.schema.Column> columns = discovery.getColumnsByTable().get(table.name);
+        if (columns != null) {
+            for (Expression e : columns) {
+                net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e;
+                String columnName = c.getColumnName();
+                boolean found = false;
+                for (OutputColumn outputColumn : output) {
+                    if (columnName.equalsIgnoreCase(outputColumn.column.name)) {
+                        found = true;
+                        break;
+                    } else if (outputColumn.directColumnReference != null
+                        && outputColumn.directColumnReference.getColumnName().equalsIgnoreCase(columnName)) {
+                        found = true;
+                        break;
                     }
-                    if (!found) {
-                        Column column = table.getColumn(c.getColumnName());
-                        if (column == null) {
-                            throw new StatementExecutionException("invalid column name " + c.getColumnName());
-                        }
-                        output.add(new OutputColumn(Column.column(columnName, column.type), c));
+                }
+                if (!found) {
+                    Column column = table.getColumn(c.getColumnName());
+                    if (column == null) {
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName());
                     }
+                    output.add(new OutputColumn(Column.column(columnName, column.type), c, null));
                 }
             }
         }
@@ -296,7 +311,7 @@ public class SQLProjection implements Projection {
         List<Object> values = new ArrayList<>(output.size());
         for (OutputColumn col : output) {
             Object value;
-            value = BuiltinFunctions.computeValue(col.expression, record, context.getJdbcParameters());
+            value = SQLRecordPredicate.evaluateExpression(col.expression, record, context, tableAlias);
             values.add(value);
         }
         return new Tuple(

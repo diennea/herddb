@@ -906,29 +906,29 @@ public class SQLPlanner {
         return result;
     }
 
-    private TableAliasDiscovery discoverMainTableAlias(Expression expression) throws StatementExecutionException {
-        TableAliasDiscovery discovery = new TableAliasDiscovery(expression);
+    private ColumnReferencesDiscovery discoverMainTableAlias(Expression expression) throws StatementExecutionException {
+        ColumnReferencesDiscovery discovery = new ColumnReferencesDiscovery(expression);
         expression.accept(discovery);
         return discovery;
     }
 
     private Expression collectConditionsForAlias(String alias, Expression expression,
-        List<TableAliasDiscovery> conditionsOnJoinedResult, String mainTableName) throws StatementExecutionException {
+        List<ColumnReferencesDiscovery> conditionsOnJoinedResult, String mainTableName) throws StatementExecutionException {
         if (expression == null) {
             // no constraint on table
             return null;
         }
-        TableAliasDiscovery discoveredMainAlias = discoverMainTableAlias(expression);
+        ColumnReferencesDiscovery discoveredMainAlias = discoverMainTableAlias(expression);
         String mainAlias = discoveredMainAlias.getMainTableAlias();
         if (!discoveredMainAlias.isContainsMixedAliases() && alias.equals(mainAlias)) {
             return expression;
         } else if (expression instanceof AndExpression) {
             AndExpression be = (AndExpression) expression;
-            TableAliasDiscovery discoveredMainAliasLeft = discoverMainTableAlias(be.getLeftExpression());
+            ColumnReferencesDiscovery discoveredMainAliasLeft = discoverMainTableAlias(be.getLeftExpression());
             String mainAliasLeft = discoveredMainAliasLeft.isContainsMixedAliases()
                 ? null : discoveredMainAliasLeft.getMainTableAlias();
 
-            TableAliasDiscovery discoveredMainAliasright = discoverMainTableAlias(be.getRightExpression());
+            ColumnReferencesDiscovery discoveredMainAliasright = discoverMainTableAlias(be.getRightExpression());
             String mainAliasRight = discoveredMainAliasright.isContainsMixedAliases()
                 ? null : discoveredMainAliasright.getMainTableAlias();
             if (alias.equals(mainAliasLeft)) {
@@ -949,7 +949,7 @@ public class SQLPlanner {
         }
     }
 
-    private Expression composeAndExpression(List<TableAliasDiscovery> conditionsOnJoinedResult) {
+    private Expression composeAndExpression(List<ColumnReferencesDiscovery> conditionsOnJoinedResult) {
         if (conditionsOnJoinedResult.size() == 1) {
             return conditionsOnJoinedResult.get(0).getExpression();
         }
@@ -1053,7 +1053,7 @@ public class SQLPlanner {
                 if (!joinPresent) {
                     joins.get(mainTable.tableAlias).selectItems.add(c);
                 } else {
-                    TableAliasDiscovery discoverMainTableAlias = discoverMainTableAlias(se.getExpression());
+                    ColumnReferencesDiscovery discoverMainTableAlias = discoverMainTableAlias(se.getExpression());
                     String mainTableAliasForItem = discoverMainTableAlias.getMainTableAlias();
                     if (discoverMainTableAlias.isContainsMixedAliases()) {
                         throw new StatementExecutionException("unsupported single SELECT ITEM with mixed aliases: " + c);
@@ -1252,7 +1252,7 @@ public class SQLPlanner {
                     }
                 }
 
-                List<TableAliasDiscovery> conditionsOnJoinedResult = new ArrayList<>();
+                List<ColumnReferencesDiscovery> conditionsOnJoinedResult = new ArrayList<>();
                 List<ScanStatement> scans = new ArrayList<>();
                 for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
                     String alias = join.getKey();
@@ -1271,13 +1271,13 @@ public class SQLPlanner {
                 }
                 for (Join join : selectBody.getJoins()) {
                     if (join.getOnExpression() != null) {
-                        TableAliasDiscovery discoverMainTableAliasForJoinCondition =
+                        ColumnReferencesDiscovery discoverMainTableAliasForJoinCondition =
                             discoverMainTableAlias(join.getOnExpression());
                         conditionsOnJoinedResult.add(discoverMainTableAliasForJoinCondition);
                         LOG.severe("Collected ON-condition on final JOIN result: " + join.getOnExpression());
                     }
                 }
-                for (TableAliasDiscovery e : conditionsOnJoinedResult) {
+                for (ColumnReferencesDiscovery e : conditionsOnJoinedResult) {
                     LOG.severe("Collected WHERE on final JOIN result: " + e.getExpression());
                     for (Map.Entry<String, List<net.sf.jsqlparser.schema.Column>> entry : e.getColumnsByTable().entrySet()) {
                         String tableAlias = entry.getKey();

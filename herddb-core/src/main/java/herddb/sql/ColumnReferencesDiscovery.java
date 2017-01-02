@@ -95,7 +95,7 @@ import net.sf.jsqlparser.statement.select.SubSelect;
  *
  * @author enrico.olivelli
  */
-public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor {
+public class ColumnReferencesDiscovery implements ExpressionVisitor, ItemsListVisitor {
 
     private String mainTableAlias;
     private boolean containsMixedAliases;
@@ -118,16 +118,16 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
         return containsMixedAliases;
     }
 
-    private void accumulate(Column column) {
-        Table fromTable = column.getTable();
-        if (fromTable == null || containsMixedAliases) {
-            return;
-        }
+    private void accumulate(Column column) {        
         String tableName;
-        if (fromTable.getName() != null) {
-            tableName = fromTable.getName().toLowerCase();;
+        Table fromTable = column.getTable();
+        if (fromTable == null || fromTable.getName() == null) {
+            if (mainTableAlias == null) {
+                throw new IllegalArgumentException("you have to full qualify column names, ambiguos column is " + column);
+            }
+            tableName = mainTableAlias;
         } else {
-            throw new IllegalArgumentException("you have to full qualify column names while using JOIN clauses");
+            tableName = fromTable.getName().toLowerCase();
         }
         String tableAlias = tableName;
         if (fromTable.getAlias() != null && fromTable.getAlias().getName() != null) {
@@ -244,8 +244,13 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
         acceptBinaryExpression(ae);
     }
 
-    public TableAliasDiscovery(Expression expression) {
+    public ColumnReferencesDiscovery(Expression expression) {
         this.expression = expression;
+    }
+
+    public ColumnReferencesDiscovery(Expression expression, String mainTableAlias) {
+        this.expression = expression;
+        this.mainTableAlias = mainTableAlias;
     }
 
     @Override
@@ -319,156 +324,192 @@ public class TableAliasDiscovery implements ExpressionVisitor, ItemsListVisitor 
 
     @Override
     public void visit(CaseExpression ce) {
-        ce.getElseExpression().accept(this);
-        ce.getSwitchExpression().accept(this);
+        if (ce.getElseExpression() != null) {
+            ce.getElseExpression().accept(this);
+        }
+        if (ce.getSwitchExpression() != null) {
+            ce.getSwitchExpression().accept(this);
+        }
         ce.getWhenClauses().forEach(e -> e.accept(this));
     }
 
     @Override
     public void visit(WhenClause wc) {
-        wc.getThenExpression().accept(this);
-        wc.getWhenExpression().accept(this);
+        if (wc.getThenExpression() != null) {
+            wc.getThenExpression().accept(this);
+        }
+        if (wc.getWhenExpression() != null) {
+            wc.getWhenExpression().accept(this);
+        }
     }
 
     @Override
-    public void visit(ExistsExpression ee) {
+    public void visit(ExistsExpression ee
+    ) {
         ee.getRightExpression().accept(this);
     }
 
     @Override
-    public void visit(AllComparisonExpression ace) {
+    public void visit(AllComparisonExpression ace
+    ) {
         throw new UnsupportedOperationException();
 
     }
 
     @Override
-    public void visit(AnyComparisonExpression ace) {
+    public void visit(AnyComparisonExpression ace
+    ) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void visit(Concat concat) {
+    public void visit(Concat concat
+    ) {
         acceptBinaryExpression(concat);
 
     }
 
     @Override
-    public void visit(Matches mtchs) {
+    public void visit(Matches mtchs
+    ) {
         acceptBinaryExpression(mtchs);
     }
 
     @Override
-    public void visit(BitwiseAnd ba) {
+    public void visit(BitwiseAnd ba
+    ) {
         acceptBinaryExpression(ba);
     }
 
     @Override
-    public void visit(BitwiseOr bo) {
+    public void visit(BitwiseOr bo
+    ) {
         acceptBinaryExpression(bo);
     }
 
     @Override
-    public void visit(BitwiseXor bx) {
+    public void visit(BitwiseXor bx
+    ) {
         acceptBinaryExpression(bx);
     }
 
     @Override
-    public void visit(CastExpression ce) {
+    public void visit(CastExpression ce
+    ) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void visit(Modulo modulo) {
+    public void visit(Modulo modulo
+    ) {
         acceptBinaryExpression(modulo);
     }
 
     @Override
-    public void visit(AnalyticExpression ae) {
+    public void visit(AnalyticExpression ae
+    ) {
 
     }
 
     @Override
-    public void visit(WithinGroupExpression wge) {
+    public void visit(WithinGroupExpression wge
+    ) {
 
     }
 
     @Override
-    public void visit(ExtractExpression ee) {
+    public void visit(ExtractExpression ee
+    ) {
 
     }
 
     @Override
-    public void visit(IntervalExpression ie) {
+    public void visit(IntervalExpression ie
+    ) {
 
     }
 
     @Override
-    public void visit(OracleHierarchicalExpression ohe) {
+    public void visit(OracleHierarchicalExpression ohe
+    ) {
 
     }
 
     @Override
-    public void visit(RegExpMatchOperator remo) {
+    public void visit(RegExpMatchOperator remo
+    ) {
         acceptBinaryExpression(remo);
     }
 
     @Override
-    public void visit(JsonExpression je) {
+    public void visit(JsonExpression je
+    ) {
 
     }
 
     @Override
-    public void visit(RegExpMySQLOperator rmsql) {
+    public void visit(RegExpMySQLOperator rmsql
+    ) {
 
     }
 
     @Override
-    public void visit(UserVariable uv) {
+    public void visit(UserVariable uv
+    ) {
 
     }
 
     @Override
-    public void visit(NumericBind nb) {
+    public void visit(NumericBind nb
+    ) {
 
     }
 
     @Override
-    public void visit(KeepExpression ke) {
+    public void visit(KeepExpression ke
+    ) {
 
     }
 
     @Override
-    public void visit(MySQLGroupConcat msqlgc) {
+    public void visit(MySQLGroupConcat msqlgc
+    ) {
 
     }
 
     @Override
-    public void visit(RowConstructor rc) {
+    public void visit(RowConstructor rc
+    ) {
 
     }
 
     @Override
-    public void visit(OracleHint oh) {
+    public void visit(OracleHint oh
+    ) {
 
     }
 
     @Override
-    public void visit(TimeKeyExpression tke) {
+    public void visit(TimeKeyExpression tke
+    ) {
 
     }
 
     @Override
-    public void visit(DateTimeLiteralExpression dtle) {
+    public void visit(DateTimeLiteralExpression dtle
+    ) {
 
     }
 
     @Override
-    public void visit(ExpressionList el) {
+    public void visit(ExpressionList el
+    ) {
         el.getExpressions().forEach(e -> e.accept(this));
     }
 
     @Override
-    public void visit(MultiExpressionList mel) {
+    public void visit(MultiExpressionList mel
+    ) {
         mel.getExprList().forEach(e -> e.accept(this));
     }
 

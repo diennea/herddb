@@ -60,8 +60,10 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
+import herddb.utils.MapUtils;
 import java.sql.Timestamp;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
@@ -112,6 +114,122 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_TIMESTAMP)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             Thread.sleep(500);
             assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consume().get(0).get("n1"));
+        }
+    }
+
+    @Test
+    public void caseWhenTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_TIMESTAMP)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_TIMESTAMP)", Arrays.asList("mykey2", Integer.valueOf(1235))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_TIMESTAMP)", Arrays.asList("mykey3", Integer.valueOf(1236))).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT k1, "
+                + "CASE "
+                + "WHEN k1='mykey'  THEN 'a' "
+                + "WHEN k1='mykey2' THEN 'b' "
+                + "ELSE 'c'  "
+                + "END as mycase "
+                + "FROM tblspace1.tsql "
+                + "ORDER BY k1", Collections.emptyList())) {
+                List<Tuple> res = scan.consume();
+                for (Tuple t : res) {
+                    System.out.println("t:" + t);
+                }
+                assertEquals(3, res.size());
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey", "mycase", "a"
+                ))));
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey2", "mycase", "b"
+                ))));
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey3", "mycase", "c"
+                ))));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1, "
+                + "CASE "
+                + "WHEN k1='mykey'  THEN 'a' "
+                + "WHEN k1='mykey2' THEN 'b' "
+                + "END as mycase "
+                + "FROM tblspace1.tsql "
+                + "ORDER BY k1", Collections.emptyList())) {
+                List<Tuple> res = scan.consume();
+                for (Tuple t : res) {
+                    System.out.println("t:" + t);
+                }
+                assertEquals(3, res.size());
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey", "mycase", "a"
+                ))));
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey2", "mycase", "b"
+                ))));
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey3", "mycase", null
+                ))));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1, "
+                + "SUM(CASE "
+                + "WHEN k1='mykey'  THEN 1 "
+                + "WHEN k1='mykey2' THEN 2 "
+                + "ELSE 3  "
+                + "END) as mysum "
+                + "FROM tblspace1.tsql "
+                + "GROUP BY k1",
+                Collections.emptyList())) {
+                List<Tuple> res = scan.consume();
+                for (Tuple t : res) {
+                    System.out.println("t2:" + t);
+                }
+                assertEquals(3, res.size());
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey", "mysum", 1L
+                ))));
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey2", "mysum", 2L
+                ))));
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k1", "mykey3", "mysum", 3L
+                ))));
+            }
+            try (DataScanner scan = scan(manager, "SELECT "
+                + "SUM(CASE "
+                + "WHEN k1='mykey'  THEN 1 "
+                + "WHEN k1='mykey2' THEN 2 "
+                + "ELSE 3  "
+                + "END) as mysum "
+                + "FROM tblspace1.tsql "
+                + "",
+                Collections.emptyList())) {
+                List<Tuple> res = scan.consume();
+                for (Tuple t : res) {
+                    System.out.println("t:" + t);
+                }
+                assertEquals(1, res.size());
+                assertTrue(
+                    res.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "mysum", 6L
+                ))));
+
+            }
         }
     }
 

@@ -26,8 +26,6 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableContext;
-import herddb.sql.functions.BuiltinFunctions;
-import herddb.utils.IntHolder;
 
 import java.util.HashMap;
 import java.util.List;
@@ -38,7 +36,6 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
-import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.schema.Column;
 
 /**
@@ -93,7 +90,7 @@ public class SQLRecordFunction extends RecordFunction {
                 Column c = (Column) e;
                 bean.put(columnName, bean.get(c.getColumnName()));
             } else {
-                Object value = BuiltinFunctions.computeValue(e, bean, statementEvaluationContext.jdbcParameters);
+                Object value = SQLRecordPredicate.evaluateExpression(e, bean, statementEvaluationContext, null);
                 bean.put(columnName, value);
             }
         }
