@@ -106,7 +106,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -115,7 +115,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1 and name='n2'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=1 and name='n2'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -124,7 +124,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertNull(scan.getPredicate().getIndexOperation());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -177,7 +177,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -186,7 +186,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -196,7 +196,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=1", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -206,7 +206,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=2", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -216,7 +216,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>= 1 and n1<=2", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>= 1 and n1<=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -226,7 +226,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<= 1 and n1>=2", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<= 1 and n1>=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -236,7 +236,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>1", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -246,7 +246,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<3", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -255,7 +255,7 @@ public abstract class SecondaryIndexAccessSuite {
                 }
             }
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<1", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -265,7 +265,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<2", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -275,7 +275,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1> 1 and n1<3", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1> 1 and n1<3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -285,7 +285,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<n2", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<n2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
                 assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexRangeScan);
@@ -335,7 +335,7 @@ public abstract class SecondaryIndexAccessSuite {
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
 
             ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
@@ -403,7 +403,7 @@ public abstract class SecondaryIndexAccessSuite {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT msgid "
                     + "from q1.q1_headers "
                     + "where name='from' "
-                    + "and value='test@localhost'", Collections.emptyList(), true, true, false);
+                    + "and value='test@localhost'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -417,7 +417,7 @@ public abstract class SecondaryIndexAccessSuite {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT msgid "
                     + "from q1.q1_headers "
                     + "where name='from' "
-                    + "and value like '%test@localhost%'", Collections.emptyList(), true, true, false);
+                    + "and value like '%test@localhost%'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -431,7 +431,7 @@ public abstract class SecondaryIndexAccessSuite {
                     + "WHERE id in "
                     + "(SELECT msgid from q1.q1_headers "
                     + "where name='from' "
-                    + "and value='test@localhost')", Collections.emptyList(), true, true, false);
+                    + "and value='test@localhost')", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(1, scan1.consume().size());
@@ -444,7 +444,7 @@ public abstract class SecondaryIndexAccessSuite {
                     + "WHERE id in "
                     + "(SELECT msgid from q1.q1_headers "
                     + "where name='from' "
-                    + "and value like '%test@%')", Collections.emptyList(), true, true, false);
+                    + "and value like '%test@%')", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(1, scan1.consume().size());
@@ -493,7 +493,7 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('d','n2')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('e','n2')", Collections.emptyList());
 
-            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
 
             ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
@@ -546,7 +546,7 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "DELETE FROM tblspace1.t1 WHERE id='c'", Collections.emptyList());
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -556,7 +556,7 @@ public abstract class SecondaryIndexAccessSuite {
 
             TestUtils.executeUpdate(manager, "UPDATE tblspace1.t1 set name='n1' WHERE id='e'", Collections.emptyList());
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -608,7 +608,7 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('e','n2')", Collections.emptyList(), new TransactionContext(tx));
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -619,7 +619,7 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "DELETE FROM tblspace1.t1 WHERE id='c'", Collections.emptyList(), new TransactionContext(tx));
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -627,7 +627,7 @@ public abstract class SecondaryIndexAccessSuite {
                 }
             }
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -637,7 +637,7 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.commitTransaction(manager, "tblspace1", tx);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -688,7 +688,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 // uncommitted indexes are not used
                 assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
@@ -700,7 +700,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -750,7 +750,7 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), new TransactionContext(tx));
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 // uncommitted indexes are not used
                 assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
@@ -762,7 +762,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -811,7 +811,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -823,7 +823,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(dropIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -872,7 +872,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -886,7 +886,7 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.commitTransaction(manager, "tblspace1", tx);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertFalse(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -935,7 +935,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -995,7 +995,7 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false);
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {

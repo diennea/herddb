@@ -174,7 +174,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 try {
                     TransactionContext transactionContext = new TransactionContext(txId);
                     TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace,
-                        query, parameters, false, true, returnValues);
+                        query, parameters, false, true, returnValues, -1);
                     Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
                     StatementExecutionResult result = server
@@ -269,7 +269,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         TransactionContext transactionContext = new TransactionContext(transactionId);
                         TranslatedQuery translatedQuery = server
                             .getManager()
-                            .getPlanner().translate(tableSpace, query, parameters, false, true, returnValues);
+                            .getPlanner().translate(tableSpace, query, parameters, false, true, returnValues, -1);
                         Statement statement = translatedQuery.plan.mainStatement;
 
                         StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -407,15 +407,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 try {
                     TranslatedQuery translatedQuery = server
                         .getManager()
-                        .getPlanner().translate(tableSpace, query, parameters, true, true, false);
+                        .getPlanner().translate(tableSpace, query, parameters, true, true, false, maxRows);
                     TransactionContext transactionContext = new TransactionContext(txId);
+                    LOGGER.severe("plan: "+translatedQuery.plan);
                     if (translatedQuery.plan.mainStatement instanceof ScanStatement
                         || translatedQuery.plan.joinStatements != null) {
 
-                        ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
-                        if (maxRows > 0) {
-                            scanResult = new ScanResult(scanResult.transactionId, new LimitedDataScanner(scanResult.dataScanner, new ScanLimits(maxRows, 0)));
-                        }
+                        ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);                        
                         DataScanner dataScanner = scanResult.dataScanner;
 
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);

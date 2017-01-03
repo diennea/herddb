@@ -210,16 +210,16 @@ public class SQLPlanner {
         }
     }
 
-    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters,
-        boolean scan, boolean allowCache, boolean returnValues) throws StatementExecutionException {
+    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
         query = rewriteExecuteSyntax(query);
         String cacheKey = "scan:" + scan
             + ",defaultTableSpace:" + defaultTableSpace
-            + ", query:" + query
-            + ",returnValues:" + returnValues;
+            + ",query:" + query
+            + ",returnValues:" + returnValues
+            + ",maxRows:" + maxRows;
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
@@ -241,7 +241,7 @@ public class SQLPlanner {
             } else if (stmt instanceof Update) {
                 result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
             } else if (stmt instanceof Select) {
-                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan);
+                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows);
             } else if (stmt instanceof Execute) {
                 result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
                 allowCache = false;
@@ -525,7 +525,7 @@ public class SQLPlanner {
             }
         } else {
             Select select = s.getSelect();
-            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true);
+            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true, -1);
             if (s.getColumns() == null) {
                 throw new StatementExecutionException("for INSERT ... SELECT you have to declare the columns to be filled in (use INSERT INTO TABLE(c,c,c,) SELECT .....)");
             }
@@ -979,7 +979,7 @@ public class SQLPlanner {
 
     }
 
-    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan) throws StatementExecutionException {
+    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan, int maxRows) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
 
@@ -1172,8 +1172,7 @@ public class SQLPlanner {
                 }
 
                 Aggregator aggregator = null;
-                ScanLimits limitsOnScan = null;
-                ScanLimits limitsOnPlan = null;
+                ScanLimits scanLimits = null;
                 if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
                     aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences(), manager.getRecordSetFactory());
                 }
@@ -1197,27 +1196,34 @@ public class SQLPlanner {
                     if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter() || limit.isRowCountJdbcParameter()) {
                         throw new StatementExecutionException("Invalid LIMIT clause");
                     }
-                    if (aggregator != null) {
-                        limitsOnPlan = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
-                    } else {
-                        limitsOnScan = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
-                    }
+
+                    scanLimits = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
                         throw new StatementExecutionException("Invalid TOP clause");
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
-                        if (aggregator != null) {
-                            limitsOnPlan = new ScanLimits((int) rowCount, 0);
-                        } else {
-                            limitsOnScan = new ScanLimits((int) rowCount, 0);
-                        }
+                        scanLimits = new ScanLimits((int) rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
                     }
                 }
+                if (maxRows > 0) {
+                    if (scanLimits == null) {
+                        scanLimits = new ScanLimits(maxRows, 0);
+                    } else if (scanLimits.getMaxRows() <= 0 || scanLimits.getMaxRows() > maxRows) {
+                        scanLimits = new ScanLimits(maxRows, scanLimits.getOffset());
+                    }
+                }
 
+                ScanLimits limitsOnScan = null;
+                ScanLimits limitsOnPlan = null;
+                if (aggregator != null) {
+                    limitsOnPlan = scanLimits;
+                } else {
+                    limitsOnScan = scanLimits;
+                }
                 try {
                     ScanStatement statement = new ScanStatement(tableSpace, mainTable.tableName, mainTableProjection, where, comparatorOnScan, limitsOnScan);
                     return ExecutionPlan.make(statement, aggregator, limitsOnPlan, comparatorOnPlan);
@@ -1271,8 +1277,8 @@ public class SQLPlanner {
                 }
                 for (Join join : selectBody.getJoins()) {
                     if (join.getOnExpression() != null) {
-                        ColumnReferencesDiscovery discoverMainTableAliasForJoinCondition =
-                            discoverMainTableAlias(join.getOnExpression());
+                        ColumnReferencesDiscovery discoverMainTableAliasForJoinCondition
+                            = discoverMainTableAlias(join.getOnExpression());
                         conditionsOnJoinedResult.add(discoverMainTableAliasForJoinCondition);
                         LOG.severe("Collected ON-condition on final JOIN result: " + join.getOnExpression());
                     }

@@ -67,7 +67,7 @@ public class SimpleIndexAccessTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1235))).getUpdateCount());
 
             {
-                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), true, true, false);
+                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ?", Arrays.asList("mykey"), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
@@ -76,7 +76,7 @@ public class SimpleIndexAccessTest {
             }
 
             {
-                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 <> 1235", Arrays.asList("mykey"), true, true, false);
+                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 <> 1235", Arrays.asList("mykey"), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
@@ -84,7 +84,7 @@ public class SimpleIndexAccessTest {
                 }
             }
             {
-                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 = 1235", Arrays.asList("mykey"), true, true, false);
+                TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 = ? and n1 = 1235", Arrays.asList("mykey"), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
@@ -125,7 +125,7 @@ public class SimpleIndexAccessTest {
                 TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT, ""
                     + "SELECT H.SID, H.STATUS, H.TIMESTAMP, H.STATUSLINE, H.IDBOUNCECATEGORY "
                     + "FROM tblspace1.q1_HISTORY AS H "
-                    + "WHERE H.MSG_ID=?", Arrays.asList(1), true, true, false);
+                    + "WHERE H.MSG_ID=?", Arrays.asList(1), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translate.context, TransactionContext.NO_TRANSACTION);) {
