@@ -91,13 +91,17 @@ public class MaxLeaderInactivityTest {
                 TestUtils.execute(server_1.getManager(), "CREATE TABLESPACE 'ttt','leader:" + server_2.getNodeId() + "','expectedreplicacount:2','wait:60000','maxLeaderInactivityTime:5000'", Collections.emptyList());
 
                 // wait for server_2 to wake up
-                for (int i = 0; i < 20; i++) {
-                    if (server_2.getManager().getTableSpaceManager("ttt") != null && server_2.getManager().getTableSpaceManager("ttt").isLeader()) {
+                for (int i = 0; i < 40; i++) {
+                    TableSpaceManager tableSpaceManager2 = server_2.getManager().getTableSpaceManager("ttt");
+
+                    if (server_2.getManager().getTableSpaceManager("ttt") != null
+                        && server_2.getManager().getTableSpaceManager("ttt").isLeader()) {
                         break;
                     }
                     Thread.sleep(500);
                 }
-                assertTrue(server_2.getManager().getTableSpaceManager("ttt") != null && server_2.getManager().getTableSpaceManager("ttt").isLeader());
+                assertTrue(server_2.getManager().getTableSpaceManager("ttt") != null
+                    && server_2.getManager().getTableSpaceManager("ttt").isLeader());
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
                     List<Tuple> tuples = scan.consume();
                     for (Tuple t : tuples) {
