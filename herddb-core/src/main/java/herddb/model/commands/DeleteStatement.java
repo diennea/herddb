@@ -31,8 +31,7 @@ import herddb.model.StatementExecutionException;
 import herddb.utils.Bytes;
 
 /**
- * Delete an existing record, if the record does not exist the updateCount will
- * return 0
+ * Delete an existing record, if the record does not exist the updateCount will return 0
  *
  * @author enrico.olivelli
  */
@@ -67,6 +66,11 @@ public class DeleteStatement extends DMLStatement {
 
     public Predicate getPredicate() {
         return predicate;
+    }
+
+    @Override
+    public String toString() {
+        return "DeleteStatement{" + "predicate=" + predicate + '}';
     }
 
 }
