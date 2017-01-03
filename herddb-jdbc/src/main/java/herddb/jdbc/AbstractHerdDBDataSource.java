@@ -169,6 +169,7 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
             config.setMaxTotal(maxActive);
             config.setMaxIdle(maxActive);
             config.setMinIdle(maxActive / 2);
+            config.setJmxNamePrefix("HerdDBClient");
             pool = new GenericObjectPool<>(new ConnectionsFactory(), config);
         }
     }
