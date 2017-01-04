@@ -560,8 +560,16 @@ public class TableManager implements AbstractTableManager {
     @Override
     public void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException {
         if (recovery && !position.after(bootSequenceNumber)) {
-            LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry + " at " + position + ", table booted at " + bootSequenceNumber);
-            return;
+            Transaction transaction = null;
+            if (entry.transactionId > 0) {
+                transaction = tableSpaceManager.getTransaction(entry.transactionId);
+            }
+            if (transaction != null) {
+                LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " keep" + entry + " at " + position + ", table booted at " + bootSequenceNumber+", it belongs to transaction "+entry.transactionId+" which was in progress during the flush of the table");
+            } else {
+                LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry + " at " + position + ", table booted at " + bootSequenceNumber);
+                return;
+            }            
         }
         switch (entry.type) {
             case LogEntryType.DELETE: {
@@ -771,10 +779,12 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
+    @Override
     public void flush() throws DataStorageManagerException {
         checkpoint(log.getLastSequenceNumber());
     }
 
+    @Override
     public void close() {
         dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.name, keyToPage);
     }
