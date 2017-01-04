@@ -70,6 +70,7 @@ import herddb.sql.SQLStatementEvaluationContext;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ChangeThreadName;
+import herddb.utils.DefaultJVMHalt;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -125,6 +126,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private long checkpointPeriod;
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
     private boolean clearAtBoot = false;
+    private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT;
+    private Runnable haltProcedure = DefaultJVMHalt.INSTANCE;
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
@@ -134,6 +137,22 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             return t;
         }
     });
+
+    public boolean isHaltOnTableSpaceBootError() {
+        return haltOnTableSpaceBootError;
+    }
+
+    public void setHaltOnTableSpaceBootError(boolean haltOnTableSpaceBootError) {
+        this.haltOnTableSpaceBootError = haltOnTableSpaceBootError;
+    }
+
+    public Runnable getHaltProcedure() {
+        return haltProcedure;
+    }
+
+    public void setHaltProcedure(Runnable haltProcedure) {
+        this.haltProcedure = haltProcedure;
+    }
 
     public boolean isErrorIfNotLeader() {
         return errorIfNotLeader;
@@ -855,6 +874,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     handleTableSpace(tableSpaceMetadata);
                 } catch (Exception err) {
                     LOGGER.log(Level.SEVERE, "cannot handle tablespace " + tableSpace, err);
+                    if (haltOnTableSpaceBootError && haltProcedure != null) {
+                        err.printStackTrace();
+                        haltProcedure.run();
+                    }
                 }
             }
         } catch (MetadataStorageManagerException error) {
