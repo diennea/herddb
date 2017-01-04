@@ -408,8 +408,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     TranslatedQuery translatedQuery = server
                         .getManager()
                         .getPlanner().translate(tableSpace, query, parameters, true, true, false, maxRows);
-                    TransactionContext transactionContext = new TransactionContext(txId);
-                    LOGGER.severe("plan: "+translatedQuery.plan);
+                    TransactionContext transactionContext = new TransactionContext(txId);                    
                     if (translatedQuery.plan.mainStatement instanceof ScanStatement
                         || translatedQuery.plan.joinStatements != null) {
 
