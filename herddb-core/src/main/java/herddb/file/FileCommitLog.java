@@ -60,17 +60,17 @@ public class FileCommitLog extends CommitLog {
     private Path logDirectory;
 
     private long currentLedgerId = 0;
-    
+
     private LogSequenceNumber recoveredLogSequence;
-    
+
     private long maxLogFileSize = 1024 * 1024;
     private long writtenBytes = 0;
 
     private volatile CommitFileWriter writer;
     private Thread spool;
-    
+
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(100000);
-    
+
     private final int MAX_UNSYNCHED_BATCH = 1000;
     private final int MAX_SYNCH_TIME = 10;
 
@@ -81,7 +81,7 @@ public class FileCommitLog extends CommitLog {
 
         final long ledgerId;
         long sequenceNumber;
-        
+
         final ExtendedDataOutputStream out;
         final Path filename;
         final FileOutputStream fOut;
@@ -89,7 +89,7 @@ public class FileCommitLog extends CommitLog {
         private CommitFileWriter(long ledgerId, long sequenceNumber) throws IOException {
             this.ledgerId = ledgerId;
             this.sequenceNumber = sequenceNumber;
-            
+
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
             LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
@@ -193,9 +193,9 @@ public class FileCommitLog extends CommitLog {
                 writer.close();
             }
             ensureDirectories();
-            
-            writer = new CommitFileWriter(++currentLedgerId,-1);
-            
+
+            writer = new CommitFileWriter(++currentLedgerId, -1);
+
         } catch (IOException err) {
             throw new LogNotAvailableException(err);
         }
@@ -291,16 +291,18 @@ public class FileCommitLog extends CommitLog {
     private void writeEntry(LogEntryHolderFuture entry) {
         try {
             CommitFileWriter writer = this.writer;
-            
-            if (writer == null)
+
+            if (writer == null) {
                 throw new IOException("not yet writable");
-            
+            }
+
             long newSequenceNumber = ++writer.sequenceNumber;
             writer.writeEntry(newSequenceNumber, entry.entry);
-            
-            if (writtenBytes > maxLogFileSize)
+
+            if (writtenBytes > maxLogFileSize) {
                 openNewLedger();
-            
+            }
+
             entry.done(new LogSequenceNumber(writer.ledgerId, newSequenceNumber));
         } catch (IOException | LogNotAvailableException err) {
             entry.error(err);
@@ -360,22 +362,22 @@ public class FileCommitLog extends CommitLog {
                 }
             }
             names.sort(Comparator.comparing(Path::toString));
-            
+
             final Path last = names.isEmpty() ? null : names.get(names.size() - 1);
 
             long offset = -1;
             for (Path p : names) {
-                
+
                 boolean lastFile = p.equals(last);
-                
+
                 LOGGER.log(Level.SEVERE, "logfile is {0}, lastFile {1}", new Object[]{p.toAbsolutePath(), lastFile});
-                
+
                 String name = p.getFileName().toString().replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
-                
-                currentLedgerId = Math.max(currentLedgerId , ledgerId);
+
+                currentLedgerId = Math.max(currentLedgerId, ledgerId);
                 offset = -1;
-                
+
                 try (CommitFileReader reader = new CommitFileReader(ledgerId, lastFile)) {
                     LogEntryWithSequenceNumber n = reader.nextEntry();
                     while (n != null) {
@@ -390,50 +392,50 @@ public class FileCommitLog extends CommitLog {
                     }
                 }
             }
-            
+
             recoveredLogSequence = new LogSequenceNumber(currentLedgerId, offset);
-            
+
             LOGGER.log(Level.SEVERE, "Max ledgerId is {0}", new Object[]{currentLedgerId});
         } catch (Exception err) {
             throw new LogNotAvailableException(err);
         }
 
     }
-    
+
     @Override
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
         LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, currentLedgerId: {2}",
-                new Object[] {lastCheckPointSequenceNumber,currentLedgerId} );
-        
+            new Object[]{lastCheckPointSequenceNumber, currentLedgerId});
+
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
             List<Path> names = new ArrayList<>();
-            for (Path path : stream)
-                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(LOGFILEEXTENSION))
+            for (Path path : stream) {
+                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(LOGFILEEXTENSION)) {
                     names.add(path);
-            
+                }
+            }
+
             names.sort(Comparator.comparing(Path::toString));
-            
+
             final Path last = names.isEmpty() ? null : names.get(names.size() - 1);
-            
+
             int count = 0;
-            
-            long ledgerLimit = Math.min( lastCheckPointSequenceNumber.ledgerId, currentLedgerId );
-            
+
+            long ledgerLimit = Math.min(lastCheckPointSequenceNumber.ledgerId, currentLedgerId);
+
             for (Path path : names) {
                 boolean lastFile = path.equals(last);
-                
+
                 String name = path.getFileName().toString().replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
-                
-                
-                if ( !lastFile && ledgerId < ledgerLimit )
-                {
-                    LOGGER.log(Level.SEVERE, "deleting logfile {0} for ledger {1}", new Object[] {path.toAbsolutePath(), ledgerId});
+
+                if (!lastFile && ledgerId < ledgerLimit) {
+                    LOGGER.log(Level.SEVERE, "deleting logfile {0} for ledger {1}", new Object[]{path.toAbsolutePath(), ledgerId});
                     Files.delete(path);
                     ++count;
                 }
             }
-            
+
             LOGGER.log(Level.SEVERE, "Deleted logfiles: {}", count);
         } catch (Exception err) {
             throw new LogNotAvailableException(err);
@@ -470,11 +472,7 @@ public class FileCommitLog extends CommitLog {
             throw new LogNotAvailableException(err);
         }
         if (writer != null) {
-            try {
-                writer.close();
-            } finally {
-                closed = true;
-            }
+            writer.close();
         }
     }
 
@@ -495,10 +493,11 @@ public class FileCommitLog extends CommitLog {
     @Override
     public LogSequenceNumber getLastSequenceNumber() {
         final CommitFileWriter writer = this.writer;
-        if ( writer == null )
-            return ( recoveredLogSequence == null ) ? new LogSequenceNumber(currentLedgerId, -1) : recoveredLogSequence;
-        else
+        if (writer == null) {
+            return (recoveredLogSequence == null) ? new LogSequenceNumber(currentLedgerId, -1) : recoveredLogSequence;
+        } else {
             return new LogSequenceNumber(writer.ledgerId, writer.sequenceNumber);
+        }
     }
 
 }
