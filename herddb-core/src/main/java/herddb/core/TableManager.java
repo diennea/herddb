@@ -61,6 +61,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
+import herddb.utils.MinDeltaLongIncrementAccumulator;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
@@ -127,6 +128,8 @@ public class TableManager implements AbstractTableManager {
     private final Set<Long> activePages = new HashSet<>();
 
     private final AtomicInteger dirtyRecords = new AtomicInteger();
+
+    private final AtomicLong lastAutoFlush = new AtomicLong();
 
     private final AtomicLong newPageId = new AtomicLong(1);
 
@@ -631,9 +634,9 @@ public class TableManager implements AbstractTableManager {
                 transaction = tableSpaceManager.getTransaction(entry.transactionId);
             }
             if (transaction != null) {
-                LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " keep" + entry + " at " + position + ", table booted at " + bootSequenceNumber + ", it belongs to transaction " + entry.transactionId + " which was in progress during the flush of the table");
+                LOGGER.log(Level.FINER, "{0}.{1} keep{2} at {3}, table booted at {4}, it belongs to transaction {5} which was in progress during the flush of the table", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber, entry.transactionId});
             } else {
-                LOGGER.log(Level.SEVERE, table.tablespace + "." + table.name + " skip " + entry + " at " + position + ", table booted at " + bootSequenceNumber);
+                LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table booted at {4}", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber});
                 return;
             }
         }
@@ -843,11 +846,19 @@ public class TableManager implements AbstractTableManager {
 
     }
 
+    private static final MinDeltaLongIncrementAccumulator AUTOFLUSH_ACCUMULATOR
+        = new MinDeltaLongIncrementAccumulator(2000);
+
     private void autoFlush() throws DataStorageManagerException {
+        long now = System.currentTimeMillis();
         int dirtyNow = dirtyRecords.get();
         if (dirtyNow >= MAX_DIRTY_RECORDS) {
-            LOGGER.log(Level.INFO, "autoflush - dirtyRecords {0}", dirtyNow);
-            flush();
+            if (lastAutoFlush.accumulateAndGet(now, AUTOFLUSH_ACCUMULATOR) != now) {
+                LOGGER.log(Level.INFO, "autoflush skip - dirtyRecords {0}", dirtyNow);
+            } else {
+                LOGGER.log(Level.INFO, "autoflush - dirtyRecords {0}", dirtyNow);
+                flush();
+            }
         }
     }
 
@@ -980,16 +991,19 @@ public class TableManager implements AbstractTableManager {
                     recordsOnDirtyPages.add(key);
                 }
             }
-            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
-            scanner.forEach((Map.Entry<Bytes, Long> recordToPage) -> {
-                Long pageId = recordToPage.getValue();
-                if (dirtyPages.contains(pageId)) {
-                    Bytes key = recordToPage.getKey();
-                    if (!buffer.containsKey(key)) {
-                        LOGGER.log(Level.SEVERE, "table " + table.name + " found unloaded record key " + key + " on dirty page " + pageId);
-                    }
-                }
-            });
+
+//            // this is debug, use only for tests
+//            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
+//                StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
+//            scanner.forEach((Map.Entry<Bytes, Long> recordToPage) -> {
+//                Long pageId = recordToPage.getValue();
+//                if (dirtyPages.contains(pageId)) {
+//                    Bytes key = recordToPage.getKey();
+//                    if (!buffer.containsKey(key)) {
+//                        LOGGER.log(Level.SEVERE, "table " + table.name + " found unloaded record key " + key + " on dirty page " + pageId);
+//                    }
+//                }
+//            });
             LOGGER.log(Level.INFO, "flush {0} recordsOnDirtyPages, {1} records", new Object[]{table.name, recordsOnDirtyPages.size()});
             List<Record> newPage = new ArrayList<>();
             long newPageSize = 0;

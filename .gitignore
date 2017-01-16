@@ -19,3 +19,4 @@ buildNumber.properties
 
 dependency-reduced-pom.xml
 .mvn/timing.properties
+herddb-core/nbproject/
