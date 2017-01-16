@@ -357,4 +357,9 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
     }
 
+    @Override
+    public void truncate() throws DataStorageManagerException {
+        this.data.clear();
+    }
+
 }

@@ -97,6 +97,7 @@ import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TruncateTableStatement;
 import herddb.network.Channel;
 import herddb.network.KeyValue;
 import herddb.network.Message;
@@ -599,6 +600,13 @@ public class TableSpaceManager {
             return null;
         }
         return result;
+    }
+
+    boolean isTransactionRunningOnTable(String name) {
+        return transactions
+            .values()
+            .stream()
+            .anyMatch((t) -> (t.isOnTable(name)));
     }
 
     private class DumpReceiver extends TableSpaceDumpReceiver {

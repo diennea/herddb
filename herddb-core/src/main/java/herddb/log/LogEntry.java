@@ -100,6 +100,7 @@ public class LogEntry {
                 doo.writeArray(value);
                 return 18 + value.length + tableSpace.length() + tableName.length();
             case LogEntryType.DROP_TABLE:
+            case LogEntryType.TRUNCATE_TABLE:
                 doo.writeUTF(tableName);
                 return 18 + tableSpace.length() + tableName.length();
             case LogEntryType.DROP_INDEX:
@@ -146,6 +147,7 @@ public class LogEntry {
                     key = dis.readArray();
                     break;
                 case LogEntryType.DROP_TABLE:
+                case LogEntryType.TRUNCATE_TABLE:
                     tableName = dis.readUTF();
                     break;
                 case LogEntryType.DROP_INDEX:

@@ -136,4 +136,9 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
         map.clear();
     }
 
+    @Override
+    public void truncate() {
+        map.clear();
+    }
+
 }

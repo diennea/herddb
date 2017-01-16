@@ -311,4 +311,9 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         data.clear();
     }
 
+    @Override
+    public void truncate() throws DataStorageManagerException {
+        data.clear();
+    }
+
 }

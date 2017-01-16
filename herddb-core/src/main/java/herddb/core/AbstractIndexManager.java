@@ -49,8 +49,7 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     protected final String tableSpaceUUID;
     protected final CommitLog log;
     /**
-     * This value is not empty until the transaction who creates the table does
-     * not commit
+     * This value is not empty until the transaction who creates the table does not commit
      */
     protected long createdInTransaction;
 
@@ -76,12 +75,10 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     }
 
     /**
-     * Boots the index, this method usually reload state from the
-     * DataStorageManager
+     * Boots the index, this method usually reload state from the DataStorageManager
      *
      * @throws DataStorageManagerException
-     * @see DataStorageManager#fullIndexScan(java.lang.String, java.lang.String,
-     * herddb.storage.FullIndexScanConsumer)
+     * @see DataStorageManager#fullIndexScan(java.lang.String, java.lang.String, herddb.storage.FullIndexScanConsumer)
      */
     public abstract void start() throws DataStorageManagerException;
 
@@ -110,11 +107,10 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     public abstract List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     /**
-     * Basic function of the index. The index returns the list of PKs of the
-     * table which match the predicate (IndexOperation) Beare that this function
-     * could return a super set of the list of the PKs which actually match the
-     * predicate. TableManager will check every record againts the (WHERE)
-     * Predicate in order to ensure the final result
+     * Basic function of the index. The index returns the list of PKs of the table which match the predicate
+     * (IndexOperation) Beare that this function could return a super set of the list of the PKs which actually match
+     * the predicate. TableManager will check every record againts the (WHERE) Predicate in order to ensure the final
+     * result
      *
      * @param operation
      * @param context
@@ -125,9 +121,8 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     protected abstract Stream<Bytes> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException;
 
     /**
-     * This function is called from the TableManager to perform scans. It
-     * usually have to deal with a JOIN on the KeyToPageIndex of the
-     * TableManager
+     * This function is called from the TableManager to perform scans. It usually have to deal with a JOIN on the
+     * KeyToPageIndex of the TableManager
      *
      * @param operation
      * @param context
@@ -174,4 +169,9 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     public final boolean isAvailable() {
         return createdInTransaction == 0;
     }
+
+    /**
+     * Erase the index. Out-side the scope of a transaction
+     */
+    public abstract void truncate() throws DataStorageManagerException;
 }

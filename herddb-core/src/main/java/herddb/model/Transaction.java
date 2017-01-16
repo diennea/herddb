@@ -26,12 +26,10 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.collections.map.HashedMap;
@@ -432,6 +430,16 @@ public class Transaction {
 
     public boolean isNewTable(String name) {
         return newTables != null && newTables.containsKey(name);
+    }
+
+    public boolean isOnTable(String name) {
+        // best effort guess
+        return locks.containsKey(name)
+            || (newIndexes != null && newIndexes.containsKey(name))
+            || newRecords.containsKey(name)
+            || deletedRecords.containsKey(name)
+            || (droppedTables != null && droppedTables.contains(name))
+            || (newTables != null && newTables.containsKey(name));
     }
 
 }

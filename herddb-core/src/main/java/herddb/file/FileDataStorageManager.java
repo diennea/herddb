@@ -358,7 +358,7 @@ public class FileDataStorageManager extends DataStorageManager {
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
         for (Path p : pageFiles) {
             long pageId = getPageId(p);
-            LOGGER.log(Level.INFO, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId);
+            LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0 && !tableStatus.activePages.contains(pageId)) {
                 LOGGER.log(Level.SEVERE, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath()) {

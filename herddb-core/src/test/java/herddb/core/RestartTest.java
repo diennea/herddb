@@ -46,8 +46,10 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
+import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import static org.junit.Assert.assertFalse;
 
 /**
  * Recovery from file
@@ -59,7 +61,7 @@ public class RestartTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-    @Test    
+    @Test
     public void recoverTableCreatedInTransaction() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
@@ -69,10 +71,10 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -80,13 +82,13 @@ public class RestartTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
@@ -95,10 +97,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -109,10 +111,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -123,7 +125,7 @@ public class RestartTest {
 
     }
 
-    @Test    
+    @Test
     public void recoverTableCreatedInTransaction2() throws Exception {
 
         Path dataPath = folder.newFolder("data").toPath();
@@ -133,10 +135,10 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -144,13 +146,13 @@ public class RestartTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
@@ -161,10 +163,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -175,10 +177,10 @@ public class RestartTest {
         }
 
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -199,10 +201,10 @@ public class RestartTest {
         Bytes key = Bytes.from_string("k1");
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -210,18 +212,18 @@ public class RestartTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
             long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
-            manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));            
+            manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
-            manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
+
+            manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.checkpoint();
             DMLStatementExecutionResult executeStatement = (DMLStatementExecutionResult) manager.executeStatement(new UpdateStatement("tblspace1", "t1", new Record(key, key), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, executeStatement.getUpdateCount());
@@ -241,18 +243,129 @@ public class RestartTest {
 //            assertEquals(1, executeStatement.getUpdateCount());
 //            // on the log there is an UPDATE for a record which is not on the log                        
 //        }
-
         try (DBManager manager = new DBManager("localhost",
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
 
             GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
+        }
+
+    }
+
+    @Test
+    public void recoverTableTruncatedNoCheckpoint() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+        Bytes key = Bytes.from_string("k1");
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost",
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+            manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            assertTrue(result.found());
+            manager.checkpoint();
+            manager.executeStatement(new TruncateTableStatement("tblspace1", table.name), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result2 = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            assertFalse(result2.found());
+            // no checkpoint
+        }
+
+        try (DBManager manager = new DBManager("localhost",
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            assertFalse(result.found());
+        }
+
+    }
+
+    @Test
+    public void recoverTableTruncatedWithCheckpoint() throws Exception {
+
+        Path dataPath = folder.newFolder("data").toPath();
+        Path logsPath = folder.newFolder("logs").toPath();
+        Path metadataPath = folder.newFolder("metadata").toPath();
+        Path tmoDir = folder.newFolder("tmoDir").toPath();
+        Bytes key = Bytes.from_string("k1");
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost",
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
+            manager.start();
+
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            Table table = Table
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
+            long tx = ((TransactionResult) manager.executeStatement(new BeginTransactionStatement("tblspace1"), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+            manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            assertTrue(result.found());
+            manager.checkpoint();
+            manager.executeStatement(new TruncateTableStatement("tblspace1", table.name), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result2 = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            assertFalse(result2.found());
+            manager.checkpoint();
+        }
+
+        try (DBManager manager = new DBManager("localhost",
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
+            manager.start();
+
+            manager.waitForTablespace("tblspace1", 10000);
+
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            assertFalse(result.found());
         }
 
     }

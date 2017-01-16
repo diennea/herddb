@@ -71,6 +71,7 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
@@ -118,6 +119,7 @@ import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SelectExpressionItem;
 import net.sf.jsqlparser.statement.select.SelectItem;
 import net.sf.jsqlparser.statement.select.Top;
+import net.sf.jsqlparser.statement.truncate.Truncate;
 import net.sf.jsqlparser.statement.update.Update;
 
 /**
@@ -250,6 +252,9 @@ public class SQLPlanner {
                 allowCache = false;
             } else if (stmt instanceof Drop) {
                 result = ExecutionPlan.simple(buildDropStatement(defaultTableSpace, (Drop) stmt));
+                allowCache = false;
+            } else if (stmt instanceof Truncate) {
+                result = ExecutionPlan.simple(buildTruncateStatement(defaultTableSpace, (Truncate) stmt));
                 allowCache = false;
             } else {
                 throw new StatementExecutionException("unable to execute query " + query + ", type " + stmt.getClass());
@@ -1357,17 +1362,17 @@ public class SQLPlanner {
     private Statement buildExecuteStatement(String defaultTableSpace, Execute execute) throws StatementExecutionException {
         switch (execute.getName().toUpperCase()) {
             case "BEGINTRANSACTION": {
-                if (execute.getExprList().getExpressions().size() != 1) {
-                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName");
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 1) {
+                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
                 if (tableSpaceName == null) {
-                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName");
+                    throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
                 }
                 return new BeginTransactionStatement(tableSpaceName.toString());
             }
             case "COMMITTRANSACTION": {
-                if (execute.getExprList().getExpressions().size() != 2) {
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 2) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
@@ -1386,7 +1391,7 @@ public class SQLPlanner {
 
             }
             case "ROLLBACKTRANSACTION": {
-                if (execute.getExprList().getExpressions().size() != 2) {
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 2) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
@@ -1404,7 +1409,7 @@ public class SQLPlanner {
                 }
             }
             case "CREATETABLESPACE": {
-                if (execute.getExprList().getExpressions().size() < 1) {
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() < 1) {
                     throw new StatementExecutionException("CREATETABLESPACE syntax (EXECUTE CREATETABLESPACE tableSpaceName ['leader:LEADERID'],['wait:TIMEOUT'] )");
                 }
                 Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
@@ -1464,7 +1469,7 @@ public class SQLPlanner {
                 return new CreateTableSpaceStatement(tableSpaceName + "", replica, leader, expectedreplicacount, wait, maxleaderinactivitytime);
             }
             case "ALTERTABLESPACE": {
-                if (execute.getExprList().getExpressions().size() < 2) {
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() < 2) {
                     throw new StatementExecutionException("ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName,'property:value','property2:value2')");
                 }
                 String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
@@ -1522,7 +1527,7 @@ public class SQLPlanner {
                 }
             }
             case "DROPTABLESPACE": {
-                if (execute.getExprList().getExpressions().size() != 1) {
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 1) {
                     throw new StatementExecutionException("DROPTABLESPACE syntax (EXECUTE DROPTABLESPACE tableSpaceName)");
                 }
                 String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
@@ -1600,6 +1605,20 @@ public class SQLPlanner {
         }
 
         throw new StatementExecutionException("only DROP TABLE and TABLESPACE is supported, drop type=" + drop.getType() + " is not implemented");
+    }
+
+    private Statement buildTruncateStatement(String defaultTableSpace, Truncate truncate) throws StatementExecutionException {
+
+        if (truncate.getTable() == null) {
+            throw new StatementExecutionException("missing table name");
+        }
+
+        String tableSpace = truncate.getTable().getSchemaName();
+        if (tableSpace == null) {
+            tableSpace = defaultTableSpace;
+        }
+        String tableName = truncate.getTable().getName();
+        return new TruncateTableStatement(tableSpace, tableName);
     }
 
     private boolean isAggregateFunction(Expression expression) throws StatementExecutionException {

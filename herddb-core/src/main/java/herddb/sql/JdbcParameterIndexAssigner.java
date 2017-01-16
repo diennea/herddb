@@ -271,7 +271,9 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(Execute execute) {
-        execute.getExprList().accept(this);
+        if (execute.getExprList() != null) {
+            execute.getExprList().accept(this);
+        }
     }
 
     @Override

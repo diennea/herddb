@@ -110,4 +110,14 @@ public class LocalLockManager {
         }
     }
 
+    public void clear() {
+        generalLock.lock();
+        try {
+            this.liveLocks.clear();
+            this.locksCounter.clear();
+        } finally {
+            generalLock.unlock();
+        }
+    }
+
 }

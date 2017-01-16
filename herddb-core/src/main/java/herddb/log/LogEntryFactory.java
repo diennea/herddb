@@ -78,4 +78,9 @@ public class LogEntryFactory {
         return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_INDEX, index.tablespace, transaction != null ? transaction.transactionId : 0, index.table, null, payload);
     }
 
+    public static LogEntry truncate(Table table, Transaction transaction) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.TRUNCATE_TABLE, table.tablespace,
+            transaction != null ? transaction.transactionId : 0, table.name, null, null);
+    }
+
 }

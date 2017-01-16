@@ -28,8 +28,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Index which maps every key of a table to the page which contains the key.
- * Keys assigned to new pages are assigned to a special NO_PAGE value
+ * Index which maps every key of a table to the page which contains the key. Keys assigned to new pages are assigned to
+ * a special NO_PAGE value
  *
  * @author enrico.olivelli
  */
@@ -51,4 +51,6 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     @Override
     public void close();
+
+    public void truncate();
 }
