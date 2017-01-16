@@ -55,6 +55,7 @@ import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
+import org.jline.reader.impl.history.DefaultHistory;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 
@@ -233,10 +234,49 @@ public class HerdDBCLI {
         if (query.trim().isEmpty()) {
             return;
         }
+        String formattedQuery = query.trim().toLowerCase();
+        if (formattedQuery.equals("exit") || formattedQuery.equals("quit")) {
+            System.out.println("Connection closed.");
+            System.exit(0);
+        }
+        Boolean setAutoCommit = null;
+        if (formattedQuery.startsWith("autocommit=")) {
+            String value = "";
+            if (formattedQuery.split("=").length > 1) {
+                value = formattedQuery.split("=")[1];
+            }
+            switch (value) {
+                case "true":
+                    setAutoCommit = true;
+                    break;
+                case "false":
+                    setAutoCommit = false;
+                    break;
+                default:
+                    System.out.println("No valid value for autocommit. Only true and false allowed.");
+                    return;
+            }
+        }
         if (verbose) {
             System.out.println("Executing query:" + query);
         }
         try {
+            if (setAutoCommit != null) {
+                statement.getConnection().setAutoCommit(setAutoCommit);
+                System.out.println("Set autocommit=" + setAutoCommit + " executed.");
+                return;
+            }
+            if (formattedQuery.equals("commit")) {
+                statement.getConnection().commit();
+                System.out.println("Commit executed.");
+                return;
+            }
+            if (formattedQuery.equals("rollback")) {
+                statement.getConnection().rollback();
+                System.out.println("Rollback executed.");
+                return;
+            }
+
             boolean resultSet = statement.execute(query);
             if (resultSet) {
                 try (ResultSet rs = statement.getResultSet()) {
@@ -282,9 +322,10 @@ public class HerdDBCLI {
             .system(true)
             .build();
         LineReader reader = LineReaderBuilder.builder()
+            .history(new DefaultHistory())
             .terminal(terminal)
             .build();
-        String prompt = "herd:";
+        String prompt = "herd: ";
         while (true) {
             String line = null;
             try {
