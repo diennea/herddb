@@ -959,6 +959,7 @@ public class TableManager implements AbstractTableManager {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped, this table is created on transaction " + createdInTransaction + " which is not committed");
             return Collections.emptyList();
         }
+        long start = System.currentTimeMillis();
         List<PostCheckpointAction> result = new ArrayList<>();
         pagesLock.lock();
         try {
@@ -1021,6 +1022,11 @@ public class TableManager implements AbstractTableManager {
             unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
         } finally {
             pagesLock.unlock();
+        }
+        long end = System.currentTimeMillis();
+        long delta = end - start;
+        if (delta > 5000) {
+            LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1}", new Object[]{table.name, delta + " ms"});
         }
         return result;
     }
