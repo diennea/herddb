@@ -19,6 +19,7 @@
  */
 package herddb.file;
 
+import com.sun.javafx.util.Utils;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.FileOutputStream;
@@ -47,6 +48,7 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
+import herddb.utils.SystemProperties;
 
 /**
  * Commit log on file
@@ -69,10 +71,15 @@ public class FileCommitLog extends CommitLog {
     private volatile CommitFileWriter writer;
     private Thread spool;
 
-    private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(100000);
-
-    private final int MAX_UNSYNCHED_BATCH = 1000;
-    private final int MAX_SYNCH_TIME = 10;
+    private final int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
+        FileCommitLog.class.getName() + ".writequeuesize", 100000);
+    private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
+    
+    private final int MAX_UNSYNCHED_BATCH = SystemProperties.getIntSystemProperty(
+        FileCommitLog.class.getName() + ".maxsynchbatchsize", 1000);
+    
+    private final int MAX_SYNCH_TIME = SystemProperties.getIntSystemProperty(
+        FileCommitLog.class.getName() + ".maxsynchtime", 1);
 
     private final static byte ENTRY_START = 13;
     private final static byte ENTRY_END = 25;
