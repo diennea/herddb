@@ -846,20 +846,25 @@ public class TableManager implements AbstractTableManager {
 
     }
 
-    private static final MinDeltaLongIncrementAccumulator AUTOFLUSH_ACCUMULATOR
-        = new MinDeltaLongIncrementAccumulator(2000);
-
     private void autoFlush() throws DataStorageManagerException {
         if (checkPointRunning) {
             return;
         }
-        long now = System.currentTimeMillis();
         int dirtyNow = dirtyRecords.get();
         if (dirtyNow >= MAX_DIRTY_RECORDS) {
-            if (lastAutoFlush.accumulateAndGet(now, AUTOFLUSH_ACCUMULATOR) == now) {
+            long now = System.currentTimeMillis();
+            pagesLock.lock();
+            try {
+                dirtyNow = dirtyRecords.get();
+                if (dirtyNow < MAX_DIRTY_RECORDS) {
+                    return;
+                }
                 LOGGER.log(Level.INFO, "autoflush - dirtyRecords {0}", dirtyNow);
                 flush();
+            } finally {
+                pagesLock.unlock();
             }
+            lastAutoFlush.set(now);
         }
     }
 
@@ -1283,6 +1288,12 @@ public class TableManager implements AbstractTableManager {
         public long getMaxLogicalPageSize() {
             return maxLogicalPageSize;
         }
+
+        @Override
+        public long getLastAutoFlushTs() {
+            return lastAutoFlush.longValue();
+        }
+
     };
 
     @Override

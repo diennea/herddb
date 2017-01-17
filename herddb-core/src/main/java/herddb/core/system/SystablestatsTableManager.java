@@ -49,6 +49,7 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
         .column("dirtypages", ColumnTypes.INTEGER)
         .column("dirtyrecords", ColumnTypes.LONG)
         .column("maxlogicalpagesize", ColumnTypes.LONG)
+        .column("lastautoflushts", ColumnTypes.TIMESTAMP)
         .primaryKey("tablespace", false)
         .primaryKey("table_name", false)
         .build();
@@ -65,6 +66,7 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
             AbstractTableManager tableManager = tableSpaceManager.getTableManager(r.name);
             if (tableManager != null) {
                 TableManagerStats stats = tableManager.getStats();
+                long autoflush = stats.getLastAutoFlushTs();
                 result.add(RecordSerializer.makeRecord(
                     table,
                     "tablespace", r.tablespace,
@@ -75,7 +77,8 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
                     "maxloadedpages", stats.getMaxloadedpages(),
                     "dirtypages", stats.getDirtypages(),
                     "dirtyrecords", stats.getDirtyrecords(),
-                    "maxlogicalpagesize", stats.getMaxLogicalPageSize()
+                    "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
+                    "lastautoflushts", autoflush > 0 ? new java.sql.Timestamp(autoflush) : null
                 ));
             }
         }

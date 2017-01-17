@@ -37,4 +37,6 @@ public interface TableManagerStats {
     public int getDirtyrecords();
 
     public long getMaxLogicalPageSize();
+
+    public long getLastAutoFlushTs();
 }
