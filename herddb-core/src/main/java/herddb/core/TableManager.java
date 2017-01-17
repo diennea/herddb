@@ -850,6 +850,7 @@ public class TableManager implements AbstractTableManager {
         if (checkPointRunning) {
             return;
         }
+        long now = System.currentTimeMillis();
         int dirtyNow = dirtyRecords.get();
         if (dirtyNow >= MAX_DIRTY_RECORDS) {
             long now = System.currentTimeMillis();
