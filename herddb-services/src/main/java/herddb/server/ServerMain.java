@@ -65,7 +65,7 @@ public class ServerMain implements AutoCloseable {
 
     public static void main(String... args) {
         try {
-            LOG.severe("Starting HerdDB version " + version());
+            LOG.severe("Starting HerdDB version " + herddb.utils.Version.getVERSION());
             Properties configuration = new Properties();
 
             boolean configFileFromParameter = false;
@@ -167,14 +167,6 @@ public class ServerMain implements AutoCloseable {
 
         System.out.println("HerdDB server starter. Node id " + server.getNodeId());
         started = true;
-    }
-
-    private static String version() throws Exception {
-        try (InputStream in = ServerMain.class.getClassLoader().getResourceAsStream("herddb.package.version.properties");) {
-            Properties p = new Properties();
-            p.load(in);
-            return p.getProperty("version", "?");
-        }
     }
 
 }
