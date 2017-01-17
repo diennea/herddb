@@ -408,11 +408,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     TranslatedQuery translatedQuery = server
                         .getManager()
                         .getPlanner().translate(tableSpace, query, parameters, true, true, false, maxRows);
-                    TransactionContext transactionContext = new TransactionContext(txId);                    
+                    TransactionContext transactionContext = new TransactionContext(txId);
                     if (translatedQuery.plan.mainStatement instanceof ScanStatement
                         || translatedQuery.plan.joinStatements != null) {
 
-                        ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);                        
+                        ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                         DataScanner dataScanner = scanResult.dataScanner;
 
                         ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
@@ -542,6 +542,11 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     ConnectionsInfo.ConnectionInfo toConnectionInfo() {
         return new ConnectionsInfo.ConnectionInfo(id + "", connectionTs, username, address);
+    }
+
+    @Override
+    public String toString() {
+        return "ServerSideConnectionPeer{" + "id=" + id + ", channel=" + channel + ", address=" + address + ", username=" + username + '}';
     }
 
 }
