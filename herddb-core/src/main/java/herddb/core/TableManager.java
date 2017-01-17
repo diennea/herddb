@@ -850,6 +850,9 @@ public class TableManager implements AbstractTableManager {
         = new MinDeltaLongIncrementAccumulator(2000);
 
     private void autoFlush() throws DataStorageManagerException {
+        if (checkPointRunning) {
+            return;
+        }
         long now = System.currentTimeMillis();
         int dirtyNow = dirtyRecords.get();
         if (dirtyNow >= MAX_DIRTY_RECORDS) {
