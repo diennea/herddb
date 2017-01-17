@@ -617,7 +617,7 @@ public class TableManager implements AbstractTableManager {
 
         if (forceFlushTableData) {
             LOGGER.log(Level.SEVERE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
-            checkpoint(log.getLastSequenceNumber());
+            checkpoint(log.getLastSequenceNumber(), true);
         }
     }
 
@@ -853,9 +853,7 @@ public class TableManager implements AbstractTableManager {
         long now = System.currentTimeMillis();
         int dirtyNow = dirtyRecords.get();
         if (dirtyNow >= MAX_DIRTY_RECORDS) {
-            if (lastAutoFlush.accumulateAndGet(now, AUTOFLUSH_ACCUMULATOR) != now) {
-                LOGGER.log(Level.INFO, "autoflush skip - dirtyRecords {0}", dirtyNow);
-            } else {
+            if (lastAutoFlush.accumulateAndGet(now, AUTOFLUSH_ACCUMULATOR) == now) {
                 LOGGER.log(Level.INFO, "autoflush - dirtyRecords {0}", dirtyNow);
                 flush();
             }
@@ -864,7 +862,7 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void flush() throws DataStorageManagerException {
-        checkpoint(log.getLastSequenceNumber());
+        checkpoint(log.getLastSequenceNumber(), true);
     }
 
     @Override
@@ -965,7 +963,8 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber,
+        boolean executeActions) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped, this table is created on transaction " + createdInTransaction + " which is not committed");
             return Collections.emptyList();
@@ -1032,6 +1031,13 @@ public class TableManager implements AbstractTableManager {
             List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
             result.addAll(actions);
             LOGGER.log(Level.INFO, "checkpoint {0} finished, now activePages {1}, dirty {2}, loaded {3}", new Object[]{table.name, activePages + "", dirtyPages + "", loadedPages + ""});
+            if (executeActions) {
+                // need to execute actions inline
+                for (PostCheckpointAction pa : result) {
+                    pa.run();
+                }
+                result.clear();
+            }
             checkPointRunning = false;
             unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
         } finally {
@@ -1220,6 +1226,7 @@ public class TableManager implements AbstractTableManager {
 
     private Record fetchRecord(Bytes key, Long pageId) throws StatementExecutionException, DataStorageManagerException {
         Record record = buffer.get(key);
+        int maxTrials = 10_000;
         while (record == null) {
             Long relocatedPageId = keyToPage.get(key);
             LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed, checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
@@ -1236,6 +1243,9 @@ public class TableManager implements AbstractTableManager {
                 throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + activePages);
             }
             record = buffer.get(key);
+            if (maxTrials-- == 0) {
+                throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + activePages + " after many trials");
+            }
         }
         return record;
     }

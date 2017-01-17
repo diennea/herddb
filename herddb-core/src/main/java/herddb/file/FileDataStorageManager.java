@@ -63,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -168,8 +169,8 @@ public class FileDataStorageManager extends DataStorageManager {
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
         try (InputStream input = new BufferedInputStream(Files.newInputStream(pageFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-                DigestInputStream digest = new DigestInputStream(input, createMD5());
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
+            DigestInputStream digest = new DigestInputStream(input, createMD5());
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
@@ -197,8 +198,8 @@ public class FileDataStorageManager extends DataStorageManager {
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         Path pageFile = getPageFile(tableDir, pageId);
         try (InputStream input = new BufferedInputStream(Files.newInputStream(pageFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-                DigestInputStream digest = new DigestInputStream(input, createMD5());
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
+            DigestInputStream digest = new DigestInputStream(input, createMD5());
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
@@ -268,7 +269,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         TableStatus latestStatus = null;
         try (InputStream input = new BufferedInputStream(Files.newInputStream(keys, StandardOpenOption.READ), 4 * 1024 * 1024);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             while (true) {
                 int marker;
                 try {
@@ -308,7 +309,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         IndexStatus latestStatus = null;
         try (InputStream input = new BufferedInputStream(Files.newInputStream(keys, StandardOpenOption.READ), 4 * 1024 * 1024);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             while (true) {
                 int marker;
                 try {
@@ -344,23 +345,25 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         Path keys = getCheckPointsFile(tableDir);
-        LOGGER.log(Level.SEVERE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + keys);
+        LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + keys);
         try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-                ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
+            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
             dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
             tableStatus.serialize(dataOutputKeys);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-
+        long maxPageId = tableStatus.activePages.stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
         // we can drop old page files now
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
         for (Path p : pageFiles) {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
-            if (pageId > 0 && !tableStatus.activePages.contains(pageId)) {
-                LOGGER.log(Level.SEVERE, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
+            if (pageId > 0
+                && !tableStatus.activePages.contains(pageId)
+                && pageId < maxPageId) {
+                LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath()) {
 
                     @Override
@@ -389,7 +392,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path keys = getCheckPointsFile(tableDir);
         LOGGER.log(Level.SEVERE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + keys);
         try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-                ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
+            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
             dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
             indexStatus.serialize(dataOutputKeys);
         } catch (IOException err) {
@@ -468,8 +471,8 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         Path pageFile = getPageFile(tableDir, pageId);
         try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
-                DigestOutputStream digest = new DigestOutputStream(output, createMD5());
-                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
+            DigestOutputStream digest = new DigestOutputStream(output, createMD5());
+            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
             dataOutput.writeVInt(0); // flags for future implementations
             dataOutput.writeInt(newPage.size());
             for (Record record : newPage) {
@@ -494,8 +497,8 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         Path pageFile = getPageFile(tableDir, pageId);
         try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
-                DigestOutputStream digest = new DigestOutputStream(output, createMD5());
-                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
+            DigestOutputStream digest = new DigestOutputStream(output, createMD5());
+            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
             dataOutput.writeVInt(0); // flags for future implementations
             dataOutput.writeArray(page);
             dataOutput.writeArray(digest.getMessageDigest().digest());
@@ -526,7 +529,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 }
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
@@ -566,7 +569,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 }
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
@@ -603,7 +606,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(file_tables.getParent());
             LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(file_tables, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeUTF(tableSpace);
                 dout.writeLong(sequenceNumber.ledgerId);
                 dout.writeLong(sequenceNumber.offset);
@@ -614,7 +617,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 }
             }
             try (OutputStream out = Files.newOutputStream(file_indexes, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeUTF(tableSpace);
                 dout.writeLong(sequenceNumber.ledgerId);
                 dout.writeLong(sequenceNumber.offset);
@@ -643,7 +646,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(checkPointFile.getParent());
             LOGGER.log(Level.SEVERE, "checkpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(checkPointFile, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                    DataOutputStream dout = new DataOutputStream(out)) {
+                DataOutputStream dout = new DataOutputStream(out)) {
                 dout.writeUTF(tableSpace);
                 dout.writeLong(sequenceNumber.ledgerId);
                 dout.writeLong(sequenceNumber.offset);
@@ -686,7 +689,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 return LogSequenceNumber.START_OF_TIME;
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(checkPointFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-                    DataInputStream din = new DataInputStream(input);) {
+                DataInputStream din = new DataInputStream(input);) {
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + checkPointFile.toAbsolutePath() + " is not for spablespace " + tableSpace);
@@ -760,7 +763,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 return;
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
@@ -793,7 +796,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(file.getParent());
             LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString() + ", active transactions " + transactions.size());
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeUTF(tableSpace);
                 dout.writeLong(sequenceNumber.ledgerId);
                 dout.writeLong(sequenceNumber.offset);

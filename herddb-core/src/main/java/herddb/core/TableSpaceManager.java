@@ -1123,7 +1123,7 @@ public class TableSpaceManager {
                 // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
                 // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
                 LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
-                List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(sequenceNumber);
+                List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(sequenceNumber, false);
                 actions.addAll(postCheckPointActions);
             }
 
