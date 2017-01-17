@@ -74,6 +74,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     public TableManagerStats getStats() {
         return new TableManagerStats() {
             @Override
+            public long getLastAutoFlushTs() {
+                return 0;
+            }
+
+            @Override
             public int getLoadedpages() {
                 return 0;
             }

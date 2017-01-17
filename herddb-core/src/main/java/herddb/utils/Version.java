@@ -17,26 +17,31 @@
  under the License.
 
  */
-package herddb.core.stats;
+package herddb.utils;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
 
 /**
- * Runtime Statistics for a TableManager
  *
  * @author enrico.olivelli
  */
-public interface TableManagerStats {
+public class Version {
 
-    public int getLoadedpages();
+    private static final String VERSION;
 
-    public int getMaxloadedpages();
+    static {
+        Properties pluginProperties = new Properties();
+        try (InputStream in = Version.class.getResourceAsStream("/META-INF/herddb.version.properties")) {
+            pluginProperties.load(in);
+            VERSION = (String) pluginProperties.get("version");
+        } catch (IOException err) {
+            throw new RuntimeException(err);
+        }
+    }
 
-    public long getTablesize();
-
-    public int getDirtypages();
-
-    public int getDirtyrecords();
-
-    public long getMaxLogicalPageSize();
-
-    public long getLastAutoFlushTs();
+    public static String getVERSION() {
+        return VERSION;
+    }
 }
