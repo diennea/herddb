@@ -47,6 +47,7 @@ import herddb.network.netty.NetworkUtils;
 import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
+import herddb.utils.Version;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -184,7 +185,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException(new Exception("Fatal error while generating the local node ID: " + error, error));
             }
         }
-        LOGGER.log(Level.SEVERE, "local nodeID is {0}", nodeId);
+        LOGGER.log(Level.INFO, "local nodeID is {0} version {1}", new Object[]{nodeId, Version.getVERSION()});
         this.manager = new DBManager(nodeId,
             metadataStorageManager,
             buildDataStorageManager(),

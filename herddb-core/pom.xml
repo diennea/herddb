@@ -151,6 +151,18 @@
            
     </dependencies>
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.apache.felix</groupId>
@@ -159,9 +171,29 @@
                 <inherited>true</inherited>
                 <extensions>true</extensions>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.4</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>
+                        </goals>
+                        <configuration>
+                            <shortRevisionLength>11</shortRevisionLength>
+                        </configuration>
+                    </execution>
+                </executions>
+                <configuration>
+                    <shortRevisionLength>11</shortRevisionLength>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <buildNumber>${maven.build.timestamp}</buildNumber>
     </properties>
 </project>
