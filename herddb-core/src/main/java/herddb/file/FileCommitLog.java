@@ -19,7 +19,6 @@
  */
 package herddb.file;
 
-import com.sun.javafx.util.Utils;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.FileOutputStream;
