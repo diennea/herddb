@@ -33,9 +33,11 @@ public class SystemProperties {
     }
 
     private static String getProperty(String name, String defaultvalue) {
-        return (String) AccessController.doPrivileged((PrivilegedAction) (() -> {
+        String res = (String) AccessController.doPrivileged((PrivilegedAction) (() -> {
             return System.getProperty(name, defaultvalue);
         }));
+        System.out.println("read system property: " + name + "=" + defaultvalue);
+        return res;
     }
 
     public static int getIntSystemProperty(String name, int defaultvalue, String description) {

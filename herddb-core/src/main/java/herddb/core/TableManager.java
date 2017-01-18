@@ -75,6 +75,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -91,10 +92,10 @@ public class TableManager implements AbstractTableManager {
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
     private static final int MAX_LOADED_PAGES = SystemProperties.
-        getIntSystemProperty(TableManager.class.getName() + ".maxLoadedPages", 1000);
+        getIntSystemProperty(TableManager.class.getName() + ".maxLoadedPages", 100);
 
     private static final int MAX_DIRTY_RECORDS = SystemProperties.
-        getIntSystemProperty(TableManager.class.getName() + ".maxDirtyRecords", 10000);
+        getIntSystemProperty(TableManager.class.getName() + ".maxDirtyRecords", 100000);
 
     private static final int UNLOAD_PAGES_MIN_BATCH = SystemProperties.
         getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 10);
@@ -142,6 +143,11 @@ public class TableManager implements AbstractTableManager {
     private final ReentrantLock pagesLock = new ReentrantLock(true);
 
     private volatile boolean checkPointRunning = false;
+
+    /**
+     * Allow checkpoint
+     */
+    private final ReentrantReadWriteLock checkpointLock = new ReentrantReadWriteLock(false);
 
     /**
      * auto_increment support
@@ -293,6 +299,7 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
+        checkpointLock.readLock().lock();
         try {
             if (statement instanceof UpdateStatement) {
                 UpdateStatement update = (UpdateStatement) statement;
@@ -317,6 +324,14 @@ public class TableManager implements AbstractTableManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException("internal data error: " + err, err);
         } finally {
+            checkpointLock.readLock().unlock();
+            if (statement instanceof TruncateTableStatement) {
+                try {
+                    flush();
+                } catch (DataStorageManagerException err) {
+                    throw new StatementExecutionException("internal data error: " + err, err);
+                }
+            }
             if (transaction == null) {
                 try {
                     autoFlush();
@@ -521,7 +536,6 @@ public class TableManager implements AbstractTableManager {
             LogEntry entry = LogEntryFactory.truncate(table, transaction);
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
-            flush();
             return new DMLStatementExecutionResult(0, estimatedSize > Integer.MAX_VALUE
                 ? Integer.MAX_VALUE : (int) estimatedSize, null, null);
         } catch (LogNotAvailableException error) {
@@ -982,73 +996,80 @@ public class TableManager implements AbstractTableManager {
         long tablecheckpoint;
         long unload;
         List<PostCheckpointAction> result = new ArrayList<>();
-        pagesLock.lock();
+        checkpointLock.writeLock().lock();
         try {
-            getlock = System.currentTimeMillis();
-            checkPointRunning = true;
-            /*
+            pagesLock.lock();
+            try {
+                getlock = System.currentTimeMillis();
+                checkPointRunning = true;
+                /*
                 When the size of loaded data in the memory reaches a maximum value the rows on memory are dumped back to disk creating new pages
                 for each page:
                 if the page is not changed it is only unloaded from memory
                 if the page contains even only one single changed row all the rows to the page will be  scheduled in order to create a new page
                 rows scheduled to create a new page are arranged in a new set of pages which in turn are dumped to disk
-             */
-            List<Bytes> recordsOnDirtyPages = new ArrayList<>();
-            LOGGER.log(Level.INFO, "checkpoint {0}, flush dirtyPages, {1} pages, logpos {2}", new Object[]{table.name, dirtyPages.toString(), sequenceNumber});
-            for (Bytes key : buffer.keySet()) {
-                Long pageId = keyToPage.get(key);
-                if (dirtyPages.contains(pageId)
-                    || Objects.equals(pageId, NEW_PAGE)) {
-                    recordsOnDirtyPages.add(key);
-                }
-            }
-            scanbuffer = System.currentTimeMillis();
-
-//            // this is debug, use only for tests
-//            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
-//                StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
-//            scanner.forEach((Map.Entry<Bytes, Long> recordToPage) -> {
-//                Long pageId = recordToPage.getValue();
-//                if (dirtyPages.contains(pageId)) {
-//                    Bytes key = recordToPage.getKey();
-//                    if (!buffer.containsKey(key)) {
-//                        LOGGER.log(Level.SEVERE, "table " + table.name + " found unloaded record key " + key + " on dirty page " + pageId);
-//                    }
-//                }
-//            });
-            LOGGER.log(Level.INFO, "flush {0} recordsOnDirtyPages, {1} records", new Object[]{table.name, recordsOnDirtyPages.size()});
-            List<Record> newPage = new ArrayList<>();
-            long newPageSize = 0;
-            for (Bytes key : recordsOnDirtyPages) {
-                Record toKeep = buffer.get(key);
-                if (toKeep != null) {
-                    newPage.add(toKeep);
-                    newPageSize += key.data.length + toKeep.value.data.length;
-                    if (newPageSize >= maxLogicalPageSize) {
-                        createNewPage(newPage, newPageSize);
-                        newPageSize = 0;
-                        newPage.clear();
+                 */
+                List<Bytes> recordsOnDirtyPages = new ArrayList<>();
+                for (Bytes key : buffer.keySet()) {
+                    Long pageId = keyToPage.get(key);
+                    if (dirtyPages.contains(pageId)
+                        || Objects.equals(pageId, NEW_PAGE)) {
+                        recordsOnDirtyPages.add(key);
                     }
                 }
+                LOGGER.log(Level.INFO, "checkpoint {0}, flush dirtyPages, {1} pages, logpos {2}, recordsOnDirtyPages {3}", new Object[]{table.name,
+                    dirtyPages.toString(),
+                    sequenceNumber,
+                    recordsOnDirtyPages.size()});
+                scanbuffer = System.currentTimeMillis();
 
-            }
-            if (!newPage.isEmpty()) {
-                createNewPage(newPage, newPageSize);
-            }
-            createnewpages = System.currentTimeMillis();
-            activePages.removeAll(dirtyPages);
-            dirtyPages.clear();
-            dirtyRecords.set(0);
+                Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
+                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
+                scanner.forEach((Map.Entry<Bytes, Long> recordToPage) -> {
+                    Long pageId = recordToPage.getValue();
+                    if (dirtyPages.contains(pageId)) {
+                        Bytes key = recordToPage.getKey();
+                        if (!buffer.containsKey(key)) {
+                            LOGGER.log(Level.SEVERE, "table " + table.name
+                                + " found unloaded record key " + key
+                                + " on dirty page " + pageId);
+                        }
+                    }
+                });
+                List<Record> newPage = new ArrayList<>();
+                long newPageSize = 0;
+                for (Bytes key : recordsOnDirtyPages) {
+                    Record toKeep = buffer.get(key);
+                    if (toKeep != null) {
+                        newPage.add(toKeep);
+                        newPageSize += key.data.length + toKeep.value.data.length;
+                        if (newPageSize >= maxLogicalPageSize) {
+                            createNewPage(newPage, newPageSize);
+                            newPageSize = 0;
+                            newPage.clear();
+                        }
+                    }
+                }
+                if (!newPage.isEmpty()) {
+                    createNewPage(newPage, newPageSize);
+                }
+                createnewpages = System.currentTimeMillis();
+                activePages.removeAll(dirtyPages);
+                dirtyPages.clear();
+                dirtyRecords.set(0);
 
-            TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
-            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
-            tablecheckpoint = System.currentTimeMillis();
-            result.addAll(actions);
-            LOGGER.log(Level.INFO, "checkpoint {0} finished, now activePages {1}, dirty {2}, loaded {3}", new Object[]{table.name, activePages + "", dirtyPages + "", loadedPages + ""});
-            checkPointRunning = false;
-            unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
+                TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
+                List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
+                tablecheckpoint = System.currentTimeMillis();
+                result.addAll(actions);
+                LOGGER.log(Level.INFO, "checkpoint {0} finished, now activePages {1}, dirty {2}, loaded {3}", new Object[]{table.name, activePages + "", dirtyPages + "", loadedPages + ""});
+                checkPointRunning = false;
+                unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
+            } finally {
+                pagesLock.unlock();
+            }
         } finally {
-            pagesLock.unlock();
+            checkpointLock.writeLock().unlock();
         }
         long end = System.currentTimeMillis();
         long delta = end - start;

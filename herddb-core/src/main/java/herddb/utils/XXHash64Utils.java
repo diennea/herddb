@@ -37,16 +37,13 @@ public class XXHash64Utils {
     public static byte[] digest(byte[] array, int offset, int len) {
         long hash = HASHER.hash(array, offset, len, DEFAULT_SEED);
         byte[] digest = Bytes.from_long(hash).data;
-        System.out.println("digest size " + digest.length + " value " + hash);
         return digest;
     }
 
     public static boolean verifyBlockWithFooter(byte[] array, int offset, int len) {
-        System.out.println("verifyBlockWithFooter array len " + array.length + ", len:" + len);
         byte[] expectedFooter = Arrays.copyOfRange(array, len - HASH_LEN, len);
         long expectedHash = HASHER.hash(array, offset, len - HASH_LEN, DEFAULT_SEED);
         long hash = Bytes.toLong(expectedFooter, 0, HASH_LEN);
-        System.out.println("footer " + hash + " <> " + expectedHash);
         return hash == expectedHash;
     }
 }
