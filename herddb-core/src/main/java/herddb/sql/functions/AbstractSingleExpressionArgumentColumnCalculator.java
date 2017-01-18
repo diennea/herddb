@@ -24,7 +24,6 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.SQLRecordPredicate;
-import java.util.function.Function;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;

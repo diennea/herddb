@@ -97,7 +97,6 @@ import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.model.commands.TruncateTableStatement;
 import herddb.network.Channel;
 import herddb.network.KeyValue;
 import herddb.network.Message;
@@ -1123,7 +1122,7 @@ public class TableSpaceManager {
                 // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
                 // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
                 LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
-                List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(sequenceNumber, false);
+                List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(sequenceNumber);
                 actions.addAll(postCheckPointActions);
             }
 

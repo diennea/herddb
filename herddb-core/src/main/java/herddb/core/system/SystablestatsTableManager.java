@@ -28,7 +28,6 @@ import herddb.model.Record;
 import herddb.model.Table;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Table Manager for the SYSTABLES virtual table

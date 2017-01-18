@@ -25,7 +25,6 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.server.ServerConfiguration;
-import java.util.List;
 import java.util.stream.Collectors;
 
 /**

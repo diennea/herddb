@@ -20,13 +20,6 @@
 package herddb.index;
 
 import herddb.model.RecordFunction;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.TableContext;
-import herddb.utils.Bytes;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * A prefix scan of the PrimaryKey is needed

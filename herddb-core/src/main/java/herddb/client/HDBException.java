@@ -20,8 +20,6 @@
 package herddb.client;
 
 import herddb.network.Message;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * Generic client side exception

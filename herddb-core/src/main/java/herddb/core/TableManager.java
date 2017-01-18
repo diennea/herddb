@@ -23,7 +23,6 @@ import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
-import herddb.index.SecondaryIndexSeek;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -61,7 +60,6 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
-import herddb.utils.MinDeltaLongIncrementAccumulator;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
@@ -617,7 +615,7 @@ public class TableManager implements AbstractTableManager {
 
         if (forceFlushTableData) {
             LOGGER.log(Level.SEVERE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
-            checkpoint(log.getLastSequenceNumber(), true);
+            checkpoint(log.getLastSequenceNumber());
         }
     }
 
@@ -870,7 +868,7 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void flush() throws DataStorageManagerException {
-        checkpoint(log.getLastSequenceNumber(), true);
+        checkpoint(log.getLastSequenceNumber());
     }
 
     @Override
@@ -971,16 +969,22 @@ public class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber,
-        boolean executeActions) throws DataStorageManagerException {
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
-            LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped, this table is created on transaction " + createdInTransaction + " which is not committed");
+            LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
+                + "this table is created on transaction " + createdInTransaction + " which is not committed");
             return Collections.emptyList();
         }
         long start = System.currentTimeMillis();
+        long getlock;
+        long scanbuffer;
+        long createnewpages;
+        long tablecheckpoint;
+        long unload;
         List<PostCheckpointAction> result = new ArrayList<>();
         pagesLock.lock();
         try {
+            getlock = System.currentTimeMillis();
             checkPointRunning = true;
             /*
                 When the size of loaded data in the memory reaches a maximum value the rows on memory are dumped back to disk creating new pages
@@ -998,6 +1002,7 @@ public class TableManager implements AbstractTableManager {
                     recordsOnDirtyPages.add(key);
                 }
             }
+            scanbuffer = System.currentTimeMillis();
 
 //            // this is debug, use only for tests
 //            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
@@ -1030,22 +1035,16 @@ public class TableManager implements AbstractTableManager {
             if (!newPage.isEmpty()) {
                 createNewPage(newPage, newPageSize);
             }
-
+            createnewpages = System.currentTimeMillis();
             activePages.removeAll(dirtyPages);
             dirtyPages.clear();
             dirtyRecords.set(0);
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(), activePages);
             List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
+            tablecheckpoint = System.currentTimeMillis();
             result.addAll(actions);
             LOGGER.log(Level.INFO, "checkpoint {0} finished, now activePages {1}, dirty {2}, loaded {3}", new Object[]{table.name, activePages + "", dirtyPages + "", loadedPages + ""});
-            if (executeActions) {
-                // need to execute actions inline
-                for (PostCheckpointAction pa : result) {
-                    pa.run();
-                }
-                result.clear();
-            }
             checkPointRunning = false;
             unloadCleanPages(loadedPages.size() - MAX_LOADED_PAGES - 1);
         } finally {
@@ -1054,7 +1053,19 @@ public class TableManager implements AbstractTableManager {
         long end = System.currentTimeMillis();
         long delta = end - start;
         if (delta > 5000) {
-            LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1}", new Object[]{table.name, delta + " ms"});
+
+            long delta_lock = getlock - start;
+            long delta_scanbuffer = scanbuffer - getlock;
+            long delta_createnewpages = createnewpages - scanbuffer;
+            long delta_tablecheckpoint = tablecheckpoint - createnewpages;
+            long delta_unload = end - tablecheckpoint;
+
+            LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1} ({2})", new Object[]{table.name,
+                delta + " ms (" + delta_lock
+                + "+" + delta_scanbuffer
+                + "+" + delta_createnewpages
+                + "+" + delta_tablecheckpoint
+                + "+" + delta_unload + ")"});
         }
         return result;
     }

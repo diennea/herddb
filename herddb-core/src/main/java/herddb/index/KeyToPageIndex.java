@@ -20,7 +20,6 @@
 package herddb.index;
 
 import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;

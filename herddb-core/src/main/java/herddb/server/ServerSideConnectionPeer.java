@@ -19,7 +19,6 @@
  */
 package herddb.server;
 
-import herddb.model.LimitedDataScanner;
 import herddb.codec.RecordSerializer;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.model.Column;
@@ -30,7 +29,6 @@ import herddb.model.DataScannerException;
 import herddb.model.GetResult;
 import herddb.model.NotLeaderException;
 import herddb.model.Record;
-import herddb.model.ScanLimits;
 import herddb.model.ScanResult;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;

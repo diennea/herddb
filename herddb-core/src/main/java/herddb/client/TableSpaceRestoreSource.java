@@ -19,7 +19,6 @@
  */
 package herddb.client;
 
-import herddb.model.Record;
 import herddb.model.Table;
 import herddb.network.KeyValue;
 import herddb.storage.DataStorageManagerException;

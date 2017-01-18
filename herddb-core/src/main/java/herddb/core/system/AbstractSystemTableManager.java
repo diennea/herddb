@@ -140,7 +140,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber, boolean executeActions) throws DataStorageManagerException {
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
         return Collections.emptyList();
     }
 

@@ -19,8 +19,6 @@
  */
 package herddb.storage;
 
-import herddb.model.Record;
-
 /**
  * Receives all data from an index
  *

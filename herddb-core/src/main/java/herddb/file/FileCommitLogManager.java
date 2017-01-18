@@ -19,7 +19,6 @@
  */
 package herddb.file;
 
-import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import java.io.IOException;
 import java.nio.file.Files;

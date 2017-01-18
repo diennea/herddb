@@ -25,7 +25,6 @@ import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.model.Table;
 import herddb.model.TableContext;
 import java.util.ArrayList;
 import java.util.HashMap;

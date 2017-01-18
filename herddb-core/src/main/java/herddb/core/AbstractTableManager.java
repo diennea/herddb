@@ -65,7 +65,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void dump(Consumer<Record> records) throws DataStorageManagerException;
 
-    List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber, boolean executeActions) throws DataStorageManagerException;
+    List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
     
     void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 

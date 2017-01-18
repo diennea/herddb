@@ -19,12 +19,7 @@
  */
 package herddb.index;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.TableContext;
 import herddb.sql.SQLRecordKeyFunction;
-import herddb.utils.Bytes;
-import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * Seek on secondary index

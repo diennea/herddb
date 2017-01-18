@@ -34,7 +34,6 @@ import org.junit.rules.TemporaryFolder;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
-import herddb.log.LogSequenceNumber;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.ColumnTypes;
 import herddb.model.ConstValueRecordFunction;

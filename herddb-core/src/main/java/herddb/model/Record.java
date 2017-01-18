@@ -22,7 +22,6 @@ package herddb.model;
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
 import java.lang.ref.SoftReference;
-import java.util.Collections;
 import java.util.Map;
 
 /**

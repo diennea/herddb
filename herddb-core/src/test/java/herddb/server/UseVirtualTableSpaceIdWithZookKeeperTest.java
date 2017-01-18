@@ -24,7 +24,6 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.ScanResultSet;
 import herddb.client.ZookeeperClientSideMetadataProvider;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -36,8 +35,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import herddb.cluster.LedgersInfo;
-import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.codec.RecordSerializer;
 import herddb.model.ColumnTypes;
 import herddb.model.GetResult;
@@ -55,7 +52,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 
 /**
  * Booting two servers, one table space

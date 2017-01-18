@@ -24,9 +24,7 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
-import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Executes a JOINS between DataScanners

@@ -22,7 +22,6 @@ package herddb.index.brin;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 
 /**
  * Abstract on the storage engine

@@ -19,7 +19,6 @@
  */
 package herddb.file;
 
-import herddb.codec.RecordSerializer;
 import herddb.core.MaterializedRecordSet;
 import herddb.model.Column;
 import herddb.model.Projection;
@@ -34,7 +33,6 @@ import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 

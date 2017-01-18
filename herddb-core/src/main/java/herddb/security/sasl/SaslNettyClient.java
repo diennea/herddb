@@ -16,7 +16,6 @@
 package herddb.security.sasl;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;

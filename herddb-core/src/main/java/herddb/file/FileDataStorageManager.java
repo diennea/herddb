@@ -295,13 +295,13 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private IndexStatus readActualIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException {
-        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        Path indexDir = getIndexDirectory(tableSpace, indexName);
         try {
-            Files.createDirectories(tableDir);
+            Files.createDirectories(indexDir);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getCheckPointsFile(tableDir);
+        Path keys = getCheckPointsFile(indexDir);
         LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys);
         if (!Files.isRegularFile(keys)) {
             LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys + ". file does not exist");
@@ -383,13 +383,13 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus) throws DataStorageManagerException {
-        Path tableDir = getIndexDirectory(tableSpace, indexName);
+        Path indexDir = getIndexDirectory(tableSpace, indexName);
         try {
-            Files.createDirectories(tableDir);
+            Files.createDirectories(indexDir);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getCheckPointsFile(tableDir);
+        Path keys = getCheckPointsFile(indexDir);
         LOGGER.log(Level.SEVERE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + keys);
         try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
             ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {

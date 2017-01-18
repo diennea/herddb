@@ -19,13 +19,11 @@
  */
 package herddb.model.commands;
 
-import herddb.index.IndexOperation;
 import herddb.index.PrimaryIndexSeek;
 import herddb.model.ConstValueRecordFunction;
 import herddb.model.DMLStatement;
 import herddb.model.Predicate;
 import herddb.model.Record;
-import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.Bytes;
