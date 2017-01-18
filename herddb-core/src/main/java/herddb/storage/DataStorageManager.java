@@ -37,7 +37,7 @@ import java.util.function.Consumer;
  *
  * @author enrico.olivelli
  */
-public abstract class DataStorageManager {
+public abstract class DataStorageManager implements AutoCloseable {
 
     /**
      * Load a data page in memory
@@ -78,8 +78,8 @@ public abstract class DataStorageManager {
     public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException;
 
     /**
-     * Write current table status. This operations mark the actual set of pages
-     * at a given log sequence number and "closes" a snapshot
+     * Write current table status. This operations mark the actual set of pages at a given log sequence number and
+     * "closes" a snapshot
      *
      * @param tableSpace
      * @param tableName
@@ -112,6 +112,7 @@ public abstract class DataStorageManager {
      *
      * @throws DataStorageManagerException
      */
+    @Override
     public abstract void close() throws DataStorageManagerException;
 
     /**

@@ -23,6 +23,7 @@ import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
 import java.lang.ref.SoftReference;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A generic record
@@ -56,6 +57,35 @@ public class Record {
 
     public void clearCache() {
         cache = null;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 53 * hash + Objects.hashCode(this.key);
+        hash = 53 * hash + Objects.hashCode(this.value);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Record other = (Record) obj;
+        if (!Objects.equals(this.key, other.key)) {
+            return false;
+        }
+        if (!Objects.equals(this.value, other.value)) {
+            return false;
+        }
+        return true;
     }
 
 }

@@ -30,18 +30,16 @@ import herddb.model.TableSpaceReplicaState;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.VisibleByteArrayOutputStream;
+import herddb.utils.XXHash64Utils;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.security.DigestInputStream;
-import java.security.DigestOutputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -175,37 +173,51 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(baseDirectory)) {
             for (Path p : stream) {
                 String filename = p.getFileName().toString();
-                LOGGER.log(Level.SEVERE, "reading metadata file " + p.toAbsolutePath().toString());
+                LOGGER.log(Level.SEVERE, "reading metadata file {0}", p.toAbsolutePath().toString());
                 if (filename.endsWith(".metadata")) {
-                    try (InputStream in = Files.newInputStream(p);
-                        DigestInputStream diin = new DigestInputStream(in, FileDataStorageManager.createMD5());
-                        ExtendedDataInputStream iin = new ExtendedDataInputStream(diin);) {
-                        TableSpace ts = TableSpace.deserialize(iin, 0);
-                        byte[] computedDigest = diin.getMessageDigest().digest();
-                        byte[] storedDigest = iin.readArray();
-                        if (!Arrays.equals(computedDigest, storedDigest)) {
-                            throw new MetadataStorageManagerException("Corrupted metadata file " + p.toAbsolutePath().toString() + ", bad md5");
-                        }
-                        if (filename.equals(ts.name + ".metadata")) {
-                            tableSpaces.put(ts.name, ts);
-                        }
+                    TableSpace ts = readTableSpaceMetadataFile(p);
+                    if (filename.equals(ts.name + ".metadata")) {
+                        tableSpaces.put(ts.name, ts);
                     }
                 }
-
             }
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
         }
     }
 
+    private TableSpace readTableSpaceMetadataFile(Path p) throws IOException, MetadataStorageManagerException {
+        TableSpace ts;
+        byte[] pageData;
+        try {
+            pageData = FileUtils.fastReadFile(p);
+        } catch (IOException err) {
+            throw new MetadataStorageManagerException(err);
+        }
+        boolean okHash = XXHash64Utils.verifyBlockWithFooter(pageData, 0, pageData.length);
+        if (!okHash) {
+            throw new MetadataStorageManagerException("corrutped data file " + p.toAbsolutePath() + ", checksum failed");
+        }
+        try (InputStream in = new ByteArrayInputStream(pageData);
+            ExtendedDataInputStream iin = new ExtendedDataInputStream(in);) {
+            ts = TableSpace.deserialize(iin, 0);
+        }
+        return ts;
+    }
+
     private void persistTableSpaceOnDisk(TableSpace tableSpace) throws MetadataStorageManagerException {
         Path file_tmp = baseDirectory.resolve(tableSpace.name + "." + System.nanoTime() + ".tmpmetadata");
         Path file = baseDirectory.resolve(tableSpace.name + ".metadata");
-        try (OutputStream out = Files.newOutputStream(file_tmp, StandardOpenOption.CREATE_NEW);
-            DigestOutputStream diout = new DigestOutputStream(out, FileDataStorageManager.createMD5());
-            ExtendedDataOutputStream dout = new ExtendedDataOutputStream(diout)) {
+        VisibleByteArrayOutputStream out = new VisibleByteArrayOutputStream(1024);
+        try (ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
             tableSpace.serialize(dout);
-            dout.writeArray(diout.getMessageDigest().digest());
+            dout.flush();
+            out.write(out.xxhash64());
+        } catch (IOException err) {
+            throw new MetadataStorageManagerException(err);
+        }
+        try {
+            FileUtils.fastWriteFile(file_tmp, out.getBuffer(), 0, out.size());
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
         }

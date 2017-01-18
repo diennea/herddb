@@ -1060,7 +1060,7 @@ public class TableManager implements AbstractTableManager {
             long delta_tablecheckpoint = tablecheckpoint - createnewpages;
             long delta_unload = end - tablecheckpoint;
 
-            LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1} ({2})", new Object[]{table.name,
+            LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1}", new Object[]{table.name,
                 delta + " ms (" + delta_lock
                 + "+" + delta_scanbuffer
                 + "+" + delta_createnewpages

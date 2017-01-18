@@ -39,7 +39,10 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.VisibleByteArrayOutputStream;
+import herddb.utils.XXHash64Utils;
 import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -54,11 +57,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.DigestInputStream;
-import java.security.DigestOutputStream;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.Provider;
-import java.security.Security;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -153,63 +152,61 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve("checkpoints");
     }
 
-    private static final Provider DIGEST_PROVIDER = Security.getProvider("SUN");
-
-    static MessageDigest createMD5() {
-        try {
-            MessageDigest result = DIGEST_PROVIDER != null ? MessageDigest.getInstance("md5", DIGEST_PROVIDER) : MessageDigest.getInstance("md5");
-            return result;
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
-
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(pageFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-            DigestInputStream digest = new DigestInputStream(input, createMD5());
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
+        byte[] pageData;
+        try {
+            pageData = FileUtils.fastReadFile(pageFile);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        boolean okHash = XXHash64Utils.verifyBlockWithFooter(pageData, 0, pageData.length);
+        if (!okHash) {
+            throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", checksum failed");
+        }
+        List<Record> result;
+        try (InputStream input = new ByteArrayInputStream(pageData);
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
             int numRecords = dataIn.readInt();
-            List<Record> result = new ArrayList<>(numRecords);
+            result = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
                 byte[] key = dataIn.readArray();
                 byte[] value = dataIn.readArray();
                 result.add(new Record(new Bytes(key), new Bytes(value)));
             }
-            byte[] computedDigest = digest.getMessageDigest().digest();
-            byte[] writtenDigest = dataIn.readArray();
-            if (!Arrays.equals(computedDigest, writtenDigest)) {
-                throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", MD5 checksum failed");
-            }
-            return result;
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        return result;
     }
 
     @Override
     public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         Path pageFile = getPageFile(tableDir, pageId);
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(pageFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-            DigestInputStream digest = new DigestInputStream(input, createMD5());
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(digest)) {
+        byte[] pageData;
+        try {
+            pageData = FileUtils.fastReadFile(pageFile);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        boolean okHash = XXHash64Utils.verifyBlockWithFooter(pageData, 0, pageData.length);
+        if (!okHash) {
+            throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", checksum failed");
+        }
+        try (InputStream input = new ByteArrayInputStream(pageData);
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
             byte[] data = dataIn.readArray();
-            byte[] computedDigest = digest.getMessageDigest().digest();
-            byte[] writtenDigest = dataIn.readArray();
-            if (!Arrays.equals(computedDigest, writtenDigest)) {
-                throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", MD5 checksum failed");
-            }
             return data;
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
@@ -462,7 +459,8 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
-
+        long _start = System.currentTimeMillis();
+        long _endhash;
         Path tableDir = getTableDirectory(tableSpace, tableName);
         try {
             Files.createDirectories(tableDir);
@@ -470,25 +468,40 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         Path pageFile = getPageFile(tableDir, pageId);
-        try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
-            DigestOutputStream digest = new DigestOutputStream(output, createMD5());
-            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
-            dataOutput.writeVInt(0); // flags for future implementations
-            dataOutput.writeInt(newPage.size());
-            for (Record record : newPage) {
-                dataOutput.writeArray(record.key.data);
-                dataOutput.writeArray(record.value.data);
+        int size;
+        try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(10 * 1024 * 1024);) {
+            try (ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
+                dataOutput.writeVInt(0); // flags for future implementations
+                dataOutput.writeInt(newPage.size());
+                for (Record record : newPage) {
+                    dataOutput.writeArray(record.key.data);
+                    dataOutput.writeArray(record.value.data);
+                }
             }
-            dataOutput.writeArray(digest.getMessageDigest().digest());
+            byte[] digest = oo.xxhash64();
+            _endhash = System.currentTimeMillis();
+
+            // footer
+            oo.write(digest);
+            size = oo.size();
+
+            FileUtils.fastWriteFile(pageFile, oo.getBuffer(), 0, oo.size());
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+
+        long now = System.currentTimeMillis();
+        LOGGER.log(Level.INFO,
+            "writePage " + (size / 1024) + " KBytes," + newPage.size() + " records, "
+            + "time " + (now - _start) + " ms (" + (now - _endhash) + " disk)");
+
     }
 
     @Override
     public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException {
-        // synch on index is done by the IndexManager
-
+        // synch on table is done by the TableManager
+        long _start = System.currentTimeMillis();
+        long _endhash;
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         try {
             Files.createDirectories(tableDir);
@@ -496,15 +509,28 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         Path pageFile = getPageFile(tableDir, pageId);
-        try (OutputStream output = Files.newOutputStream(pageFile, StandardOpenOption.CREATE_NEW);
-            DigestOutputStream digest = new DigestOutputStream(output, createMD5());
-            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(digest);) {
-            dataOutput.writeVInt(0); // flags for future implementations
-            dataOutput.writeArray(page);
-            dataOutput.writeArray(digest.getMessageDigest().digest());
+        int size;
+        try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(10 * 1024 * 1024);) {
+            try (ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
+                dataOutput.writeVInt(0); // flags for future implementations
+                dataOutput.writeArray(page);
+            }
+            byte[] digest = oo.xxhash64();
+            _endhash = System.currentTimeMillis();
+
+            // footer
+            oo.write(digest);
+            size = oo.size();
+
+            FileUtils.fastWriteFile(pageFile, oo.getBuffer(), 0, oo.size());
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+
+        long now = System.currentTimeMillis();
+        LOGGER.log(Level.INFO,
+            "writeIndexPage " + (size / 1024) + " KBytes, "
+            + "time " + (now - _start) + " ms (" + (now - _endhash) + " disk)");
     }
 
     @Override
