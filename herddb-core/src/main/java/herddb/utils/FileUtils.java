@@ -19,8 +19,8 @@
  */
 package herddb.utils;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
@@ -30,7 +30,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
 
 /**
  * Utilities
@@ -39,6 +38,9 @@ import java.util.Arrays;
  */
 public class FileUtils {
 
+    private static final boolean USE_DIRECT_BUFFER
+        = SystemProperties.getBooleanSystemProperty("herddb.nio.usedirectmemory", true);
+    
     public static void cleanDirectory(Path directory) throws IOException {
         if (!Files.isDirectory(directory)) {
             return;
@@ -60,9 +62,9 @@ public class FileUtils {
     }
 
     public static byte[] fastReadFile(Path f) throws IOException {
+        int len = (int) Files.size(f);
+        if (USE_DIRECT_BUFFER) {
         try (SeekableByteChannel c = Files.newByteChannel(f, StandardOpenOption.READ)) {
-            int len = (int) Files.size(f);
-            if (USE_DIRECT_BUFFER) {
                 ByteBuffer buffer = ByteBuffer.allocateDirect(len);
                 try {
                     long res = c.read(buffer);
@@ -76,20 +78,18 @@ public class FileUtils {
                 } finally {
                     forceReleaseBuffer(buffer);
                 }
-            } else {
-                ByteBuffer buffer = ByteBuffer.allocate(len);
-                long res = c.read(buffer);
+            }
+        } else {
+            byte[] result = new byte[len];
+            try (RandomAccessFile raf = new RandomAccessFile(f.toFile(),"r")) {
+                long res = raf.read(result, 0, len);
                 if (res != len) {
                     throw new IOException("not all file " + f.toAbsolutePath() + " was read with NIO len=" + len + " read=" + res);
                 }
-                byte[] result = buffer.array();
-                return result;
             }
+            return result;
         }
     }
-
-    private static final boolean USE_DIRECT_BUFFER
-        = SystemProperties.getBooleanSystemProperty("herddb.nio.usedirectmemory", true);
 
     public static void fastWriteFile(Path f, byte[] buffer, int offset, int len) throws IOException {
         if (USE_DIRECT_BUFFER) {
@@ -107,8 +107,10 @@ public class FileUtils {
                 forceReleaseBuffer(b);
             }
         } else {
-            byte[] copy = Arrays.copyOfRange(buffer, offset, offset + len);
-            Files.write(f, copy, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
+            try (RandomAccessFile raf = new RandomAccessFile(f.toFile(),"rw")) {
+                raf.setLength(0); // Simulate StandardOpenOption.TRUNCATE_EXISTING
+                raf.write(buffer, offset, len);
+            }
         }
     }
 
