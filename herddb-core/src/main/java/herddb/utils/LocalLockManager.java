@@ -19,19 +19,18 @@
  */
 package herddb.utils;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.StampedLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.commons.collections.map.HashedMap;
 
 /**
  * Handle locks by key
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
 public class LocalLockManager {
 
@@ -40,46 +39,98 @@ public class LocalLockManager {
     private StampedLock makeLock() {
         return new StampedLock();
     }
-    private final ReentrantLock generalLock = new ReentrantLock(true);
-    private final HashedMap liveLocks = new HashedMap();
-    private final Map<Bytes, AtomicInteger> locksCounter = new HashMap<>();
+    
+    private final ConcurrentMap<Bytes,LockInstance> locks = new ConcurrentHashMap<Bytes,LockInstance>();
+    
+    @SuppressWarnings("serial")
+    private final class LockInstance extends ReentrantLock {
+        private final StampedLock lock;
+        private int count;
+        
+        public LockInstance(StampedLock lock, int count) {
+            super();
+            this.lock = lock;
+            this.count = count;
+        }
+    }
 
     private StampedLock makeLockForKey(Bytes key) {
-        StampedLock lock;
-        generalLock.lock();
+        
+        LockInstance instance = locks.computeIfAbsent(key, (k) -> {
+            
+            /* No existing instance, inserting an already locked instance */
+            final LockInstance li = new LockInstance(makeLock(), 1);
+            li.lock();
+            
+            return li;
+            
+        });
+        
         try {
-            lock = (StampedLock) liveLocks.get(key);
-            if (lock == null) {
-                lock = makeLock();
-                liveLocks.put(key, lock);
-                locksCounter.put(key, new AtomicInteger(1));
-            } else {
-                locksCounter.get(key).incrementAndGet();
+            /* If held by current thread all work has been already done! */
+            if (!instance.isHeldByCurrentThread()) {
+                instance.lock();
+                
+                /*
+                 * The lock wasn't created by this thread. We should check if it was released from another thread
+                 * between instance retrieval from map and instance lock.
+                 */
+                
+                if (instance.count < 1) {
+                    /* Worst concurrent case: released by another thread, retry */
+                    
+                    /*
+                     * Do not release current lock before doing another attemp. Other threads checking the
+                     * same instance will have to wait here untill a live lock is created (trying to avoid
+                     * spinning and contention between threads). The lock will released in finally block upon
+                     * method exit.
+                     */
+                    return makeLockForKey(key);
+                }
+                
+                ++instance.count;
             }
         } finally {
-            generalLock.unlock();
+            instance.unlock();
         }
-        return lock;
+        
+        return instance.lock;
     }
 
     private StampedLock returnLockForKey(Bytes key) throws IllegalStateException {
-        StampedLock lock;
-        generalLock.lock();
+        
+        /* Retrieve the instance... other threads could have this pointer too */
+        LockInstance instance = locks.get(key);
+        
+        /* If there was no instance fail */
+        if (instance == null) {
+            LOGGER.log(Level.SEVERE, "no lock object exists for key {0}", key);
+            throw new IllegalStateException("no lock object exists for key " + key);
+        }
+        
+        instance.lock();
+        
         try {
-            lock = (StampedLock) liveLocks.get(key);
-            if (lock == null) {
-                LOGGER.log(Level.SEVERE, "no lock object exists for key {0}", key);
-                throw new IllegalStateException("no lock object exists for key " + key);
-            }
-            int actualCount = locksCounter.get(key).decrementAndGet();
-            if (actualCount == 0) {
-                liveLocks.remove(key);
-                locksCounter.remove(key);
+            
+            if (--instance.count < 1) {
+                
+                /*
+                 * If was already released too much times fail (multiple concurrent releases, if they weren't
+                 * really concurrent the map would have returned a null instance)
+                 */
+                if (instance.count < 0) {
+                    LOGGER.log(Level.SEVERE, "too much lock releases for key {0}", key);
+                    throw new IllegalStateException("too much lock releases for key " + key);
+                } else {
+                    locks.remove(key, instance);
+                }
+                
             }
         } finally {
-            generalLock.unlock();
+            instance.unlock();
         }
-        return lock;
+        
+        return instance.lock;
     }
 
     public LockHandle acquireWriteLockForKey(Bytes key) {
@@ -111,13 +162,7 @@ public class LocalLockManager {
     }
 
     public void clear() {
-        generalLock.lock();
-        try {
-            this.liveLocks.clear();
-            this.locksCounter.clear();
-        } finally {
-            generalLock.unlock();
-        }
+        this.locks.clear();
     }
 
 }
