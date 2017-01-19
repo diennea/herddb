@@ -186,7 +186,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException(new Exception("Fatal error while generating the local node ID: " + error, error));
             }
         }
-        MemoryWatcher memoryWatcher = new MemoryWatcher(configuration);
+        long reference = configuration.getLong(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT);
+        MemoryWatcher memoryWatcher = null;
+        if (reference >= 0) {
+            memoryWatcher = new MemoryWatcher(configuration);
+        }
+
         this.manager = new DBManager(nodeId,
             metadataStorageManager,
             buildDataStorageManager(),
