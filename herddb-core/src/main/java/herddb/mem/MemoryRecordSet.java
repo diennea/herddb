@@ -89,7 +89,7 @@ public class MemoryRecordSet extends MaterializedRecordSet {
     }
 
     @Override
-    public void applyLimits(ScanLimits limits) {
+    public void applyLimits(ScanLimits limits, StatementEvaluationContext context) throws StatementExecutionException {
         if (!writeFinished) {
             throw new IllegalStateException("RecordSet is still in write mode");
         }
@@ -105,12 +105,13 @@ public class MemoryRecordSet extends MaterializedRecordSet {
             int samplesize = maxlen - limits.getOffset();
             buffer = buffer.subList(limits.getOffset(), limits.getOffset() + samplesize);
         }
-        if (limits.getMaxRows() > 0) {
+        int maxRows = limits.computeMaxRows(context);
+        if (maxRows > 0) {
             int maxlen = buffer.size();
-            if (maxlen < limits.getMaxRows()) {
+            if (maxlen < maxRows) {
                 return;
             }
-            buffer = buffer.subList(0, limits.getMaxRows());
+            buffer = buffer.subList(0, maxRows);
         }
     }
 

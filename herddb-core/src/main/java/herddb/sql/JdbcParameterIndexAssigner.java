@@ -103,6 +103,7 @@ import net.sf.jsqlparser.statement.select.AllTableColumns;
 import net.sf.jsqlparser.statement.select.FromItemVisitor;
 import net.sf.jsqlparser.statement.select.Join;
 import net.sf.jsqlparser.statement.select.LateralSubSelect;
+import net.sf.jsqlparser.statement.select.Limit;
 import net.sf.jsqlparser.statement.select.OrderByElement;
 import net.sf.jsqlparser.statement.select.OrderByVisitor;
 import net.sf.jsqlparser.statement.select.PlainSelect;
@@ -142,6 +143,15 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
         if (jdbcParameter.getIndex() == null) {
             int pos = currentPosition.value++;
             jdbcParameter.setIndex(pos);
+        }
+    }
+
+    private void visitLimit(Limit limit) {
+        if (limit.isOffsetJdbcParameter()) {
+            currentPosition.value++;
+        }
+        if (limit.isRowCountJdbcParameter()) {
+            currentPosition.value++;
         }
     }
 
@@ -324,6 +334,9 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
         }
         if (plainSelect.getWhere() != null) {
             plainSelect.getWhere().accept(this);
+        }
+        if (plainSelect.getLimit() != null) {
+            visitLimit(plainSelect.getLimit());
         }
 
     }
@@ -708,6 +721,10 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
     @Override
     public void visit(TableFunction tableFunction) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    int getParametersCount() {
+        return this.currentPosition.value;
     }
 
 }

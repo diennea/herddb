@@ -28,10 +28,18 @@ public class ScanLimits {
 
     private final int maxRows;
     private final int offset;
+    private final int maxRowsJdbcParameterIndex;
 
     public ScanLimits(int maxRows, int offset) {
         this.maxRows = maxRows;
         this.offset = offset;
+        this.maxRowsJdbcParameterIndex = 0;
+    }
+
+    public ScanLimits(int maxRows, int offset, int maxRowsJdbcParameterIndex) {
+        this.maxRows = maxRows;
+        this.offset = offset;
+        this.maxRowsJdbcParameterIndex = maxRowsJdbcParameterIndex;
     }
 
     public int getMaxRows() {
@@ -42,9 +50,36 @@ public class ScanLimits {
         return offset;
     }
 
+    public int getMaxRowsJdbcParameterIndex() {
+        return maxRowsJdbcParameterIndex;
+    }
+
     @Override
     public String toString() {
         return "ScanLimits{" + "maxRows=" + maxRows + ", offset=" + offset + '}';
+    }
+
+    public int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException {
+        if (maxRowsJdbcParameterIndex <= 0) {
+            return maxRows;
+        } else {
+            try {
+                Object limit = context.getJdbcParameters().get(maxRowsJdbcParameterIndex-1);
+                if (limit == null) {
+                    throw new StatementExecutionException("Invalid LIMIT with NULL JDBC Parameter");
+                } else if (limit instanceof Number) {
+                    return ((Number) limit).intValue();
+                } else {
+                    try {
+                        return Integer.parseInt(limit + "");
+                    } catch (IllegalArgumentException ee) {
+                        throw new StatementExecutionException("Invalid LIMIT JDBC Parameter: value is " + limit);
+                    }
+                }
+            } catch (IndexOutOfBoundsException err) {
+                throw new StatementExecutionException("Invalid LIMIT with JDBC parameter position " + maxRowsJdbcParameterIndex);
+            }
+        }
     }
 
 }

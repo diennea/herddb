@@ -147,7 +147,7 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
 
-            rs.applyLimits(new ScanLimits(20, 10));
+            rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (Tuple t : rs) {
                 expected_s1.remove((String) t.get("s1"));
@@ -182,7 +182,7 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
 
-            rs.applyLimits(new ScanLimits(20, 10));
+            rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (Tuple t : rs) {
                 expected_s1.remove((String) t.get("s1"));
@@ -211,7 +211,7 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
 
-            rs.applyLimits(new ScanLimits(20, 100000));
+            rs.applyLimits(new ScanLimits(20, 100000), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (Tuple t : rs) {
                 fail();

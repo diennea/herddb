@@ -231,19 +231,19 @@ public class SQLPlanner {
         try {
             ExecutionPlan result;
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
-            assignJdbcParametersIndexes(stmt);
+            int numJdbcParameters = assignJdbcParametersIndexes(stmt);
             if (stmt instanceof CreateTable) {
                 result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
             } else if (stmt instanceof CreateIndex) {
                 result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
             } else if (stmt instanceof Insert) {
-                result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
+                result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues, numJdbcParameters);
             } else if (stmt instanceof Delete) {
                 result = buildDeleteStatement(defaultTableSpace, (Delete) stmt, returnValues);
             } else if (stmt instanceof Update) {
                 result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
             } else if (stmt instanceof Select) {
-                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows);
+                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows, numJdbcParameters);
             } else if (stmt instanceof Execute) {
                 result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
                 allowCache = false;
@@ -449,7 +449,7 @@ public class SQLPlanner {
         return type;
     }
 
-    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s, boolean returnValues) throws StatementExecutionException {
+    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s, boolean returnValues, int numJdbcParameters) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName().toLowerCase();
         if (tableSpace == null) {
@@ -531,7 +531,7 @@ public class SQLPlanner {
             }
         } else {
             Select select = s.getSelect();
-            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true, -1);
+            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true, -1, numJdbcParameters);
             if (s.getColumns() == null) {
                 throw new StatementExecutionException("for INSERT ... SELECT you have to declare the columns to be filled in (use INSERT INTO TABLE(c,c,c,) SELECT .....)");
             }
@@ -985,7 +985,7 @@ public class SQLPlanner {
 
     }
 
-    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan, int maxRows) throws StatementExecutionException {
+    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan, int maxRows, int numJdbcParameters) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
 
@@ -1199,14 +1199,24 @@ public class SQLPlanner {
                     throw new StatementExecutionException("LIMIT and TOP cannot be used on the same query");
                 }
                 if (limit != null) {
-                    if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter() || limit.isRowCountJdbcParameter()) {
-                        throw new StatementExecutionException("Invalid LIMIT clause (limit="+limit+")");
+                    if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter()) {
+                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ")");
                     }
-
-                    scanLimits = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
+                    if (maxRows > 0 && limit.isRowCountJdbcParameter()) {
+                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ") and JDBC setMaxRows=" + maxRows);
+                    }
+                    int rowCount;
+                    int rowCountJdbcParameter = 0;
+                    if (limit.isRowCountJdbcParameter()) {
+                        rowCount = -1;
+                        rowCountJdbcParameter = numJdbcParameters;
+                    } else {
+                        rowCount = (int) limit.getRowCount();
+                    }
+                    scanLimits = new ScanLimits(rowCount, (int) limit.getOffset(), rowCountJdbcParameter);
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
-                        throw new StatementExecutionException("Invalid TOP clause (top="+limit+")");
+                        throw new StatementExecutionException("Invalid TOP clause (top=" + limit + ")");
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
@@ -1245,22 +1255,39 @@ public class SQLPlanner {
                 if (limit != null && top != null) {
                     throw new StatementExecutionException("LIMIT and TOP cannot be used on the same query");
                 }
-                ScanLimits limitsOnPlan = null;
+                ScanLimits scanLimits = null;
                 if (limit != null) {
-                    if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter() || limit.isRowCountJdbcParameter()) {
-                        throw new StatementExecutionException("Invalid LIMIT clause");
+                    if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter()) {
+                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ")");
                     }
-
-                    limitsOnPlan = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
+                    if (maxRows > 0 && limit.isRowCountJdbcParameter()) {
+                        throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ") and JDBC setMaxRows=" + maxRows);
+                    }
+                    int rowCount;
+                    int rowCountJdbcParameter = 0;
+                    if (limit.isRowCountJdbcParameter()) {
+                        rowCount = -1;
+                        rowCountJdbcParameter = numJdbcParameters;
+                    } else {
+                        rowCount = (int) limit.getRowCount();
+                    }
+                    scanLimits = new ScanLimits(rowCount, (int) limit.getOffset(), rowCountJdbcParameter);
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
                         throw new StatementExecutionException("Invalid TOP clause");
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
-                        limitsOnPlan = new ScanLimits((int) rowCount, 0);
+                        scanLimits = new ScanLimits((int) rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
+                    }
+                }
+                if (maxRows > 0) {
+                    if (scanLimits == null) {
+                        scanLimits = new ScanLimits(maxRows, 0);
+                    } else if (scanLimits.getMaxRows() <= 0 || scanLimits.getMaxRows() > maxRows) {
+                        scanLimits = new ScanLimits(maxRows, scanLimits.getOffset());
                     }
                 }
 
@@ -1331,7 +1358,7 @@ public class SQLPlanner {
                 }
 
                 try {
-                    return ExecutionPlan.joinedScan(scans, joinFilter, joinProjection, limitsOnPlan, comparatorOnPlan);
+                    return ExecutionPlan.joinedScan(scans, joinFilter, joinProjection, scanLimits, comparatorOnPlan);
                 } catch (IllegalArgumentException err) {
                     throw new StatementExecutionException(err);
                 }
@@ -1637,8 +1664,10 @@ public class SQLPlanner {
         throw new StatementExecutionException("unsupported function " + name);
     }
 
-    private void assignJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
-        stmt.accept(new JdbcParameterIndexAssigner());
+    private int assignJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
+        JdbcParameterIndexAssigner assigner = new JdbcParameterIndexAssigner();
+        stmt.accept(assigner);
+        return assigner.getParametersCount();
     }
 
 }

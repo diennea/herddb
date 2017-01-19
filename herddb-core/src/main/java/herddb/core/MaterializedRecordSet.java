@@ -68,7 +68,7 @@ public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<T
 
     public abstract void applyProjection(Projection projection, StatementEvaluationContext context) throws StatementExecutionException;
 
-    public abstract void applyLimits(ScanLimits limits);
+    public abstract void applyLimits(ScanLimits limits, StatementEvaluationContext context) throws StatementExecutionException;
 
     @Override
     public void close() {

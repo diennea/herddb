@@ -40,6 +40,7 @@ import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
+import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.IndexAlreadyExistsException;
@@ -496,6 +497,38 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 3", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION);) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(2, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(3), TransactionContext.NO_TRANSACTION);) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(3, result.size());
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
+                + "WHERE k1 <> ? LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(3, result.size());
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
+                + "WHERE k1 <> ? ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(3, result.size());
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT k1, count(*) FROM tblspace1.tsql "
+                + "WHERE k1 <> ? GROUP BY k1 ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(3, result.size());
+            }
+
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(0), TransactionContext.NO_TRANSACTION);) {
+                List<Tuple> result = scan1.consume();
+                assertEquals(4, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Collections.emptyList(), TransactionContext.NO_TRANSACTION);) {
+                fail();
+            } catch (StatementExecutionException err) {
+                assertEquals("Invalid LIMIT with JDBC parameter position 1", err.getMessage());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
                 + "ORDER BY k1 LIMIT 3", Collections.emptyList(), 5, TransactionContext.NO_TRANSACTION);) {

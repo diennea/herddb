@@ -528,7 +528,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
         if (plan.limits != null) {
             try {
-                return new ScanResult(transactionContext.transactionId, new LimitedDataScanner(scanResult.dataScanner, plan.limits));
+                return new ScanResult(transactionContext.transactionId,
+                    new LimitedDataScanner(scanResult.dataScanner, plan.limits, context));
             } catch (DataScannerException limitError) {
                 throw new StatementExecutionException(limitError);
             }
@@ -582,7 +583,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
             finalResultSet.writeFinished();
             finalResultSet.sort(plan.comparator);
-            finalResultSet.applyLimits(plan.limits);
+            finalResultSet.applyLimits(plan.limits, context);
 
             return new ScanResult(
                 transactionContext.transactionId,

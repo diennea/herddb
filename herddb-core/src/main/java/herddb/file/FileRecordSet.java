@@ -152,7 +152,7 @@ class FileRecordSet extends MaterializedRecordSet {
     }
 
     @Override
-    public void applyLimits(ScanLimits limits) {
+    public void applyLimits(ScanLimits limits, StatementEvaluationContext context) throws StatementExecutionException {
         if (!writeFinished) {
             throw new IllegalStateException("RecordSet is still in write mode");
         }
@@ -191,12 +191,13 @@ class FileRecordSet extends MaterializedRecordSet {
             buffer = copy;
         }
 
-        if (limits.getMaxRows() > 0) {
+        int maxRows = limits.computeMaxRows(context);
+        if (maxRows > 0) {
             int maxlen = buffer.size();
-            if (maxlen < limits.getMaxRows()) {
+            if (maxlen < maxRows) {
                 return;
             }
-            buffer.truncate(limits.getMaxRows());
+            buffer.truncate(maxRows);
         }
 
     }

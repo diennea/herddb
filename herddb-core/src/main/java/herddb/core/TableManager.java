@@ -1144,9 +1144,10 @@ public class TableManager implements AbstractTableManager {
             recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
         }
         ScanLimits limits = statement.getLimits();
-        if (limits != null && limits.getMaxRows() > 0 && !sorted) {
+        int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
+        if (maxRows > 0 && !sorted) {
             // if no sort is present the limits can be applying during the scan and perform an early exit
-            AtomicInteger remaining = new AtomicInteger(limits.getMaxRows());
+            AtomicInteger remaining = new AtomicInteger(limits.computeMaxRows(context));
 
             if (limits.getOffset() > 0) {
                 remaining.getAndAdd(limits.getOffset());
@@ -1182,7 +1183,7 @@ public class TableManager implements AbstractTableManager {
         }
         recordSet.writeFinished();
         recordSet.sort(statement.getComparator());
-        recordSet.applyLimits(statement.getLimits());
+        recordSet.applyLimits(statement.getLimits(), context);
         if (!applyProjectionDuringScan) {
             recordSet.applyProjection(statement.getProjection(), context);
         }
