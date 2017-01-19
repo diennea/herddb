@@ -154,6 +154,10 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve(sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".checkpoint");
     }
 
+    private boolean isCheckpointsFile(Path path) {
+        return path.getFileName().endsWith(".checkpoint");
+    }
+
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
         Path tableDir = getTableDirectory(tableSpace, tableName);
@@ -272,6 +276,19 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+    }
+
+    private List<Path> getAllIndexCheckpointFiles(String tableSpace, String indexName) throws IOException {
+        Path dir = getIndexDirectory(tableSpace, indexName);
+        List<Path> results = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+            for (Path path : stream) {
+                if (isCheckpointsFile(path)) {
+                    results.add(path);
+                }
+            }
+        }
+        return results;
     }
 
     private IndexStatus readIndexStatus(String tableSpace, String indexName, LogSequenceNumber logPosition) throws DataStorageManagerException {
