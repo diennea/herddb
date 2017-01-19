@@ -20,6 +20,7 @@
 package herddb.index.brin;
 
 import herddb.utils.EnsureIntegerIncrementAccumulator;
+import herddb.utils.IntHolder;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -182,7 +183,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 valuesForKey = new ArrayList<>();
                 values.put(key1, valuesForKey);
             }
-            valuesForKey.add(value);
+            valuesForKey.add(value);            
         }
 
         boolean addValue(SK key, SV value, ConcurrentNavigableMap<BlockStartKey<SK>, Block<SK, SV>> blocks) {
@@ -200,6 +201,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 ensureBlockLoaded();
                 mergeAddValue(key, value, values);
                 size++;
+                dirty = true;
                 if (maxKey.compareTo(key) < 0) {
                     maxKey = key;
                 }
@@ -344,7 +346,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
                 // access to external field, this is the cause of most of the concurrency problems
                 blocks.put(newblock.key, newblock);
-                
+
                 loadedBlocksCount.incrementAndGet();
 
                 SK firstKey = keep_values.firstKey();
@@ -370,7 +372,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                     });
                 });
                 long newPageId = dataStorage.createDataPage(result);
-                LOG.severe("checkpoint block " + key + ": newpage -> " + newPageId);
+                LOG.severe("checkpoint block " + key + ": newpage -> " + newPageId + " with " + values.size() + " entries x " + result.size() + " pointers");
                 this.dirty = false;
                 this.pageId = newPageId;
                 return new BlockRangeIndexMetadata.BlockMetadata<>(minKey, maxKey, key.blockId, size, pageId);
@@ -420,8 +422,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     }
 
     public void put(K key, V value) {
-        BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);        
-        while (!tryPut(key, value, lookUp)) {            
+        BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
+        while (!tryPut(key, value, lookUp)) {
         }
         if (loadedBlocksCount.get() > maxLoadedBlocks) {
             unloadBlocks();
@@ -433,6 +435,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         for (Block<K, V> block : blocks.values()) {
             BlockRangeIndexMetadata.BlockMetadata<K> metadata = block.checkpoint();
             if (metadata.size > 0) {
+                LOG.severe("block " + block.key + " has " + metadata.size + " records at checkpoint");
                 blocksMetadata.add(metadata);
             } else {
                 LOG.severe("block " + block.key + " is empty at checkpoint. discarding");
@@ -478,7 +481,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         if (segmentEntry == null) {
             Block<K, V> headBlock = new Block<>(key, value);
             boolean result = blocks.putIfAbsent(HEAD_KEY, headBlock) == null;
-            loadedBlocksCount.incrementAndGet();            
+            loadedBlocksCount.incrementAndGet();
             return result;
         }
         Block<K, V> choosenSegment = segmentEntry.getValue();
