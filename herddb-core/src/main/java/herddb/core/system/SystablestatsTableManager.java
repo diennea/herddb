@@ -49,6 +49,8 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
         .column("dirtyrecords", ColumnTypes.LONG)
         .column("maxlogicalpagesize", ColumnTypes.LONG)
         .column("lastautoflushts", ColumnTypes.TIMESTAMP)
+        .column("keysmemory", ColumnTypes.LONG)
+        .column("buffersmemory", ColumnTypes.LONG)
         .primaryKey("tablespace", false)
         .primaryKey("table_name", false)
         .build();
@@ -77,7 +79,9 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
                     "dirtypages", stats.getDirtypages(),
                     "dirtyrecords", stats.getDirtyrecords(),
                     "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
-                    "lastautoflushts", autoflush > 0 ? new java.sql.Timestamp(autoflush) : null
+                    "lastautoflushts", autoflush > 0 ? new java.sql.Timestamp(autoflush) : null,
+                    "keysmemory", stats.getKeysUsedMemory(),
+                    "buffersmemory", stats.getBuffersUsedMemory()
                 ));
             }
         }

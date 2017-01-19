@@ -90,6 +90,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -115,6 +116,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final SQLPlanner translator;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
+    private final MemoryWatcher memoryWatcher;
     private final ServerHostData hostData;
     private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
@@ -123,6 +125,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
+    private long maxTableUsedMemory = ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY_DEFAULT;
     private boolean clearAtBoot = false;
     private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT;
     private Runnable haltProcedure = DefaultJVMHalt.INSTANCE;
@@ -184,7 +187,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.serverToServerPassword = serverToServerPassword;
     }
 
-    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
+    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, herddb.core.MemoryWatcher memoryWatcher) {
         this.tmpDirectory = tmpDirectory;
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
@@ -196,6 +199,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.translator = new SQLPlanner(this);
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
+        this.memoryWatcher = memoryWatcher;
     }
 
     public ServerConfiguration getServerConfiguration() {
@@ -794,7 +798,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxLogicalPageSize = maxLogicalPageSize;
     }
 
-    private void tryBecameLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
+    public long getMaxTableUsedMemory() {
+        return maxTableUsedMemory;
+    }
+
+    public void setMaxTableUsedMemory(long maxTableUsedMemory) {
+        this.maxTableUsedMemory = maxTableUsedMemory;
+    }
+
+    private void tryBecomeLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
         LOGGER.log(Level.SEVERE, "node {0}, try to become leader of {1}", new Object[]{nodeId, tableSpace.name});
         TableSpace.Builder newTableSpaceBuilder
             = TableSpace
@@ -805,6 +817,18 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         boolean ok = metadataStorageManager.updateTableSpace(newTableSpace, tableSpace);
         if (!ok) {
             LOGGER.log(Level.SEVERE, "updating tableSpace {0} metadata failed", tableSpace.name);
+        }
+    }
+
+    void tryReleaseMemory(long reclaim, Supplier<Boolean> stop) {
+        List<TableSpaceManager> shuffledTablespaces = new ArrayList<>(this.tablesSpaces.values());
+        Collections.shuffle(shuffledTablespaces);
+        for (TableSpaceManager tableSpaceManager : shuffledTablespaces) {
+            LOGGER.log(Level.SEVERE, "try release " + reclaim + " bytes from tablespace " + tableSpaceManager.getTableSpaceName());
+            if (stop.get()) {
+                return;
+            }
+            tableSpaceManager.tryReleaseMemory(reclaim, stop);
         }
     }
 
@@ -954,14 +978,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                             .orElse(null);
                         if (leaderState == null) {
                             LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " should be " + tableSpaceInfo.leaderId + ", but it never sent pings or it disappeared");
-                            tryBecameLeaderFor(tableSpaceInfo);
+                            tryBecomeLeaderFor(tableSpaceInfo);
                         } else {
                             long delta = now - leaderState.timestamp;
                             if (tableSpaceInfo.maxLeaderInactivityTime > delta) {
                                 LOGGER.log(Level.FINER, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is healty");
                             } else {
                                 LOGGER.log(Level.SEVERE, "Leader for " + tableSpaceUuid + " is " + leaderState.nodeId + ", last ping " + new java.sql.Timestamp(leaderState.timestamp) + ". leader is failed. trying to take leadership");
-                                tryBecameLeaderFor(tableSpaceInfo);
+                                tryBecomeLeaderFor(tableSpaceInfo);
                                 // only one change at a time
                                 break;
                             }
@@ -982,6 +1006,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             } catch (DataStorageManagerException | LogNotAvailableException error) {
                 LOGGER.log(Level.SEVERE, "checkpoint failed:" + error, error);
             }
+        }
+
+        if (memoryWatcher != null) {
+            memoryWatcher.run(this);
         }
 
     }

@@ -28,6 +28,7 @@ import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -40,9 +41,14 @@ import java.util.stream.Stream;
 public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
 
     private final ConcurrentMap<Bytes, Long> map;
+    private final AtomicLong usedMemory = new AtomicLong();
+
+    // assume that an entry holds 24 bytes (a Long pointer + long value + extra overhead
+    private final long ENTRY_OVERHEAD = 8 + 8 + 8;
 
     public ConcurrentMapKeyToPageIndex(ConcurrentMap<Bytes, Long> map) {
         this.map = map;
+        this.map.keySet().forEach(this::keyAdded);
     }
 
     public ConcurrentMap<Bytes, Long> getMap() {
@@ -56,12 +62,26 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public Long put(Bytes key, long currentPage) {
-        return map.put(key, currentPage);
+        Long res = map.put(key, currentPage);
+        if (res == null) {
+            keyAdded(key);
+        }
+        return res;
+    }
+
+    private void keyAdded(Bytes key) {
+        usedMemory.addAndGet(key.data.length + ENTRY_OVERHEAD);
+    }
+
+    private void keyRemoved(Bytes key) {
+        usedMemory.addAndGet(-key.data.length - ENTRY_OVERHEAD);
     }
 
     @Override
     public List<Bytes> getKeysMappedToPage(long pageId) {
-        return map.entrySet().stream().filter(entry -> pageId == entry.getValue()).map(Map.Entry::getKey).collect(Collectors.toList());
+        return map.entrySet().stream()
+            .filter(entry -> pageId == entry.getValue())
+            .map(Map.Entry::getKey).collect(Collectors.toList());
     }
 
     @Override
@@ -76,7 +96,11 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public Long remove(Bytes key) {
-        return map.remove(key);
+        Long res = map.remove(key);
+        if (res != null) {
+            keyRemoved(key);
+        }
+        return res;
     }
 
     @Override
@@ -94,7 +118,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
                 if (pageId == null) {
                     return Stream.empty();
                 }
-                return Stream.of(new AbstractMap.SimpleImmutableEntry<Bytes, Long>(key, pageId));
+                return Stream.of(new AbstractMap.SimpleImmutableEntry<>(key, pageId));
             } catch (StatementExecutionException err) {
                 throw new DataStorageManagerException(err);
             }
@@ -134,11 +158,18 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     @Override
     public void close() {
         map.clear();
+        usedMemory.set(0);
     }
 
     @Override
     public void truncate() {
         map.clear();
+        usedMemory.set(0);
+    }
+
+    @Override
+    public long getUsedMemory() {
+        return usedMemory.get();
     }
 
 }

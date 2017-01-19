@@ -39,4 +39,8 @@ public interface TableManagerStats {
     public long getMaxLogicalPageSize();
 
     public long getLastAutoFlushTs();
+
+    public long getBuffersUsedMemory();
+
+    public long getKeysUsedMemory();
 }

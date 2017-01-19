@@ -49,7 +49,7 @@ public class SysnodesTest {
     @Test
     public void listNodesTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 
@@ -72,7 +72,7 @@ public class SysnodesTest {
     public void listNodesFileManagerTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager(nodeId, new FileMetadataStorageManager(tmpFolder.getRoot().toPath()),
-            new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 

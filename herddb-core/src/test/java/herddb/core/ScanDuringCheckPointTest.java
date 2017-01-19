@@ -61,21 +61,23 @@ public class ScanDuringCheckPointTest {
     public void bigTableScan() throws Exception {
         int testSize = 5000;
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(),
+            new MemoryCommitLogManager(), null, null, null);) {
             manager.setMaxLogicalPageSize(10);
+            manager.setMaxTableUsedMemory(Long.MAX_VALUE);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -96,9 +98,9 @@ public class ScanDuringCheckPointTest {
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
             assertEquals(testSize, stats.getTablesize());
-            assertEquals(stats.getMaxloadedpages(), stats.getLoadedpages());
 
             assertTrue(testSize > 100);
+            assertTrue(stats.getLoadedpages() > stats.getMaxloadedpages() / 2);
 
             ExecutorService service = Executors.newFixedThreadPool(1);
 
@@ -159,7 +161,7 @@ public class ScanDuringCheckPointTest {
                 assertEquals(testSize, count.get());
             }
             assertEquals(testSize, stats.getTablesize());
-            assertEquals(testSize/10, done.get());
+            assertEquals(testSize / 10, done.get());
         }
     }
 }

@@ -74,7 +74,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -100,7 +100,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -114,7 +114,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -138,7 +138,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -166,7 +166,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -180,7 +180,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -204,7 +204,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -247,7 +247,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -271,7 +271,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -303,7 +303,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
@@ -327,7 +327,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
@@ -359,7 +359,7 @@ public class RestartTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null)) {
+            tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);

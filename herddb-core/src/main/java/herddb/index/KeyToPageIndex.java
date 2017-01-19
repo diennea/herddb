@@ -52,4 +52,6 @@ public interface KeyToPageIndex extends AutoCloseable {
     public void close();
 
     public void truncate();
+
+    public long getUsedMemory();
 }

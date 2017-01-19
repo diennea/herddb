@@ -107,6 +107,17 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
             public long getMaxLogicalPageSize() {
                 return 0;
             }
+
+            @Override
+            public long getBuffersUsedMemory() {
+                return 0;
+            }
+
+            @Override
+            public long getKeysUsedMemory() {
+                return 0;
+            }
+
         };
     }
 
@@ -188,6 +199,10 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     @Override
     public long getCreatedInTransaction() {
         return 0;
+    }
+
+    @Override
+    public void tryReleaseMemory(long reclaim) {
     }
 
 }

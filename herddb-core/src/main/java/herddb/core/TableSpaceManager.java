@@ -105,6 +105,7 @@ import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import java.util.function.Supplier;
 
 /**
  * Manages a TableSet in memory
@@ -121,9 +122,9 @@ public class TableSpaceManager {
     private final String tableSpaceName;
     private final String tableSpaceUUID;
     private final String nodeId;
-    private final Map<String, AbstractTableManager> tables = new ConcurrentHashMap<>();
-    private final Map<String, AbstractIndexManager> indexes = new ConcurrentHashMap<>();
-    private final Map<String, Map<String, AbstractIndexManager>> indexesByTable = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AbstractTableManager> tables = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, AbstractIndexManager> indexes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Map<String, AbstractIndexManager>> indexesByTable = new ConcurrentHashMap<>();
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager dbmanager;
@@ -608,6 +609,20 @@ public class TableSpaceManager {
             .anyMatch((t) -> (t.isOnTable(name)));
     }
 
+    void tryReleaseMemory(long reclaim, Supplier<Boolean> stop) {
+        List<AbstractTableManager> shuffledTables = new ArrayList<>(tables.values());
+        Collections.shuffle(shuffledTables);
+        for (AbstractTableManager tm : shuffledTables) {
+            if (tm.isSystemTable()) {
+                continue;
+            }
+            tm.tryReleaseMemory(reclaim);
+            if (stop.get()) {
+                return;
+            }
+        }
+    }
+
     private class DumpReceiver extends TableSpaceDumpReceiver {
 
         private TableManager currentTable;
@@ -1017,7 +1032,10 @@ public class TableSpaceManager {
     private TableManager bootTable(Table table, long transaction) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
-        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID, this.dbmanager.getMaxLogicalPageSize(), transaction);
+        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID,
+            this.dbmanager.getMaxLogicalPageSize(),
+            this.dbmanager.getMaxTableUsedMemory(),
+            transaction);
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }

@@ -25,6 +25,7 @@ import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.EmbeddedBookie;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.core.DBManager;
+import herddb.core.MemoryWatcher;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileBasedUserManager;
@@ -185,15 +186,16 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException(new Exception("Fatal error while generating the local node ID: " + error, error));
             }
         }
-        LOGGER.log(Level.INFO, "local nodeID is {0} version {1}", new Object[]{nodeId, Version.getVERSION()});
+        MemoryWatcher memoryWatcher = new MemoryWatcher(configuration);
         this.manager = new DBManager(nodeId,
             metadataStorageManager,
             buildDataStorageManager(),
             buildCommitLogManager(),
-            tmpDirectory, serverHostData
+            tmpDirectory, serverHostData, memoryWatcher
         );
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
         this.manager.setMaxLogicalPageSize(configuration.getLong(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT));
+        this.manager.setMaxTableUsedMemory(configuration.getLong(ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY, ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY_DEFAULT));
         this.manager.setHaltOnTableSpaceBootError(configuration.getBoolean(ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR, ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT));
         this.manager.setConnectionsInfoProvider(this);
         this.manager.setServerConfiguration(configuration);
@@ -215,17 +217,19 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this server: jdbc:herddb:server:{0}:{1}", new Object[]{serverHostData.getHost(), Integer.toString(serverHostData.getPort())});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this HerdDB cluster: jdbc:herddb:zookeeper:{0}{1}", new Object[]{configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT), configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)});
                 this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration);
+                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this HerdDB cluster: jdbc:herddb:zookeeper:{0}{1}", new Object[]{configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT), configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)});
                 break;
         }
-
+        LOGGER.log(Level.INFO, "HerdDB version {0}", new Object[]{Version.getVERSION()});
+        LOGGER.log(Level.INFO, "Local " + ServerConfiguration.PROPERTY_NODEID + " is {0}", new Object[]{nodeId});
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {
         String realHost = serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_HOST);
         int realPort = Integer.parseInt(serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_PORT));
-        LOGGER.severe("Binding network acceptor to " + realHost + ":" + realPort + " ssl:" + serverHostData.isSsl());
+        LOGGER.log(Level.SEVERE, "Binding network acceptor to {0}:{1} ssl:{2}",
+            new Object[]{realHost, realPort, serverHostData.isSsl()});
         NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost,
             realPort, serverHostData.isSsl());
         if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {

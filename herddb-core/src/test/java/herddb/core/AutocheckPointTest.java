@@ -65,7 +65,7 @@ public class AutocheckPointTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+                tmoDir, null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -112,7 +112,7 @@ public class AutocheckPointTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+                tmoDir, null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);

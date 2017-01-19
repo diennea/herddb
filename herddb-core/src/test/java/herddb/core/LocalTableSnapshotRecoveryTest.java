@@ -63,7 +63,7 @@ public class LocalTableSnapshotRecoveryTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+                tmoDir, null, null)) {
             manager.start();
             
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);
@@ -95,7 +95,7 @@ public class LocalTableSnapshotRecoveryTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null)) {
+                tmoDir, null, null)) {
             manager.start();
 
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);

@@ -78,5 +78,7 @@ public interface AbstractTableManager extends AutoCloseable {
     public void tableAltered(Table table, Transaction transaction) throws DDLException;
 
     long getCreatedInTransaction();
+
+    public void tryReleaseMemory(long reclaim);
     
 }
