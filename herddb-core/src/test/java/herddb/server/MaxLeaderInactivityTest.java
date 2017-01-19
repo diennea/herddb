@@ -88,14 +88,14 @@ public class MaxLeaderInactivityTest {
             try (Server server_2 = new Server(serverconfig_2)) {
                 server_2.start();
 
-                TestUtils.execute(server_1.getManager(), "CREATE TABLESPACE 'ttt','leader:" + server_2.getNodeId() + "','expectedreplicacount:2','wait:60000','maxLeaderInactivityTime:5000'", Collections.emptyList());
+                TestUtils.execute(server_1.getManager(), "CREATE TABLESPACE 'ttt','leader:" + server_2.getNodeId() + "','expectedreplicacount:2'"
+                    + ",'wait:60000','maxLeaderInactivityTime:10000'", Collections.emptyList());
 
                 // wait for server_2 to wake up
                 for (int i = 0; i < 40; i++) {
                     TableSpaceManager tableSpaceManager2 = server_2.getManager().getTableSpaceManager("ttt");
-
-                    if (server_2.getManager().getTableSpaceManager("ttt") != null
-                        && server_2.getManager().getTableSpaceManager("ttt").isLeader()) {
+                    if (tableSpaceManager2 != null
+                        && tableSpaceManager2.isLeader()) {
                         break;
                     }
                     Thread.sleep(500);
@@ -185,7 +185,7 @@ public class MaxLeaderInactivityTest {
                 }
                 assertTrue(server_2.getManager().getTableSpaceManager("ttt") != null && server_2.getManager().getTableSpaceManager("ttt").isLeader());
 
-                TestUtils.execute(server_1.getManager(), "ALTER TABLESPACE 'ttt','maxLeaderInactivityTime:5000'", Collections.emptyList());
+                TestUtils.execute(server_1.getManager(), "ALTER TABLESPACE 'ttt','maxLeaderInactivityTime:10000'", Collections.emptyList());
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where "
                     + "tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {

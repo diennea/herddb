@@ -58,6 +58,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -155,7 +156,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private boolean isCheckpointsFile(Path path) {
-        return path.getFileName().endsWith(".checkpoint");
+        return path.getFileName().toString().endsWith(".checkpoint");
     }
 
     @Override
@@ -221,38 +222,55 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void fullIndexScan(String tableSpace, String indexName, FullIndexScanConsumer consumer) throws DataStorageManagerException {
-        IndexStatus latestStatus = readActualIndexStatus(tableSpace, indexName);
+        try {
+            Path lastFile = getLastIndexCheckpointFile(tableSpace, indexName);
+            IndexStatus latestStatus;
+            if (lastFile == null) {
+                latestStatus = new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null, null);
+            } else {
+                latestStatus = readIndexStatusFromFile(lastFile);
+            }
+            LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", status: " + latestStatus);
+            consumer.acceptIndexStatus(latestStatus);
 
-        LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", status: " + latestStatus);
-        consumer.acceptIndexStatus(latestStatus);
-
-        List<Long> activePages = new ArrayList<>(latestStatus.activePages);
-        activePages.sort(null);
-        for (long idpage : activePages) {
-            byte[] records = readIndexPage(tableSpace, indexName, idpage);
-            consumer.acceptPage(idpage, records);
-            LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", page " + idpage + ", " + records.length + " bytes");
+            List<Long> activePages = new ArrayList<>(latestStatus.activePages);
+            activePages.sort(null);
+            for (long idpage : activePages) {
+                byte[] records = readIndexPage(tableSpace, indexName, idpage);
+                consumer.acceptPage(idpage, records);
+                LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", page " + idpage + ", " + records.length + " bytes");
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
         }
-
     }
 
     @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
-
-        TableStatus latestStatus = readActualTableStatus(tableSpace, tableName);
-
-        LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
-        consumer.acceptTableStatus(latestStatus);
-        List<Long> activePages = new ArrayList<>(latestStatus.activePages);
-        activePages.sort(null);
-        for (long idpage : activePages) {
-            List<Record> records = readPage(tableSpace, tableName, idpage);
-            consumer.startPage(idpage);
-            LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
-            for (Record record : records) {
-                consumer.acceptRecord(record);
+        try {
+            Path lastFile = getLastTableCheckpointFile(tableSpace, tableName);
+            TableStatus latestStatus;
+            if (lastFile == null) {
+                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+            } else {
+                latestStatus = readTableStatusFromFile(lastFile);
             }
-            consumer.endPage();
+
+            LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
+            consumer.acceptTableStatus(latestStatus);
+            List<Long> activePages = new ArrayList<>(latestStatus.activePages);
+            activePages.sort(null);
+            for (long idpage : activePages) {
+                List<Record> records = readPage(tableSpace, tableName, idpage);
+                consumer.startPage(idpage);
+                LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
+                for (Record record : records) {
+                    consumer.acceptRecord(record);
+                }
+                consumer.endPage();
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
         }
 
     }
@@ -263,32 +281,54 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(dir);
             Path checkpointsFile = getCheckPointsFile(dir, logPosition);
             LOGGER.log(Level.FINER, "readActualTableStatus " + tableSpace + "." + tableName + " at " + logPosition + " from " + checkpointsFile);
-            if (!Files.isRegularFile(checkpointsFile)) {
-                LOGGER.log(Level.INFO, "readActualTableStatus " + tableSpace + "." + tableName + " at " + logPosition + " from " + checkpointsFile + ": file does not exist");
-                return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
-            }
-            byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
-            XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
-            try (InputStream input = new ByteArrayInputStream(fileContent);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
-                return TableStatus.deserialize(dataIn);
-            }
+            return readTableStatusFromFile(checkpointsFile);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
     }
 
-    private List<Path> getAllIndexCheckpointFiles(String tableSpace, String indexName) throws IOException {
+    private TableStatus readTableStatusFromFile(Path checkpointsFile) throws IOException {
+        byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
+        XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
+        try (InputStream input = new ByteArrayInputStream(fileContent);
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+            return TableStatus.deserialize(dataIn);
+        }
+    }
+
+    private Path getLastIndexCheckpointFile(String tableSpace, String indexName) throws IOException {
         Path dir = getIndexDirectory(tableSpace, indexName);
-        List<Path> results = new ArrayList<>();
+        Path result = getMostRecentCheckPointFile(dir);
+        return result;
+    }
+
+    private Path getLastTableCheckpointFile(String tableSpace, String tableName) throws IOException {
+        Path dir = getTableDirectory(tableSpace, tableName);
+        Path result = getMostRecentCheckPointFile(dir);
+        return result;
+    }
+
+    private Path getMostRecentCheckPointFile(Path dir) throws IOException {
+        Path result = null;
+        long lastMod = -1;
+        Files.createDirectories(dir);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path path : stream) {
                 if (isCheckpointsFile(path)) {
-                    results.add(path);
+                    LOGGER.log(Level.SEVERE, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> ACCEPT " + path);
+                    FileTime lastModifiedTime = Files.getLastModifiedTime(path);
+                    long ts = lastModifiedTime.toMillis();
+                    if (lastMod < 0 || lastMod < ts) {
+                        result = path;
+                        lastMod = ts;
+                    }
+                } else {
+                    LOGGER.log(Level.SEVERE, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> SKIP " + path);
                 }
             }
         }
-        return results;
+        LOGGER.log(Level.SEVERE, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> " + result);
+        return result;
     }
 
     private IndexStatus readIndexStatus(String tableSpace, String indexName, LogSequenceNumber logPosition) throws DataStorageManagerException {
@@ -297,10 +337,14 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(dir);
             Path checkpointsFile = getCheckPointsFile(dir, logPosition);
             LOGGER.log(Level.FINER, "readIndexStatus " + tableSpace + "." + indexName + " at " + indexName + " from " + checkpointsFile);
-            if (!Files.isRegularFile(checkpointsFile)) {
-                LOGGER.log(Level.INFO, "readIndexStatus " + tableSpace + "." + indexName + " at " + indexName + " from " + checkpointsFile + ": file does not exist");
-                return new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null, null);
-            }
+            return readIndexStatusFromFile(checkpointsFile);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    private IndexStatus readIndexStatusFromFile(Path checkpointsFile) throws DataStorageManagerException {
+        try {
             byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
             XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
             try (InputStream input = new ByteArrayInputStream(fileContent);
@@ -314,15 +358,21 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
-        Path tableDir = getTableDirectory(tableSpace, tableName);
+        LogSequenceNumber logPosition = tableStatus.sequenceNumber;
+        Path dir = getTableDirectory(tableSpace, tableName);
+        Path checkpointFile = getCheckPointsFile(dir, logPosition);
         try {
-            Files.createDirectories(tableDir);
+            Files.createDirectories(dir);
+            if (Files.isRegularFile(checkpointFile)) {
+                TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
+                if (actualStatus != null && actualStatus.equals(tableStatus)) {
+                    LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " already saved on file " + checkpointFile);
+                    return Collections.emptyList();
+                }
+            }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        LogSequenceNumber logPosition = tableStatus.sequenceNumber;
-
-        Path checkpointFile = getCheckPointsFile(tableDir, logPosition);
         Path checkpointFileTemp = checkpointFile.getParent().resolve(checkpointFile.getFileName() + ".tmp");
         LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
 
@@ -365,20 +415,51 @@ public class FileDataStorageManager extends DataStorageManager {
                 });
             }
         }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+            for (Path p : stream) {
+                if (isCheckpointsFile(p) && !p.equals(checkpointFile)) {
+                    TableStatus status = readTableStatusFromFile(p);
+                    if (logPosition.after(status.sequenceNumber)) {
+                        LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                        result.add(new PostCheckpointAction(tableName, "delete checkpoint metadata file " + p.toAbsolutePath()) {
+                            @Override
+                            public void run() {
+                                try {
+                                    LOGGER.log(Level.SEVERE, "checkpoint table " + tableName + " metadata file " + p.toAbsolutePath() + " delete");
+                                    Files.deleteIfExists(p);
+                                } catch (IOException err) {
+                                    LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "Could not list table dir " + dir, err);
+        }
         return result;
     }
 
     @Override
     public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus) throws DataStorageManagerException {
-        Path indexDir = getIndexDirectory(tableSpace, indexName);
+        Path dir = getIndexDirectory(tableSpace, indexName);
+        LogSequenceNumber logPosition = indexStatus.sequenceNumber;
+        Path checkpointFile = getCheckPointsFile(dir, logPosition);
+        Path checkpointFileTemp = checkpointFile.getParent().resolve(checkpointFile.getFileName() + ".tmp");
         try {
-            Files.createDirectories(indexDir);
+            Files.createDirectories(dir);
+            if (Files.isRegularFile(checkpointFile)) {
+                IndexStatus actualStatus = readIndexStatusFromFile(checkpointFile);
+                if (actualStatus != null && actualStatus.equals(indexStatus)) {
+                    LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " already saved on" + checkpointFile);
+                    return Collections.emptyList();
+                }
+            }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        LogSequenceNumber logPosition = indexStatus.sequenceNumber;
-        Path checkpointFile = getCheckPointsFile(indexDir, logPosition);
-        Path checkpointFileTemp = checkpointFile.getParent().resolve(checkpointFile.getFileName() + ".tmp");
+
         LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
 
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
@@ -395,7 +476,33 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        return Collections.emptyList();
+
+        List<PostCheckpointAction> result = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+            for (Path p : stream) {
+                if (isCheckpointsFile(p) && !p.equals(checkpointFile)) {
+                    IndexStatus status = readIndexStatusFromFile(p);
+                    if (logPosition.after(status.sequenceNumber)) {
+                        LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                        result.add(new PostCheckpointAction(indexName, "delete checkpoint metadata file " + p.toAbsolutePath()) {
+                            @Override
+                            public void run() {
+                                try {
+                                    LOGGER.log(Level.SEVERE, "checkpoint index " + indexName + " metadata file " + p.toAbsolutePath() + " delete");
+                                    Files.deleteIfExists(p);
+                                } catch (IOException err) {
+                                    LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "Could not list indexName dir " + dir, err);
+        }
+
+        return result;
     }
 
     private static long getPageId(Path p) {
@@ -529,14 +636,24 @@ public class FileDataStorageManager extends DataStorageManager {
 
         long now = System.currentTimeMillis();
         LOGGER.log(Level.INFO,
-            "writeIndexPage " + (size / 1024) + " KBytes, "
+            "writeIndexPage " + indexName + " page " + pageId + " " + (size / 1024) + " KBytes, "
             + "time " + (now - _start) + " ms (" + (now - _endhash) + " disk)");
     }
 
     @Override
     public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
-        TableStatus readActualTableStatus = readActualTableStatus(tableSpace, tableName);
-        return readActualTableStatus.activePages.size();
+        try {
+            Path lastFile = getLastTableCheckpointFile(tableSpace, tableName);
+            TableStatus latestStatus;
+            if (lastFile == null) {
+                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+            } else {
+                latestStatus = readTableStatusFromFile(lastFile);
+            }
+            return latestStatus.activePages.size();
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
     @Override

@@ -23,7 +23,9 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -77,5 +79,48 @@ public class TableStatus {
     public String toString() {
         return "TableStatus{" + "tableName=" + tableName + ", sequenceNumber=" + sequenceNumber + ", nextPageId=" + nextPageId + ", activePages=" + activePages + '}';
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 23 * hash + Objects.hashCode(this.tableName);
+        hash = 23 * hash + Objects.hashCode(this.sequenceNumber);
+        hash = 23 * hash + Arrays.hashCode(this.nextPrimaryKeyValue);
+        hash = 23 * hash + Objects.hashCode(this.activePages);
+        hash = 23 * hash + (int) (this.nextPageId ^ (this.nextPageId >>> 32));
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final TableStatus other = (TableStatus) obj;
+        if (this.nextPageId != other.nextPageId) {
+            return false;
+        }
+        if (!Objects.equals(this.tableName, other.tableName)) {
+            return false;
+        }
+        if (!Objects.equals(this.sequenceNumber, other.sequenceNumber)) {
+            return false;
+        }
+        if (!Arrays.equals(this.nextPrimaryKeyValue, other.nextPrimaryKeyValue)) {
+            return false;
+        }
+        if (!Objects.equals(this.activePages, other.activePages)) {
+            return false;
+        }
+        return true;
+    }
+
+
 
 }

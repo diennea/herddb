@@ -23,8 +23,10 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -74,6 +76,43 @@ public class IndexStatus {
     @Override
     public String toString() {
         return "IndexStatus{" + "indexName=" + indexName + ", sequenceNumber=" + sequenceNumber + '}';
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 13 * hash + Objects.hashCode(this.indexName);
+        hash = 13 * hash + Objects.hashCode(this.sequenceNumber);
+        hash = 13 * hash + Arrays.hashCode(this.indexData);
+        hash = 13 * hash + Objects.hashCode(this.activePages);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final IndexStatus other = (IndexStatus) obj;
+        if (!Objects.equals(this.indexName, other.indexName)) {
+            return false;
+        }
+        if (!Objects.equals(this.sequenceNumber, other.sequenceNumber)) {
+            return false;
+        }
+        if (!Arrays.equals(this.indexData, other.indexData)) {
+            return false;
+        }
+        if (!Objects.equals(this.activePages, other.activePages)) {
+            return false;
+        }
+        return true;
     }
 
 }
