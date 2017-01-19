@@ -190,6 +190,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         MemoryWatcher memoryWatcher = null;
         if (reference >= 0) {
             memoryWatcher = new MemoryWatcher(configuration);
+        } else {
+            LOGGER.log(Level.SEVERE, "Since " + ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE + "=" + reference + ". Memory Watcher will not be enabled");
         }
 
         this.manager = new DBManager(nodeId,
