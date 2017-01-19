@@ -1200,13 +1200,13 @@ public class SQLPlanner {
                 }
                 if (limit != null) {
                     if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter() || limit.isRowCountJdbcParameter()) {
-                        throw new StatementExecutionException("Invalid LIMIT clause");
+                        throw new StatementExecutionException("Invalid LIMIT clause (limit="+limit+")");
                     }
 
                     scanLimits = new ScanLimits((int) limit.getRowCount(), (int) limit.getOffset());
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
-                        throw new StatementExecutionException("Invalid TOP clause");
+                        throw new StatementExecutionException("Invalid TOP clause (top="+limit+")");
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
