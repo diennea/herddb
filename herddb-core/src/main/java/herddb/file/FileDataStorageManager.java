@@ -24,6 +24,7 @@ import herddb.core.RecordSetFactory;
 import herddb.index.ConcurrentMapKeyToPageIndex;
 import herddb.index.KeyToPageIndex;
 import herddb.log.LogSequenceNumber;
+import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -54,6 +55,7 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.DigestInputStream;
@@ -148,8 +150,8 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve(pageId + ".page");
     }
 
-    private Path getCheckPointsFile(Path tableDirectory) {
-        return tableDirectory.resolve("checkpoints");
+    private Path getCheckPointsFile(Path tableDirectory, LogSequenceNumber sequenceNumber) {
+        return tableDirectory.resolve(sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".checkpoint");
     }
 
     @Override
@@ -251,87 +253,47 @@ public class FileDataStorageManager extends DataStorageManager {
 
     }
 
-    private TableStatus readActualTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
-        Path tableDir = getTableDirectory(tableSpace, tableName);
+    private TableStatus readTableStatus(String tableSpace, String tableName, LogSequenceNumber logPosition) throws DataStorageManagerException {
+        Path dir = getTableDirectory(tableSpace, tableName);
         try {
-            Files.createDirectories(tableDir);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-        Path keys = getCheckPointsFile(tableDir);
-        LOGGER.log(Level.SEVERE, "readActualTableStatus " + tableSpace + "." + tableName + " from " + keys);
-        if (!Files.isRegularFile(keys)) {
-            LOGGER.log(Level.SEVERE, "readActualTableStatus " + tableSpace + "." + tableName + " from " + keys + ". file does not exist");
-            return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
-        }
-        TableStatus latestStatus = null;
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(keys, StandardOpenOption.READ), 4 * 1024 * 1024);
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
-            while (true) {
-                int marker;
-                try {
-                    marker = dataIn.readInt();
-                } catch (EOFException ok) {
-                    break;
-                }
-                if (marker == TABLE_STATUS_MARKER) {
-                    TableStatus tableStatus = TableStatus.deserialize(dataIn);
-                    latestStatus = tableStatus;
-                } else {
-                    throw new IOException("corrupted file " + keys + ", missing marker");
-                }
-
+            Files.createDirectories(dir);
+            Path checkpointsFile = getCheckPointsFile(dir, logPosition);
+            LOGGER.log(Level.FINER, "readActualTableStatus " + tableSpace + "." + tableName + " at " + logPosition + " from " + checkpointsFile);
+            if (!Files.isRegularFile(checkpointsFile)) {
+                LOGGER.log(Level.INFO, "readActualTableStatus " + tableSpace + "." + tableName + " at " + logPosition + " from " + checkpointsFile + ": file does not exist");
+                return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+            }
+            byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
+            XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
+            try (InputStream input = new ByteArrayInputStream(fileContent);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                return TableStatus.deserialize(dataIn);
             }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        if (latestStatus == null) {
-            throw new DataStorageManagerException("table status not found on disk");
-        }
-        return latestStatus;
     }
 
-    private IndexStatus readActualIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException {
-        Path indexDir = getIndexDirectory(tableSpace, indexName);
+    private IndexStatus readIndexStatus(String tableSpace, String indexName, LogSequenceNumber logPosition) throws DataStorageManagerException {
+        Path dir = getIndexDirectory(tableSpace, indexName);
         try {
-            Files.createDirectories(indexDir);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-        Path keys = getCheckPointsFile(indexDir);
-        LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys);
-        if (!Files.isRegularFile(keys)) {
-            LOGGER.log(Level.SEVERE, "readActualIndexStatus " + tableSpace + "." + indexName + " from " + keys + ". file does not exist");
-            return new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null, null);
-        }
-        IndexStatus latestStatus = null;
-        try (InputStream input = new BufferedInputStream(Files.newInputStream(keys, StandardOpenOption.READ), 4 * 1024 * 1024);
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
-            while (true) {
-                int marker;
-                try {
-                    marker = dataIn.readInt();
-                } catch (EOFException ok) {
-                    break;
-                }
-                if (marker == TABLE_STATUS_MARKER) {
-                    IndexStatus indexStatus = IndexStatus.deserialize(dataIn);
-                    latestStatus = indexStatus;
-                } else {
-                    throw new IOException("corrupted file " + keys + ", missing marker");
-                }
-
+            Files.createDirectories(dir);
+            Path checkpointsFile = getCheckPointsFile(dir, logPosition);
+            LOGGER.log(Level.FINER, "readIndexStatus " + tableSpace + "." + indexName + " at " + indexName + " from " + checkpointsFile);
+            if (!Files.isRegularFile(checkpointsFile)) {
+                LOGGER.log(Level.INFO, "readIndexStatus " + tableSpace + "." + indexName + " at " + indexName + " from " + checkpointsFile + ": file does not exist");
+                return new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null, null);
+            }
+            byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
+            XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
+            try (InputStream input = new ByteArrayInputStream(fileContent);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                return IndexStatus.deserialize(dataIn);
             }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        if (latestStatus == null) {
-            throw new DataStorageManagerException("table status not found on disk");
-        }
-        return latestStatus;
     }
-
-    private static final int TABLE_STATUS_MARKER = 1233;
 
     @Override
     public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
@@ -341,15 +303,27 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getCheckPointsFile(tableDir);
-        LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + keys);
-        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
-            dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
+        LogSequenceNumber logPosition = tableStatus.sequenceNumber;
+
+        Path checkpointFile = getCheckPointsFile(tableDir, logPosition);
+        Path checkpointFileTemp = checkpointFile.getParent().resolve(checkpointFile.getFileName() + ".tmp");
+        LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
+
+        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
+        try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
             tableStatus.serialize(dataOutputKeys);
+            dataOutputKeys.flush();
+            oo.write(oo.xxhash64());
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        try {
+            FileUtils.fastWriteFile(checkpointFileTemp, oo.getBuffer(), 0, oo.size());
+            Files.move(checkpointFileTemp, checkpointFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+
         long maxPageId = tableStatus.activePages.stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
         // we can drop old page files now
@@ -362,7 +336,6 @@ public class FileDataStorageManager extends DataStorageManager {
                 && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath()) {
-
                     @Override
                     public void run() {
                         try {
@@ -386,12 +359,22 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path keys = getCheckPointsFile(indexDir);
-        LOGGER.log(Level.SEVERE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + keys);
-        try (OutputStream outputKeys = Files.newOutputStream(keys, StandardOpenOption.APPEND, StandardOpenOption.CREATE);
-            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(outputKeys)) {
-            dataOutputKeys.writeInt(TABLE_STATUS_MARKER);
+        LogSequenceNumber logPosition = indexStatus.sequenceNumber;
+        Path checkpointFile = getCheckPointsFile(indexDir, logPosition);
+        Path checkpointFileTemp = checkpointFile.getParent().resolve(checkpointFile.getFileName() + ".tmp");
+        LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
+
+        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
+        try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
             indexStatus.serialize(dataOutputKeys);
+            dataOutputKeys.flush();
+            oo.write(oo.xxhash64());
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        try {
+            FileUtils.fastWriteFile(checkpointFileTemp, oo.getBuffer(), 0, oo.size());
+            Files.move(checkpointFileTemp, checkpointFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
