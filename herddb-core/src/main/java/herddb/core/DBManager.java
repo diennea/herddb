@@ -437,7 +437,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
             TableSpaceManager manager = tablesSpaces.get(tableSpace);
             if (manager == null) {
-                throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
+                throw new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
+                    + "Maybe the server is starting ");
             }
             if (errorIfNotLeader && !manager.isLeader()) {
                 throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
@@ -604,7 +605,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
-            throw new StatementExecutionException("not such tableSpace " + tableSpace + " here");
+            throw new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
+                    + "Maybe the server is starting ");
         }
         if (errorIfNotLeader && !manager.isLeader()) {
             throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
