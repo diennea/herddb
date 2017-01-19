@@ -37,7 +37,6 @@ public class MemoryWatcher {
     private float overallMaximumLimit;
     private float lowerbound;
     private static final MemoryMXBean jvmMemory = ManagementFactory.getMemoryMXBean();
-    private final Supplier<Boolean> LOWERBOUND_CHECKER = new CheckLowerBound();
 
     public MemoryWatcher(ServerConfiguration config) {
         this(
@@ -69,45 +68,52 @@ public class MemoryWatcher {
     private static final Logger LOG = Logger.getLogger(MemoryWatcher.class.getName());
 
     public void run(DBManager dbManager) {
+        long explicitUsage = dbManager.collectMemoryUsage();
         MemoryUsage usage = jvmMemory.getHeapMemoryUsage();
         long used = usage.getUsed();
         long committed = usage.getCommitted();
-        if (used < overallMaximumLimit) {
-            LOG.log(Level.FINE, "Memory {0}/{1} used ({2} committed)",
-                new Object[]{used+"", overallMaximumLimit+"", committed+""});
+        if (explicitUsage < overallMaximumLimit) {
+            LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
+                new Object[]{explicitUsage, overallMaximumLimit + "", used + "", committed + ""});
             return;
         }
-        long reclaim = (long) (used - lowerbound);
-        LOG.log(Level.INFO, "Memory {0}/{1} used ({2} committed). To reclaim: {3}", new Object[]{used+"",
-            overallMaximumLimit+"",
-            committed+"",
-            reclaim+""});
-        dbManager.tryReleaseMemory(reclaim, LOWERBOUND_CHECKER);
+        long reclaim = (long) (explicitUsage - lowerbound);
+        LOG.log(Level.INFO, "Memory {0}/{1} used ({2} committed). To reclaim: {3}", new Object[]{used + "",
+            overallMaximumLimit + "",
+            committed + "",
+            reclaim + ""});
+        dbManager.tryReleaseMemory(reclaim, new CheckLowerBound(dbManager));
         usage = jvmMemory.getHeapMemoryUsage();
+        explicitUsage = dbManager.collectMemoryUsage();
         used = usage.getUsed();
         committed = usage.getCommitted();
-        LOG.log(Level.INFO, "Memory after reclaim {0}/{1} used ({2} committed)", new Object[]{
-            used+"",
-            overallMaximumLimit+"",
-            committed+""});
+        LOG.log(Level.FINE, "After reclaim: memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
+            new Object[]{explicitUsage, overallMaximumLimit + "", used + "", committed + ""});
 
     }
 
     private class CheckLowerBound implements Supplier<Boolean> {
 
+        private DBManager dbManager;
+
+        public CheckLowerBound(DBManager dbManager) {
+            this.dbManager = dbManager;
+        }
+
         @Override
         public Boolean get() {
             MemoryUsage _usage = jvmMemory.getHeapMemoryUsage();
+            long explicitUsage = dbManager.collectMemoryUsage();
             long _used = _usage.getUsed();
             long _committed = _usage.getCommitted();
-            if (_used < overallMaximumLimit) {
-                LOG.log(Level.FINE, "Memory {0}/{1} used ({2} committed)",
-                    new Object[]{_used, overallMaximumLimit, _committed});
+            if (explicitUsage < overallMaximumLimit) {
+                LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
+                    new Object[]{explicitUsage, overallMaximumLimit + "", _used + "", _committed + ""});
                 return true;
             }
-            long _reclaim = (long) (_used - lowerbound);
-            LOG.log(Level.INFO, "Memory {0}/{1} used ({2} committed). To reclaim: {3}",
-                new Object[]{_used, overallMaximumLimit, _committed, _reclaim});
+            long _reclaim = (long) (explicitUsage - lowerbound);
+            LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed). To reclaim {4}",
+                new Object[]{explicitUsage, overallMaximumLimit + "", _used + "", _committed + "", _reclaim + ""});
             return _reclaim <= 0;
         }
     }

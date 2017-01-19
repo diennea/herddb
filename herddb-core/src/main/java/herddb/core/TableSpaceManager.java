@@ -623,6 +623,16 @@ public class TableSpaceManager {
         }
     }
 
+    long collectMemoryUsage() {
+        AtomicLong result = new AtomicLong();
+        for (AbstractTableManager tableManager : tables.values()) {
+            TableManagerStats stats = tableManager.getStats();
+            result.addAndGet(stats.getBuffersUsedMemory());
+            result.addAndGet(stats.getKeysUsedMemory());
+        }
+        return result.get();
+    }
+
     private class DumpReceiver extends TableSpaceDumpReceiver {
 
         private TableManager currentTable;

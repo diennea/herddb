@@ -833,6 +833,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
+    long collectMemoryUsage() {
+        AtomicLong result = new AtomicLong();
+        for (TableSpaceManager tableSpaceManager : tablesSpaces.values()) {
+            result.addAndGet(tableSpaceManager.collectMemoryUsage());
+        }
+        return result.get();
+    }
+
     private class Activator implements Runnable {
 
         @Override
