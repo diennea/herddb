@@ -37,6 +37,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import static org.junit.Assert.assertFalse;
 
 /**
  *
@@ -63,6 +64,31 @@ public class SystemTablesTest {
                 List<Tuple> records = scan.consume();
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("systables")).findAny().isPresent());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable=false", Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertEquals(2, records.size());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable='false'", Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertEquals(2, records.size());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable=true", Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
+                assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("systables")).findAny().isPresent());
+            }
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable='true'", Collections.emptyList());) {
+                List<Tuple> records = scan.consume();
+                assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
+                assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
+                assertTrue(records.stream().filter(t -> t.get("table_name").equals("systables")).findAny().isPresent());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systablestats", Collections.emptyList());) {

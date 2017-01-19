@@ -211,6 +211,16 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (a instanceof java.util.Date && b instanceof java.util.Date) {
             return ((java.util.Date) a).getTime() == ((java.util.Date) b).getTime();
         }
+        if (a instanceof java.lang.Boolean
+            && b != null
+            && (Boolean.parseBoolean(b.toString()) == ((Boolean) a))) {
+            return true;
+        }
+        if (b instanceof java.lang.Boolean
+            && a != null
+            && (Boolean.parseBoolean(a.toString()) == ((Boolean) b))) {
+            return true;
+        }
         return false;
     }
 
@@ -235,7 +245,16 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                     throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
                 }
             }
-            return record.get(c.getColumnName().toLowerCase());
+            String columnName = c.getColumnName().toLowerCase();
+            switch (columnName) {
+                case BuiltinFunctions.BOOLEAN_TRUE:
+                    return Boolean.TRUE;
+                case BuiltinFunctions.BOOLEAN_FALSE:
+                    return Boolean.FALSE;
+                default:
+                    return record.get(columnName);
+            }
+
         }
         if (exp instanceof StringValue) {
             return ((StringValue) exp).getValue();

@@ -44,6 +44,8 @@ public class BuiltinFunctions {
     public static final String UPPER = "upper";
     // special
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
+    public static final String BOOLEAN_TRUE = "true";
+    public static final String BOOLEAN_FALSE = "false";
 
     public static Column toAggregatedOutputColumn(String fieldName, Function f) {
         if (f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
