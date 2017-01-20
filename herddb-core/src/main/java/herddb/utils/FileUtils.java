@@ -39,7 +39,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 public class FileUtils {
 
     private static final boolean USE_DIRECT_BUFFER
-        = SystemProperties.getBooleanSystemProperty("herddb.nio.usedirectmemory", true);
+        = SystemProperties.getBooleanSystemProperty("herddb.nio.usedirectmemory", false);
     
     public static void cleanDirectory(Path directory) throws IOException {
         if (!Files.isDirectory(directory)) {
