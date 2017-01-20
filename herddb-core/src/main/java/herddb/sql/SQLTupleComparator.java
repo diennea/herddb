@@ -22,6 +22,7 @@ package herddb.sql;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
+import java.util.ArrayList;
 import java.util.List;
 import net.sf.jsqlparser.statement.select.OrderByElement;
 
@@ -32,11 +33,20 @@ import net.sf.jsqlparser.statement.select.OrderByElement;
  */
 public class SQLTupleComparator implements TupleComparator {
 
-    private final List<OrderByElement> orderByElements;
+    private static final class OrderElement {
+
+        private final String name;
+        private final boolean asc;
+
+        public OrderElement(String name, boolean asc) {
+            this.name = name;
+            this.asc = asc;
+        }
+
+    }
+    private final List<OrderElement> orderByElements;
 
     SQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {
-        this.orderByElements = orderByElements;
-
         if (tableAlias != null) {
             for (OrderByElement element : orderByElements) {
                 net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) element.getExpression();
@@ -45,18 +55,23 @@ public class SQLTupleComparator implements TupleComparator {
                 }
             }
         }
+        this.orderByElements = new ArrayList<>();
+        for (OrderByElement element : orderByElements) {
+            net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) element.getExpression();
+            this.orderByElements.add(new OrderElement(column.getColumnName().toLowerCase(), element.isAsc()));
+        }
+
     }
 
     @Override
     public int compare(Tuple o1, Tuple o2) {
-        for (OrderByElement element : orderByElements) {
-            net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) element.getExpression();
-            String name = column.getColumnName();
-            Object value1 = o1.toMap().get(name.toLowerCase());
-            Object value2 = o2.toMap().get(name.toLowerCase());
+        for (OrderElement element : orderByElements) {
+            String name = element.name;
+            Object value1 = o1.toMap().get(name);
+            Object value2 = o2.toMap().get(name);
             int result = compareValues(value1, value2);
             if (result != 0) {
-                if (element.isAsc()) {
+                if (element.asc) {
                     return result;
                 } else {
                     return -result;

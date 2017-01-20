@@ -30,6 +30,7 @@ import herddb.model.TupleComparator;
 import herddb.utils.DiskArrayList;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -82,7 +83,8 @@ class FileRecordSet extends MaterializedRecordSet {
 
         @Override
         public void write(Tuple object, ExtendedDataOutputStream oo) throws IOException {
-            oo.writeArray(object.serialize(columns));
+            VisibleByteArrayOutputStream buffer = object.serialize(columns);
+            oo.writeArray(buffer.getBuffer(), 0, buffer.size());
         }
 
     }

@@ -22,6 +22,7 @@ package herddb.model;
 import herddb.codec.RecordSerializer;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -108,8 +109,8 @@ public class Tuple {
         return toMap().get(name);
     }
 
-    public byte[] serialize(Column[] columns) throws IOException {
-        ByteArrayOutputStream oo = new ByteArrayOutputStream();
+    public VisibleByteArrayOutputStream serialize(Column[] columns) throws IOException {
+        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
 
         try (ExtendedDataOutputStream eoo = new ExtendedDataOutputStream(oo);) {
             int i = 0;
@@ -141,7 +142,7 @@ public class Tuple {
                 i++;
             }
         }
-        return oo.toByteArray();
+        return oo;
     }
 
     public static Tuple deserialize(byte[] data, String[] fieldNames, Column[] columns) throws IOException {
@@ -160,8 +161,8 @@ public class Tuple {
                 values.add(value);
             }
             return new Tuple(
-                    fieldNames,
-                    values.toArray(new Object[values.size()]));
+                fieldNames,
+                values.toArray(new Object[values.size()]));
 
         }
     }
