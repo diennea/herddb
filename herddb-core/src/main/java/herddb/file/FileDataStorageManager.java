@@ -197,7 +197,7 @@ public class FileDataStorageManager extends DataStorageManager {
         long delta = _stop - _start;
         long disk = _enddisk - _start;
         long hash = _endhash - _enddisk;
-        LOGGER.log(Level.INFO, "readPage " + tableSpace + "." + tableName + " " + delta + " ms (" + disk + " ms disk, " + hash + " ,ms hash)");
+        LOGGER.log(Level.INFO, "readPage " + tableSpace + "." + tableName + " " + delta + " ms (" + disk + " ms disk," + hash + " ms hash)");
         return result;
     }
 
@@ -559,7 +559,7 @@ public class FileDataStorageManager extends DataStorageManager {
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
         for (Path p : pageFiles) {
             long pageId = getPageId(p);
-            LOGGER.log(Level.INFO, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
+            LOGGER.log(Level.FINER, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId);
             if (pageId > 0 && !activePagesAtBoot.contains(pageId)) {
                 LOGGER.log(Level.SEVERE, "cleanupAfterBoot file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted");
                 try {
