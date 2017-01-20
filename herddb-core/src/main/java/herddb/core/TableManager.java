@@ -734,7 +734,10 @@ public class TableManager implements AbstractTableManager {
         Record record = buffer.remove(key);
         memoryReleased(record);
         if (!NEW_PAGE.equals(pageId)) {
-            dirtyPages.add(pageId);
+            boolean alreadyDirty = dirtyPages.add(pageId);
+            if (!alreadyDirty) {
+                LOGGER.log(Level.SEVERE, "now page " + pageId + " is dirty");
+            }
         }
         dirtyRecords.incrementAndGet();
 
@@ -760,7 +763,10 @@ public class TableManager implements AbstractTableManager {
         memoryReleased(previous);
         memoryAcquired(newRecord);
         if (!NEW_PAGE.equals(pageId)) {
-            dirtyPages.add(pageId);
+            boolean alreadyDirty = dirtyPages.add(pageId);
+            if (!alreadyDirty) {
+                LOGGER.log(Level.SEVERE, "now page " + pageId + " is dirty");
+            }
         }
         dirtyRecords.incrementAndGet();
 
@@ -854,7 +860,10 @@ public class TableManager implements AbstractTableManager {
             // very strage but possible inside a transaction which executes DELETE THEN INSERT,
             // we have to track that the previous page is "dirty"
             if (!NEW_PAGE.equals(pageId)) {
-                dirtyPages.add(pageId);
+                boolean alreadyDirty = dirtyPages.add(pageId);
+                if (!alreadyDirty) {
+                    LOGGER.log(Level.SEVERE, "now page " + pageId + " is dirty");
+                }
             }
         }
         Record record = new Record(key, value);
