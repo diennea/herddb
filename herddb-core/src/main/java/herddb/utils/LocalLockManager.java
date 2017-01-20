@@ -43,7 +43,7 @@ public class LocalLockManager {
     private final ConcurrentMap<Bytes,LockInstance> locks = new ConcurrentHashMap<Bytes,LockInstance>();
     
     @SuppressWarnings("serial")
-    private final class LockInstance extends ReentrantLock {
+    private static final class LockInstance extends ReentrantLock {
         private final StampedLock lock;
         private int count;
         
