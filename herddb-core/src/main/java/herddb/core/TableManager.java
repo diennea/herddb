@@ -360,7 +360,9 @@ public class TableManager implements AbstractTableManager {
         }
 
         List<Long> pagesToUnload = new ArrayList<>();
-        for (Long loadedPage : loadedPages) {
+        List<Long> loadedShuffled = new ArrayList<>(loadedPages);
+        Collections.shuffle(loadedShuffled);
+        for (Long loadedPage : loadedShuffled) {
             if (!dirtyPages.contains(loadedPage)) {
                 pagesToUnload.add(loadedPage);
                 if (count-- <= 0) {
