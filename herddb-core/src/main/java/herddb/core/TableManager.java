@@ -966,13 +966,12 @@ public class TableManager implements AbstractTableManager {
             if (loadedPages.contains(pageId)) {
                 return;
             }
-            if (dirtyPages.contains(pageId)) {
-                LOGGER.log(Level.SEVERE, "table " + table.tablespace + "." + table.name + ", page " + pageId + " is marked as dirty, so it has been already loaded from disk, dirtyPages " + dirtyPages + ", active " + activePages);
-                return;
-            }
             if (!activePages.contains(pageId)) {
                 LOGGER.log(Level.SEVERE, "{0}.{1}: page {2} is no more active. it cannot be loaded from disk", new Object[]{table.tablespace, table.name, pageId});
                 return;
+            }
+            if (dirtyPages.contains(pageId)) {
+                throw new DataStorageManagerException("table " + table.tablespace + "." + table.name + ", page " + pageId + " is marked as dirty, so should has been already loaded from disk, dirtyPages " + dirtyPages + ", active " + activePages);
             }
 
             ensureMemoryLimits();
