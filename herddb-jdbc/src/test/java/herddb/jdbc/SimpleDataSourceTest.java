@@ -53,7 +53,7 @@ public class SimpleDataSourceTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");                    

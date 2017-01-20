@@ -54,7 +54,7 @@ public class GeneratedKeysTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                     Connection con = dataSource.getConnection();
                     Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
@@ -89,7 +89,7 @@ public class GeneratedKeysTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                     Connection con = dataSource.getConnection();
                     Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (n1 long primary key auto_increment, name string)");
@@ -123,7 +123,7 @@ public class GeneratedKeysTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                     Connection con = dataSource.getConnection();
                     Statement statement = con.createStatement();) {
                     
@@ -165,7 +165,7 @@ public class GeneratedKeysTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                     Connection con = dataSource.getConnection();
                     Statement statement = con.createStatement();) {
                     

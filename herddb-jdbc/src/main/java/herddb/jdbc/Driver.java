@@ -111,7 +111,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
     @Override
     public synchronized void close() {
         LOG.log(Level.SEVERE, "Unregistering HerdDB JDBC Driver");
-        datasources.values().forEach(AbstractHerdDBDataSource::close);
+        datasources.values().forEach(BasicHerdDBDataSource::close);
         datasources.clear();
     }
 

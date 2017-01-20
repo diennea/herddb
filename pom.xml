@@ -94,6 +94,7 @@
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
                 <module>herddb-services</module>
+                <module>herddb-bench</module>
             </modules>
             <distributionManagement>        
                 <!--                <repository>                                
@@ -241,7 +242,7 @@
                     </plugin>
                 </plugins>              
             </build>
-        </profile>
+        </profile>         
     </profiles>
     <modules>
         <module>herddb-cli</module>

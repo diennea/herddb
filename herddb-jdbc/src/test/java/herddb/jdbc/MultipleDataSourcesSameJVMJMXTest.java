@@ -52,8 +52,8 @@ public class MultipleDataSourcesSameJVMJMXTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
-                    AbstractHerdDBDataSource dataSource_2 = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                    BasicHerdDBDataSource dataSource_2 = new BasicHerdDBDataSource(client);
                     Connection con = dataSource.getConnection();
                     Connection con_2 = dataSource_2.getConnection();
                     Statement statement = con.createStatement();

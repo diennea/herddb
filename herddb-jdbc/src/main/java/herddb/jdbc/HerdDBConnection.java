@@ -60,9 +60,9 @@ public class HerdDBConnection implements java.sql.Connection {
     private long transactionId;
     private boolean autocommit = true;
     private String tableSpace;
-    private final AbstractHerdDBDataSource datasource;
+    private final BasicHerdDBDataSource datasource;
 
-    public HerdDBConnection(AbstractHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
+    public HerdDBConnection(BasicHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
         this.tableSpace = defaultTablespace;
         this.connection = connection;
         this.datasource = datasource;

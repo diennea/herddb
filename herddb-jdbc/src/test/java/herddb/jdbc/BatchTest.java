@@ -51,7 +51,7 @@ public class BatchTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Statement create = con.createStatement();
                         PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values(?)");) {

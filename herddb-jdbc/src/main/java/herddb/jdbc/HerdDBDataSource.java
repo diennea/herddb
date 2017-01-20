@@ -29,7 +29,7 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-public class HerdDBDataSource extends AbstractHerdDBDataSource {
+public class HerdDBDataSource extends BasicHerdDBDataSource {
 
     private static final Logger LOGGER = Logger.getLogger(HerdDBDataSource.class.getName());
 

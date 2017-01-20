@@ -42,14 +42,14 @@ import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
  *
  * @author enrico.olivelli
  */
-class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
+public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
 
     protected HDBClient client;
     protected final Properties properties = new Properties();
     protected int loginTimeout;
     protected int maxActive = 100;
 
-    private static final Logger LOGGER = Logger.getLogger(AbstractHerdDBDataSource.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(BasicHerdDBDataSource.class.getName());
     protected String url;
     protected String defaultSchema = TableSpace.DEFAULT;
     private GenericObjectPool<HDBConnection> pool;
@@ -112,10 +112,10 @@ class AbstractHerdDBDataSource implements javax.sql.DataSource, AutoCloseable {
         return properties;
     }
 
-    protected AbstractHerdDBDataSource() {
+    protected BasicHerdDBDataSource() {
     }
 
-    public AbstractHerdDBDataSource(HDBClient client) {
+    public BasicHerdDBDataSource(HDBClient client) {
         this.client = client;
     }
 

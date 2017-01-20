@@ -1,17 +1,21 @@
 /*
- * Copyright 2016 enrico.olivelli.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
  */
 package herddb.security.sasl;
 
@@ -346,7 +350,7 @@ public class SaslNettyServer {
         }
 
         private void handleRealmCallback(RealmCallback rc) {
-            LOG.severe("client supplied realm: " + rc.getDefaultText());
+            LOG.info("client supplied realm: " + rc.getDefaultText());
             rc.setText(rc.getDefaultText());
         }
 
@@ -354,7 +358,7 @@ public class SaslNettyServer {
             String authenticationID = ac.getAuthenticationID();
             String authorizationID = ac.getAuthorizationID();
 
-            LOG.severe("Successfully authenticated client: authenticationID=" + authenticationID
+            LOG.info("Successfully authenticated client: authenticationID=" + authenticationID
                 + ";  authorizationID=" + authorizationID + ".");
             ac.setAuthorized(true);
 
@@ -363,7 +367,7 @@ public class SaslNettyServer {
                 StringBuilder userNameBuilder = new StringBuilder(kerberosName.getShortName());
                 userNameBuilder.append("/").append(kerberosName.getHostName());
                 userNameBuilder.append("@").append(kerberosName.getRealm());
-                LOG.severe("Setting authorizedID: " + userNameBuilder);
+                LOG.info("Setting authorizedID: " + userNameBuilder);
                 ac.setAuthorizedID(userNameBuilder.toString());
             } catch (IOException e) {
                 LOG.severe("Failed to set name based on Kerberos authentication rules.");

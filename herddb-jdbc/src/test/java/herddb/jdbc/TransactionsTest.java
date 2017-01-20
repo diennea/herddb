@@ -52,7 +52,7 @@ public class TransactionsTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Connection con2 = dataSource.getConnection();
                         Statement statement = con.createStatement();
@@ -145,7 +145,7 @@ public class TransactionsTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                      Connection con = dataSource.getConnection();) {
 
                     con.setAutoCommit(false);
@@ -165,7 +165,7 @@ public class TransactionsTest {
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
-                try (AbstractHerdDBDataSource dataSource = new AbstractHerdDBDataSource(client);
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                         Connection con = dataSource.getConnection();
                         Connection con2 = dataSource.getConnection();
                         Statement statement = con.createStatement();
