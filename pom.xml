@@ -46,6 +46,16 @@
             <name>Matteo Casadei</name>
             <organization>Diennea</organization>
         </developer>
+        <developer>
+            <id>nicolo.boschi</id>
+            <name>Nicolò Boschi</name>
+            <organization>Diennea</organization>
+        </developer>
+        <developer>
+            <id>francesco.caliumi</id>
+            <name>Francesco Caliumi</name>
+            <organization>Diennea</organization>
+        </developer>
     </developers>
     <issueManagement>
         <url>https://dev.herddb.org/jira</url>		
