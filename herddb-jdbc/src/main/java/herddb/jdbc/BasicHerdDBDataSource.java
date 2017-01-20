@@ -54,6 +54,14 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected String defaultSchema = TableSpace.DEFAULT;
     private GenericObjectPool<HDBConnection> pool;
 
+
+    protected BasicHerdDBDataSource() {
+    }
+
+    public BasicHerdDBDataSource(HDBClient client) {
+        this.client = client;
+    }
+    
     public int getMaxActive() {
         return maxActive;
     }
@@ -110,13 +118,6 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
     public Properties getProperties() {
         return properties;
-    }
-
-    protected BasicHerdDBDataSource() {
-    }
-
-    public BasicHerdDBDataSource(HDBClient client) {
-        this.client = client;
     }
 
     void releaseConnection(HDBConnection connection) {
@@ -184,7 +185,6 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
     protected synchronized void ensureConnection() throws SQLException {
         ensureClient();
-
     }
 
     public HDBClient getClient() {
