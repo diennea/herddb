@@ -161,6 +161,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
+        long _start = System.currentTimeMillis();
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
         byte[] pageData;
@@ -169,10 +170,12 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        long _enddisk = System.currentTimeMillis();
         boolean okHash = XXHash64Utils.verifyBlockWithFooter(pageData, 0, pageData.length);
         if (!okHash) {
             throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", checksum failed");
         }
+        long _endhash = System.currentTimeMillis();
         List<Record> result;
         try (InputStream input = new ByteArrayInputStream(pageData);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
@@ -190,6 +193,11 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        long _stop = System.currentTimeMillis();
+        long delta = _stop - _start;
+        long disk = _enddisk - _start;
+        long hash = _endhash - _enddisk;
+        LOGGER.log(Level.INFO, "readPage " + tableSpace + "." + tableName + " " + delta + " ms (" + disk + " ms disk, " + hash + " ,ms hash)");
         return result;
     }
 

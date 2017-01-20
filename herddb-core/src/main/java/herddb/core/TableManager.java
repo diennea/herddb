@@ -373,7 +373,7 @@ public class TableManager implements AbstractTableManager {
         if (pagesToUnload.isEmpty()) {
             return;
         }
-        LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload + " pages");
+        LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload.size() + " clean pages");
         for (Long pageId : pagesToUnload) {
             unloadPage(pageId);
         }
@@ -382,7 +382,7 @@ public class TableManager implements AbstractTableManager {
     private void unloadPage(Long pageId) {
         if (!dirtyPages.contains(pageId)) {
             Iterable<Bytes> keys = this.keyToPage.getKeysMappedToPage(pageId);
-            LOGGER.log(Level.SEVERE, "table " + table.name + " unloadpage " + pageId);
+            LOGGER.log(Level.SEVERE, "table {0} unloadcleanpage {1}", new Object[]{table.name, pageId});
             for (Bytes key : keys) {
                 Record old = buffer.remove(key);
                 memoryReleased(old);
