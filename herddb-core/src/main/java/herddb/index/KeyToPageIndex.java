@@ -24,6 +24,8 @@ import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -38,7 +40,7 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     public Long put(Bytes key, long currentPage);
 
-    public Iterable<Bytes> getKeysMappedToPage(long page);
+    public void visitPages(Set<Long> pageId, Consumer<Bytes> consumer);
 
     public boolean containsKey(Bytes key);
 

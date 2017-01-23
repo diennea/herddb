@@ -43,11 +43,10 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
         .column("table_name", ColumnTypes.STRING)
         .column("systemtable", ColumnTypes.STRING)
         .column("tablesize", ColumnTypes.LONG)
-        .column("loadedpages", ColumnTypes.INTEGER)       
+        .column("loadedpages", ColumnTypes.INTEGER)
         .column("dirtypages", ColumnTypes.INTEGER)
         .column("dirtyrecords", ColumnTypes.LONG)
         .column("maxlogicalpagesize", ColumnTypes.LONG)
-        .column("lastautoflushts", ColumnTypes.TIMESTAMP)
         .column("keysmemory", ColumnTypes.LONG)
         .column("buffersmemory", ColumnTypes.LONG)
         .primaryKey("tablespace", false)
@@ -66,18 +65,16 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
             AbstractTableManager tableManager = tableSpaceManager.getTableManager(r.name);
             if (tableManager != null) {
                 TableManagerStats stats = tableManager.getStats();
-                long autoflush = stats.getLastAutoFlushTs();
                 result.add(RecordSerializer.makeRecord(
                     table,
                     "tablespace", r.tablespace,
                     "table_name", r.name,
                     "systemtable", r.name.startsWith("sys") ? "true" : "false",
                     "tablesize", stats.getTablesize(),
-                    "loadedpages", stats.getLoadedpages(),                    
+                    "loadedpages", stats.getLoadedpages(),
                     "dirtypages", stats.getDirtypages(),
                     "dirtyrecords", stats.getDirtyrecords(),
                     "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
-                    "lastautoflushts", autoflush > 0 ? new java.sql.Timestamp(autoflush) : null,
                     "keysmemory", stats.getKeysUsedMemory(),
                     "buffersmemory", stats.getBuffersUsedMemory()
                 ));

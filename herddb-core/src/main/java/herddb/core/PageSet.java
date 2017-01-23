@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import herddb.storage.DataStorageManagerException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -59,11 +58,11 @@ public final class PageSet {
         }
     }
 
-    List<Long> selectPagesToUnload(int max) {
+    Set<Long> selectPagesToUnload(int max) {
         lock.readLock().lock();
         try {
             int count = max;
-            List<Long> pagesToUnload = new ArrayList<>();
+            Set<Long> pagesToUnload = new HashSet<>();
             List<Long> loadedShuffled = new ArrayList<>(loadedPages);
             Collections.shuffle(loadedShuffled);
             for (Long loadedPage : loadedShuffled) {
@@ -75,7 +74,7 @@ public final class PageSet {
                 }
             }
             if (pagesToUnload.isEmpty()) {
-                return Collections.emptyList();
+                return Collections.emptySet();
             }
             return pagesToUnload;
         } finally {
@@ -83,13 +82,13 @@ public final class PageSet {
         }
     }
 
-    void unloadPage(Long pageId, Runnable runnable) {
+    void unloadPages(Set<Long> pages, Runnable runnable) {
         lock.writeLock().lock();
         try {
-            if (!dirtyPages.contains(pageId)) {
-                runnable.run();
-                loadedPages.remove(pageId);
-            }
+            // ensure that dirty pages are not loaded
+            pages.removeAll(dirtyPages);
+            runnable.run();
+            loadedPages.removeAll(pages);
         } finally {
             lock.writeLock().unlock();
         }

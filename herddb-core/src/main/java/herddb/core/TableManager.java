@@ -102,7 +102,7 @@ public class TableManager implements AbstractTableManager {
     /**
      * a buffer which contains the rows contained into the loaded pages (map<byte[],byte[]>)
      */
-    private final Map<Bytes, Record> buffer = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Bytes, Record> buffer = new ConcurrentHashMap<>();
 
     /**
      * keyToPage: a structure which maps each key to the ID of the page (map<byte[], long>) (this can be quite large)
@@ -117,8 +117,6 @@ public class TableManager implements AbstractTableManager {
     private final PageSet pageSet = new PageSet();
 
     private final AtomicInteger dirtyRecords = new AtomicInteger();
-
-    private final AtomicLong lastAutoFlush = new AtomicLong();
 
     private final AtomicLong usedMemoryFromValues = new AtomicLong();
 
@@ -327,14 +325,6 @@ public class TableManager implements AbstractTableManager {
                     throw new StatementExecutionException("internal data error: " + err, err);
                 }
             }
-            if (transaction == null) {
-                try {
-                    autoFlush();
-                } catch (DataStorageManagerException error) {
-                    LOGGER.log(Level.SEVERE, "Error during auto-flush: " + error, error);
-                    throw new StatementExecutionException(error);
-                }
-            }
         }
         throw new StatementExecutionException("unsupported statement " + statement);
 
@@ -347,25 +337,22 @@ public class TableManager implements AbstractTableManager {
             return;
         }
 
-        List<Long> pagesToUnload = pageSet.selectPagesToUnload(count);
+        Set<Long> pagesToUnload = pageSet.selectPagesToUnload(count);
         if (pagesToUnload.isEmpty()) {
             return;
         }
         LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload.size() + " clean pages");
-        for (Long pageId : pagesToUnload) {
-            unloadPage(pageId);
-        }
+        unloadPages(pagesToUnload);
     }
 
-    private void unloadPage(Long pageId) {
-        pageSet.unloadPage(pageId,
+    private void unloadPages(Set<Long> pagesToUnload) {
+        LOGGER.log(Level.SEVERE, "table {0} unloadcleanpages {1}", new Object[]{table.name, pagesToUnload});
+        pageSet.unloadPages(pagesToUnload,
             () -> {
-                Iterable<Bytes> keys = this.keyToPage.getKeysMappedToPage(pageId);
-                LOGGER.log(Level.SEVERE, "table {0} unloadcleanpage {1}", new Object[]{table.name, pageId});
-                for (Bytes key : keys) {
+                this.keyToPage.visitPages(pagesToUnload, key -> {
                     Record old = buffer.remove(key);
                     memoryReleased(old);
-                }
+                });
             });
     }
 
@@ -855,28 +842,6 @@ public class TableManager implements AbstractTableManager {
 
     }
 
-    private void autoFlush() throws DataStorageManagerException {
-        if (checkPointRunning) {
-            return;
-        }
-        int dirtyNow = dirtyRecords.get();
-        if (dirtyNow >= MAX_DIRTY_RECORDS) {
-            long now = System.currentTimeMillis();
-            pagesLock.lock();
-            try {
-                dirtyNow = dirtyRecords.get();
-                if (dirtyNow < MAX_DIRTY_RECORDS) {
-                    return;
-                }
-                LOGGER.log(Level.INFO, "autoflush - dirtyRecords {0}", dirtyNow);
-                flush();
-            } finally {
-                pagesLock.unlock();
-            }
-            lastAutoFlush.set(now);
-        }
-    }
-
     @Override
     public void flush() throws DataStorageManagerException {
         checkpoint(log.getLastSequenceNumber());
@@ -1317,11 +1282,6 @@ public class TableManager implements AbstractTableManager {
         @Override
         public long getMaxLogicalPageSize() {
             return maxLogicalPageSize;
-        }
-
-        @Override
-        public long getLastAutoFlushTs() {
-            return lastAutoFlush.longValue();
         }
 
         @Override

@@ -25,12 +25,12 @@ import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.AbstractMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -78,10 +78,15 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public List<Bytes> getKeysMappedToPage(long pageId) {
-        return map.entrySet().stream()
-            .filter(entry -> pageId == entry.getValue())
-            .map(Map.Entry::getKey).collect(Collectors.toList());
+    public void visitPages(Set<Long> pages, Consumer<Bytes> consumer) {
+        map
+            .entrySet()
+            .stream()
+            .forEach((entry) -> {
+                if (pages.contains(entry.getValue())) {
+                    consumer.accept(entry.getKey());
+                }
+            });
     }
 
     @Override
