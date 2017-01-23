@@ -69,13 +69,11 @@ public class NettyConnector {
             if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
                 channelType = LocalChannel.class;
                 address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
-                group = localEventsGroup;
-                LOGGER.log(Level.SEVERE, "connecting to local in-JVM server " + address);
+                group = localEventsGroup;                
             } else {
                 channelType = NioSocketChannel.class;
                 address = inet;
-                group = networkGroup;
-                LOGGER.log(Level.SEVERE, "connecting to remote server " + address);
+                group = networkGroup;                
             }
 
             Bootstrap b = new Bootstrap();
