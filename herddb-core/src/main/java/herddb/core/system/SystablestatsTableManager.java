@@ -63,7 +63,7 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
         List<Record> result = new ArrayList<>();
         for (Table r : tables) {
             AbstractTableManager tableManager = tableSpaceManager.getTableManager(r.name);
-            if (tableManager != null) {
+            if (tableManager != null && !tableManager.isSystemTable()) {
                 TableManagerStats stats = tableManager.getStats();
                 result.add(RecordSerializer.makeRecord(
                     table,
