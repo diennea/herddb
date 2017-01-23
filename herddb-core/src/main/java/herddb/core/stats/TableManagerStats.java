@@ -28,8 +28,6 @@ public interface TableManagerStats {
 
     public int getLoadedpages();
 
-    public int getMaxloadedpages();
-
     public long getTablesize();
 
     public int getDirtypages();

@@ -91,7 +91,7 @@ public class BigTableScanTest {
                 assertEquals(testSize, count.get());
             }
             assertEquals(testSize, stats.getTablesize());
-            assertTrue(stats.getMaxloadedpages() >= stats.getLoadedpages());
+            
         }
     }
 }

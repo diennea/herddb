@@ -16,7 +16,10 @@
 package herddb.benchs.simple;
 
 import herddb.benchs.BaseBench;
+import herddb.benchs.SelectByPKOperation;
 import herddb.benchs.UpdateByPKOperation;
+import herddb.server.ServerConfiguration;
+import java.io.IOException;
 import org.junit.Test;
 
 /**
@@ -28,10 +31,18 @@ public class ConcurrentUpdatesTest extends BaseBench {
 
     public ConcurrentUpdatesTest() {
         super(20,
+            1000000,
             100000,
-            10000,
             2);
         addOperation(new UpdateByPKOperation());
+    }
+
+    @Override
+    protected void makeServerConfiguration() throws IOException {
+        super.makeServerConfiguration();
+        // we want to swap-in/swap-out pages
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY, 1000);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 24 * 1024);
     }
 
     @Test

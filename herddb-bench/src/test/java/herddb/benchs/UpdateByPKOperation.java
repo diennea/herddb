@@ -37,7 +37,11 @@ public class UpdateByPKOperation extends Operation {
                     con.setAutoCommit(false);
                 }
                 try (PreparedStatement ps = con.prepareStatement(BaseTableDefinition.UPDATE_BY_PK)) {
-                    ps.setString(1, "xx" + seed);                    
+                    ps.setString(1, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        + "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        + "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        + "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                        + "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" + seed);
                     for (int i = 0; i < batchSize; i++) {
                         String pk = "pk" + seed;
                         ps.setString(2, pk);

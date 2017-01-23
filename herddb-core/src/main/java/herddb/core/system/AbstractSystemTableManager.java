@@ -84,11 +84,6 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
             }
 
             @Override
-            public int getMaxloadedpages() {
-                return 0;
-            }
-
-            @Override
             public long getTablesize() {
                 return 0;
             }

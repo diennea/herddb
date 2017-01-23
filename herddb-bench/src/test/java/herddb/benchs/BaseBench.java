@@ -29,6 +29,7 @@ import herddb.model.TableSpace;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -125,7 +126,7 @@ public class BaseBench {
 
     @Before
     public void startServer() throws Exception {
-        serverConfiguration = new ServerConfiguration(folder.newFolder().toPath());
+        makeServerConfiguration();
         threadpool = Executors.newFixedThreadPool(numThreads);
         server = new Server(serverConfiguration);
         server.start();
@@ -133,6 +134,10 @@ public class BaseBench {
         client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
         client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
         dataSource = new BasicHerdDBDataSource(client);
+    }
+
+    protected void makeServerConfiguration() throws IOException {
+        serverConfiguration = new ServerConfiguration(folder.newFolder().toPath());
     }
 
     public Future<?> submit(Callable runnable) {

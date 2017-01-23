@@ -100,7 +100,6 @@ public class ScanDuringCheckPointTest {
             assertEquals(testSize, stats.getTablesize());
 
             assertTrue(testSize > 100);
-            assertTrue(stats.getLoadedpages() > stats.getMaxloadedpages() / 2);
 
             ExecutorService service = Executors.newFixedThreadPool(1);
 

@@ -43,8 +43,7 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
         .column("table_name", ColumnTypes.STRING)
         .column("systemtable", ColumnTypes.STRING)
         .column("tablesize", ColumnTypes.LONG)
-        .column("loadedpages", ColumnTypes.INTEGER)
-        .column("maxloadedpages", ColumnTypes.INTEGER)
+        .column("loadedpages", ColumnTypes.INTEGER)       
         .column("dirtypages", ColumnTypes.INTEGER)
         .column("dirtyrecords", ColumnTypes.LONG)
         .column("maxlogicalpagesize", ColumnTypes.LONG)
@@ -74,8 +73,7 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
                     "table_name", r.name,
                     "systemtable", r.name.startsWith("sys") ? "true" : "false",
                     "tablesize", stats.getTablesize(),
-                    "loadedpages", stats.getLoadedpages(),
-                    "maxloadedpages", stats.getMaxloadedpages(),
+                    "loadedpages", stats.getLoadedpages(),                    
                     "dirtypages", stats.getDirtypages(),
                     "dirtyrecords", stats.getDirtyrecords(),
                     "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
