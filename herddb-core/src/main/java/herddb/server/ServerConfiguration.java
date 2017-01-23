@@ -107,7 +107,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_SERVER_TO_SERVER_PASSWORD = "server.password";
 
     public static final String PROPERTY_DISK_SWAP_MAX_RECORDS = "server.disk.swap.max.records";
-    public static final int PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT = 5000;
+    public static final int PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT = 10000;
 
     public static final String PROPERTY_MAX_LOGICAL_PAGE_SIZE = "server.maxlogicalpagesize";
     public static final long PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT = 64 * 1024 * 1024;
