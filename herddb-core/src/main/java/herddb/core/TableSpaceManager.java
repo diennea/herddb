@@ -1125,10 +1125,13 @@ public class TableSpaceManager {
         if (virtual) {
             return;
         }
+        long _start = System.currentTimeMillis();
+        LogSequenceNumber logSequenceNumber;
+        LogSequenceNumber _logSequenceNumber;
         List<PostCheckpointAction> actions = new ArrayList<>();
         generalLock.writeLock().lock();
         try {
-            LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
+            logSequenceNumber = log.getLastSequenceNumber();
 
             if (logSequenceNumber.isStartOfTime()) {
                 LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
@@ -1163,8 +1166,7 @@ public class TableSpaceManager {
 
             log.dropOldLedgers(logSequenceNumber);
 
-            LogSequenceNumber _logSequenceNumber = log.getLastSequenceNumber();
-            LOGGER.log(Level.SEVERE, nodeId + " checkpoint finish " + tableSpaceName + " started at " + logSequenceNumber + ", finished at " + _logSequenceNumber);
+            _logSequenceNumber = log.getLastSequenceNumber();
         } finally {
             generalLock.writeLock().unlock();
         }
@@ -1176,6 +1178,11 @@ public class TableSpaceManager {
                 LOGGER.log(Level.SEVERE, "postcheckpoint error:" + error, error);
             }
         }
+        long _stop = System.currentTimeMillis();
+        LOGGER.log(Level.SEVERE, nodeId + " checkpoint finish " + tableSpaceName
+            + " started at " + logSequenceNumber
+            + ", finished at " + _logSequenceNumber
+            + ", total time " + (_stop - _start) + " s");
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {
