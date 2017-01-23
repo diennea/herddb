@@ -66,11 +66,9 @@ public final class PageSet {
             List<Long> loadedShuffled = new ArrayList<>(loadedPages);
             Collections.shuffle(loadedShuffled);
             for (Long loadedPage : loadedShuffled) {
-                if (!dirtyPages.contains(loadedPage)) {
-                    pagesToUnload.add(loadedPage);
-                    if (count-- <= 0) {
-                        break;
-                    }
+                pagesToUnload.add(loadedPage);
+                if (count-- <= 0) {
+                    break;
                 }
             }
             if (pagesToUnload.isEmpty()) {
@@ -85,8 +83,6 @@ public final class PageSet {
     void unloadPages(Set<Long> pages, Runnable runnable) {
         lock.writeLock().lock();
         try {
-            // ensure that dirty pages are not loaded
-            pages.removeAll(dirtyPages);
             runnable.run();
             loadedPages.removeAll(pages);
         } finally {
@@ -126,7 +122,7 @@ public final class PageSet {
         }
     }
 
-    boolean checkPageUnloadable(Long pageId) {
+    boolean checkPageLoadable(Long pageId) {
         lock.readLock().lock();
         try {
             if (loadedPages.contains(pageId)) {
@@ -135,9 +131,6 @@ public final class PageSet {
             if (!activePages.contains(pageId)) {
                 LOGGER.log(Level.SEVERE, "page {2} is no more active. it cannot be loaded from disk", new Object[]{pageId});
                 return false;
-            }
-            if (dirtyPages.contains(pageId)) {
-                throw new IllegalStateException("page " + pageId + " is marked as dirty, so should has been already loaded from disk, dirtyPages " + dirtyPages + ", active " + activePages);
             }
             return true;
         } finally {
