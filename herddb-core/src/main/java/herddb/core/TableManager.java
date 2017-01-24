@@ -91,10 +91,7 @@ import javax.xml.ws.Holder;
 public class TableManager implements AbstractTableManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
-
-    // LOTHRUIN
-//    private static final int UNLOAD_PAGES_MIN_BATCH = SystemProperties.
-//            getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 10);
+    
     private static final int UNLOAD_PAGES_MIN_BATCH = SystemProperties.
         getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 1);
 
@@ -915,6 +912,8 @@ public class TableManager implements AbstractTableManager {
             }
 
             long _start = System.currentTimeMillis();
+            ensureMemoryLimits();
+            long _stopLimits = System.currentTimeMillis();
             List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
             long _stopDisk = System.currentTimeMillis();
             pageSet.setPageLoaded(pageId);
@@ -935,10 +934,12 @@ public class TableManager implements AbstractTableManager {
             }
             long _stopBuffer = System.currentTimeMillis();
             LOGGER.log(Level.SEVERE, "table " + table.name + ","
-                + ""
                 + "loaded " + reallyLoaded + " records from page " + pageId + " (contained " + page.size() + " records),"
                 + "skipped " + skippedAsDirty + " already dirty records, "
-                + "in " + (_stopBuffer - _start) + " ms (" + (_stopDisk - _start) + " ms disk, " + (_stopBuffer - _stopDisk) + " ms mem)");
+                + "in " + (_stopBuffer - _start) + " ms"
+                + "(" + (_stopLimits - _start) + " ms disk"
+                + "(" + (_stopDisk - _stopLimits) + " ms disk"
+                + "," + (_stopBuffer - _stopDisk) + " ms mem)");
 
         } finally {
             pagesLock.unlock();
@@ -949,7 +950,7 @@ public class TableManager implements AbstractTableManager {
     private void ensureMemoryLimits() {
         if (maxTableUsedMemory > 0) {
             long toReclaim = (stats.getBuffersUsedMemory() + stats.getKeysUsedMemory()) - maxTableUsedMemory;
-            tryReleaseMemory(toReclaim);
+            releaseMemory(toReclaim);
         }
     }
 
@@ -1370,6 +1371,15 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void tryReleaseMemory(long reclaim) {
+        pagesLock.lock();
+        try {
+            releaseMemory(reclaim);
+        } finally {
+            pagesLock.unlock();
+        }
+    }
+
+    private void releaseMemory(long reclaim) {
         if (reclaim <= 0) {
             return;
         }
