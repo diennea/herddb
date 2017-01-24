@@ -92,18 +92,21 @@ public class TableManager implements AbstractTableManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
+    // LOTHRUIN
+//    private static final int UNLOAD_PAGES_MIN_BATCH = SystemProperties.
+//            getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 10);
     private static final int UNLOAD_PAGES_MIN_BATCH = SystemProperties.
-        getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 10);
+        getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 1);
 
     public static final Long NEW_PAGE = Long.valueOf(-1);
 
     /**
-     * a buffer which contains the rows contained into the loaded pages (map<byte[],byte[]>)
+     * A buffer which contains the rows contained into the loaded pages (map<byte[],byte[]>)
      */
     private final ConcurrentHashMap<Bytes, Record> buffer = new ConcurrentHashMap<>();
 
     /**
-     * keyToPage: a structure which maps each key to the ID of the page (map<byte[], long>) (this can be quite large)
+     * A structure which maps each key to the ID of the page (map<byte[], long>) (this can be quite large)
      */
     private final KeyToPageIndex keyToPage;
 
@@ -1377,8 +1380,7 @@ public class TableManager implements AbstractTableManager {
         int dirtypages = stats.getDirtypages();
         LOGGER.log(Level.SEVERE, "Table " + table.tablespace + "." + table.name
             + ": used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
-            + dirtypages + " dirtypages, "
-            + ". releasing max " + countPages + " pages");
+            + dirtypages + " dirtypages, releasing " + countPages + " pages");
         unloadPages(countPages);
     }
 

@@ -165,6 +165,15 @@ public final class PageSet {
             lock.readLock().unlock();
         }
     }
+    
+    Set<Long> getLoadedPages() {
+        lock.readLock().lock();
+        try {
+            return new HashSet<>(loadedPages);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
 
     int getDirtyPagesCount() {
         lock.readLock().lock();
@@ -198,6 +207,7 @@ public final class PageSet {
         lock.writeLock().lock();
         try {
             activePages.removeAll(dirtyPagesFlushed);
+            loadedPages.removeAll(dirtyPagesFlushed);
             dirtyPages.removeAll(dirtyPagesFlushed);
         } finally {
             lock.writeLock().unlock();
