@@ -21,6 +21,7 @@ package herddb.model;
 
 import herddb.model.commands.ScanStatement;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Data access execution plan.
@@ -29,6 +30,8 @@ import java.util.List;
  */
 public class ExecutionPlan {
 
+    private final static AtomicLong ID = new AtomicLong();
+    private final long id = ID.incrementAndGet();
     public final Statement mainStatement;
     public final Aggregator mainAggregator;
     public final ScanLimits limits;
@@ -77,7 +80,7 @@ public class ExecutionPlan {
 
     @Override
     public String toString() {
-        return "ExecutionPlan{" + "mainStatement=" + mainStatement + ", mainAggregator=" + mainAggregator + ", limits=" + limits + ", comparator=" + comparator + ", joinStatements=" + joinStatements + ", joinFilter=" + joinFilter + ", joinProjection=" + joinProjection + ", dataSource=" + dataSource + '}';
+        return "Plan" + id;
     }
 
 }

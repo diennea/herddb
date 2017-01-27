@@ -36,7 +36,7 @@ public class SystemProperties {
         String res = (String) AccessController.doPrivileged((PrivilegedAction) (() -> {
             return System.getProperty(name, defaultvalue);
         }));
-        System.out.println("read system property: " + name + "=" + defaultvalue);
+        System.out.println("read system property: " + name + "=" + res);
         return res;
     }
 

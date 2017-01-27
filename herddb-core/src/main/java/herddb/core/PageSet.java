@@ -59,25 +59,26 @@ public final class PageSet {
     }
 
     Set<Long> selectPagesToUnload(int max) {
+        int count = max;
+        Set<Long> pagesToUnload = new HashSet<>();
+        List<Long> loadedShuffled;
         lock.readLock().lock();
         try {
-            int count = max;
-            Set<Long> pagesToUnload = new HashSet<>();
-            List<Long> loadedShuffled = new ArrayList<>(loadedPages);
-            Collections.shuffle(loadedShuffled);
-            for (Long loadedPage : loadedShuffled) {
-                pagesToUnload.add(loadedPage);
-                if (count-- <= 0) {
-                    break;
-                }
-            }
-            if (pagesToUnload.isEmpty()) {
-                return Collections.emptySet();
-            }
-            return pagesToUnload;
+            loadedShuffled = new ArrayList<>(loadedPages);
         } finally {
             lock.readLock().unlock();
         }
+        Collections.shuffle(loadedShuffled);
+        for (Long loadedPage : loadedShuffled) {
+            pagesToUnload.add(loadedPage);
+            if (--count <= 0) {
+                break;
+            }
+        }
+        if (pagesToUnload.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return pagesToUnload;
     }
 
     void unloadPages(Set<Long> pages, Runnable runnable) {
@@ -165,7 +166,7 @@ public final class PageSet {
             lock.readLock().unlock();
         }
     }
-    
+
     Set<Long> getLoadedPages() {
         lock.readLock().lock();
         try {
