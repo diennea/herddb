@@ -271,7 +271,7 @@ public class SQLPlanner {
 
     private Statement buildCreateTableStatement(String defaultTableSpace, CreateTable s) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName().toLowerCase();
+        String tableName = s.getTable().getName();
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
@@ -363,7 +363,7 @@ public class SQLPlanner {
             if (tableSpace == null) {
                 tableSpace = defaultTableSpace;
             }
-            String tableName = s.getTable().getName().toLowerCase();
+            String tableName = s.getTable().getName();
 
             String indexName = s.getIndex().getName().toLowerCase();
             String indexType = convertIndexType(s.getIndex().getType());
@@ -451,7 +451,7 @@ public class SQLPlanner {
 
     private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s, boolean returnValues, int numJdbcParameters) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
-        String tableName = s.getTable().getName().toLowerCase();
+        String tableName = s.getTable().getName();
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
@@ -577,7 +577,7 @@ public class SQLPlanner {
     private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete s, boolean returnValues) throws StatementExecutionException {
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName().toLowerCase();
+        String tableName = fromTable.getName();
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
@@ -679,9 +679,12 @@ public class SQLPlanner {
 
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s,
         boolean returnValues) throws StatementExecutionException {
+        if (s.getTables().size() != 1) {
+            throw new StatementExecutionException("unsupported multi-table update " + s);
+        }
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName().toLowerCase();
+        String tableName = fromTable.getName();
         if (tableSpace == null) {
             tableSpace = defaultTableSpace;
         }
@@ -891,7 +894,7 @@ public class SQLPlanner {
             if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
                 net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
                 boolean okAlias = true;
-                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
                     okAlias = false;
                 }
                 if (okAlias && columnName.equalsIgnoreCase(c.getColumnName()) && SQLRecordPredicate.isConstant(e.getRightExpression())) {
@@ -1584,7 +1587,7 @@ public class SQLPlanner {
         }
         List<Column> addColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
-        String tableName = alter.getTable().getName().toLowerCase();
+        String tableName = alter.getTable().getName();
         if (alter.getAlterExpressions() == null || alter.getAlterExpressions().size() != 1) {
             throw new StatementExecutionException("supported multi-alter operation '" + alter + "'");
         }
@@ -1665,7 +1668,7 @@ public class SQLPlanner {
     }
 
     private int assignJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
-        JdbcParameterIndexAssigner assigner = new JdbcParameterIndexAssigner();
+        JdbcQueryRewriter assigner = new JdbcQueryRewriter();
         stmt.accept(assigner);
         return assigner.getParametersCount();
     }

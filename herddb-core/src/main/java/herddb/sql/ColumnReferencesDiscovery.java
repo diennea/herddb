@@ -127,7 +127,7 @@ public class ColumnReferencesDiscovery implements ExpressionVisitor, ItemsListVi
             }
             tableName = mainTableAlias;
         } else {
-            tableName = fromTable.getName().toLowerCase();
+            tableName = fromTable.getName();
         }
         String tableAlias = tableName;
         if (fromTable.getAlias() != null && fromTable.getAlias().getName() != null) {

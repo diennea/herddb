@@ -241,8 +241,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (exp instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
             if (validatedTableAlias != null) {
-                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(validatedTableAlias)) {
-                    throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
+                if (c.getTable() != null && c.getTable().getName() != null
+                    && !c.getTable().getName().equals(validatedTableAlias)) {
+                    throw new StatementExecutionException("invalid column name " + c.getColumnName()
+                        + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
                 }
             }
             String columnName = c.getColumnName().toLowerCase();

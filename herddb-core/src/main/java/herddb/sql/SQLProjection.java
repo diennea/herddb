@@ -101,7 +101,7 @@ public class SQLProjection implements Projection {
                     if (column == null) {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName() + " in table " + table.name);
                     }
-                    if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equalsIgnoreCase(tableAlias)) {
+                    if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
                     }
                     columType = column.type;

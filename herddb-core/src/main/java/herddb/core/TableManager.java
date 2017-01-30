@@ -905,20 +905,22 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, "loadPageToMemory" + pageId);
+        LOGGER.log(Level.INFO, "loadPageToMemory " + pageId);
         int reallyLoaded = 0;
         int skippedAsDirty = 0;
         long _start = System.currentTimeMillis();
-        List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
-        long _stopDisk = System.currentTimeMillis();
+        long _stopDisk;
         long _stopLimits;
         long _stopBuffer;
+        List<Record> page;
         pagesLock.lock();
         try {
             boolean loadable = pageSet.checkPageLoadable(pageId);
             if (!loadable) {
                 return;
             }
+            page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+            _stopDisk = System.currentTimeMillis();
             ensureMemoryLimits();
             _stopLimits = System.currentTimeMillis();
             for (Record r : page) {
@@ -943,9 +945,9 @@ public class TableManager implements AbstractTableManager {
         LOGGER.log(Level.SEVERE, "table " + table.name + ","
             + "loaded " + reallyLoaded + " records from page " + pageId + " (contained " + page.size() + " records),"
             + "skipped " + skippedAsDirty + " already dirty records, "
-            + "in " + (_stopBuffer - _start) + " ms"
-            + "(" + (_stopLimits - _stopDisk) + " ms memlimits"
-            + "(" + (_stopDisk - _start) + " ms disk"
+            + "in " + (_stopBuffer - _start) + " ms "
+            + "( " + (_stopLimits - _stopDisk) + " ms memlimits"
+            + ", " + (_stopDisk - _start) + " ms disk"
             + "," + (_stopBuffer - _stopDisk) + " ms mem)");
     }
 
@@ -1395,9 +1397,6 @@ public class TableManager implements AbstractTableManager {
             + ": used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
             + dirtypages + " dirtypages, releasing " + countPages + " pages, to reclaim " + (reclaim / (1024 * 1024)) + " MB ");
         unloadPages(countPages);
-        LOGGER.log(Level.SEVERE, "After release Table " + table.tablespace + "." + table.name
-            + ": used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
-            + dirtypages + " dirtypages, releasing " + countPages + " pages");
     }
 
     private static final Comparator<Map.Entry<Bytes, Long>> SORTED_PAGE_ACCESS_COMPARATOR = (a, b) -> {

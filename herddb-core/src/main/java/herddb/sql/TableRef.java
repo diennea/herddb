@@ -30,7 +30,7 @@ final class TableRef {
 
     static TableRef buildFrom(Table fromTable, String defaultTableSpace) {
         String tableSpace = fromTable.getSchemaName();
-        String tableName = fromTable.getName().toLowerCase();
+        String tableName = fromTable.getName();
         String tableAlias = tableName;
         if (fromTable.getAlias() != null && fromTable.getAlias().getName() != null) {
             tableAlias = fromTable.getAlias().getName();
@@ -50,5 +50,5 @@ final class TableRef {
         this.tableName = tableName;
         this.tableAlias = tableAlias;
     }
-    
+
 }

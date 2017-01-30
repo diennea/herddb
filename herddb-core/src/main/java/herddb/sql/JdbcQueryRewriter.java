@@ -20,6 +20,7 @@
 package herddb.sql;
 
 import herddb.utils.IntHolder;
+import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.AllComparisonExpression;
 import net.sf.jsqlparser.expression.AnalyticExpression;
 import net.sf.jsqlparser.expression.AnyComparisonExpression;
@@ -125,7 +126,7 @@ import net.sf.jsqlparser.statement.update.Update;
  *
  * @author enrico.olivelli
  */
-class JdbcParameterIndexAssigner implements StatementVisitor,
+class JdbcQueryRewriter implements StatementVisitor,
     SelectVisitor,
     OrderByVisitor,
     ExpressionVisitor,
@@ -135,7 +136,7 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     private final IntHolder currentPosition = new IntHolder(0);
 
-    JdbcParameterIndexAssigner() {
+    JdbcQueryRewriter() {
     }
 
     @Override
@@ -178,6 +179,7 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(Delete s) {
+        visit(s.getTable());
         if (s.getOrderByElements() != null) {
             s.getOrderByElements().forEach(o -> {
                 o.accept(this);
@@ -190,6 +192,9 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(Update s) {
+        for (Table table : s.getTables()) {
+            visit(table);
+        }
         if (s.getColumns() != null) {
             s.getColumns().forEach(c -> {
                 c.accept(this);
@@ -216,6 +221,7 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(Insert s) {
+        visit(s.getTable());
         if (s.getColumns() != null) {
             s.getColumns().forEach(c -> {
                 c.accept(this);
@@ -240,23 +246,22 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
     }
 
     @Override
-    public void visit(Drop drop) {
-
+    public void visit(Drop s) {
     }
 
     @Override
-    public void visit(Truncate truncate) {
-
+    public void visit(Truncate s) {
+        visit(s.getTable());
     }
 
     @Override
     public void visit(CreateIndex createIndex) {
-
+        visit(createIndex.getTable());
     }
 
     @Override
-    public void visit(CreateTable createTable) {
-
+    public void visit(CreateTable s) {
+        visit(s.getTable());
     }
 
     @Override
@@ -271,7 +276,7 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(Alter alter) {
-
+        visit(alter.getTable());
     }
 
     @Override
@@ -300,6 +305,9 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
         if (j.getOnExpression() != null) {
             j.getOnExpression().accept(this);
         };
+        if (j.getRightItem() != null) {
+            j.getRightItem().accept(this);
+        }
     }
 
     @Override
@@ -512,7 +520,11 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(Column tableColumn) {
-
+        String colName = tableColumn.getColumnName();
+        if (colName != null) {
+            tableColumn.setColumnName(colName.toLowerCase());
+        }
+        visit(tableColumn.getTable());
     }
 
     @Override
@@ -680,7 +692,13 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(AllTableColumns allTableColumns) {
-
+        Table table = allTableColumns.getTable();
+        if (table != null) {
+            String name = table.getName();
+            if (name != null) {
+                table.setName(name.toLowerCase());
+            }
+        }
     }
 
     @Override
@@ -700,6 +718,20 @@ class JdbcParameterIndexAssigner implements StatementVisitor,
 
     @Override
     public void visit(Table tableName) {
+        if (tableName == null) {
+            return;
+        }
+        String name = tableName.getName();
+        if (name != null) {
+            tableName.setName(name.toLowerCase());
+        }
+        Alias alias = tableName.getAlias();
+        if (alias != null) {
+            String aliasName = alias.getName();
+            if (aliasName != null) {
+                alias.setName(aliasName.toLowerCase());
+            }
+        }
     }
 
     @Override
