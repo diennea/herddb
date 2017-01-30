@@ -20,6 +20,7 @@
 package herddb.model;
 
 import herddb.index.IndexOperation;
+import herddb.utils.Bytes;
 
 /**
  * A Condition
@@ -39,6 +40,9 @@ public abstract class Predicate {
     public void setIndexOperation(IndexOperation indexOperation) {
         this.indexOperation = indexOperation;
     }
-    
-    
+
+    public boolean matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
+        return true;
+    }
+
 }

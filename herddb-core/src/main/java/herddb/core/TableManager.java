@@ -1190,6 +1190,10 @@ public class TableManager implements AbstractTableManager {
                         }
                         Long pageId = entry.getValue();
                         if (pageId != null) {
+                            if (predicate != null
+                                && !predicate.matchesRawPrimaryKey(key, context)) {
+                                continue;
+                            }
                             Record record = fetchRecord(key, pageId);
                             if (record != null && (predicate == null || predicate.evaluate(record, context))) {
                                 consumer.accept(record);

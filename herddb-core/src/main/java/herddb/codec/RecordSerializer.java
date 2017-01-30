@@ -163,6 +163,20 @@ public final class RecordSerializer {
         }
     }
 
+    public static Map<String, Object> deserializePrimaryKeyAsMap(byte[] key, Table table) {
+
+        if (table.primaryKey.length == 1) {
+            Object value = deserializeSingleColumnPrimaryKey(key, table);
+            ImmutableMap.Builder<String, Object> res = new ImmutableMap.Builder<>();
+            res.put(table.primaryKey[0], value);
+            return res.build();
+        } else {
+            Map<String, Object> result = new HashMap<>();
+            deserializeMultiColumnPrimaryKey(key, table, result);
+            return result;
+        }
+    }
+
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
         ByteArrayOutputStream value = new ByteArrayOutputStream();
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {

@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import herddb.codec.RecordSerializer;
 import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -28,6 +29,7 @@ import herddb.model.Tuple;
 import herddb.model.TuplePredicate;
 import herddb.sql.functions.BuiltinFunctions;
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
+import herddb.utils.Bytes;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -83,6 +85,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     private final Table table;
     private final String validatedTableAlias;
     private final Expression where;
+    private Expression primaryKeyFilter;
 
     private static final class EvaluationState {
 
@@ -99,6 +102,15 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         this.table = table;
         this.where = where;
         this.validatedTableAlias = tableAlias;
+    }
+
+    @Override
+    public boolean matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
+        if (primaryKeyFilter == null) {
+            return true;
+        }
+        Map<String, Object> bean = RecordSerializer.deserializePrimaryKeyAsMap(key.data, table);
+        return evaluatePredicate(primaryKeyFilter, bean, context, validatedTableAlias);
     }
 
     @Override
@@ -539,4 +551,12 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         }
     }
 
+    public Expression getPrimaryKeyFilter() {
+        return primaryKeyFilter;
+    }
+
+    public void setPrimaryKeyFilter(Expression primaryKeyFilter) {
+        this.primaryKeyFilter = primaryKeyFilter;
+    }
+    
 }

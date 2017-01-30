@@ -592,7 +592,7 @@ public class SQLPlanner {
         Table table = tableManager.getTable();
 
         // Perform a scan and then delete each row
-        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
+        SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
         if (where != null) {
             SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name);
             if (keyFunction != null) {
@@ -670,6 +670,8 @@ public class SQLPlanner {
                     }
                 }
             }
+            Expression filterPk = findFiltersOnPrimaryKey(table, table.name, s.getWhere());
+            where.setPrimaryKeyFilter(filterPk);
         }
 
         DMLStatement st = new DeleteStatement(tableSpace, tableName, null, where).setReturnValues(returnValues);
@@ -707,7 +709,7 @@ public class SQLPlanner {
         RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
 
         // Perform a scan and then update each row
-        Predicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
+        SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
         if (where != null) {
             SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name);
             if (keyFunction != null) {
@@ -785,6 +787,8 @@ public class SQLPlanner {
                     }
                 }
             }
+            Expression filterPk = findFiltersOnPrimaryKey(table, table.name, s.getWhere());
+            where.setPrimaryKeyFilter(filterPk);
         }
         DMLStatement st = new UpdateStatement(tableSpace, tableName, null, function, where)
             .setReturnValues(returnValues);
@@ -814,8 +818,32 @@ public class SQLPlanner {
             if (keyOnRight != null) {
                 return keyOnRight;
             }
-        } else if (expressionType.equals(where.getClass())) {
+        } else if (expressionType.isAssignableFrom(where.getClass())) {
             Expression keyDirect = validateColumnConstaintToExpression(where, columnName, tableAlias, expressionType);
+            if (keyDirect != null) {
+                return keyDirect;
+            }
+        }
+
+        return null;
+
+    }
+
+    private Expression findConstraintExpressionOnColumn(Expression where, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+        if (where instanceof AndExpression) {
+            AndExpression and = (AndExpression) where;
+            Expression keyOnLeft = findConstraintExpressionOnColumn(and.getLeftExpression(), columnName, tableAlias, expressionType);
+            if (keyOnLeft != null) {
+                return keyOnLeft;
+            }
+
+            Expression keyOnRight = findConstraintExpressionOnColumn(and.getRightExpression(), columnName, tableAlias,
+                expressionType);
+            if (keyOnRight != null) {
+                return keyOnRight;
+            }
+        } else if (expressionType.isAssignableFrom(where.getClass())) {
+            Expression keyDirect = validateColumnConstaintExpressionToExpression(where, columnName, tableAlias, expressionType);
             if (keyDirect != null) {
                 return keyDirect;
             }
@@ -889,7 +917,7 @@ public class SQLPlanner {
 
     private Expression validateColumnConstaintToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         Expression result = null;
-        if (expressionType.equals(testExpression.getClass())) {
+        if (expressionType.isAssignableFrom(testExpression.getClass())) {
             BinaryExpression e = (BinaryExpression) testExpression;
             if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
                 net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
@@ -897,7 +925,8 @@ public class SQLPlanner {
                 if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
                     okAlias = false;
                 }
-                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName()) && SQLRecordPredicate.isConstant(e.getRightExpression())) {
+                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName())
+                    && SQLRecordPredicate.isConstant(e.getRightExpression())) {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
@@ -907,6 +936,34 @@ public class SQLPlanner {
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
                 result = findConstraintOnColumn((AndExpression) e.getRightExpression(), columnName, tableAlias, expressionType);
+                if (result != null) {
+                    return result;
+                }
+            }
+        }
+        return result;
+    }
+    private Expression validateColumnConstaintExpressionToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+        Expression result = null;
+        if (expressionType.isAssignableFrom(testExpression.getClass())) {
+            BinaryExpression e = (BinaryExpression) testExpression;
+            if (e.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
+                net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) e.getLeftExpression();
+                boolean okAlias = true;
+                if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
+                    okAlias = false;
+                }
+                if (okAlias && columnName.equalsIgnoreCase(c.getColumnName())
+                    && SQLRecordPredicate.isConstant(e.getRightExpression())) {
+                    return e;
+                }
+            } else if (e.getLeftExpression() instanceof AndExpression) {
+                result = findConstraintExpressionOnColumn((AndExpression) e.getLeftExpression(), columnName, tableAlias, expressionType);
+                if (result != null) {
+                    return result;
+                }
+            } else if (e.getRightExpression() instanceof AndExpression) {
+                result = findConstraintExpressionOnColumn((AndExpression) e.getRightExpression(), columnName, tableAlias, expressionType);
                 if (result != null) {
                     return result;
                 }
@@ -968,6 +1025,35 @@ public class SQLPlanner {
             result = new AndExpression(result, conditionsOnJoinedResult.get(i).getExpression());
         }
         return result;
+    }
+
+    private Expression composeSimpleAndExpressions(List<Expression> expressions) {
+        if (expressions.size() == 1) {
+            return expressions.get(0);
+        }
+        AndExpression result = result = new AndExpression(expressions.get(0),
+            expressions.get(1));
+        for (int i = 2; i < expressions.size(); i++) {
+            result = new AndExpression(result, expressions.get(i));
+        }
+        return result;
+    }
+
+    private Expression findFiltersOnPrimaryKey(Table table, String tableAlias, Expression where) throws StatementExecutionException {
+        List<Expression> expressions = new ArrayList<>();
+        for (String pk : table.primaryKey) {
+            Expression condition = findConstraintExpressionOnColumn(where, pk, tableAlias, BinaryExpression.class);
+            if (condition == null) {
+                break;
+            }
+            expressions.add(condition);
+        }
+        if (expressions.isEmpty()) {
+            // no match at all, there is no direct constraint on PK
+            return null;
+        } else {
+            return composeSimpleAndExpressions(expressions);
+        }
     }
 
     private static class JoinSupport {
@@ -1100,7 +1186,7 @@ public class SQLPlanner {
         }
         if (scan) {
             if (!joinPresent) {
-                Predicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, mainTableAlias, selectBody.getWhere()) : null;
+                SQLRecordPredicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, mainTableAlias, selectBody.getWhere()) : null;
                 if (where != null) {
                     SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, mainTableAlias);
                     if (keyFunction != null) {
@@ -1178,6 +1264,8 @@ public class SQLPlanner {
                             }
                         }
                     }
+                    Expression filterPk = findFiltersOnPrimaryKey(table, table.name, selectBody.getWhere());
+                    where.setPrimaryKeyFilter(filterPk);
                 }
 
                 Aggregator aggregator = null;
