@@ -39,14 +39,15 @@ public class LocalLockManager {
     private StampedLock makeLock() {
         return new StampedLock();
     }
-    
-    private final ConcurrentMap<Bytes,LockInstance> locks = new ConcurrentHashMap<Bytes,LockInstance>();
-    
+
+    private final ConcurrentMap<Bytes, LockInstance> locks = new ConcurrentHashMap<Bytes, LockInstance>();
+
     @SuppressWarnings("serial")
     private static final class LockInstance extends ReentrantLock {
+
         private final StampedLock lock;
         private int count;
-        
+
         public LockInstance(StampedLock lock, int count) {
             super();
             this.lock = lock;
@@ -55,31 +56,30 @@ public class LocalLockManager {
     }
 
     private StampedLock makeLockForKey(Bytes key) {
-        
+
         LockInstance instance = locks.computeIfAbsent(key, (k) -> {
-            
+
             /* No existing instance, inserting an already locked instance */
             final LockInstance li = new LockInstance(makeLock(), 1);
             li.lock();
-            
+
             return li;
-            
+
         });
-        
+
         try {
             /* If held by current thread all work has been already done! */
             if (!instance.isHeldByCurrentThread()) {
                 instance.lock();
-                
+
                 /*
                  * The lock wasn't created by this thread. We should check if it was released from another thread
                  * between instance retrieval from map and instance lock.
                  */
-                
                 if (instance.count < 1) {
                     /* Worst concurrent case: released by another thread, retry */
-                    
-                    /*
+
+ /*
                      * Do not release current lock before doing another attemp. Other threads checking the
                      * same instance will have to wait here untill a live lock is created (trying to avoid
                      * spinning and contention between threads). The lock will released in finally block upon
@@ -87,33 +87,33 @@ public class LocalLockManager {
                      */
                     return makeLockForKey(key);
                 }
-                
+
                 ++instance.count;
             }
         } finally {
             instance.unlock();
         }
-        
+
         return instance.lock;
     }
 
     private StampedLock returnLockForKey(Bytes key) throws IllegalStateException {
-        
+
         /* Retrieve the instance... other threads could have this pointer too */
         LockInstance instance = locks.get(key);
-        
+
         /* If there was no instance fail */
         if (instance == null) {
             LOGGER.log(Level.SEVERE, "no lock object exists for key {0}", key);
             throw new IllegalStateException("no lock object exists for key " + key);
         }
-        
+
         instance.lock();
-        
+
         try {
-            
+
             if (--instance.count < 1) {
-                
+
                 /*
                  * If was already released too much times fail (multiple concurrent releases, if they weren't
                  * really concurrent the map would have returned a null instance)
@@ -122,14 +122,17 @@ public class LocalLockManager {
                     LOGGER.log(Level.SEVERE, "too much lock releases for key {0}", key);
                     throw new IllegalStateException("too much lock releases for key " + key);
                 } else {
-                    locks.remove(key, instance);
+                    boolean ok = locks.remove(key, instance);
+                    if (!ok) {
+                        throw new IllegalStateException("illegal lock releases for key " + key);
+                    }
                 }
-                
+
             }
         } finally {
             instance.unlock();
         }
-        
+
         return instance.lock;
     }
 
