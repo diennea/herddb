@@ -662,24 +662,27 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
 
             // scan performed after aggregation
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 "
+                + "FROM tblspace1.tsql "
+                + "GROUP BY k1 "
+                + "ORDER BY k1 DESC", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals("mykey4", result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
                 assertEquals("mykey3", result.get(1).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(1).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(1).get("count(*)"));
                 assertEquals("mykey2", result.get(2).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(2).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(2).get("count(*)"));
                 assertEquals("mykey", result.get(3).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(3).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(3).get("count(*)"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals("mykey3", result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as alias,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,2", Collections.emptyList());) {
@@ -694,13 +697,13 @@ public class RawSQLTest {
                 List<Tuple> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals("mykey4", result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
                 assertEquals("mykey3", result.get(1).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(1).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(1).get("count(*)"));
                 assertEquals("mykey2", result.get(2).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(2).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(2).get("count(*)"));
                 assertEquals("mykey", result.get(3).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(3).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(3).get("count(*)"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10,10", Collections.emptyList());) {
@@ -716,7 +719,7 @@ public class RawSQLTest {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals("mykey", result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
@@ -774,7 +777,7 @@ public class RawSQLTest {
                     List<Tuple> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
-                    assertEquals(Long.valueOf(4), result.get(0).get("COUNT(*)"));
+                    assertEquals(Long.valueOf(4), result.get(0).get("count(*)"));
                 }
             }
             {
@@ -783,7 +786,7 @@ public class RawSQLTest {
                     List<Tuple> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(1), result.get(0).get(0));
-                    assertEquals(Long.valueOf(1), result.get(0).get("COUNT(*)"));
+                    assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
                 }
             }
             {
@@ -800,7 +803,7 @@ public class RawSQLTest {
                     List<Tuple> result = scan1.consume();
                     assertEquals(4, result.size());
                     for (Tuple t : result) {
-                        assertEquals(Long.valueOf(1), t.get("COUNT(*)"));
+                        assertEquals(Long.valueOf(1), t.get("count(*)"));
                         switch (t.get("k1") + "") {
                             case "mykey":
                             case "mykey2":
@@ -850,17 +853,17 @@ public class RawSQLTest {
                     List<Tuple> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
-                    assertEquals(Long.valueOf(3), result.get(0).get("SUM(n1)"));
+                    assertEquals(Long.valueOf(3), result.get(0).get("sum(n1)"));
                     assertEquals("a", result.get(0).get(1));
                     assertEquals("a", result.get(0).get("s1"));
 
                     assertEquals(Long.valueOf(5), result.get(1).get(0));
-                    assertEquals(Long.valueOf(5), result.get(1).get("SUM(n1)"));
+                    assertEquals(Long.valueOf(5), result.get(1).get("sum(n1)"));
                     assertEquals("b", result.get(1).get(1));
                     assertEquals("b", result.get(1).get("s1"));
 
                     assertEquals(Long.valueOf(0), result.get(2).get(0));
-                    assertEquals(Long.valueOf(0), result.get(2).get("SUM(n1)"));
+                    assertEquals(Long.valueOf(0), result.get(2).get("sum(n1)"));
                     assertEquals(null, result.get(2).get(1));
                     assertEquals(null, result.get(2).get("s1"));
                 }
@@ -917,7 +920,7 @@ public class RawSQLTest {
                     List<Tuple> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
-                    assertEquals(Long.valueOf(4), result.get(0).get("SUM(1)"));
+                    assertEquals(Long.valueOf(4), result.get(0).get("sum(1)"));
                 }
             }
 

@@ -378,6 +378,7 @@ class JdbcQueryRewriter implements StatementVisitor,
 
     @Override
     public void visit(Function function) {
+        function.setName(function.getName().toLowerCase());
         if (function.getParameters() != null) {
             function.getParameters().accept(this);
         }

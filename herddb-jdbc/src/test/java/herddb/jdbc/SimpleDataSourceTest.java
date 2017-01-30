@@ -54,11 +54,11 @@ public class SimpleDataSourceTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
-                    statement.execute("CREATE TABLE mytable (key string primary key, name string)");                    
+                    Connection con = dataSource.getConnection();
+                    Statement statement = con.createStatement();) {
+                    statement.execute("CREATE TABLE mytable (key string primary key, name string)");
 
-                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1','name1')"));
+                    assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,NamE) values('k1','name1')"));
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
                         boolean found = false;
@@ -71,18 +71,30 @@ public class SimpleDataSourceTest {
                         }
                         assertTrue(found);
                     }
-                    assertEquals(1, statement.executeUpdate("UPDATE mytable set name='name2' where key='k1'"));
-                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
+                    assertEquals(1, statement.executeUpdate("UPDATE MYTaBLE set name='name2' where key='k1'"));
+                    try (ResultSet rs = statement.executeQuery("SELECT KeY,nAme FROM mytable")) {
                         boolean found = false;
                         while (rs.next()) {
                             String key = rs.getString("key");
-                            String name = rs.getString("name");                            
+                            String name = rs.getString("naMe");
                             assertEquals("k1", key);
                             assertEquals("name2", name);
                             found = true;
                         }
                         assertTrue(found);
                     }
+                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable")) {
+                        boolean found = false;
+                        while (rs.next()) {
+                            String key = rs.getString("key");
+                            String name = rs.getString("name");
+                            assertEquals("k1", key);
+                            assertEquals("name2", name);
+                            found = true;
+                        }
+                        assertTrue(found);
+                    }
+
                     assertEquals(1, statement.executeUpdate("DELETE FROM mytable where name='name2' and key='k1'"));
                     assertEquals(0, statement.executeUpdate("UPDATE mytable set name='name2' where key='k1'"));
 
@@ -95,7 +107,7 @@ public class SimpleDataSourceTest {
                     }
 
                     try (PreparedStatement ps = con.prepareStatement("SELECT * FROM mytable");
-                            ResultSet rs = ps.executeQuery()) {
+                        ResultSet rs = ps.executeQuery()) {
                         Set<String> foundKeys = new HashSet<>();
                         while (rs.next()) {
                             foundKeys.add(rs.getString("key"));
@@ -106,12 +118,12 @@ public class SimpleDataSourceTest {
 
                     }
                     try (PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) as total FROM mytable");
-                            ResultSet rs = ps.executeQuery()) {
+                        ResultSet rs = ps.executeQuery()) {
                         assertTrue(rs.next());
                         assertEquals(10, rs.getLong("total"));
                     }
                     try (PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) FROM mytable");
-                            ResultSet rs = ps.executeQuery()) {
+                        ResultSet rs = ps.executeQuery()) {
                         assertTrue(rs.next());
                         assertEquals(10, rs.getLong("COUNT(*)"));
                         assertEquals(10, rs.getLong(1));

@@ -169,6 +169,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     returnValues = false;
                 }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
+                if (LOGGER.isLoggable(Level.FINEST)) {
+                    LOGGER.log(Level.FINEST, "query " + query + " with " + parameters);
+                }
                 try {
                     TransactionContext transactionContext = new TransactionContext(txId);
                     TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace,
@@ -402,6 +405,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     maxRows = (Integer) message.parameters.get("maxRows");
                 }
                 List<Object> parameters = (List<Object>) message.parameters.get("params");
+                if (LOGGER.isLoggable(Level.FINEST)) {
+                    LOGGER.log(Level.FINEST, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
+                }
                 try {
                     TranslatedQuery translatedQuery = server
                         .getManager()

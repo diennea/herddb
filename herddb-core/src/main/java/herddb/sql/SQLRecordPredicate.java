@@ -247,7 +247,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                         + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
                 }
             }
-            String columnName = c.getColumnName().toLowerCase();
+            String columnName = c.getColumnName();
             switch (columnName) {
                 case BuiltinFunctions.BOOLEAN_TRUE:
                     return Boolean.TRUE;
@@ -503,7 +503,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     public static Object computeFunction(Function f, Map<String, Object> record, EvaluationState state,
         String validatedTableAlias) throws StatementExecutionException {
-        String name = f.getName().toLowerCase();
+        String name = f.getName();
         switch (name) {
             case BuiltinFunctions.COUNT:
             case BuiltinFunctions.SUM:

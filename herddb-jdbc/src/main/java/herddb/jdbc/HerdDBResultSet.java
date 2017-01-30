@@ -180,11 +180,18 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public String getString(String columnLabel) throws SQLException {
         ensureNextCalled();
-        lastValue = actualValue.get(columnLabel);
+        fillLastValue(columnLabel);
         if (lastValue != null) {
             return lastValue.toString();
         } else {
             return null;
+        }
+    }
+
+    private void fillLastValue(String columnLabel) {
+        lastValue = actualValue.get(columnLabel);
+        if (lastValue == null) {
+            lastValue = actualValue.get(columnLabel.toLowerCase());
         }
     }
 
@@ -199,7 +206,7 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public boolean getBoolean(String columnLabel) throws SQLException {
         ensureNextCalled();
-        lastValue = actualValue.get(columnLabel);
+        fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
             return Boolean.parseBoolean(lastValue.toString());
@@ -222,7 +229,7 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public int getInt(String columnLabel) throws SQLException {
         ensureNextCalled();
-        lastValue = actualValue.get(columnLabel);
+        fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
             return Integer.parseInt(lastValue.toString());
@@ -235,7 +242,7 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public long getLong(String columnLabel) throws SQLException {
         ensureNextCalled();
-        lastValue = actualValue.get(columnLabel);
+        fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
             if (lastValue instanceof Long) {
@@ -271,7 +278,7 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public Date getDate(String columnLabel) throws SQLException {
         ensureNextCalled();
-        lastValue = actualValue.get(columnLabel);
+        fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
             if (lastValue instanceof java.sql.Date) {
@@ -295,7 +302,7 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
         ensureNextCalled();
-        lastValue = actualValue.get(columnLabel);
+        fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
             if (lastValue instanceof java.sql.Timestamp) {
@@ -471,7 +478,7 @@ public class HerdDBResultSet implements ResultSet {
     @Override
     public Object getObject(String columnLabel) throws SQLException {
         ensureNextCalled();
-        lastValue = actualValue.get(columnLabel);
+        fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
             return lastValue;

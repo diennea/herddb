@@ -58,7 +58,7 @@ public class SQLTupleComparator implements TupleComparator {
         this.orderByElements = new ArrayList<>();
         for (OrderByElement element : orderByElements) {
             net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) element.getExpression();
-            this.orderByElements.add(new OrderElement(column.getColumnName().toLowerCase(), element.isAsc()));
+            this.orderByElements.add(new OrderElement(column.getColumnName(), element.isAsc()));
         }
 
     }

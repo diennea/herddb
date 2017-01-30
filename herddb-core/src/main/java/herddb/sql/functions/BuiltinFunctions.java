@@ -65,7 +65,7 @@ public class BuiltinFunctions {
 
     public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName,
         StatementEvaluationContext context) throws StatementExecutionException {
-        String fuctionName = f.getName().toLowerCase();
+        String fuctionName = f.getName();
         switch (fuctionName) {
             case COUNT:
                 return new CountColumnCalculator(fieldName);
@@ -81,7 +81,7 @@ public class BuiltinFunctions {
     }
 
     public static boolean isScalarFunction(String name) {
-        switch (name.toLowerCase()) {
+        switch (name) {
             case LOWER:
             case UPPER:
                 return true;
@@ -90,8 +90,7 @@ public class BuiltinFunctions {
         }
     }
 
-    public static boolean isAggregateFunction(String name) {
-        name = name.toLowerCase();
+    public static boolean isAggregateFunction(String name) {        
         switch (name) {
             case COUNT:
             case SUM:

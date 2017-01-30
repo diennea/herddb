@@ -114,7 +114,7 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.TIMESTAMP;
                 } else if (exp instanceof Function) {
                     Function f = (Function) exp;
-                    String lcaseName = f.getName().toLowerCase();
+                    String lcaseName = f.getName();
                     columType = BuiltinFunctions.typeOfFunction(lcaseName);
                     if (lcaseName.equals(BuiltinFunctions.COUNT)) {
                         countSimpleFunctions++;
@@ -204,7 +204,7 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.TIMESTAMP;
                 } else if (exp instanceof Function) {
                     Function f = (Function) exp;
-                    String lcaseName = f.getName().toLowerCase();
+                    String lcaseName = f.getName();
                     columType = BuiltinFunctions.typeOfFunction(lcaseName);
                     if (lcaseName.equals(BuiltinFunctions.COUNT)) {
                         countSimpleFunctions++;
