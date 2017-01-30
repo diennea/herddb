@@ -84,7 +84,6 @@ public class SimpleSubqueryTest {
                 fail("query must not work");
             } catch (Exception ok) {                
                 assertEquals("invalid column name n1 invalid table name t2, expecting t1", ok.getMessage());
-
             }
             try {
                 scan(manager, "SELECT k1 "

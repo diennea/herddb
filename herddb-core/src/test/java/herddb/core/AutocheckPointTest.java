@@ -38,10 +38,13 @@ import org.junit.rules.TemporaryFolder;
 import herddb.file.FileCommitLogManager;
 import herddb.file.FileDataStorageManager;
 import herddb.file.FileMetadataStorageManager;
+import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
+import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import java.util.List;
 
 /**
  *
@@ -62,10 +65,10 @@ public class AutocheckPointTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager(nodeId,
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -83,7 +86,13 @@ public class AutocheckPointTest {
             execute(manager, "UPDATE tblspace1.tsql set s1='b' where k1=1", Collections.emptyList(), new TransactionContext(tx));
 
             long lastCheckpont = manager.getLastCheckPointTs();
-            assertEquals(4, scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList(), new TransactionContext(tx)).consume().size());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList(), new TransactionContext(tx))) {
+                List<Tuple> data = scan.consume();
+                for (Tuple t : data) {
+                    System.out.println("tuple:" + t);
+                }
+                assertEquals(4, data.size());
+            }
             manager.setCheckpointPeriod(1000);
             for (int i = 0; i < 100; i++) {
                 if (lastCheckpont != manager.getLastCheckPointTs()) {
@@ -109,10 +118,10 @@ public class AutocheckPointTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager(nodeId,
-                new FileMetadataStorageManager(metadataPath),
-                new FileDataStorageManager(dataPath),
-                new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);

@@ -19,12 +19,14 @@
  */
 package herddb.model;
 
+import herddb.core.HerdDBInternalException;
+
 /**
  * Error while executin a Statement
  *
  * @author enrico.olivelli
  */
-public class StatementExecutionException extends Exception {
+public class StatementExecutionException extends HerdDBInternalException {
 
     public StatementExecutionException(String message) {
         super(message);

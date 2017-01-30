@@ -19,12 +19,14 @@
  */
 package herddb.log;
 
+import herddb.core.HerdDBInternalException;
+
 /**
  * Log is not available
  *
  * @author enrico.olivelli
  */
-public class LogNotAvailableException extends Exception {
+public class LogNotAvailableException extends HerdDBInternalException {
 
     public LogNotAvailableException(String message) {
         super(message);

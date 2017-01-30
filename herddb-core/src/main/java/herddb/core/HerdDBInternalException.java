@@ -17,26 +17,27 @@
  under the License.
 
  */
-package herddb.storage;
-
-import herddb.core.HerdDBInternalException;
+package herddb.core;
 
 /**
- * Error on storage
+ * Base class for internal exceptions
  *
  * @author enrico.olivelli
  */
-public class DataStorageManagerException extends HerdDBInternalException {
+public class HerdDBInternalException extends Exception {
 
-    public DataStorageManagerException(String message) {
+    public HerdDBInternalException() {
+    }
+
+    public HerdDBInternalException(String message) {
         super(message);
     }
 
-    public DataStorageManagerException(String message, Throwable cause) {
+    public HerdDBInternalException(String message, Throwable cause) {
         super(message, cause);
     }
 
-    public DataStorageManagerException(Throwable cause) {
+    public HerdDBInternalException(Throwable cause) {
         super(cause);
     }
 
