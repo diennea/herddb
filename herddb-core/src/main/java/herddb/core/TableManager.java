@@ -1105,28 +1105,47 @@ public class TableManager implements AbstractTableManager {
         }
         ScanLimits limits = statement.getLimits();
         int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
-        if (maxRows > 0 && !sorted) {
-            // if no sort is present the limits can be applying during the scan and perform an early exit
-            AtomicInteger remaining = new AtomicInteger(limits.computeMaxRows(context));
+        boolean sortDone = false;
+        if (maxRows > 0) {
+            if (sorted) {
+                InStreamTupleSorter sorter = new InStreamTupleSorter(limits.getOffset() + maxRows, statement.getComparator());
+                accessTableData(statement, context, new ScanResultOperation() {
+                    @Override
+                    public void accept(Record record) throws StatementExecutionException {
+                        Tuple tuple;
+                        if (applyProjectionDuringScan) {
+                            tuple = projection.map(record, table, context);
+                        } else {
+                            tuple = new Tuple(record.toBean(table), table.columns);
+                        }
+                        sorter.collect(tuple);
+                    }
+                }, transaction, false);
+                sorter.flushToRecordSet(recordSet);
+                sortDone = true;
+            } else {
+                // if no sort is present the limits can be applying during the scan and perform an early exit
+                AtomicInteger remaining = new AtomicInteger(limits.computeMaxRows(context));
 
-            if (limits.getOffset() > 0) {
-                remaining.getAndAdd(limits.getOffset());
-            }
-            accessTableData(statement, context, new ScanResultOperation() {
-                @Override
-                public void accept(Record record) throws StatementExecutionException {
-                    Tuple tuple;
-                    if (applyProjectionDuringScan) {
-                        tuple = projection.map(record, table, context);
-                    } else {
-                        tuple = new Tuple(record.toBean(table), table.columns);
-                    }
-                    recordSet.add(tuple);
-                    if (remaining.decrementAndGet() == 0) {
-                        throw new ExitLoop();
-                    }
+                if (limits.getOffset() > 0) {
+                    remaining.getAndAdd(limits.getOffset());
                 }
-            }, transaction, false);
+                accessTableData(statement, context, new ScanResultOperation() {
+                    @Override
+                    public void accept(Record record) throws StatementExecutionException {
+                        Tuple tuple;
+                        if (applyProjectionDuringScan) {
+                            tuple = projection.map(record, table, context);
+                        } else {
+                            tuple = new Tuple(record.toBean(table), table.columns);
+                        }
+                        recordSet.add(tuple);
+                        if (remaining.decrementAndGet() == 0) {
+                            throw new ExitLoop();
+                        }
+                    }
+                }, transaction, false);
+            }
         } else {
             accessTableData(statement, context, new ScanResultOperation() {
                 @Override
@@ -1137,12 +1156,15 @@ public class TableManager implements AbstractTableManager {
                     } else {
                         tuple = new Tuple(record.toBean(table), table.columns);
                     }
-                    recordSet.add(tuple);
+                recordSet.add(tuple);
                 }
             }, transaction, false);
         }
+        
         recordSet.writeFinished();
-        recordSet.sort(statement.getComparator());
+        if (!sortDone) {
+            recordSet.sort(statement.getComparator());
+        }
         recordSet.applyLimits(statement.getLimits(), context);
         if (!applyProjectionDuringScan) {
             recordSet.applyProjection(statement.getProjection(), context);

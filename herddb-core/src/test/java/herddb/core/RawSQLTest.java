@@ -1163,6 +1163,40 @@ public class RawSQLTest {
                     assertEquals("mykey4", result.get(4).get(0)); // NULLS LAST
                 }
             }
+            
+            {
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc limit 2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(2, result.size());
+                    assertEquals("mykey", result.get(0).get(0));
+                    assertEquals("mykey2", result.get(1).get(0));
+                }
+            }
+            
+            {
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 asc limit 2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(2, result.size());
+                    assertEquals("mykey", result.get(0).get(0));
+                    assertEquals("mykey2", result.get(1).get(0));
+                }
+            }
+            
+            {
+                TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc limit 3", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
+                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                    List<Tuple> result = scan1.consume();
+                    assertEquals(3, result.size());
+                    assertEquals("mykey4", result.get(0).get(0));
+                    assertEquals("mykey5", result.get(1).get(0));
+                    assertEquals("mykey3", result.get(2).get(0));
+                }
+            }
 
         }
     }
