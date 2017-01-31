@@ -103,7 +103,7 @@ public class AutoTransactionTest extends BaseTestcase {
         InsertStatement st = new InsertStatement(tableSpace, tableName, record);
         manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
         long tx = get.transactionId;
         assertTrue(get.found());
         TestUtils.commitTransaction(manager, tableSpace, tx);
@@ -122,7 +122,7 @@ public class AutoTransactionTest extends BaseTestcase {
         InsertStatement st = new InsertStatement(tableSpace, tableName, record);
         manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         try {
-            GetResult get = manager.get(new GetStatement(tableSpace, "no_table_exists", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            GetResult get = manager.get(new GetStatement(tableSpace, "no_table_exists", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
             fail();
         } catch (TableDoesNotExistException ok) {
         }
@@ -142,7 +142,7 @@ public class AutoTransactionTest extends BaseTestcase {
         InsertStatement st = new InsertStatement(tableSpace, tableName, record);
         manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key_bad, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key_bad, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
         long tx = get.transactionId;
         assertTrue(!get.found());
         TestUtils.commitTransaction(manager, tableSpace, tx);

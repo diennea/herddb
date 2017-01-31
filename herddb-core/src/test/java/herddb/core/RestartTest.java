@@ -119,7 +119,7 @@ public class RestartTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -185,7 +185,7 @@ public class RestartTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -252,7 +252,7 @@ public class RestartTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -290,11 +290,11 @@ public class RestartTest {
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             manager.checkpoint();
             manager.executeStatement(new TruncateTableStatement("tblspace1", table.name), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            GetResult result2 = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result2 = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result2.found());
             // no checkpoint
         }
@@ -308,7 +308,7 @@ public class RestartTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
         }
 
@@ -346,11 +346,11 @@ public class RestartTest {
             manager.executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new InsertStatement("tblspace1", table.name, new Record(key, key)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             manager.executeStatement(new CommitTransactionStatement("tblspace1", tx), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             manager.checkpoint();
             manager.executeStatement(new TruncateTableStatement("tblspace1", table.name), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            GetResult result2 = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result2 = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result2.found());
             manager.checkpoint();
         }
@@ -364,7 +364,7 @@ public class RestartTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
         }
 

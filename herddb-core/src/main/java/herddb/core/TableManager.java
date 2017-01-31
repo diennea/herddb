@@ -471,7 +471,7 @@ public class TableManager implements AbstractTableManager {
                 lastValue.value = newValue;
                 updateCount.incrementAndGet();
             }
-        }, transaction, true);
+        }, transaction, true, true);
 
         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
             update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
@@ -498,7 +498,7 @@ public class TableManager implements AbstractTableManager {
                 lastValue.value = actual.value.data;
                 updateCount.incrementAndGet();
             }
-        }, transaction, true);
+        }, transaction, true, true);
         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
             delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
     }
@@ -854,11 +854,14 @@ public class TableManager implements AbstractTableManager {
         dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.name, keyToPage);
     }
 
-    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
+    private StatementExecutionResult executeGet(GetStatement get, Transaction transaction,
+        StatementEvaluationContext context)
+        throws StatementExecutionException, DataStorageManagerException {
         Bytes key = new Bytes(get.getKey().computeNewValue(null, context, tableContext));
         Predicate predicate = get.getPredicate();
+        boolean requireLock = get.isRequireLock();
         long transactionId = transaction != null ? transaction.transactionId : 0;
-        LockHandle lock = lockForRead(key, transaction);
+        LockHandle lock = (transaction != null || requireLock) ? lockForRead(key, transaction) : null;
         try {
             if (transaction != null) {
                 if (transaction.recordDeleted(table.name, key)) {
@@ -898,7 +901,7 @@ public class TableManager implements AbstractTableManager {
             return new GetResult(transactionId, loaded, table);
 
         } finally {
-            if (transaction == null) {
+            if (transaction == null && lock != null) {
                 locksManager.releaseReadLockForKey(key, lock);
             }
         }
@@ -1120,7 +1123,7 @@ public class TableManager implements AbstractTableManager {
                         }
                         sorter.collect(tuple);
                     }
-                }, transaction, false);
+                }, transaction, false, false);
                 sorter.flushToRecordSet(recordSet);
                 sortDone = true;
             } else {
@@ -1144,7 +1147,7 @@ public class TableManager implements AbstractTableManager {
                             throw new ExitLoop();
                         }
                     }
-                }, transaction, false);
+                }, transaction, false, false);
             }
         } else {
             accessTableData(statement, context, new ScanResultOperation() {
@@ -1156,11 +1159,11 @@ public class TableManager implements AbstractTableManager {
                     } else {
                         tuple = new Tuple(record.toBean(table), table.columns);
                     }
-                recordSet.add(tuple);
+                    recordSet.add(tuple);
                 }
-            }, transaction, false);
+            }, transaction, false, false);
         }
-        
+
         recordSet.writeFinished();
         if (!sortDone) {
             recordSet.sort(statement.getComparator());
@@ -1172,9 +1175,11 @@ public class TableManager implements AbstractTableManager {
         return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
     }
 
-    private void accessTableData(ScanStatement statement, StatementEvaluationContext context, ScanResultOperation consumer, Transaction transaction, boolean forWrite) throws StatementExecutionException {
+    private void accessTableData(ScanStatement statement, StatementEvaluationContext context, ScanResultOperation consumer, Transaction transaction,
+        boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         Predicate predicate = statement.getPredicate();
         long _start = System.currentTimeMillis();
+        boolean acquireLock = transaction != null || forWrite || lockRequired;
 
         try {
             IndexOperation indexOperation = predicate != null ? predicate.getIndexOperation() : null;
@@ -1193,7 +1198,7 @@ public class TableManager implements AbstractTableManager {
                     Bytes key = entry.getKey();
                     boolean keep_lock = false;
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
-                    LockHandle lock = forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction);
+                    LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
                     try {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {
@@ -1225,10 +1230,12 @@ public class TableManager implements AbstractTableManager {
                     } finally {
                         // release the lock on the key if it did not match scan criteria
                         if (transaction == null) {
-                            if (forWrite) {
-                                locksManager.releaseWriteLockForKey(key, lock);
-                            } else {
-                                locksManager.releaseReadLockForKey(key, lock);
+                            if (lock != null) {
+                                if (forWrite) {
+                                    locksManager.releaseWriteLockForKey(key, lock);
+                                } else {
+                                    locksManager.releaseReadLockForKey(key, lock);
+                                }
                             }
                         } else if (!keep_lock && !already_locked) {
                             transaction.releaseLockOnKey(table.name, key, locksManager);

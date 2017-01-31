@@ -238,7 +238,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
-            GetStatement get = new GetStatement("tblspace1", "t1", key, null);
+            GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
             GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
@@ -299,7 +299,7 @@ public class SimpleRecoveryTest {
             manager.start();
 
             manager.waitForTablespace("tblspace1", 10000);
-            GetStatement get = new GetStatement("tblspace1", "t1", key, null);
+            GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
             GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
@@ -368,12 +368,12 @@ public class SimpleRecoveryTest {
 
             manager.waitForTablespace("tblspace1", 10000);
             {
-                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
             {
-                GetStatement get = new GetStatement("tblspace1", "t1", key2, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key2, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key2, result.getRecord().key);
@@ -450,12 +450,12 @@ public class SimpleRecoveryTest {
 
             manager.waitForTablespace("tblspace1", 10000);
             {
-                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
             {
-                GetStatement get = new GetStatement("tblspace1", "t1", key2, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key2, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key2, result.getRecord().key);
@@ -522,7 +522,7 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             {
-                GetStatement get = new GetStatement("tblspace1", "t1", key2, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key2, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key2, result.getRecord().key);
@@ -531,7 +531,7 @@ public class SimpleRecoveryTest {
 
             {
                 // transaction rollback occurred
-                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertFalse(result.found());
             }
@@ -596,7 +596,7 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             {
-                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key, result.getRecord().key);
@@ -663,7 +663,7 @@ public class SimpleRecoveryTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             {
-                GetStatement get = new GetStatement("tblspace1", "t1", key, null);
+                GetStatement get = new GetStatement("tblspace1", "t1", key, null, false);
                 GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 assertTrue(result.found());
                 assertEquals(key, result.getRecord().key);
@@ -726,7 +726,7 @@ public class SimpleRecoveryTest {
             InsertStatement insert = new InsertStatement("tblspace1", "t2", new Record(key, value));
             assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
-            GetStatement get = new GetStatement("tblspace1", "t2", key, null);
+            GetStatement get = new GetStatement("tblspace1", "t2", key, null, false);
             GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             assertTrue(result.found());
             assertEquals(key, result.getRecord().key);
@@ -744,7 +744,7 @@ public class SimpleRecoveryTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetStatement get = new GetStatement("tblspace1", "t2", key, null);
+            GetStatement get = new GetStatement("tblspace1", "t2", key, null, false);
             try {
                 manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
                 fail();
@@ -794,7 +794,7 @@ public class SimpleRecoveryTest {
             int newValue = insertResult.getKey().to_int();
             assertEquals(1, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
@@ -819,7 +819,7 @@ public class SimpleRecoveryTest {
             int newValue = insertResult.getKey().to_int();
             assertEquals(2, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
@@ -867,7 +867,7 @@ public class SimpleRecoveryTest {
             int newValue = insertResult.getKey().to_int();
             assertEquals(1, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();
@@ -890,7 +890,7 @@ public class SimpleRecoveryTest {
             int newValue = insertResult.getKey().to_int();
             assertEquals(2, newValue);
 
-            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult get = manager.get(new GetStatement("tblspace1", "t1", insertResult.getKey(), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(get.found());
 
             long next_value = manager.getTableSpaceManager("tblspace1").getTableManager("t1").getNextPrimaryKeyValue();

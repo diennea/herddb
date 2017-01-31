@@ -1470,7 +1470,7 @@ public class SQLPlanner {
             }
             Predicate where = buildSimplePredicate(selectBody.getWhere(), table, mainTableAlias);
             try {
-                return ExecutionPlan.simple(new GetStatement(tableSpace, mainTable.tableName, keyFunction, where));
+                return ExecutionPlan.simple(new GetStatement(tableSpace, mainTable.tableName, keyFunction, where, false));
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }

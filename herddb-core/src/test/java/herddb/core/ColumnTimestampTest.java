@@ -52,7 +52,7 @@ public class ColumnTimestampTest extends BaseTestcase {
         }
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             Map<String, Object> resultbean = result.getRecord().toBean(table2);
             assertEquals(Bytes.from_string("key1"), result.getRecord().key);
@@ -71,7 +71,7 @@ public class ColumnTimestampTest extends BaseTestcase {
         }
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName2, Bytes.from_string("key1"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             Map<String, Object> resultbean = result.getRecord().toBean(table2);
             assertEquals(Bytes.from_string("key1"), result.getRecord().key);

@@ -34,17 +34,20 @@ public class GetStatement extends TableAwareStatement {
 
     private final RecordFunction key;
     private final Predicate predicate;
+    private final boolean requireLock;
 
-    public GetStatement(String tableSpace, String table, Bytes key, Predicate predicate) {
+    public GetStatement(String tableSpace, String table, Bytes key, Predicate predicate, boolean requireLock) {
         super(table, tableSpace);
         this.key = new ConstValueRecordFunction(key.data);
         this.predicate = predicate;
+        this.requireLock = requireLock;
     }
 
-    public GetStatement(String tableSpace, String table, RecordFunction key, Predicate predicate) {
+    public GetStatement(String tableSpace, String table, RecordFunction key, Predicate predicate, boolean requireLock) {
         super(table, tableSpace);
         this.key = key;
         this.predicate = predicate;
+        this.requireLock = requireLock;
     }
 
     public RecordFunction getKey() {
@@ -53,6 +56,10 @@ public class GetStatement extends TableAwareStatement {
 
     public Predicate getPredicate() {
         return predicate;
+    }
+
+    public boolean isRequireLock() {
+        return requireLock;
     }
 
 }

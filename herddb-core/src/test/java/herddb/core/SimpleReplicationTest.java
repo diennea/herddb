@@ -64,20 +64,20 @@ public class SimpleReplicationTest extends ReplicatedLogtestcase {
                 // write a second entry on the ledger, to speed up the ack from the bookie
                 manager1.executeStatement(new InsertStatement(tableSpaceName, tableName, new Record(Bytes.from_string("second"), Bytes.from_string("two"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-                assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+                assertTrue(manager1.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
 
                 assertTrue(manager2.waitForTable(tableSpaceName, tableName, 10000, false));
                 
                 manager2.setErrorIfNotLeader(false);
 
                 for (int i = 0; i < 100; i++) {
-                    boolean ok = manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found();
+                    boolean ok = manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found();
                     if (ok) {
                         break;
                     }
                     Thread.sleep(100);
                 }
-                assertTrue(manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+                assertTrue(manager2.get(new GetStatement(tableSpaceName, tableName, Bytes.from_string("one"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
             }
         }
     }

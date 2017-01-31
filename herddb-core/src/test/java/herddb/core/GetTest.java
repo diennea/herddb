@@ -52,26 +52,26 @@ public class GetTest extends BaseTestcase {
         }
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(result.getRecord().key, Bytes.from_string("key1"));
             assertEquals(result.getRecord().value, Bytes.from_int(0));
         }
 
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(0))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(0)), false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
             assertEquals(result.getRecord().key, Bytes.from_string("key1"));
             assertEquals(result.getRecord().value, Bytes.from_int(0));
         }
         {
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(2))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), new RawValueEquals(Bytes.from_int(2)), false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
         }
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
-            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
         }
 

@@ -65,7 +65,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         }
         commitTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get.found());
     }
 
@@ -90,7 +90,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         }
         rollbackTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertFalse(get.found());
     }
 
@@ -110,7 +110,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         rollbackTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get.found());
     }
 
@@ -129,13 +129,13 @@ public class SimpleTransactionTest extends BaseTestcase {
         assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
         // inside the transaction the record will not be found any more
         {
-            GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+            GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             assertFalse(get.found());
         }
 
         rollbackTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get.found());
     }
 
@@ -155,7 +155,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         rollbackTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get.found());
         assertEquals(get.getRecord().value, record.value);
     }
@@ -174,13 +174,13 @@ public class SimpleTransactionTest extends BaseTestcase {
         UpdateStatement st_update = new UpdateStatement(tableSpace, tableName, record2, null);
         assertEquals(1, manager.executeUpdate(st_update, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
-        GetResult get_before_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
+        GetResult get_before_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
         assertTrue(get_before_rollback.found());
         assertEquals(get_before_rollback.getRecord().value, record2.value);
 
         rollbackTransaction(tx);
 
-        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get_after_rollback.found());
         assertEquals(get_after_rollback.getRecord().value, record.value);
     }
@@ -207,7 +207,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         rollbackTransaction(tx);
 
-        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get_after_rollback.found());
         assertEquals(get_after_rollback.getRecord().value, record.value);
     }
@@ -228,7 +228,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         rollbackTransaction(tx);
 
-        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get_after_rollback = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertFalse(get_after_rollback.found());
     }
 
@@ -267,11 +267,11 @@ public class SimpleTransactionTest extends BaseTestcase {
         }
         commitTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get.found());
         assertEquals(Bytes.from_int(0), get.getRecord().value);
 
-        GetResult get2 = manager.get(new GetStatement(tableSpace, tableName2, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get2 = manager.get(new GetStatement(tableSpace, tableName2, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get2.found());
         assertEquals(Bytes.from_int(1), get2.getRecord().value);
     }
@@ -298,7 +298,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         InsertStatement insert = new InsertStatement("tblspace1", "t2", new Record(key, value));
         assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
-        GetStatement get = new GetStatement("tblspace1", "t2", key, null);
+        GetStatement get = new GetStatement("tblspace1", "t2", key, null, false);
         GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
         assertTrue(result.found());
         assertEquals(key, result.getRecord().key);
@@ -307,7 +307,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         RollbackTransactionStatement rollback = new RollbackTransactionStatement("tblspace1", tx);
         manager.executeStatement(rollback, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         try {
-            manager.get(new GetStatement("tblspace1", "t2", key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.get(new GetStatement("tblspace1", "t2", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             fail();
         } catch (TableDoesNotExistException error) {
         }
@@ -338,7 +338,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         commitTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertTrue(get.found());
         assertEquals(Bytes.from_int(1), get.getRecord().value);
 
@@ -362,7 +362,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         commitTransaction(tx);
 
-        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        GetResult get = manager.get(new GetStatement(tableSpace, tableName, key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         assertFalse(get.found());
 
     }

@@ -110,7 +110,7 @@ public class RestartPendingTransactionTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -167,7 +167,7 @@ public class RestartPendingTransactionTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -226,7 +226,7 @@ public class RestartPendingTransactionTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -281,7 +281,7 @@ public class RestartPendingTransactionTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
@@ -340,7 +340,7 @@ public class RestartPendingTransactionTest {
 
             manager.waitForTablespace("tblspace1", 10000);
 
-            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            GetResult result = manager.get(new GetStatement("tblspace1", "t1", key1, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
         }
 
