@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Table definition
@@ -137,7 +138,7 @@ public class Table implements ColumnsList {
 
     @Override
     public Column getColumn(String cname) {
-        return columnsByName.get(cname.toLowerCase());
+        return columnsByName.get(cname);
     }
 
     @Override
@@ -153,9 +154,10 @@ public class Table implements ColumnsList {
     public Table applyAlterTable(AlterTableStatement alterTableStatement) {
         int new_maxSerialPosition = this.maxSerialPosition;
         Builder builder = builder()
-                .name(this.name)
-                .tablespace(this.tablespace);
-        List<String> dropColumns = alterTableStatement.getDropColumns();
+            .name(this.name)
+            .tablespace(this.tablespace);
+        List<String> dropColumns = alterTableStatement.getDropColumns().stream().map(String::toLowerCase)
+            .collect(Collectors.toList());
         for (String dropColumn : dropColumns) {
             if (this.getColumn(dropColumn) == null) {
                 throw new IllegalArgumentException("column " + dropColumn + " not found int table " + this.name);
@@ -204,7 +206,7 @@ public class Table implements ColumnsList {
         }
 
         public Builder name(String name) {
-            this.name = name;
+            this.name = name.toLowerCase();
             return this;
         }
 
@@ -229,6 +231,7 @@ public class Table implements ColumnsList {
             if (this.auto_increment && auto_increment) {
                 throw new IllegalArgumentException("auto_increment can be used only on one column");
             }
+            pk = pk.toLowerCase();
             if (auto_increment) {
                 this.auto_increment = true;
             }
@@ -242,10 +245,11 @@ public class Table implements ColumnsList {
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException();
             }
-            if (this.columns.stream().filter(c -> (c.name.equals(name))).findAny().isPresent()) {
+            String _name = name.toLowerCase();
+            if (this.columns.stream().filter(c -> (c.name.equals(_name))).findAny().isPresent()) {
                 throw new IllegalArgumentException("column " + name + " already exists");
             }
-            this.columns.add(Column.column(name, type, maxSerialPosition++));
+            this.columns.add(Column.column(_name, type, maxSerialPosition++));
             return this;
         }
 
@@ -253,10 +257,11 @@ public class Table implements ColumnsList {
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException();
             }
-            if (this.columns.stream().filter(c -> (c.name.equals(name))).findAny().isPresent()) {
+            String _name = name.toLowerCase();
+            if (this.columns.stream().filter(c -> (c.name.equals(_name))).findAny().isPresent()) {
                 throw new IllegalArgumentException("column " + name + " already exists");
             }
-            this.columns.add(Column.column(name, type, serialPosition));
+            this.columns.add(Column.column(_name, type, serialPosition));
             return this;
         }
 
@@ -273,9 +278,9 @@ public class Table implements ColumnsList {
                     throw new IllegalArgumentException("column " + pkColumn + " is not defined in table");
                 }
                 if (pk.type != ColumnTypes.STRING
-                        && pk.type != ColumnTypes.LONG
-                        && pk.type != ColumnTypes.INTEGER
-                        && pk.type != ColumnTypes.TIMESTAMP) {
+                    && pk.type != ColumnTypes.LONG
+                    && pk.type != ColumnTypes.INTEGER
+                    && pk.type != ColumnTypes.TIMESTAMP) {
                     throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer or timestamp");
                 }
             }

@@ -89,6 +89,7 @@ import net.sf.jsqlparser.statement.SetStatement;
 import net.sf.jsqlparser.statement.StatementVisitor;
 import net.sf.jsqlparser.statement.Statements;
 import net.sf.jsqlparser.statement.alter.Alter;
+import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
 import net.sf.jsqlparser.statement.create.view.AlterView;
@@ -274,9 +275,20 @@ class JdbcQueryRewriter implements StatementVisitor,
 
     }
 
+    private void visit(AlterExpression ae) {
+        if (ae.getColumnName() != null) {
+            ae.setColumnName(ae.getColumnName().toLowerCase());
+        }
+    }
+
     @Override
     public void visit(Alter alter) {
         visit(alter.getTable());
+        if (alter.getAlterExpressions() != null) {
+            alter.getAlterExpressions().forEach(a -> {
+                visit(a);
+            });
+        }
     }
 
     @Override
