@@ -39,6 +39,7 @@ import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -93,7 +94,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                 }
                 LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length);
 
-                ByteArrayInputStream indexData = new ByteArrayInputStream(pagedata);
+                SimpleByteArrayInputStream indexData = new SimpleByteArrayInputStream(pagedata);
                 try (ExtendedDataInputStream oo = new ExtendedDataInputStream(indexData)) {
                     int size = oo.readVIntNoEOFException();
                     for (int i = 0; i < size; i++) {

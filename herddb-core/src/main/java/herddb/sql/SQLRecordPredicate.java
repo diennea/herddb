@@ -132,7 +132,8 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     public static Object evaluateExpression(Expression where, Map<String, Object> bean, StatementEvaluationContext context, String validatedTableAlias) throws StatementExecutionException {
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
         EvaluationState state = new EvaluationState(sqlContext.jdbcParameters, sqlContext);
-        return evaluateExpression(where, bean, state, validatedTableAlias);
+        ExpressionEvaluator evaluator = new ExpressionEvaluator(bean, state, validatedTableAlias);
+        return evaluator.evaluateExpression(where);
     }
 
     public static boolean toBoolean(Object result) {
@@ -248,297 +249,278 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         return a.toString().matches(like);
     }
 
-    private static Object evaluateExpression(Expression exp, Map<String, Object> record, EvaluationState state,
-        String validatedTableAlias) throws StatementExecutionException {
-        if (exp instanceof net.sf.jsqlparser.schema.Column) {
-            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
-            if (validatedTableAlias != null) {
-                if (c.getTable() != null && c.getTable().getName() != null
-                    && !c.getTable().getName().equals(validatedTableAlias)) {
-                    throw new StatementExecutionException("invalid column name " + c.getColumnName()
-                        + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
-                }
-            }
-            String columnName = c.getColumnName();
-            switch (columnName) {
-                case BuiltinFunctions.BOOLEAN_TRUE:
-                    return Boolean.TRUE;
-                case BuiltinFunctions.BOOLEAN_FALSE:
-                    return Boolean.FALSE;
-                default:
-                    return record.get(columnName);
-            }
+    private final static class ExpressionEvaluator {
 
+        private final Map<String, Object> record;
+        private final EvaluationState state;
+        private final String validatedTableAlias;
+
+        ExpressionEvaluator(Map<String, Object> record, EvaluationState state, String validatedTableAlias) {
+            this.record = record;
+            this.state = state;
+            this.validatedTableAlias = validatedTableAlias;
         }
-        if (exp instanceof StringValue) {
-            return ((StringValue) exp).getValue();
-        } else if (exp instanceof LongValue) {
-            return ((LongValue) exp).getValue();
-        } else if (exp instanceof TimestampValue) {
-            return ((TimestampValue) exp).getValue();
-        } else if (exp instanceof Function) {
-            Function f = (Function) exp;
-            return computeFunction(f, record, state, validatedTableAlias);
-        } else if (exp instanceof Addition) {
-            Addition add = (Addition) exp;
-            Object left = evaluateExpression(add.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(add.getRightExpression(), record, state, validatedTableAlias);
-            return SQLRecordPredicate.add(left, right);
-        } else if (exp instanceof Subtraction) {
-            Subtraction add = (Subtraction) exp;
-            Object left = evaluateExpression(add.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(add.getRightExpression(), record, state, validatedTableAlias);
-            return SQLRecordPredicate.subtract(left, right);
-        } else if (exp instanceof TimeKeyExpression) {
-            TimeKeyExpression ext = (TimeKeyExpression) exp;
-            if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
-                return new java.sql.Timestamp(System.currentTimeMillis());
-            } else {
-                throw new StatementExecutionException("unhandled expression " + exp);
-            }
-        } else if (exp instanceof JdbcParameter) {
-            List<Object> jdbcParameters = state.parameters;
-            if (jdbcParameters == null) {
-                throw new StatementExecutionException("jdbcparameter expression without parameters");
-            }
-            int index = ((JdbcParameter) exp).getIndex();
-            if (jdbcParameters.size() < index) {
-                throw new StatementExecutionException("jdbcparameter wrong argument count: expected at least "
-                    + index + " got " + jdbcParameters.size());
-            }
-            return jdbcParameters.get(index);
-        } else if (exp instanceof CaseExpression) {
-            CaseExpression caseExpression = (CaseExpression) exp;
-            Expression switchExpression = caseExpression.getSwitchExpression();
-            if (switchExpression != null) {
-                throw new StatementExecutionException("unhandled expression CASE SWITCH, type " + exp.getClass() + ": " + exp);
-            }
-            if (caseExpression.getWhenClauses() != null) {
-                for (Expression when : caseExpression.getWhenClauses()) {
-                    WhenClause whenClause = (WhenClause) when;
-                    Expression whenCondition = whenClause.getWhenExpression();
-                    Object expressionValue = evaluateExpression(whenCondition, record, state, validatedTableAlias);
-                    if (expressionValue != null && Boolean.parseBoolean(expressionValue.toString())) {
-                        return evaluateExpression(whenClause.getThenExpression(), record, state, validatedTableAlias);
+
+        Object evaluateExpression(Expression exp) throws StatementExecutionException {
+            if (exp instanceof net.sf.jsqlparser.schema.Column) {
+                net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
+                if (validatedTableAlias != null) {
+                    if (c.getTable() != null && c.getTable().getName() != null
+                        && !c.getTable().getName().equals(validatedTableAlias)) {
+                        throw new StatementExecutionException("invalid column name " + c.getColumnName()
+                            + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
                     }
                 }
-            }
-            Expression elseExpression = caseExpression.getElseExpression();
-            if (elseExpression != null) {
-                return evaluateExpression(elseExpression, record, state, validatedTableAlias);
-            } else {
-                return null;
-            }
-        } else if (exp instanceof JdbcParameter) {
-            int index = ((JdbcParameter) exp).getIndex();
-            return state.parameters.get(index);
-        }
-        if (exp instanceof AndExpression) {
-            AndExpression a = (AndExpression) exp;
-
-            if (!toBoolean(evaluateExpression(a.getLeftExpression(), record, state, validatedTableAlias))) {
-                return a.isNot();
-            }
-            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), record, state, validatedTableAlias)));
-        }
-        if (exp instanceof OrExpression) {
-            OrExpression a = (OrExpression) exp;
-            if (toBoolean(evaluateExpression(a.getLeftExpression(), record, state, validatedTableAlias))) {
-                return !a.isNot();
-            }
-            return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression(), record, state, validatedTableAlias)));
-        }
-
-        if (exp instanceof Parenthesis) {
-            Parenthesis p = (Parenthesis) exp;
-            return handleNot(p.isNot(), evaluateExpression(p.getExpression(), record, state, validatedTableAlias));
-        }
-        if (exp instanceof StringValue) {
-            return ((StringValue) exp).getValue();
-        }
-        if (exp instanceof EqualsTo) {
-            EqualsTo e = (EqualsTo) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(), objectEquals(left, right));
-        }
-        if (exp instanceof NotEqualsTo) {
-            NotEqualsTo e = (NotEqualsTo) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(), !objectEquals(left, right));
-        }
-        if (exp instanceof MinorThan) {
-            MinorThan e = (MinorThan) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(), minorThan(left, right));
-        }
-        if (exp instanceof MinorThanEquals) {
-            MinorThanEquals e = (MinorThanEquals) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(), objectEquals(left, right) || minorThan(left, right));
-        }
-        if (exp instanceof GreaterThan) {
-            GreaterThan e = (GreaterThan) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(), greaterThan(left, right));
-        }
-        if (exp instanceof GreaterThanEquals) {
-            GreaterThanEquals e = (GreaterThanEquals) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(), objectEquals(left, right) || greaterThan(left, right));
-        }
-        if (exp instanceof LikeExpression) {
-            LikeExpression e = (LikeExpression) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(), like(left, right));
-        }
-        if (exp instanceof Between) {
-            Between e = (Between) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object start = evaluateExpression(e.getBetweenExpressionStart(), record, state, validatedTableAlias);
-            Object end = evaluateExpression(e.getBetweenExpressionEnd(), record, state, validatedTableAlias);
-            return handleNot(e.isNot(),
-                (objectEquals(start, end) || minorThan(start, end)) // check impossible range
-                && (objectEquals(left, start)
-                || objectEquals(left, end)
-                || (greaterThan(left, start) && minorThan(left, end))) // check value in range
-            );
-        }
-
-        if (exp instanceof SignedExpression) {
-            SignedExpression s = (SignedExpression) exp;
-            Object evaluated = evaluateExpression(s.getExpression(), record, state, validatedTableAlias);
-            switch (s.getSign()) {
-                case '-':
-                    if (evaluated instanceof Integer) {
-                        return ((Integer) evaluated) * -1;
-                    }
-                    if (evaluated instanceof Long) {
-                        return ((Long) evaluated) * -1;
-                    }
-                    if (evaluated instanceof Double) {
-                        return ((Double) evaluated) * -1;
-                    }
-                    if (evaluated instanceof Float) {
-                        return ((Float) evaluated) * -1;
-                    }
-                    if (evaluated instanceof Short) {
-                        return ((Short) evaluated) * -1;
-                    }
-                    if (evaluated instanceof Byte) {
-                        return ((Byte) evaluated) * -1;
-                    }
-                    throw new StatementExecutionException("invalid signed expression, expression is " + exp);
-                case '+':
-                    return evaluated;
-                default:
-                    throw new StatementExecutionException("invalid sign '" + s.getSign() + "': expression is " + exp);
-            }
-        }
-        if (exp instanceof LongValue) {
-            return ((LongValue) exp).getValue();
-        }
-        if (exp instanceof TimeKeyExpression) {
-            TimeKeyExpression ext = (TimeKeyExpression) exp;
-            if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
-                return new java.sql.Timestamp(System.currentTimeMillis());
-            } else {
-                throw new StatementExecutionException("unhandled select expression " + exp);
-            }
-        }
-        if (exp instanceof TimestampValue) {
-            return ((TimestampValue) exp).getValue();
-        }
-        if (exp instanceof InExpression) {
-            InExpression in = (InExpression) exp;
-            if (in.getLeftItemsList() != null) {
-                throw new StatementExecutionException("unsupported IN syntax <" + exp + ">");
-            }
-            Object value = evaluateExpression(in.getLeftExpression(), record, state, validatedTableAlias);
-            if (in.getRightItemsList() instanceof ExpressionList) {
-                ExpressionList el = (ExpressionList) in.getRightItemsList();
-                for (Expression e : el.getExpressions()) {
-                    Object other = evaluateExpression(e, record, state, validatedTableAlias);
-                    if (objectEquals(value, other)) {
-                        return true;
-                    }
+                String columnName = c.getColumnName();
+                switch (columnName) {
+                    case BuiltinFunctions.BOOLEAN_TRUE:
+                        return Boolean.TRUE;
+                    case BuiltinFunctions.BOOLEAN_FALSE:
+                        return Boolean.FALSE;
+                    default:
+                        return record.get(columnName);
                 }
-                return false;
-            } else if (in.getRightItemsList() instanceof SubSelect) {
-                SubSelect ss = (SubSelect) in.getRightItemsList();
-                SelectBody body = ss.getSelectBody();
-                if (body instanceof PlainSelect) {
-                    PlainSelect ps = (PlainSelect) body;
-                    List<Tuple> subQueryResult = state.sqlContext.executeSubquery(ps);
-                    for (Tuple t : subQueryResult) {
-                        if (t.fieldNames.length > 1) {
-                            throw new StatementExecutionException("subquery returned more than one column");
+            } else if (exp instanceof StringValue) {
+                return ((StringValue) exp).getValue();
+            } else if (exp instanceof LongValue) {
+                return ((LongValue) exp).getValue();
+            } else if (exp instanceof TimestampValue) {
+                return ((TimestampValue) exp).getValue();
+            } else if (exp instanceof JdbcParameter) {
+                int index = ((JdbcParameter) exp).getIndex();
+                return state.parameters.get(index);
+            } else if (exp instanceof Function) {
+                Function f = (Function) exp;
+                return computeFunction(f);
+            } else if (exp instanceof Addition) {
+                Addition add = (Addition) exp;
+                Object left = evaluateExpression(add.getLeftExpression());
+                Object right = evaluateExpression(add.getRightExpression());
+                return SQLRecordPredicate.add(left, right);
+            } else if (exp instanceof Subtraction) {
+                Subtraction add = (Subtraction) exp;
+                Object left = evaluateExpression(add.getLeftExpression());
+                Object right = evaluateExpression(add.getRightExpression());
+                return SQLRecordPredicate.subtract(left, right);
+            } else if (exp instanceof TimeKeyExpression) {
+                TimeKeyExpression ext = (TimeKeyExpression) exp;
+                if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
+                    return new java.sql.Timestamp(System.currentTimeMillis());
+                } else {
+                    throw new StatementExecutionException("unhandled expression " + exp);
+                }
+            } else if (exp instanceof JdbcParameter) {
+                List<Object> jdbcParameters = state.parameters;
+                if (jdbcParameters == null) {
+                    throw new StatementExecutionException("jdbcparameter expression without parameters");
+                }
+                int index = ((JdbcParameter) exp).getIndex();
+                if (jdbcParameters.size() < index) {
+                    throw new StatementExecutionException("jdbcparameter wrong argument count: expected at least "
+                        + index + " got " + jdbcParameters.size());
+                }
+                return jdbcParameters.get(index);
+            } else if (exp instanceof AndExpression) {
+                AndExpression a = (AndExpression) exp;
+
+                if (!toBoolean(evaluateExpression(a.getLeftExpression()))) {
+                    return a.isNot();
+                }
+                return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression())));
+            } else if (exp instanceof OrExpression) {
+                OrExpression a = (OrExpression) exp;
+                if (toBoolean(evaluateExpression(a.getLeftExpression()))) {
+                    return !a.isNot();
+                }
+                return handleNot(a.isNot(), toBoolean(evaluateExpression(a.getRightExpression())));
+            } else if (exp instanceof Parenthesis) {
+                Parenthesis p = (Parenthesis) exp;
+                return handleNot(p.isNot(), evaluateExpression(p.getExpression()));
+            } else if (exp instanceof EqualsTo) {
+                EqualsTo e = (EqualsTo) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return handleNot(e.isNot(), objectEquals(left, right));
+            } else if (exp instanceof NotEqualsTo) {
+                NotEqualsTo e = (NotEqualsTo) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return handleNot(e.isNot(), !objectEquals(left, right));
+            } else if (exp instanceof MinorThan) {
+                MinorThan e = (MinorThan) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return handleNot(e.isNot(), minorThan(left, right));
+            } else if (exp instanceof MinorThanEquals) {
+                MinorThanEquals e = (MinorThanEquals) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return handleNot(e.isNot(), objectEquals(left, right) || minorThan(left, right));
+            } else if (exp instanceof GreaterThan) {
+                GreaterThan e = (GreaterThan) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return handleNot(e.isNot(), greaterThan(left, right));
+            } else if (exp instanceof GreaterThanEquals) {
+                GreaterThanEquals e = (GreaterThanEquals) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return handleNot(e.isNot(), objectEquals(left, right) || greaterThan(left, right));
+            } else if (exp instanceof LikeExpression) {
+                LikeExpression e = (LikeExpression) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return handleNot(e.isNot(), like(left, right));
+            } else if (exp instanceof Between) {
+                Between e = (Between) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object start = evaluateExpression(e.getBetweenExpressionStart());
+                Object end = evaluateExpression(e.getBetweenExpressionEnd());
+                return handleNot(e.isNot(),
+                    (objectEquals(start, end) || minorThan(start, end)) // check impossible range
+                    && (objectEquals(left, start)
+                    || objectEquals(left, end)
+                    || (greaterThan(left, start) && minorThan(left, end))) // check value in range
+                );
+            } else if (exp instanceof SignedExpression) {
+                SignedExpression s = (SignedExpression) exp;
+                Object evaluated = evaluateExpression(s.getExpression());
+                switch (s.getSign()) {
+                    case '-':
+                        if (evaluated instanceof Integer) {
+                            return ((Integer) evaluated) * -1;
                         }
-                        Object tuple_value = t.get(0);
-                        if (objectEquals(value, tuple_value)) {
+                        if (evaluated instanceof Long) {
+                            return ((Long) evaluated) * -1;
+                        }
+                        if (evaluated instanceof Double) {
+                            return ((Double) evaluated) * -1;
+                        }
+                        if (evaluated instanceof Float) {
+                            return ((Float) evaluated) * -1;
+                        }
+                        if (evaluated instanceof Short) {
+                            return ((Short) evaluated) * -1;
+                        }
+                        if (evaluated instanceof Byte) {
+                            return ((Byte) evaluated) * -1;
+                        }
+                        throw new StatementExecutionException("invalid signed expression, expression is " + exp);
+                    case '+':
+                        return evaluated;
+                    default:
+                        throw new StatementExecutionException("invalid sign '" + s.getSign() + "': expression is " + exp);
+                }
+            } else if (exp instanceof TimeKeyExpression) {
+                TimeKeyExpression ext = (TimeKeyExpression) exp;
+                if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
+                    return new java.sql.Timestamp(System.currentTimeMillis());
+                } else {
+                    throw new StatementExecutionException("unhandled select expression " + exp);
+                }
+            } else if (exp instanceof InExpression) {
+                InExpression in = (InExpression) exp;
+                if (in.getLeftItemsList() != null) {
+                    throw new StatementExecutionException("unsupported IN syntax <" + exp + ">");
+                }
+                Object value = evaluateExpression(in.getLeftExpression());
+                if (in.getRightItemsList() instanceof ExpressionList) {
+                    ExpressionList el = (ExpressionList) in.getRightItemsList();
+                    for (Expression e : el.getExpressions()) {
+                        Object other = evaluateExpression(e);
+                        if (objectEquals(value, other)) {
                             return true;
                         }
                     }
                     return false;
+                } else if (in.getRightItemsList() instanceof SubSelect) {
+                    SubSelect ss = (SubSelect) in.getRightItemsList();
+                    SelectBody body = ss.getSelectBody();
+                    if (body instanceof PlainSelect) {
+                        PlainSelect ps = (PlainSelect) body;
+                        List<Tuple> subQueryResult = state.sqlContext.executeSubquery(ps);
+                        for (Tuple t : subQueryResult) {
+                            if (t.fieldNames.length > 1) {
+                                throw new StatementExecutionException("subquery returned more than one column");
+                            }
+                            Object tuple_value = t.get(0);
+                            if (objectEquals(value, tuple_value)) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
                 }
-
-            }
-            throw new StatementExecutionException("unsupported operand " + exp.getClass() + " with argument of type " + in.getRightItemsList());
-        }
-        if (exp instanceof IsNullExpression) {
-            IsNullExpression e = (IsNullExpression) exp;
-            Object value = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            boolean result = value == null;
-            return handleNot(e.isNot(), result);
-        }
-        if (exp instanceof Addition) {
-            Addition e = (Addition) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return add(left, right);
-        }
-        if (exp instanceof Subtraction) {
-            Subtraction e = (Subtraction) exp;
-            Object left = evaluateExpression(e.getLeftExpression(), record, state, validatedTableAlias);
-            Object right = evaluateExpression(e.getRightExpression(), record, state, validatedTableAlias);
-            return subtract(left, right);
-        }
-
-        throw new StatementExecutionException("unsupported operand " + exp.getClass() + ", expression is " + exp);
-    }
-
-    public static Object computeFunction(Function f, Map<String, Object> record, EvaluationState state,
-        String validatedTableAlias) throws StatementExecutionException {
-        String name = f.getName();
-        switch (name) {
-            case BuiltinFunctions.COUNT:
-            case BuiltinFunctions.SUM:
-            case BuiltinFunctions.MIN:
-            case BuiltinFunctions.MAX:
-                // AGGREGATED FUNCTION
-                return null;
-            case BuiltinFunctions.LOWER: {
-                Object computed = evaluateExpression(f.getParameters().getExpressions().get(0), record, state, validatedTableAlias);
-                if (computed == null) {
+                throw new StatementExecutionException("unsupported operand " + exp.getClass() + " with argument of type " + in.getRightItemsList());
+            } else if (exp instanceof IsNullExpression) {
+                IsNullExpression e = (IsNullExpression) exp;
+                Object value = evaluateExpression(e.getLeftExpression());
+                boolean result = value == null;
+                return handleNot(e.isNot(), result);
+            } else if (exp instanceof Addition) {
+                Addition e = (Addition) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return add(left, right);
+            } else if (exp instanceof Subtraction) {
+                Subtraction e = (Subtraction) exp;
+                Object left = evaluateExpression(e.getLeftExpression());
+                Object right = evaluateExpression(e.getRightExpression());
+                return subtract(left, right);
+            } else if (exp instanceof CaseExpression) {
+                CaseExpression caseExpression = (CaseExpression) exp;
+                Expression switchExpression = caseExpression.getSwitchExpression();
+                if (switchExpression != null) {
+                    throw new StatementExecutionException("unhandled expression CASE SWITCH, type " + exp.getClass() + ": " + exp);
+                }
+                if (caseExpression.getWhenClauses() != null) {
+                    for (Expression when : caseExpression.getWhenClauses()) {
+                        WhenClause whenClause = (WhenClause) when;
+                        Expression whenCondition = whenClause.getWhenExpression();
+                        Object expressionValue = evaluateExpression(whenCondition);
+                        if (expressionValue != null && Boolean.parseBoolean(expressionValue.toString())) {
+                            return evaluateExpression(whenClause.getThenExpression());
+                        }
+                    }
+                }
+                Expression elseExpression = caseExpression.getElseExpression();
+                if (elseExpression != null) {
+                    return evaluateExpression(elseExpression);
+                } else {
                     return null;
                 }
-                return computed.toString().toLowerCase();
+            } else {
+                throw new StatementExecutionException("unsupported operand " + exp.getClass() + ", expression is " + exp);
             }
-            case BuiltinFunctions.UPPER: {
-                Object computed = evaluateExpression(f.getParameters().getExpressions().get(0), record, state, validatedTableAlias);
-                if (computed == null) {
+        }
+
+        Object computeFunction(Function f) throws StatementExecutionException {
+            String name = f.getName();
+            switch (name) {
+                case BuiltinFunctions.COUNT:
+                case BuiltinFunctions.SUM:
+                case BuiltinFunctions.MIN:
+                case BuiltinFunctions.MAX:
+                    // AGGREGATED FUNCTION
                     return null;
+                case BuiltinFunctions.LOWER: {
+                    Object computed = evaluateExpression(f.getParameters().getExpressions().get(0));
+                    if (computed == null) {
+                        return null;
+                    }
+                    return computed.toString().toLowerCase();
                 }
-                return computed.toString().toUpperCase();
+                case BuiltinFunctions.UPPER: {
+                    Object computed = evaluateExpression(f.getParameters().getExpressions().get(0));
+                    if (computed == null) {
+                        return null;
+                    }
+                    return computed.toString().toUpperCase();
+                }
+                default:
+                    throw new StatementExecutionException("unhandled function " + name);
             }
-            default:
-                throw new StatementExecutionException("unhandled function " + name);
         }
     }
 
@@ -558,5 +540,5 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     public void setPrimaryKeyFilter(Expression primaryKeyFilter) {
         this.primaryKeyFilter = primaryKeyFilter;
     }
-    
+
 }

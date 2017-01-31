@@ -21,7 +21,6 @@ package herddb.model;
 
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
-import java.lang.ref.SoftReference;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,37 +29,37 @@ import java.util.Objects;
  *
  * @author enrico.olivelli
  */
-public class Record {
+public final class Record {
 
     public final Bytes key;
     public final Bytes value;
-    private SoftReference<Map<String, Object>> cache;
+    private Map<String, Object> cache;
 
     public Record(Bytes key, Bytes value) {
         this.key = key;
         this.value = value;
     }
 
-    public synchronized Map<String, Object> toBean(Table table) {
-        Map<String, Object> cached = cache != null ? cache.get() : null;
-        if (cached == null) {
-            cached = RecordSerializer.toBean(this, table);
-            cache = new SoftReference<>(cached);
+    public final Map<String, Object> toBean(Table table) {
+        Map<String, Object> cached = cache;
+        if (cached != null) {
+            return cached;
         }
-        return cached;
+        cache = RecordSerializer.toBean(this, table);
+        return cache;
     }
 
     @Override
-    public String toString() {
+    public final String toString() {
         return "Record{" + "key=" + key + ", value=" + value + '}';
     }
 
-    public void clearCache() {
+    public final void clearCache() {
         cache = null;
     }
 
     @Override
-    public int hashCode() {
+    public final int hashCode() {
         int hash = 3;
         hash = 53 * hash + Objects.hashCode(this.key);
         hash = 53 * hash + Objects.hashCode(this.value);
@@ -68,7 +67,7 @@ public class Record {
     }
 
     @Override
-    public boolean equals(Object obj) {
+    public final boolean equals(Object obj) {
         if (this == obj) {
             return true;
         }

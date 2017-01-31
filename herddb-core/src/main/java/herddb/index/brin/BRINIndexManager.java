@@ -43,9 +43,10 @@ import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
-import java.io.ByteArrayInputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -119,7 +120,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
 
         static PageContents deserialize(byte[] pagedata) throws IOException {
-            try (ByteArrayInputStream in = new ByteArrayInputStream(pagedata);
+            try (InputStream in = new SimpleByteArrayInputStream(pagedata);
                 ExtendedDataInputStream ein = new ExtendedDataInputStream(in)) {
                 PageContents result = new PageContents();
                 result.type = ein.readVInt();

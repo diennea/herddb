@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -49,7 +50,7 @@ public class TableSpaceReplicaState {
     }
 
     public static TableSpaceReplicaState deserialize(byte[] data) throws IOException {
-        return deserialize(new DataInputStream(new ByteArrayInputStream(data)));
+        return deserialize(new DataInputStream(new SimpleByteArrayInputStream(data)));
     }
 
     public static TableSpaceReplicaState deserialize(DataInputStream in) throws IOException {

@@ -19,7 +19,7 @@
  */
 package herddb.cluster;
 
-import java.io.ByteArrayInputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class LedgersInfo {
         }
         try {
             ObjectMapper mapper = new ObjectMapper();
-            LedgersInfo info = mapper.readValue(new ByteArrayInputStream(data), LedgersInfo.class);
+            LedgersInfo info = mapper.readValue(new SimpleByteArrayInputStream(data), LedgersInfo.class);
             info.setZkVersion(zkVersion);
             return info;
         } catch (Exception impossible) {

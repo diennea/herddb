@@ -22,6 +22,7 @@ package herddb.model;
 import herddb.model.commands.AlterTableStatement;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -84,7 +85,7 @@ public class Table implements ColumnsList {
 
     public static Table deserialize(byte[] data) {
         try {
-            ByteArrayInputStream ii = new ByteArrayInputStream(data);
+            SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(data);
             ExtendedDataInputStream dii = new ExtendedDataInputStream(ii);
             String tablespace = dii.readUTF();
             String name = dii.readUTF();

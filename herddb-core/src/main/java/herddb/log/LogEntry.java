@@ -22,6 +22,7 @@ package herddb.log;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -116,7 +117,7 @@ public class LogEntry {
     }
 
     public static LogEntry deserialize(byte[] data) {
-        ByteArrayInputStream in = new ByteArrayInputStream(data);
+        SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(data);
         ExtendedDataInputStream dis = new ExtendedDataInputStream(in);
         return deserialize(dis);
     }

@@ -19,9 +19,11 @@
  */
 package herddb.model;
 
+import com.google.common.collect.ImmutableMap;
 import herddb.codec.RecordSerializer;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -145,11 +147,11 @@ public class Tuple {
         return oo;
     }
 
-    public static Tuple deserialize(byte[] data, String[] fieldNames, Column[] columns) throws IOException {
-        try (ExtendedDataInputStream eoo = new ExtendedDataInputStream(new ByteArrayInputStream(data));) {
+    public static Tuple deserialize(final byte[] data, final String[] fieldNames, final int nColumns) throws IOException {
+        try (ExtendedDataInputStream eoo = new ExtendedDataInputStream(new SimpleByteArrayInputStream(data));) {
 
             List<Object> values = new ArrayList<>();
-            for (Column column : columns) {
+            for (int i = 0; i < nColumns; i++) {
                 int type = eoo.readVInt();
                 Object value;
                 if (type == ColumnTypes.NULL) {

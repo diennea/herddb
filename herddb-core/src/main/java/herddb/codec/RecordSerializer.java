@@ -34,6 +34,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import herddb.model.ColumnsList;
+import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.SingleEntryMap;
 
 /**
  * Record conversion to byte[]
@@ -47,13 +49,13 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 return data;
             case ColumnTypes.INTEGER:
-                return new Bytes(data).to_int();
+                return Bytes.toInt(data, 0, 4);
             case ColumnTypes.LONG:
-                return new Bytes(data).to_long();
+                return Bytes.toLong(data, 0, 8);
             case ColumnTypes.STRING:
-                return new Bytes(data).to_string();
+                return Bytes.to_string(data);
             case ColumnTypes.TIMESTAMP:
-                return new Bytes(data).to_timestamp();
+                return Bytes.toTimestamp(data, 0, 8);
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -167,9 +169,8 @@ public final class RecordSerializer {
 
         if (table.primaryKey.length == 1) {
             Object value = deserializeSingleColumnPrimaryKey(key, table);
-            ImmutableMap.Builder<String, Object> res = new ImmutableMap.Builder<>();
-            res.put(table.primaryKey[0], value);
-            return res.build();
+            // value will not be null
+            return new SingleEntryMap(table.primaryKey[0], value);
         } else {
             Map<String, Object> result = new HashMap<>();
             deserializeMultiColumnPrimaryKey(key, table, result);
@@ -216,7 +217,7 @@ public final class RecordSerializer {
             }
 
             if (record.value != null && record.value.data.length > 0) {
-                ByteArrayInputStream s = new ByteArrayInputStream(record.value.data);
+                SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(record.value.data);
                 ExtendedDataInputStream din = new ExtendedDataInputStream(s);
                 while (true) {
                     int serialPosition;
@@ -238,7 +239,7 @@ public final class RecordSerializer {
     }
 
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, Map<String, Object> res) {
-        try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
+        try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(data);
             ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
             for (String primaryKeyColumn : table.primaryKey) {
                 byte[] value = din.readArray();

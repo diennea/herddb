@@ -78,11 +78,11 @@ public final class Bytes implements Comparable<Bytes> {
     }
 
     public String to_string() {
-        return new String(data, StandardCharsets.UTF_8);
+        return new String(data, 0, data.length, StandardCharsets.UTF_8);
     }
 
     public static String to_string(byte[] data) {
-        return new String(data, StandardCharsets.UTF_8);
+        return new String(data, 0, data.length, StandardCharsets.UTF_8);
     }
 
     public java.sql.Timestamp to_timestamp() {

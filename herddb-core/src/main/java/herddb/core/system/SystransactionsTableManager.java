@@ -58,7 +58,7 @@ public class SystransactionsTableManager extends AbstractSystemTableManager {
                 table,
                 "tablespace", tableSpaceManager.getTableSpaceName(),
                 "txid", tx.transactionId,
-                "creationTimestamp", new java.sql.Timestamp(tx.localCreationTimestamp)
+                "creationtimestamp", new java.sql.Timestamp(tx.localCreationTimestamp)
             ));
         }
         return result;

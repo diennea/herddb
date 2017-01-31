@@ -69,16 +69,18 @@ class FileRecordSet extends MaterializedRecordSet {
 
         private final Column[] columns;
         private final String[] fieldNames;
+        private final int nColumns;
 
         public TupleSerializer(Column[] columns, String[] fieldNames) {
             this.columns = columns;
             this.fieldNames = fieldNames;
+            this.nColumns = columns.length;
         }
 
         @Override
         public Tuple read(ExtendedDataInputStream oo) throws IOException {
             byte[] serialized = oo.readArray();
-            return Tuple.deserialize(serialized, fieldNames, columns);
+            return Tuple.deserialize(serialized, fieldNames, nColumns);
         }
 
         @Override

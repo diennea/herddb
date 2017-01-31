@@ -23,6 +23,7 @@ import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
+import herddb.index.PrimaryIndexSeek;
 import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -1182,7 +1183,9 @@ public class TableManager implements AbstractTableManager {
         boolean acquireLock = transaction != null || forWrite || lockRequired;
 
         try {
+
             IndexOperation indexOperation = predicate != null ? predicate.getIndexOperation() : null;
+            boolean primaryIndexSeek = indexOperation instanceof PrimaryIndexSeek;
             AbstractIndexManager useIndex = null;
             if (indexOperation != null) {
                 Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
@@ -1217,7 +1220,7 @@ public class TableManager implements AbstractTableManager {
                         }
                         Long pageId = entry.getValue();
                         if (pageId != null) {
-                            if (predicate != null
+                            if (!primaryIndexSeek && predicate != null
                                 && !predicate.matchesRawPrimaryKey(key, context)) {
                                 continue;
                             }

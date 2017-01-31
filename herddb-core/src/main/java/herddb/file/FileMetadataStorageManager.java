@@ -30,6 +30,7 @@ import herddb.model.TableSpaceReplicaState;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 import java.io.ByteArrayInputStream;
@@ -198,7 +199,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         if (!okHash) {
             throw new MetadataStorageManagerException("corrutped data file " + p.toAbsolutePath() + ", checksum failed");
         }
-        try (InputStream in = new ByteArrayInputStream(pageData);
+        try (InputStream in = new SimpleByteArrayInputStream(pageData);
             ExtendedDataInputStream iin = new ExtendedDataInputStream(in);) {
             ts = TableSpace.deserialize(iin, 0);
         }

@@ -40,6 +40,7 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 import java.io.BufferedInputStream;
@@ -177,7 +178,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         long _endhash = System.currentTimeMillis();
         List<Record> result;
-        try (InputStream input = new ByteArrayInputStream(pageData);
+        try (InputStream input = new SimpleByteArrayInputStream(pageData);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
@@ -215,7 +216,7 @@ public class FileDataStorageManager extends DataStorageManager {
         if (!okHash) {
             throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", checksum failed");
         }
-        try (InputStream input = new ByteArrayInputStream(pageData);
+        try (InputStream input = new SimpleByteArrayInputStream(pageData);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
@@ -298,7 +299,7 @@ public class FileDataStorageManager extends DataStorageManager {
     private TableStatus readTableStatusFromFile(Path checkpointsFile) throws IOException {
         byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
         XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
-        try (InputStream input = new ByteArrayInputStream(fileContent);
+        try (InputStream input = new SimpleByteArrayInputStream(fileContent);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             return TableStatus.deserialize(dataIn);
         }
@@ -355,7 +356,7 @@ public class FileDataStorageManager extends DataStorageManager {
         try {
             byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
             XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
-            try (InputStream input = new ByteArrayInputStream(fileContent);
+            try (InputStream input = new SimpleByteArrayInputStream(fileContent);
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
                 return IndexStatus.deserialize(dataIn);
             }

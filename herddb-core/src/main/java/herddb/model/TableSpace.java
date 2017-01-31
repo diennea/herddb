@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -80,7 +81,7 @@ public class TableSpace {
     }
 
     public static TableSpace deserialize(byte[] data, Object metadataStorageVersion) throws IOException {
-        return deserialize(new DataInputStream(new ByteArrayInputStream(data)), metadataStorageVersion);
+        return deserialize(new DataInputStream(new SimpleByteArrayInputStream(data)), metadataStorageVersion);
     }
 
     public static TableSpace deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
