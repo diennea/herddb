@@ -1435,6 +1435,12 @@ public class RawSQLTest {
             {
                 assertEquals(0, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=2138,s1='bar' where k1 = 'mykey2' and s1 is null", Collections.emptyList()).getUpdateCount());
             }
+            {
+                assertEquals(0, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=2138,s1='bar' where k1 = 'mykey2' and not (s1 is not null)", Collections.emptyList()).getUpdateCount());
+            }
+            {
+                assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=2138,s1='bar' where k1 = 'mykey2' and not (s1 is null)", Collections.emptyList()).getUpdateCount());
+            }
 
             {
                 assertEquals(1, executeUpdate(manager, "DELETE FROM  tblspace1.tsql where k1 = 'mykey2' and s1 is not null", Collections.emptyList()).getUpdateCount());

@@ -40,6 +40,12 @@ public final class Record {
         this.value = value;
     }
 
+    public Record(Bytes key, Bytes value, Map<String, Object> cache) {
+        this.key = key;
+        this.value = value;
+        this.cache = cache;
+    }
+
     public final Map<String, Object> toBean(Table table) {
         Map<String, Object> cached = cache;
         if (cached != null) {

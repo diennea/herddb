@@ -106,411 +106,443 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
         switch (message.type) {
             case Message.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
-                try {
-                    byte[] token = (byte[]) message.parameters.get("token");
-                    if (token == null) {
-                        token = new byte[0];
-                    }
-                    String mech = (String) message.parameters.get("mech");
-                    if (saslNettyServer == null) {
-                        saslNettyServer = new SaslNettyServer(server, mech);
-                    }
-                    byte[] responseToken = saslNettyServer.response(token);
-                    Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
-                    _channel.sendReplyMessage(message, tokenChallenge);
-                } catch (Exception err) {
-                    Message error = Message.ERROR(null, err);
-                    _channel.sendReplyMessage(message, error);
-                }
+                handleSaslTokenMessageRequest(message, _channel);
                 break;
             }
             case Message.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
-                try {
-
-                    if (saslNettyServer == null) {
-                        Message error = Message.ERROR(null, new Exception("Authentication failed (SASL protocol error)"));
-                        _channel.sendReplyMessage(message, error);
-                        return;
-                    }
-                    byte[] token = (byte[]) message.parameters.get("token");
-                    byte[] responseToken = saslNettyServer.response(token);
-                    Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
-                    if (saslNettyServer.isComplete()) {
-                        username = saslNettyServer.getUserName();
-                        authenticated = true;
-                        LOGGER.severe("client " + channel + " completed SASL authentication as " + username);
-                        saslNettyServer = null;
-                    }
-                    _channel.sendReplyMessage(message, tokenChallenge);
-                } catch (Exception err) {
-                    if (err instanceof javax.security.sasl.SaslException) {
-                        LOGGER.log(Level.SEVERE, "SASL error " + err, err);
-                        Message error = Message.ERROR(null, new Exception("Authentication failed (SASL error)"));
-                        _channel.sendReplyMessage(message, error);
-                    } else {
-                        Message error = Message.ERROR(null, err);
-                        _channel.sendReplyMessage(message, error);
-                    }
-                }
+                handleSaslTokenMessage(_channel, message);
                 break;
             }
             case Message.TYPE_EXECUTE_STATEMENT: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                Long tx = (Long) message.parameters.get("tx");
-                long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
-                String query = (String) message.parameters.get("query");
-                String tableSpace = (String) message.parameters.get("tableSpace");
-                Boolean returnValues = (Boolean) message.parameters.get("returnValues");
-                if (returnValues == null) {
-                    returnValues = false;
-                }
-                List<Object> parameters = (List<Object>) message.parameters.get("params");
-                if (LOGGER.isLoggable(Level.FINEST)) {
-                    LOGGER.log(Level.FINEST, "query " + query + " with " + parameters);
-                }
-                try {
-                    TransactionContext transactionContext = new TransactionContext(txId);
-                    TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace,
-                        query, parameters, false, true, returnValues, -1);
-                    Statement statement = translatedQuery.plan.mainStatement;
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
-                    StatementExecutionResult result = server
-                        .getManager()
-                        .executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
-                    if (result instanceof DMLStatementExecutionResult) {
-                        DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
-                        Map<String, Object> otherData = null;
-                        if (returnValues && dml.getKey() != null) {
-                            TableAwareStatement tableStatement = (TableAwareStatement) statement;
-                            Table table = server
-                                .getManager()
-                                .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
-
-                            otherData = new HashMap<>();
-                            Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
-                            otherData.put("key", key);
-                            if (dml.getNewvalue() != null) {
-                                Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
-                                otherData.put("newvalue", newvalue);
-                            }
-
-                        }
-                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData, dml.transactionId));
-                    } else if (result instanceof GetResult) {
-                        GetResult get = (GetResult) result;
-                        if (!get.found()) {
-                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null, get.transactionId));
-                        } else {
-                            Map<String, Object> record = get.getRecord().toBean(get.getTable());
-                            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record, get.transactionId));
-                        }
-                    } else if (result instanceof TransactionResult) {
-                        TransactionResult txresult = (TransactionResult) result;
-                        Map<String, Object> data = new HashMap<>();
-                        Set<Long> transactionsForTableSpace = openTransactions.get(statement.getTableSpace());
-                        if (transactionsForTableSpace == null) {
-                            transactionsForTableSpace = new ConcurrentSkipListSet<>();
-                            openTransactions.put(statement.getTableSpace(), transactionsForTableSpace);
-                        }
-                        switch (txresult.getOutcome()) {
-                            case BEGIN: {
-                                transactionsForTableSpace.add(txresult.getTransactionId());
-                                break;
-                            }
-                            case COMMIT:
-                            case ROLLBACK:
-                                transactionsForTableSpace.remove(txresult.getTransactionId());
-                                break;
-                        }
-                        data.put("tx", txresult.getTransactionId());
-                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data, txresult.transactionId));
-                    } else if (result instanceof DDLStatementExecutionResult) {
-                        DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
-                        _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, null, ddl.transactionId));
-                    } else {
-                        _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
-                    }
-                } catch (StatementExecutionException err) {
-                    Message error = Message.ERROR(null, err);
-                    if (err instanceof NotLeaderException) {
-                        error.setParameter("notLeader", "true");
-                    }
-                    _channel.sendReplyMessage(message, error);
-                }
+                handleExecuteStatement(message, _channel);
             }
             break;
             case Message.TYPE_EXECUTE_STATEMENTS: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                Long tx = (Long) message.parameters.get("tx");
-                long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
-                long transactionId = txId;
-                String query = (String) message.parameters.get("query");
-                String tableSpace = (String) message.parameters.get("tableSpace");
-                Boolean returnValues = (Boolean) message.parameters.get("returnValues");
-                if (returnValues == null) {
-                    returnValues = false;
-                }
-                List<List<Object>> batch = (List<List<Object>>) message.parameters.get("params");
-                try {
-
-                    List<Long> updateCounts = new ArrayList<>(batch.size());
-                    List<Map<String, Object>> otherDatas = new ArrayList<>(batch.size());
-                    for (int i = 0; i < batch.size(); i++) {
-                        List<Object> parameters = batch.get(i);
-
-                        TransactionContext transactionContext = new TransactionContext(transactionId);
-                        TranslatedQuery translatedQuery = server
-                            .getManager()
-                            .getPlanner().translate(tableSpace, query, parameters, false, true, returnValues, -1);
-                        Statement statement = translatedQuery.plan.mainStatement;
-
-                        StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
-                        if (transactionId > 0 && result.transactionId > 0 && transactionId != result.transactionId) {
-                            throw new StatementExecutionException("transactionid changed during batch execution, " + transactionId + "<>" + result.transactionId);
-                        }
-                        transactionId = result.transactionId;
-
-                        if (result instanceof DMLStatementExecutionResult) {
-                            DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
-                            Map<String, Object> otherData = Collections.emptyMap();
-                            if (returnValues && dml.getKey() != null) {
-                                TableAwareStatement tableStatement = (TableAwareStatement) statement;
-                                Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
-                                Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
-                                otherData = new HashMap<>();
-                                otherData.put("key", key);
-                                if (dml.getNewvalue() != null) {
-                                    Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
-                                    otherData.put("newvalue", newvalue);
-                                }
-                            }
-                            updateCounts.add(Long.valueOf(dml.getUpdateCount()));
-                            otherDatas.add(otherData);
-                        } else {
-                            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("bad result type " + result.getClass() + " (" + result + ")")));
-                        }
-                    }
-                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULTS(updateCounts, otherDatas, transactionId));
-                } catch (StatementExecutionException err) {
-                    Message error = Message.ERROR(null, err);
-                    if (err instanceof NotLeaderException) {
-                        error.setParameter("notLeader", "true");
-                    }
-                    _channel.sendReplyMessage(message, error);
-                }
+                handleExecuteStatements(message, _channel);
             }
             break;
             case Message.TYPE_REQUEST_TABLESPACE_DUMP: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                String dumpId = (String) message.parameters.get("dumpId");
-                int fetchSize = 10;
-                if (message.parameters.containsKey("fetchSize")) {
-                    fetchSize = (Integer) message.parameters.get("fetchSize");
-                }
-                String tableSpace = (String) message.parameters.get("tableSpace");
-                server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize);
-
+                handleRequestTablespaceDump(message, _channel);
             }
             break;
             case Message.TYPE_REQUEST_TABLE_RESTORE: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                try {
-                    String tableSpace = (String) message.parameters.get("tableSpace");
-                    byte[] table = (byte[]) message.parameters.get("table");
-                    Table tableSchema = Table.deserialize(table);
-                    tableSchema = Table
-                        .builder()
-                        .cloning(tableSchema)
-                        .tablespace(tableSpace)
-                        .build();
-                    CreateTableStatement createTableStatement = new CreateTableStatement(tableSchema);
-                    server.getManager().executeStatement(createTableStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                    _channel.sendReplyMessage(message, Message.ACK(null));
-                } catch (StatementExecutionException err) {
-                    Message error = Message.ERROR(null, err);
-                    if (err instanceof NotLeaderException) {
-                        error.setParameter("notLeader", "true");
-                    }
-                    _channel.sendReplyMessage(message, error);
-                }
+                handleRequestTableRestore(message, _channel);
             }
             break;
             case Message.TYPE_PUSH_TABLE_DATA: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                try {
-                    String tableSpace = (String) message.parameters.get("tableSpace");
-                    String table = (String) message.parameters.get("table");
-                    List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
-                    LOGGER.log(Level.INFO, "Received " + data.size() + " records for restore of table " + table + " in tableSpace " + tableSpace);
-                    long _start = System.currentTimeMillis();
-                    BeginTransactionStatement bt = new BeginTransactionStatement(tableSpace);
-                    long txId = ((TransactionResult) server.getManager().executeStatement(bt, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
-                    TransactionContext transactionContext = new TransactionContext(txId);
-                    for (KeyValue kv : data) {
-                        InsertStatement insertStatement = new InsertStatement(tableSpace, table, new Record(Bytes.from_array(kv.key), Bytes.from_array(kv.value)));
-                        server.getManager().executeStatement(insertStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
-                    }
-                    long _stop = System.currentTimeMillis();
-                    server.getManager().executeStatement(new CommitTransactionStatement(tableSpace, txId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                    long _stopCommit = System.currentTimeMillis();
-                    LOGGER.log(Level.INFO, "Time restore " + data.size() + " records: data " + (_stop - _start) + " ms. with commit: " + (_stopCommit - _start) + " ms. ");
-                    _channel.sendReplyMessage(message, Message.ACK(null));
-                } catch (StatementExecutionException err) {
-                    Message error = Message.ERROR(null, err);
-                    if (err instanceof NotLeaderException) {
-                        error.setParameter("notLeader", "true");
-                    }
-                    _channel.sendReplyMessage(message, error);
-                }
+                handlePushTableData(message, _channel);
             }
             break;
             case Message.TYPE_OPENSCANNER: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                String tableSpace = (String) message.parameters.get("tableSpace");
-                Long tx = (Long) message.parameters.get("tx");
-                long txId = tx != null ? tx : 0;
-                String query = (String) message.parameters.get("query");
-                String scannerId = (String) message.parameters.get("scannerId");
-                int fetchSize = 10;
-                if (message.parameters.containsKey("fetchSize")) {
-                    fetchSize = (Integer) message.parameters.get("fetchSize");
-                }
-                int maxRows = 0;
-                if (message.parameters.containsKey("maxRows")) {
-                    maxRows = (Integer) message.parameters.get("maxRows");
-                }
-                List<Object> parameters = (List<Object>) message.parameters.get("params");
-                if (LOGGER.isLoggable(Level.FINEST)) {
-                    LOGGER.log(Level.FINEST, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
-                }
-                try {
-                    TranslatedQuery translatedQuery = server
-                        .getManager()
-                        .getPlanner().translate(tableSpace, query, parameters, true, true, false, maxRows);
-                    TransactionContext transactionContext = new TransactionContext(txId);
-                    if (translatedQuery.plan.mainStatement instanceof ScanStatement
-                        || translatedQuery.plan.joinStatements != null) {
-
-                        ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
-                        DataScanner dataScanner = scanResult.dataScanner;
-
-                        ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
-                        List<String> columns = new ArrayList<>();
-                        for (Column c : dataScanner.getSchema()) {
-                            columns.add(c.name);
-                        }
-                        List<Tuple> records = dataScanner.consume(fetchSize);
-                        List<Map<String, Object>> converted = new ArrayList<>();
-                        for (Tuple r : records) {
-                            converted.add(r.toMap());
-                        }
-                        boolean last = dataScanner.isFinished();
-                        LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{converted.size(), scannerId, query});
-                        if (!last) {
-                            scanners.put(scannerId, scanner);
-                        }
-                        _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
-                    } else {
-                        _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
-                    }
-                } catch (StatementExecutionException | DataScannerException err) {
-                    LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
-                    scanners.remove(scannerId);
-
-                    Message error = Message.ERROR(null, err);
-                    if (err instanceof NotLeaderException) {
-                        error.setParameter("notLeader", "true");
-                    }
-                    _channel.sendReplyMessage(message, error);
-                }
-
+                handleOpenScanner(message, _channel);
                 break;
             }
 
             case Message.TYPE_FETCHSCANNERDATA: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                String scannerId = (String) message.parameters.get("scannerId");
-                int fetchSize = (Integer) message.parameters.get("fetchSize");
-                ServerSideScannerPeer scanner = scanners.get(scannerId);
-                if (scanner != null) {
-                    try {
-                        DataScanner dataScanner = scanner.getScanner();
-                        List<Tuple> records = dataScanner.consume(fetchSize);
-                        List<String> columns = new ArrayList<>();
-                        for (Column c : dataScanner.getSchema()) {
-                            columns.add(c.name);
-                        }
-                        List<Map<String, Object>> converted = new ArrayList<>();
-                        for (Tuple r : records) {
-                            converted.add(r.toMap());
-                        }
-                        boolean last = false;
-                        if (dataScanner.isFinished()) {
-                            LOGGER.log(Level.FINEST, "unregistering scanner " + scannerId + ", resultset is finished");
-                            scanners.remove(scannerId);
-                            last = true;
-                        }
-//                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
-                        _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
-                    } catch (DataScannerException error) {
-                        _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
-                    }
-                } else {
-                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId + ", only " + scanners.keySet())).setParameter("scannerId", scannerId));
-                }
+                handleFetchScannerData(message, _channel);
             }
-            ;
             break;
 
             case Message.TYPE_CLOSESCANNER: {
                 if (!authenticated) {
-                    Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
-                    _channel.sendReplyMessage(message, error);
+                    sendAuthRequiredError(_channel, message);
                     break;
                 }
-                String scannerId = (String) message.parameters.get("scannerId");
-                LOGGER.log(Level.SEVERE, "remove scanner " + scannerId + " as requested by client");
-                ServerSideScannerPeer removed = scanners.remove(scannerId);
-                if (removed != null) {
-                    removed.clientClose();
-                    _channel.sendReplyMessage(message, Message.ACK(null).setParameter("scannerId", scannerId));
-                } else {
-                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId)).setParameter("scannerId", scannerId));
-                }
-
+                handleCloseScanner(message, _channel);
             }
 
             default:
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported message type " + message.type)));
+        }
+    }
+
+    private void handleRequestTableRestore(Message message, Channel _channel) {
+        try {
+            String tableSpace = (String) message.parameters.get("tableSpace");
+            byte[] table = (byte[]) message.parameters.get("table");
+            Table tableSchema = Table.deserialize(table);
+            tableSchema = Table
+                .builder()
+                .cloning(tableSchema)
+                .tablespace(tableSpace)
+                .build();
+            CreateTableStatement createTableStatement = new CreateTableStatement(tableSchema);
+            server.getManager().executeStatement(createTableStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            _channel.sendReplyMessage(message, Message.ACK(null));
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handlePushTableData(Message message, Channel _channel) {
+        try {
+            String tableSpace = (String) message.parameters.get("tableSpace");
+            String table = (String) message.parameters.get("table");
+            List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
+            LOGGER.log(Level.INFO, "Received " + data.size() + " records for restore of table " + table + " in tableSpace " + tableSpace);
+            long _start = System.currentTimeMillis();
+            BeginTransactionStatement bt = new BeginTransactionStatement(tableSpace);
+            long txId = ((TransactionResult) server.getManager().executeStatement(bt, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
+            TransactionContext transactionContext = new TransactionContext(txId);
+            for (KeyValue kv : data) {
+                InsertStatement insertStatement = new InsertStatement(tableSpace, table, new Record(Bytes.from_array(kv.key), Bytes.from_array(kv.value)));
+                server.getManager().executeStatement(insertStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
+            }
+            long _stop = System.currentTimeMillis();
+            server.getManager().executeStatement(new CommitTransactionStatement(tableSpace, txId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            long _stopCommit = System.currentTimeMillis();
+            LOGGER.log(Level.INFO, "Time restore " + data.size() + " records: data " + (_stop - _start) + " ms. with commit: " + (_stopCommit - _start) + " ms. ");
+            _channel.sendReplyMessage(message, Message.ACK(null));
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handleOpenScanner(Message message, Channel _channel) {
+        String tableSpace = (String) message.parameters.get("tableSpace");
+        Long tx = (Long) message.parameters.get("tx");
+        long txId = tx != null ? tx : 0;
+        String query = (String) message.parameters.get("query");
+        String scannerId = (String) message.parameters.get("scannerId");
+        int fetchSize = 10;
+        if (message.parameters.containsKey("fetchSize")) {
+            fetchSize = (Integer) message.parameters.get("fetchSize");
+        }
+        int maxRows = 0;
+        if (message.parameters.containsKey("maxRows")) {
+            maxRows = (Integer) message.parameters.get("maxRows");
+        }
+        List<Object> parameters = (List<Object>) message.parameters.get("params");
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
+        }
+        try {
+            TranslatedQuery translatedQuery = server
+                .getManager()
+                .getPlanner().translate(tableSpace, query, parameters, true, true, false, maxRows);
+            TransactionContext transactionContext = new TransactionContext(txId);
+            if (translatedQuery.plan.mainStatement instanceof ScanStatement
+                || translatedQuery.plan.joinStatements != null) {
+
+                ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                DataScanner dataScanner = scanResult.dataScanner;
+
+                ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
+                List<String> columns = new ArrayList<>();
+                for (Column c : dataScanner.getSchema()) {
+                    columns.add(c.name);
+                }
+                List<Tuple> records = dataScanner.consume(fetchSize);
+                List<Map<String, Object>> converted = new ArrayList<>();
+                for (Tuple r : records) {
+                    converted.add(r.toMap());
+                }
+                boolean last = dataScanner.isFinished();
+                LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{converted.size(), scannerId, query});
+                if (!last) {
+                    scanners.put(scannerId, scanner);
+                }
+                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
+            } else {
+                _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
+            }
+        } catch (StatementExecutionException | DataScannerException err) {
+            LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
+            scanners.remove(scannerId);
+
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handleFetchScannerData(Message message, Channel _channel) {
+        String scannerId = (String) message.parameters.get("scannerId");
+        int fetchSize = (Integer) message.parameters.get("fetchSize");
+        ServerSideScannerPeer scanner = scanners.get(scannerId);
+        if (scanner != null) {
+            try {
+                DataScanner dataScanner = scanner.getScanner();
+                List<Tuple> records = dataScanner.consume(fetchSize);
+                List<String> columns = new ArrayList<>();
+                for (Column c : dataScanner.getSchema()) {
+                    columns.add(c.name);
+                }
+                List<Map<String, Object>> converted = new ArrayList<>();
+                for (Tuple r : records) {
+                    converted.add(r.toMap());
+                }
+                boolean last = false;
+                if (dataScanner.isFinished()) {
+                    LOGGER.log(Level.FINEST, "unregistering scanner " + scannerId + ", resultset is finished");
+                    scanners.remove(scannerId);
+                    last = true;
+                }
+//                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
+                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
+            } catch (DataScannerException error) {
+                _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
+            }
+        } else {
+            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId + ", only " + scanners.keySet())).setParameter("scannerId", scannerId));
+        }
+    }
+
+    private void handleCloseScanner(Message message, Channel _channel) {
+        String scannerId = (String) message.parameters.get("scannerId");
+        LOGGER.log(Level.SEVERE, "remove scanner " + scannerId + " as requested by client");
+        ServerSideScannerPeer removed = scanners.remove(scannerId);
+        if (removed != null) {
+            removed.clientClose();
+            _channel.sendReplyMessage(message, Message.ACK(null).setParameter("scannerId", scannerId));
+        } else {
+            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("no such scanner " + scannerId)).setParameter("scannerId", scannerId));
+        }
+    }
+
+    private void sendAuthRequiredError(Channel _channel, Message message) {
+        Message error = Message.ERROR(null, new Exception("autentication required (client " + channel + ")"));
+        _channel.sendReplyMessage(message, error);
+    }
+
+    private void handleRequestTablespaceDump(Message message, Channel _channel) {
+        String dumpId = (String) message.parameters.get("dumpId");
+        int fetchSize = 10;
+        if (message.parameters.containsKey("fetchSize")) {
+            fetchSize = (Integer) message.parameters.get("fetchSize");
+        }
+        String tableSpace = (String) message.parameters.get("tableSpace");
+        server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize);
+    }
+
+    private void handleExecuteStatements(Message message, Channel _channel) {
+        Long tx = (Long) message.parameters.get("tx");
+        long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
+        long transactionId = txId;
+        String query = (String) message.parameters.get("query");
+        String tableSpace = (String) message.parameters.get("tableSpace");
+        Boolean returnValues = (Boolean) message.parameters.get("returnValues");
+        if (returnValues == null) {
+            returnValues = false;
+        }
+        List<List<Object>> batch = (List<List<Object>>) message.parameters.get("params");
+        try {
+
+            List<Long> updateCounts = new ArrayList<>(batch.size());
+            List<Map<String, Object>> otherDatas = new ArrayList<>(batch.size());
+            for (int i = 0; i < batch.size(); i++) {
+                List<Object> parameters = batch.get(i);
+
+                TransactionContext transactionContext = new TransactionContext(transactionId);
+                TranslatedQuery translatedQuery = server
+                    .getManager()
+                    .getPlanner().translate(tableSpace, query, parameters, false, true, returnValues, -1);
+                Statement statement = translatedQuery.plan.mainStatement;
+
+                StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                if (transactionId > 0 && result.transactionId > 0 && transactionId != result.transactionId) {
+                    throw new StatementExecutionException("transactionid changed during batch execution, " + transactionId + "<>" + result.transactionId);
+                }
+                transactionId = result.transactionId;
+
+                if (result instanceof DMLStatementExecutionResult) {
+                    DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
+                    Map<String, Object> otherData = Collections.emptyMap();
+                    if (returnValues && dml.getKey() != null) {
+                        TableAwareStatement tableStatement = (TableAwareStatement) statement;
+                        Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                        Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                        otherData = new HashMap<>();
+                        otherData.put("key", key);
+                        if (dml.getNewvalue() != null) {
+                            Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
+                            otherData.put("newvalue", newvalue);
+                        }
+                    }
+                    updateCounts.add(Long.valueOf(dml.getUpdateCount()));
+                    otherDatas.add(otherData);
+                } else {
+                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("bad result type " + result.getClass() + " (" + result + ")")));
+                }
+            }
+            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULTS(updateCounts, otherDatas, transactionId));
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handleExecuteStatement(Message message, Channel _channel) {
+        Long tx = (Long) message.parameters.get("tx");
+        long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
+        String query = (String) message.parameters.get("query");
+        String tableSpace = (String) message.parameters.get("tableSpace");
+        Boolean returnValues = (Boolean) message.parameters.get("returnValues");
+        if (returnValues == null) {
+            returnValues = false;
+        }
+        List<Object> parameters = (List<Object>) message.parameters.get("params");
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "query " + query + " with " + parameters);
+        }
+        try {
+            TransactionContext transactionContext = new TransactionContext(txId);
+            TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace,
+                query, parameters, false, true, returnValues, -1);
+            Statement statement = translatedQuery.plan.mainStatement;
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
+            StatementExecutionResult result = server
+                .getManager()
+                .executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
+            if (result instanceof DMLStatementExecutionResult) {
+                DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
+                Map<String, Object> otherData = null;
+                if (returnValues && dml.getKey() != null) {
+                    TableAwareStatement tableStatement = (TableAwareStatement) statement;
+                    Table table = server
+                        .getManager()
+                        .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+
+                    otherData = new HashMap<>();
+                    Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                    otherData.put("key", key);
+                    if (dml.getNewvalue() != null) {
+                        Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
+                        otherData.put("newvalue", newvalue);
+                    }
+
+                }
+                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData, dml.transactionId));
+            } else if (result instanceof GetResult) {
+                GetResult get = (GetResult) result;
+                if (!get.found()) {
+                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null, get.transactionId));
+                } else {
+                    Map<String, Object> record = get.getRecord().toBean(get.getTable());
+                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record, get.transactionId));
+                }
+            } else if (result instanceof TransactionResult) {
+                TransactionResult txresult = (TransactionResult) result;
+                Map<String, Object> data = new HashMap<>();
+                Set<Long> transactionsForTableSpace = openTransactions.get(statement.getTableSpace());
+                if (transactionsForTableSpace == null) {
+                    transactionsForTableSpace = new ConcurrentSkipListSet<>();
+                    openTransactions.put(statement.getTableSpace(), transactionsForTableSpace);
+                }
+                switch (txresult.getOutcome()) {
+                    case BEGIN: {
+                        transactionsForTableSpace.add(txresult.getTransactionId());
+                        break;
+                    }
+                    case COMMIT:
+                    case ROLLBACK:
+                        transactionsForTableSpace.remove(txresult.getTransactionId());
+                        break;
+                }
+                data.put("tx", txresult.getTransactionId());
+                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data, txresult.transactionId));
+            } else if (result instanceof DDLStatementExecutionResult) {
+                DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
+                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, null, ddl.transactionId));
+            } else {
+                _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+            }
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handleSaslTokenMessage(Channel _channel, Message message) {
+        try {
+            if (saslNettyServer == null) {
+                Message error = Message.ERROR(null, new Exception("Authentication failed (SASL protocol error)"));
+                _channel.sendReplyMessage(message, error);
+                return;
+            }
+            byte[] token = (byte[]) message.parameters.get("token");
+            byte[] responseToken = saslNettyServer.response(token);
+            Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
+            if (saslNettyServer.isComplete()) {
+                username = saslNettyServer.getUserName();
+                authenticated = true;
+                LOGGER.severe("client " + channel + " completed SASL authentication as " + username);
+                saslNettyServer = null;
+            }
+            _channel.sendReplyMessage(message, tokenChallenge);
+        } catch (Exception err) {
+            if (err instanceof javax.security.sasl.SaslException) {
+                LOGGER.log(Level.SEVERE, "SASL error " + err, err);
+                Message error = Message.ERROR(null, new Exception("Authentication failed (SASL error)"));
+                _channel.sendReplyMessage(message, error);
+            } else {
+                Message error = Message.ERROR(null, err);
+                _channel.sendReplyMessage(message, error);
+            }
+        }
+    }
+
+    private void handleSaslTokenMessageRequest(Message message, Channel _channel) {
+        try {
+            byte[] token = (byte[]) message.parameters.get("token");
+            if (token == null) {
+                token = new byte[0];
+            }
+            String mech = (String) message.parameters.get("mech");
+            if (saslNettyServer == null) {
+                saslNettyServer = new SaslNettyServer(server, mech);
+            }
+            byte[] responseToken = saslNettyServer.response(token);
+            Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
+            _channel.sendReplyMessage(message, tokenChallenge);
+        } catch (Exception err) {
+            Message error = Message.ERROR(null, err);
+            _channel.sendReplyMessage(message, error);
         }
     }
 

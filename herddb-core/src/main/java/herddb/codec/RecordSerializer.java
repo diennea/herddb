@@ -197,7 +197,7 @@ public final class RecordSerializer {
     }
 
     public static Record toRecord(Map<String, Object> record, Table table) {
-        return new Record(serializePrimaryKey(record, table), serializeValue(record, table));
+        return new Record(serializePrimaryKey(record, table), serializeValue(record, table), record);
     }
 
     private static Object deserializeSingleColumnPrimaryKey(byte[] data, Table table) {
