@@ -357,6 +357,15 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             if (in.getLeftItemsList() != null) {
                 throw new StatementExecutionException("unsupported IN syntax <" + exp + ">");
             }
+            boolean res = executeInClause(in, exp);
+            if (in.isNot()) {
+                return !res;
+            } else {
+                return res;
+            }
+        }
+
+        private boolean executeInClause(InExpression in, Expression exp) throws StatementExecutionException {
             Object value = evaluateExpression(in.getLeftExpression());
             if (in.getRightItemsList() instanceof ExpressionList) {
                 ExpressionList el = (ExpressionList) in.getRightItemsList();
