@@ -20,8 +20,8 @@
 package herddb.core;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,11 +37,6 @@ import java.util.logging.Logger;
 public final class PageSet {
 
     private static final Logger LOGGER = Logger.getLogger(PageSet.class.getName());
-
-    /**
-     * a structure which holds the set of the pages which are loaded in memory (set<long>)
-     */
-    private final Set<Long> loadedPages = new HashSet<>();
 
     private final Set<Long> dirtyPages = new HashSet<>();
 
@@ -59,16 +54,10 @@ public final class PageSet {
         }
     }
 
-    Set<Long> selectPagesToUnload(int max) {
+    static Set<Long> selectPagesToUnload(int max, Collection<Long> loadedPages) {
         int count = max;
         Set<Long> pagesToUnload = new HashSet<>();
-        List<Long> loadedShuffled;
-        lock.readLock().lock();
-        try {
-            loadedShuffled = new ArrayList<>(loadedPages);
-        } finally {
-            lock.readLock().unlock();
-        }
+        List<Long> loadedShuffled = new ArrayList<>(loadedPages);
         Collections.shuffle(loadedShuffled);
         for (Long loadedPage : loadedShuffled) {
             pagesToUnload.add(loadedPage);
@@ -80,16 +69,6 @@ public final class PageSet {
             return Collections.emptySet();
         }
         return pagesToUnload;
-    }
-
-    void unloadPages(Set<Long> pages, Runnable runnable) {
-        lock.writeLock().lock();
-        try {
-            runnable.run();
-            loadedPages.removeAll(pages);
-        } finally {
-            lock.writeLock().unlock();
-        }
     }
 
     Set<Long> getActivePages() {
@@ -106,7 +85,6 @@ public final class PageSet {
         try {
             dirtyPages.clear();
             activePages.clear();
-            loadedPages.clear();
         } finally {
             lock.writeLock().unlock();
         }
@@ -124,54 +102,11 @@ public final class PageSet {
         }
     }
 
-    boolean checkPageLoadable(Long pageId) {
-        lock.readLock().lock();
-        try {
-            if (loadedPages.contains(pageId)) {
-                return false;
-            }
-            if (!activePages.contains(pageId)) {
-                LOGGER.log(Level.SEVERE, "page {2} is no more active. it cannot be loaded from disk", new Object[]{pageId});
-                return false;
-            }
-            return true;
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    void setPageLoaded(Long pageId) {
-        lock.writeLock().lock();
-        try {
-            loadedPages.add(pageId);
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
     @Override
     public String toString() {
         lock.readLock().lock();
         try {
-            return "{" + "loadedPages=" + loadedPages + ", dirtyPages=" + dirtyPages + ", activePages=" + activePages + '}';
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    int getLoadedPagesCount() {
-        lock.readLock().lock();
-        try {
-            return loadedPages.size();
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    Set<Long> getLoadedPages() {
-        lock.readLock().lock();
-        try {
-            return new HashSet<>(loadedPages);
+            return "PageSet{" + "dirtyPages=" + dirtyPages + ", activePages=" + activePages + "}";
         } finally {
             lock.readLock().unlock();
         }
@@ -199,7 +134,6 @@ public final class PageSet {
         lock.writeLock().lock();
         try {
             activePages.add(pageId);
-            loadedPages.add(pageId);
         } finally {
             lock.writeLock().unlock();
         }
@@ -209,7 +143,6 @@ public final class PageSet {
         lock.writeLock().lock();
         try {
             activePages.removeAll(dirtyPagesFlushed);
-            loadedPages.removeAll(dirtyPagesFlushed);
             dirtyPages.removeAll(dirtyPagesFlushed);
         } finally {
             lock.writeLock().unlock();

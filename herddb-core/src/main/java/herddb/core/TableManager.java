@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import com.google.common.collect.ImmutableMap;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
@@ -50,6 +51,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
 import herddb.model.Projection;
+import herddb.model.Record;
 import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -72,10 +74,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -103,10 +105,9 @@ public class TableManager implements AbstractTableManager {
 
     public static final Long NEW_PAGE = Long.valueOf(-1);
 
-    /**
-     * A buffer which contains the rows contained into the loaded pages (map<byte[],byte[]>)
-     */
-    private final ConcurrentHashMap<Bytes, Record> buffer = new ConcurrentHashMap<>();
+    private final DataPage dirtyRecordsPage = new DataPage(NEW_PAGE, 0, new ConcurrentHashMap<>(), false);
+
+    private final ConcurrentHashMap<Long, DataPage> pages = new ConcurrentHashMap<>();
 
     /**
      * A structure which maps each key to the ID of the page (map<byte[], long>) (this can be quite large)
@@ -178,6 +179,9 @@ public class TableManager implements AbstractTableManager {
     TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID,
         long maxLogicalPageSize,
         long maxTableUsedMemory, long createdInTransaction) throws DataStorageManagerException {
+
+        this.pages.put(NEW_PAGE, dirtyRecordsPage);
+
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
         this.log = log;
@@ -340,7 +344,8 @@ public class TableManager implements AbstractTableManager {
         if (count < 0) {
             return;
         }
-        Set<Long> pagesToUnload = pageSet.selectPagesToUnload(count);
+        Set<Long> pagesToUnload = PageSet.selectPagesToUnload(count, pages.keySet());
+        pagesToUnload.remove(NEW_PAGE);
         if (pagesToUnload.isEmpty()) {
             return;
         }
@@ -350,13 +355,13 @@ public class TableManager implements AbstractTableManager {
 
     private void unloadPages(Set<Long> pagesToUnload) {
         LOGGER.log(Level.SEVERE, "table {0} cleanpages {1}", new Object[]{table.name, pagesToUnload});
-        pageSet.unloadPages(pagesToUnload,
-            () -> {
-                this.keyToPage.visitPages(pagesToUnload, key -> {
-                    Record old = buffer.remove(key);
-                    memoryReleased(old);
-                });
-            });
+        for (Long pageId : pagesToUnload) {
+            LOGGER.log(Level.SEVERE, "table {0} removing page {1}", new Object[]{table.name, pageId});
+            DataPage removed = pages.remove(pageId);
+            if (removed != null) {
+                memoryReleased(removed.estimatedSize);
+            }
+        };
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
@@ -522,41 +527,38 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void applyTruncate() throws DataStorageManagerException {
-        pagesLock.lock();
-        try {
-            if (createdInTransaction > 0) {
-                throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed on an uncommitted table");
-            }
-            if (checkPointRunning) {
-                throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed during a checkpoint");
-            }
-            if (tableSpaceManager.isTransactionRunningOnTable(table.name)) {
-                throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed table " + table.name
-                    + ": at least one transaction is pending on it");
-            }
-            Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-            if (indexes != null) {
-                for (AbstractIndexManager index : indexes.values()) {
-                    if (!index.isAvailable()) {
-                        throw new DataStorageManagerException("index " + index.getIndexName()
-                            + " in not full available. Cannot TRUNCATE table " + table.name);
-                    }
+        if (createdInTransaction > 0) {
+            throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed on an uncommitted table");
+        }
+        if (checkPointRunning) {
+            throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed during a checkpoint");
+        }
+        if (tableSpaceManager.isTransactionRunningOnTable(table.name)) {
+            throw new DataStorageManagerException("TRUNCATE TABLE cannot be executed table " + table.name
+                + ": at least one transaction is pending on it");
+        }
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        if (indexes != null) {
+            for (AbstractIndexManager index : indexes.values()) {
+                if (!index.isAvailable()) {
+                    throw new DataStorageManagerException("index " + index.getIndexName()
+                        + " in not full available. Cannot TRUNCATE table " + table.name);
                 }
             }
-            pageSet.truncate();
-            dirtyRecords.set(0);
-            buffer.clear();
-            deletedKeys.clear();
-            locksManager.clear();
-            keyToPage.truncate();
-            usedMemoryFromValues.set(0);
-            if (indexes != null) {
-                for (AbstractIndexManager index : indexes.values()) {
-                    index.truncate();
-                }
+        }
+        pageSet.truncate();
+        dirtyRecords.set(0);
+        pages.clear();
+        pages.put(NEW_PAGE, dirtyRecordsPage);
+        dirtyRecordsPage.clear();
+        deletedKeys.clear();
+        locksManager.clear();
+        keyToPage.truncate();
+        usedMemoryFromValues.set(0);
+        if (indexes != null) {
+            for (AbstractIndexManager index : indexes.values()) {
+                index.truncate();
             }
-        } finally {
-            pagesLock.unlock();
         }
     }
 
@@ -698,11 +700,18 @@ public class TableManager implements AbstractTableManager {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
         deletedKeys.add(key);
-        if (!NEW_PAGE.equals(pageId)) {
-            pageSet.setPageDirty(pageId);
+        Record record;
+        DataPage dataPage = pages.get(pageId);
+        if (dataPage == null) {
+            throw new IllegalStateException("page " + pageId + " not loaded in memory during delete!");
         }
-        Record record = buffer.remove(key);
-        memoryReleased(record);
+        if (!NEW_PAGE.equals(pageId)) {
+            record = dataPage.get(key);
+            pageSet.setPageDirty(pageId);
+        } else {
+            record = dataPage.remove(key);
+            memoryReleased(record);
+        }
         dirtyRecords.incrementAndGet();
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
@@ -723,13 +732,21 @@ public class TableManager implements AbstractTableManager {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
         Record newRecord = new Record(key, value);
+
         if (!NEW_PAGE.equals(pageId)) {
             pageSet.setPageDirty(pageId);
         }
+        DataPage oldPage = pages.get(pageId);
+        if (oldPage == null) {
+            throw new IllegalStateException("page not loaded " + pageId + " while updating record " + key);
+        }
         dirtyRecords.incrementAndGet();
-        Record previous = buffer.put(key, newRecord);
-        memoryReleased(previous);
-        memoryAcquired(newRecord);
+        Record previous = oldPage.get(key);
+        dirtyRecordsPage.put(key, newRecord);
+
+        if (!NEW_PAGE.equals(pageId)) {
+            memoryAcquired(newRecord);
+        }
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
@@ -825,10 +842,11 @@ public class TableManager implements AbstractTableManager {
             }
         }
         Record record = new Record(key, value);
-        Record previous = buffer.put(key, record);
+        Record previous = dirtyRecordsPage.put(key, record);
+
         if (previous != null) {
 //            LOGGER.log(Level.SEVERE, "Buffer already contains a record for key {0} ?", key);
-            memoryReleased(record);
+            memoryReleased(previous);
         }
 
         memoryAcquired(record);
@@ -883,19 +901,11 @@ public class TableManager implements AbstractTableManager {
                     return new GetResult(transactionId, loadedInTransaction, table);
                 }
             }
-            // fastest path first, check if the record is loaded in memory
-            Record loaded = buffer.get(key);
-            if (loaded != null) {
-                if (predicate != null && !predicate.evaluate(loaded, context)) {
-                    return GetResult.NOT_FOUND(transactionId);
-                }
-                return new GetResult(transactionId, loaded, table);
-            }
             Long pageId = keyToPage.get(key);
             if (pageId == null) {
                 return GetResult.NOT_FOUND(transactionId);
             }
-            loaded = fetchRecord(key, pageId);
+            Record loaded = fetchRecord(key, pageId);
             if (loaded == null || (predicate != null && !predicate.evaluate(loaded, context))) {
                 return GetResult.NOT_FOUND(transactionId);
             }
@@ -908,51 +918,52 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
-    private void loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
+    private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
         LOGGER.log(Level.INFO, "loadPageToMemory " + pageId);
-        int reallyLoaded = 0;
-        int skippedAsDirty = 0;
         long _start = System.currentTimeMillis();
-        long _stopDisk;
-        long _stopLimits;
-        long _stopBuffer;
-        List<Record> page;
+        DataPage result;
         pagesLock.lock();
         try {
-            boolean loadable = pageSet.checkPageLoadable(pageId);
-            if (!loadable) {
-                return;
-            }
-            page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
-            _stopDisk = System.currentTimeMillis();
-            ensureMemoryLimits();
-            _stopLimits = System.currentTimeMillis();
-            for (Record r : page) {
-                Long actualPage = keyToPage.get(r.key);
-                if (!NEW_PAGE.equals(actualPage)) {
-                    if (actualPage == null
-                        || (!actualPage.equals(pageId))) {
-                        throw new DataStorageManagerException("inconsistency at page " + pageId + ": key " + r.key + " is mapped to page " + actualPage + ", not to " + pageId);
-                    }
-                    buffer.put(r.key, r);
-                    memoryAcquired(r);
-                    reallyLoaded++;
-                } else {
-                    skippedAsDirty++;
+            AtomicBoolean computed = new AtomicBoolean();
+            result = pages.computeIfAbsent(pageId, (id) -> {
+                try {
+                    computed.set(true);
+                    List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+                    return buildDataPage(pageId, page);
+                } catch (DataStorageManagerException err) {
+                    throw new RuntimeException(err);
                 }
+            });
+            if (computed.get()) {
+                ensureMemoryLimits();
             }
-            pageSet.setPageLoaded(pageId);
+        } catch (RuntimeException error) {
+            if (error.getCause() != null
+                && error.getCause() instanceof DataStorageManagerException) {
+                throw (DataStorageManagerException) error.getCause();
+            } else {
+                throw new DataStorageManagerException(error);
+            }
         } finally {
             pagesLock.unlock();
         }
-        _stopBuffer = System.currentTimeMillis();
+
+        long _stop = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "table " + table.name + ","
-            + "loaded " + reallyLoaded + " records from page " + pageId + " (contained " + page.size() + " records),"
-            + "skipped " + skippedAsDirty + " already dirty records, "
-            + "in " + (_stopBuffer - _start) + " ms "
-            + "( " + (_stopLimits - _stopDisk) + " ms memlimits"
-            + ", " + (_stopDisk - _start) + " ms disk"
-            + "," + (_stopBuffer - _stopDisk) + " ms mem)");
+            + "loaded " + result.size() + " records from page " + pageId
+            + "in " + (_stop - _start) + " ms ");
+        return result;
+    }
+
+    private DataPage buildDataPage(long pageId, List<Record> page) {
+        ImmutableMap.Builder<Bytes, Record> newPageMap = new ImmutableMap.Builder<>();
+        long estimatedPageSize = 0;
+        for (Record r : page) {
+            newPageMap.put(r.key, r);
+            estimatedPageSize += r.key.data.length + r.value.data.length;
+        }
+        DataPage res = new DataPage(pageId, estimatedPageSize, newPageMap.build(), true);
+        return res;
     }
 
     private void ensureMemoryLimits() {
@@ -996,7 +1007,7 @@ public class TableManager implements AbstractTableManager {
                         Bytes key = recordToPage.getKey();
                         Long pageId = recordToPage.getValue();
                         if (NEW_PAGE.equals(pageId) || dirtyPages.contains(pageId)) {
-                            if (!buffer.containsKey(key)
+                            if (!pages.containsKey(pageId)
                                 && !tmpBuffer.containsKey(key)
                                 && !NEW_PAGE.equals(pageId)) {
                                 if (!tmpLoadedPages.add(pageId)) {
@@ -1011,7 +1022,9 @@ public class TableManager implements AbstractTableManager {
                                 LOGGER.log(Level.SEVERE, "loaded dirty page " + pageId + " on tmp buffer "
                                     + ": " + page.size() + " records");
                             }
-                            Record record = buffer.get(key);
+                            DataPage dataPage = pages.get(pageId);
+
+                            Record record = dataPage != null ? dataPage.get(key) : null;
                             if (record == null) {
                                 record = tmpBuffer.get(key);
                             }
@@ -1049,6 +1062,9 @@ public class TableManager implements AbstractTableManager {
                 createnewpages = System.currentTimeMillis();
                 pageSet.checkpointDone(dirtyPages);
                 dirtyRecords.set(0);
+                for (Long idDirtyPage : dirtyPages) {
+                    pages.remove(idDirtyPage);
+                }
 
                 TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(),
                     pageSet.getActivePages());
@@ -1085,11 +1101,15 @@ public class TableManager implements AbstractTableManager {
     }
 
     private long createNewPage(List<Record> newPage, long newPageSize) throws DataStorageManagerException {
+
         long pageId = this.newPageId.getAndIncrement();
+        DataPage dataPage = buildDataPage(pageId, newPage);
+
         LOGGER.log(Level.SEVERE, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
             new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
         pageSet.pageCreated(pageId);
+        pages.put(pageId, dataPage);
         for (Record record : newPage) {
             keyToPage.put(record.key, pageId);
         }
@@ -1292,9 +1312,18 @@ public class TableManager implements AbstractTableManager {
     }
 
     private Record fetchRecord(Bytes key, Long pageId) throws StatementExecutionException, DataStorageManagerException {
-        Record record = buffer.get(key);
         int maxTrials = 10_000;
-        while (record == null) {
+        while (true) {
+            Record record;
+            if (NEW_PAGE.equals(pageId)) {
+                record = dirtyRecordsPage.get(key);
+            } else {
+                DataPage dataPage = loadPageToMemory(pageId, false);
+                record = dataPage.get(key);
+            }
+            if (record != null) {
+                return record;
+            }
             Long relocatedPageId = keyToPage.get(key);
             LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed,"
                 + "checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);
@@ -1304,24 +1333,18 @@ public class TableManager implements AbstractTableManager {
                 return null;
             }
             pageId = relocatedPageId;
-            if (!NEW_PAGE.equals(pageId)) {
-                // BEWARE that loading a page into memory can cause other pages to be unloaded
-                loadPageToMemory(pageId, false);
-            } else {
-                throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages());
-            }
-            record = buffer.get(key);
             if (maxTrials-- == 0) {
                 throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + " after many trials");
             }
         }
-        return record;
     }
 
     private final TableManagerStats stats = new TableManagerStats() {
         @Override
         public int getLoadedpages() {
-            return pageSet.getLoadedPagesCount();
+            LOGGER.severe("Loadedpages " + pages.keySet());
+            // dirty records pages (-1) is not counted
+            return pages.size() -1 ;
         }
 
         @Override
@@ -1384,10 +1407,9 @@ public class TableManager implements AbstractTableManager {
         this.table = table;
         if (!droppedColumns.isEmpty()) {
             // no lock is necessary
-            for (Record record : buffer.values()) {
-                // table structure changed
-                record.clearCache();
-            }
+            pages.values().forEach(p -> {
+                p.data.values().forEach(r -> r.clearCache());
+            });
         }
     }
 
@@ -1401,6 +1423,14 @@ public class TableManager implements AbstractTableManager {
             return;
         }
         usedMemoryFromValues.addAndGet(-old.value.data.length);
+    }
+
+    private void memoryReleased(long value) {
+        usedMemoryFromValues.addAndGet(-value);
+    }
+
+    private void memoryAcquired(long value) {
+        usedMemoryFromValues.addAndGet(value);
     }
 
     private void memoryAcquired(Record r) {
