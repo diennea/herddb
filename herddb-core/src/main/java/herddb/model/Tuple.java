@@ -22,6 +22,7 @@ package herddb.model;
 import herddb.codec.RecordSerializer;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.IOException;
@@ -123,6 +124,8 @@ public class Tuple {
                 } else {
                     byte columnType;
                     if (value instanceof String) {
+                        columnType = ColumnTypes.STRING;
+                    } else if (value instanceof RawString) {
                         columnType = ColumnTypes.STRING;
                     } else if (value instanceof Integer) {
                         columnType = ColumnTypes.INTEGER;

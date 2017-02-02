@@ -112,7 +112,7 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
             for (Tuple t : rs) {
-                expected_s1.remove((String) t.get("s1"));
+                expected_s1.remove(t.get("s1").toString());
                 expected_n1.remove((Long) t.get("n1"));
                 expected_i1.remove((Integer) t.get("i1"));
                 assertEquals(ts, t.get("t1"));
@@ -150,7 +150,7 @@ public abstract class RecordSetSuite {
             rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (Tuple t : rs) {
-                expected_s1.remove((String) t.get("s1"));
+                expected_s1.remove(t.get("s1").toString());
                 expected_n1.remove((Integer) t.get("n1"));
             }
             assertTrue(expected_n1.isEmpty());
@@ -185,7 +185,7 @@ public abstract class RecordSetSuite {
             rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (Tuple t : rs) {
-                expected_s1.remove((String) t.get("s1"));
+                expected_s1.remove(t.get("s1").toString());
                 expected_n1.remove((Integer) t.get("n1"));
             }
             assertTrue(expected_n1.isEmpty());
@@ -337,7 +337,7 @@ public abstract class RecordSetSuite {
             }, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
             for (Tuple t : rs) {
                 System.out.println("t:" + t.toMap());
-                expected_s2.remove((String) t.get("s2"));
+                expected_s2.remove(t.get("s2").toString());
                 expected_n2.remove((Integer) t.get("n2"));
             }
             assertTrue(expected_s2.isEmpty());

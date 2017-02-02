@@ -40,7 +40,6 @@ import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.DataScannerException;
 import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.IndexAlreadyExistsException;
@@ -60,6 +59,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.MapUtils;
+import herddb.utils.RawString;
 import java.sql.Timestamp;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -255,8 +255,8 @@ public class RawSQLTest {
 
             try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
                 List<Tuple> res = scan.consume();
-                assertEquals("mykey2", res.get(0).get("k2"));
-                assertEquals("mykey", res.get(1).get("k2"));
+                assertEquals(RawString.of("mykey2"), res.get(0).get("k2"));
+                assertEquals(RawString.of("mykey"), res.get(1).get("k2"));
                 assertEquals(Integer.valueOf(1235), res.get(0).get("n2"));
                 assertEquals(Integer.valueOf(1234), res.get(1).get("n2"));
                 assertEquals(tt2, res.get(0).get("t2"));
@@ -297,7 +297,7 @@ public class RawSQLTest {
                 assertEquals(1, all.size());
                 assertEquals(Integer.valueOf(1236), all.get(0).get("n2"));
                 assertEquals(tt3, all.get(0).get("t2"));
-                assertEquals("mykey5", all.get(0).get("k2"));
+                assertEquals(RawString.of("mykey5"), all.get(0).get("k2"));
             }
         }
     }
@@ -339,8 +339,8 @@ public class RawSQLTest {
             try (DataScanner scan = scan(manager, "SELECT ? as foo, k1, n1 FROM tblspace1.tsql", Arrays.asList("test"));) {
                 List<Tuple> all = scan.consume();
                 assertEquals(1, all.size());
-                assertEquals("test", all.get(0).get("foo"));
-                assertEquals("mykey", all.get(0).get("k1"));
+                assertEquals(RawString.of("test"), all.get(0).get("foo"));
+                assertEquals(RawString.of("mykey"), all.get(0).get("k1"));
                 assertEquals(Integer.valueOf(1234), all.get(0).get("n1"));
             }
 
@@ -455,31 +455,31 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
-                assertEquals("mykey", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT TOP 1 * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
-                assertEquals("mykey", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,1", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
-                assertEquals("mykey2", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,2", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(2, result.size());
-                assertEquals("mykey2", result.get(0).get("k1"));
-                assertEquals("mykey3", result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(1).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(4, result.size());
-                assertEquals("mykey", result.get(0).get("k1"));
-                assertEquals("mykey2", result.get(1).get("k1"));
-                assertEquals("mykey3", result.get(2).get("k1"));
-                assertEquals("mykey4", result.get(3).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(2).get("k1"));
+                assertEquals(RawString.of("mykey4"), result.get(3).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10,10", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
@@ -492,7 +492,7 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 3,10", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
-                assertEquals("mykey4", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 3", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION);) {
                 List<Tuple> result = scan1.consume();
@@ -595,17 +595,17 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(3, result.size());
-                assertEquals("mykey", result.get(0).get("k1"));
-                assertEquals("mykey2", result.get(1).get("k1"));
-                assertEquals("mykey3", result.get(2).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(2).get("k1"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1 desc", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(3, result.size());
-                assertEquals("mykey3", result.get(0).get("k1"));
-                assertEquals("mykey2", result.get(1).get("k1"));
-                assertEquals("mykey", result.get(2).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(2).get("k1"));
 
             }
         }
@@ -629,17 +629,17 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(3, result.size());
-                assertEquals("mykey", result.get(0).get("k1"));
-                assertEquals("mykey2", result.get(1).get("k1"));
-                assertEquals("mykey3", result.get(2).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(2).get("k1"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1 desc", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(3, result.size());
-                assertEquals("mykey3", result.get(0).get("k1"));
-                assertEquals("mykey2", result.get(1).get("k1"));
-                assertEquals("mykey", result.get(2).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(2).get("k1"));
 
             }
         }
@@ -668,41 +668,41 @@ public class RawSQLTest {
                 + "ORDER BY k1 DESC", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(4, result.size());
-                assertEquals("mykey4", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
-                assertEquals("mykey3", result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(1).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(1).get("count(*)"));
-                assertEquals("mykey2", result.get(2).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(2).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(2).get("count(*)"));
-                assertEquals("mykey", result.get(3).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(3).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(3).get("count(*)"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
-                assertEquals("mykey3", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as alias,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,2", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(2, result.size());
-                assertEquals("mykey3", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("alias"));
-                assertEquals("mykey2", result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(1).get("alias"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(4, result.size());
-                assertEquals("mykey4", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
-                assertEquals("mykey3", result.get(1).get("k1"));
+                assertEquals(RawString.of("mykey3"), result.get(1).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(1).get("count(*)"));
-                assertEquals("mykey2", result.get(2).get("k1"));
+                assertEquals(RawString.of("mykey2"), result.get(2).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(2).get("count(*)"));
-                assertEquals("mykey", result.get(3).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(3).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(3).get("count(*)"));
             }
 
@@ -718,7 +718,7 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 3,10", Collections.emptyList());) {
                 List<Tuple> result = scan1.consume();
                 assertEquals(1, result.size());
-                assertEquals("mykey", result.get(0).get("k1"));
+                assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
@@ -854,13 +854,13 @@ public class RawSQLTest {
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
                     assertEquals(Long.valueOf(3), result.get(0).get("sum(n1)"));
-                    assertEquals("a", result.get(0).get(1));
-                    assertEquals("a", result.get(0).get("s1"));
+                    assertEquals(RawString.of("a"), result.get(0).get(1));
+                    assertEquals(RawString.of("a"), result.get(0).get("s1"));
 
                     assertEquals(Long.valueOf(5), result.get(1).get(0));
                     assertEquals(Long.valueOf(5), result.get(1).get("sum(n1)"));
-                    assertEquals("b", result.get(1).get(1));
-                    assertEquals("b", result.get(1).get("s1"));
+                    assertEquals(RawString.of("b"), result.get(1).get(1));
+                    assertEquals(RawString.of("b"), result.get(1).get("s1"));
 
                     assertEquals(Long.valueOf(0), result.get(2).get(0));
                     assertEquals(Long.valueOf(0), result.get(2).get("sum(n1)"));
@@ -876,13 +876,13 @@ public class RawSQLTest {
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
                     assertEquals(Long.valueOf(3), result.get(0).get("asum"));
-                    assertEquals("a", result.get(0).get(1));
-                    assertEquals("a", result.get(0).get("s1"));
+                    assertEquals(RawString.of("a"), result.get(0).get(1));
+                    assertEquals(RawString.of("a"), result.get(0).get("s1"));
 
                     assertEquals(Long.valueOf(5), result.get(1).get(0));
                     assertEquals(Long.valueOf(5), result.get(1).get("asum"));
-                    assertEquals("b", result.get(1).get(1));
-                    assertEquals("b", result.get(1).get("s1"));
+                    assertEquals(RawString.of("b"), result.get(1).get(1));
+                    assertEquals(RawString.of("b"), result.get(1).get("s1"));
 
                     assertEquals(Long.valueOf(0), result.get(2).get(0));
                     assertEquals(Long.valueOf(0), result.get(2).get("asum"));
@@ -904,13 +904,13 @@ public class RawSQLTest {
 
                     assertEquals(Long.valueOf(3), result.get(1).get(0));
                     assertEquals(Long.valueOf(3), result.get(1).get("asum"));
-                    assertEquals("a", result.get(1).get(1));
-                    assertEquals("a", result.get(1).get("s1"));
+                    assertEquals(RawString.of("a"), result.get(1).get(1));
+                    assertEquals(RawString.of("a"), result.get(1).get("s1"));
 
                     assertEquals(Long.valueOf(5), result.get(2).get(0));
                     assertEquals(Long.valueOf(5), result.get(2).get("asum"));
-                    assertEquals("b", result.get(2).get(1));
-                    assertEquals("b", result.get(2).get("s1"));
+                    assertEquals(RawString.of("b"), result.get(2).get(1));
+                    assertEquals(RawString.of("b"), result.get(2).get("s1"));
 
                 }
             }
@@ -1087,9 +1087,9 @@ public class RawSQLTest {
                 try (DataScanner scan1 = scan(manager, "SELECT lower(k1) as low, upper(k1) as up, k1 FROM tblspace1.tsql", Collections.emptyList());) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(1, result.size());
-                    assertEquals("mykey", result.get(0).get(0));
-                    assertEquals("MYKEY", result.get(0).get(1));
-                    assertEquals("mykey", result.get(0).get(2));
+                    assertEquals(RawString.of("mykey"), result.get(0).get(0));
+                    assertEquals(RawString.of("MYKEY"), result.get(0).get(1));
+                    assertEquals(RawString.of("mykey"), result.get(0).get(2));
 
                 }
             }
@@ -1118,10 +1118,10 @@ public class RawSQLTest {
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(4, result.size());
-                    assertEquals("mykey", result.get(0).get(0));
-                    assertEquals("mykey2", result.get(1).get(0));
-                    assertEquals("mykey3", result.get(2).get(0));
-                    assertEquals("mykey4", result.get(3).get(0)); // NULLS LAST
+                    assertEquals(RawString.of("mykey"), result.get(0).get(0));
+                    assertEquals(RawString.of("mykey2"), result.get(1).get(0));
+                    assertEquals(RawString.of("mykey3"), result.get(2).get(0));
+                    assertEquals(RawString.of("mykey4"), result.get(3).get(0)); // NULLS LAST
                 }
             }
             {
@@ -1130,10 +1130,10 @@ public class RawSQLTest {
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(4, result.size());
-                    assertEquals("mykey", result.get(3).get(0));
-                    assertEquals("mykey2", result.get(2).get(0));
-                    assertEquals("mykey3", result.get(1).get(0));
-                    assertEquals("mykey4", result.get(0).get(0));
+                    assertEquals(RawString.of("mykey"), result.get(3).get(0));
+                    assertEquals(RawString.of("mykey2"), result.get(2).get(0));
+                    assertEquals(RawString.of("mykey3"), result.get(1).get(0));
+                    assertEquals(RawString.of("mykey4"), result.get(0).get(0));
                 }
             }
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey5", Integer.valueOf(3))).getUpdateCount());
@@ -1143,11 +1143,11 @@ public class RawSQLTest {
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(5, result.size());
-                    assertEquals("mykey", result.get(0).get(0));
-                    assertEquals("mykey2", result.get(1).get(0));
-                    assertEquals("mykey3", result.get(2).get(0));
-                    assertEquals("mykey5", result.get(3).get(0));
-                    assertEquals("mykey4", result.get(4).get(0)); // NULLS LAST
+                    assertEquals(RawString.of("mykey"), result.get(0).get(0));
+                    assertEquals(RawString.of("mykey2"), result.get(1).get(0));
+                    assertEquals(RawString.of("mykey3"), result.get(2).get(0));
+                    assertEquals(RawString.of("mykey5"), result.get(3).get(0));
+                    assertEquals(RawString.of("mykey4"), result.get(4).get(0)); // NULLS LAST
                 }
             }
             {
@@ -1156,45 +1156,45 @@ public class RawSQLTest {
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(5, result.size());
-                    assertEquals("mykey", result.get(0).get(0));
-                    assertEquals("mykey2", result.get(1).get(0));
-                    assertEquals("mykey5", result.get(2).get(0));
-                    assertEquals("mykey3", result.get(3).get(0));
-                    assertEquals("mykey4", result.get(4).get(0)); // NULLS LAST
+                    assertEquals(RawString.of("mykey"), result.get(0).get(0));
+                    assertEquals(RawString.of("mykey2"), result.get(1).get(0));
+                    assertEquals(RawString.of("mykey5"), result.get(2).get(0));
+                    assertEquals(RawString.of("mykey3"), result.get(3).get(0));
+                    assertEquals(RawString.of("mykey4"), result.get(4).get(0)); // NULLS LAST
                 }
             }
-            
+
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(2, result.size());
-                    assertEquals("mykey", result.get(0).get(0));
-                    assertEquals("mykey2", result.get(1).get(0));
+                    assertEquals(RawString.of("mykey"), result.get(0).get(0));
+                    assertEquals(RawString.of("mykey2"), result.get(1).get(0));
                 }
             }
-            
+
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 asc limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(2, result.size());
-                    assertEquals("mykey", result.get(0).get(0));
-                    assertEquals("mykey2", result.get(1).get(0));
+                    assertEquals(RawString.of("mykey"), result.get(0).get(0));
+                    assertEquals(RawString.of("mykey2"), result.get(1).get(0));
                 }
             }
-            
+
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc limit 3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(3, result.size());
-                    assertEquals("mykey4", result.get(0).get(0));
-                    assertEquals("mykey5", result.get(1).get(0));
-                    assertEquals("mykey3", result.get(2).get(0));
+                    assertEquals(RawString.of("mykey4"), result.get(0).get(0));
+                    assertEquals(RawString.of("mykey5"), result.get(1).get(0));
+                    assertEquals(RawString.of("mykey3"), result.get(2).get(0));
                 }
             }
 
@@ -1225,7 +1225,7 @@ public class RawSQLTest {
                     assertEquals(3, records.get(0).fieldNames.length);
                     assertEquals(3, records.get(0).values.length);
                     assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals("mykey", records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey"), records.get(0).values[0]);
                     assertEquals("theStringConstant", records.get(0).fieldNames[1]);
                     assertEquals("one", records.get(0).values[1]);
                     assertEquals("LongConstant", records.get(0).fieldNames[2]);
@@ -1269,7 +1269,7 @@ public class RawSQLTest {
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
-                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(RawString.of("mykey"), finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(1234), finalRecord.get("n1"));
             }
 
@@ -1298,7 +1298,7 @@ public class RawSQLTest {
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
-                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(RawString.of("mykey"), finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
 
@@ -1309,7 +1309,7 @@ public class RawSQLTest {
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
-                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(RawString.of("mykey"), finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
 
@@ -1320,7 +1320,7 @@ public class RawSQLTest {
                 assertTrue(result.found());
                 assertEquals(result.getRecord().key, Bytes.from_string("mykey"));
                 Map<String, Object> finalRecord = result.getRecord().toBean(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable());
-                assertEquals("mykey", finalRecord.get("k1"));
+                assertEquals(RawString.of("mykey"), finalRecord.get("k1"));
                 assertEquals(Integer.valueOf(999), finalRecord.get("n1"));
             }
 
@@ -1389,7 +1389,7 @@ public class RawSQLTest {
                     assertEquals(1, records.get(0).fieldNames.length);
                     assertEquals(1, records.get(0).values.length);
                     assertEquals("k1", records.get(0).fieldNames[0]);
-                    assertEquals("mykey2", records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).values[0]);
                 }
             }
             {
@@ -1401,7 +1401,7 @@ public class RawSQLTest {
                     assertEquals(1, records.get(0).fieldNames.length);
                     assertEquals(1, records.get(0).values.length);
                     assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals("mykey2", records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).values[0]);
                 }
             }
             {
@@ -1413,7 +1413,7 @@ public class RawSQLTest {
                     assertEquals(3, records.get(0).fieldNames.length);
                     assertEquals(3, records.get(0).values.length);
                     assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals("mykey2", records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).values[0]);
                     assertEquals("theStringConstant", records.get(0).fieldNames[1]);
                     assertEquals("one", records.get(0).values[1]);
                     assertEquals("LongConstant", records.get(0).fieldNames[2]);
@@ -1528,7 +1528,7 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT k1,n1,s1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
                 List<Tuple> rows = scan1.consume();
                 assertEquals(1, rows.size());
-                assertEquals("newvalue", rows.get(0).get("s1"));
+                assertEquals(RawString.of("newvalue"), rows.get(0).get("s1"));
 
             }
 

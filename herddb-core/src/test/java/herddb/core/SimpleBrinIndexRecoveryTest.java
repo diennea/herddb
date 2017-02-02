@@ -269,8 +269,7 @@ public class SimpleBrinIndexRecoveryTest {
             }
             TestUtils.commitTransaction(manager, table.tablespace, tx);
         }
-
-        System.out.println("QUI");
+        
         try (DBManager manager = new DBManager("localhost",
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),

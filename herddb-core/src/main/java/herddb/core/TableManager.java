@@ -919,12 +919,14 @@ public class TableManager implements AbstractTableManager {
     }
 
     private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
-        LOGGER.log(Level.INFO, "loadPageToMemory " + pageId);
+        DataPage result = pages.get(pageId);;
+        if (result != null) {
+            return result;
+        }
         long _start = System.currentTimeMillis();
-        DataPage result;
+        AtomicBoolean computed = new AtomicBoolean();
         pagesLock.lock();
         try {
-            AtomicBoolean computed = new AtomicBoolean();
             result = pages.computeIfAbsent(pageId, (id) -> {
                 try {
                     computed.set(true);
@@ -947,11 +949,12 @@ public class TableManager implements AbstractTableManager {
         } finally {
             pagesLock.unlock();
         }
-
-        long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "table " + table.name + ","
-            + "loaded " + result.size() + " records from page " + pageId
-            + "in " + (_stop - _start) + " ms ");
+        if (computed.get()) {
+            long _stop = System.currentTimeMillis();
+            LOGGER.log(Level.SEVERE, "table " + table.name + ","
+                + "loaded " + result.size() + " records from page " + pageId
+                + "in " + (_stop - _start) + " ms ");
+        }
         return result;
     }
 
@@ -1344,7 +1347,7 @@ public class TableManager implements AbstractTableManager {
         public int getLoadedpages() {
             LOGGER.severe("Loadedpages " + pages.keySet());
             // dirty records pages (-1) is not counted
-            return pages.size() -1 ;
+            return pages.size() - 1;
         }
 
         @Override

@@ -39,6 +39,7 @@ import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.RawString;
 
 /**
  * Tests on table creation
@@ -102,7 +103,7 @@ public class AlterTableSQLTest {
                 List<Tuple> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
                 assertEquals(1, tuples.size());
                 assertEquals(3, tuples.get(0).fieldNames.length);
-                assertEquals("b", tuples.get(0).get("s1"));
+                assertEquals(RawString.of("b"), tuples.get(0).get("s1"));
             }
             execute(manager, "ALTER TABLE tblspace1.tsql drop column s1", Collections.emptyList());
             table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();

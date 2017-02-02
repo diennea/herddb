@@ -32,6 +32,10 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.RawString;
+import herddb.utils.VisibleByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -118,28 +122,38 @@ public class SQLAggregator implements Aggregator {
         }
 
         private Bytes key(Tuple tuple) throws DataScannerException {
-            StringBuilder key = new StringBuilder(); // TODO: use a better way...
-            for (Expression groupby : groupByColumnReferences) {
-                if (groupby instanceof net.sf.jsqlparser.schema.Column) {
-                    net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) groupby;
-                    Object value = tuple.get(c.getColumnName());
-                    if (value == null) {
-                        key.append("NULL");
-                    } else if (value instanceof Number) {
-                        key.append(value.toString());
-                    } else if (value instanceof CharSequence) {
-                        key.append(value.toString());
-                    } else if (value instanceof java.util.Date) {
-                        key.append(((java.util.Date) value).getTime());
+            VisibleByteArrayOutputStream o = new VisibleByteArrayOutputStream(0);
+            try (ExtendedDataOutputStream key = new ExtendedDataOutputStream(o);) {
+                for (Expression groupby : groupByColumnReferences) {
+                    if (groupby instanceof net.sf.jsqlparser.schema.Column) {
+                        net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) groupby;
+                        Object value = tuple.get(c.getColumnName());
+                        if (value == null) {
+                            key.write(0);
+                        } else if (value instanceof Integer) {
+                            key.writeInt(((Integer) value).intValue());
+                        } else if (value instanceof Long) {
+                            key.writeLong(((Long) value).longValue());
+                        } else if (value instanceof Number) {
+                            key.writeLong(((Number) value).longValue());
+                        } else if (value instanceof RawString) {
+                            key.writeArray(((RawString) value).data);
+                        } else if (value instanceof CharSequence) {
+                            key.writeUTF(value.toString());
+                        } else if (value instanceof java.util.Date) {
+                            key.writeLong(((java.util.Date) value).getTime());
+                        } else {
+                            throw new DataScannerException("cannot group values of type " + value.getClass());
+                        }
+                        key.write(',');
                     } else {
-                        throw new DataScannerException("cannot group values of type " + value.getClass());
+                        throw new DataScannerException("cannot group values of type " + groupby);
                     }
-                    key.append(",");
-                } else {
-                    throw new DataScannerException("cannot group values of type " + groupby);
                 }
-            }
-            return Bytes.from_string(key.toString());
+            } catch (IOException impossible) {
+                throw new RuntimeException(impossible);
+            };
+            return Bytes.from_array(o.toByteArray());
         }
 
         private void compute() throws DataScannerException {

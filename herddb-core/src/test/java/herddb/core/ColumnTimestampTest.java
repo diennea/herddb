@@ -20,6 +20,7 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.utils.Bytes;
+import herddb.utils.RawString;
 
 public class ColumnTimestampTest extends BaseTestcase {
 
@@ -57,7 +58,7 @@ public class ColumnTimestampTest extends BaseTestcase {
             Map<String, Object> resultbean = result.getRecord().toBean(table2);
             assertEquals(Bytes.from_string("key1"), result.getRecord().key);
             assertEquals(2, resultbean.entrySet().size());
-            assertEquals("key1", resultbean.get("id"));
+            assertEquals(RawString.of("key1"), resultbean.get("id"));
             assertEquals(ts1, resultbean.get("ts1"));
         }
 
@@ -76,7 +77,7 @@ public class ColumnTimestampTest extends BaseTestcase {
             Map<String, Object> resultbean = result.getRecord().toBean(table2);
             assertEquals(Bytes.from_string("key1"), result.getRecord().key);
             assertEquals(1, resultbean.entrySet().size());
-            assertEquals("key1", resultbean.get("id"));
+            assertEquals(RawString.of("key1"), resultbean.get("id"));
             assertEquals(null, resultbean.get("ts1"));
         }
     }

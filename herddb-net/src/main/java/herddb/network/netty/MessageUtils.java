@@ -31,6 +31,7 @@ import java.util.Set;
 import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.utils.ByteBufUtils;
+import herddb.utils.RawString;
 import io.netty.buffer.ByteBuf;
 
 /**
@@ -64,31 +65,31 @@ public class MessageUtils {
     private static final byte OPCODE_BOOLEAN_VALUE = 21;
 
     /**
-     * When writing int <b>greater than this</b> value are better written directly as int because in vint
-     * encoding will use at least 4 bytes
+     * When writing int <b>greater than this</b> value are better written directly as int because in vint encoding will
+     * use at least 4 bytes
      */
     private static final int WRITE_MAX_V_INT_LIMIT = -1 >>> 11;
 
     /**
-     * When writing negative int <b>smaller than this</b> value are better written directly as int because in
-     * zint encoding will use at least 8 bytes
+     * When writing negative int <b>smaller than this</b> value are better written directly as int because in zint
+     * encoding will use at least 8 bytes
      */
     private static final int WRITE_MIN_Z_INT_LIMIT = -1 << 20;
 
     /**
-     * When writing long <b>greater than this</b> value are better written directly as long because in vint
-     * encoding will use at least 4 bytes
+     * When writing long <b>greater than this</b> value are better written directly as long because in vint encoding
+     * will use at least 4 bytes
      */
     private static final long WRITE_MAX_V_LONG_LIMIT = -1L >>> 15;
 
     /**
-     * When writing negative long <b>smaller than this</b> value are better written directly as long because
-     * in zlong encoding will use at least 8 bytes
+     * When writing negative long <b>smaller than this</b> value are better written directly as long because in zlong
+     * encoding will use at least 8 bytes
      */
     private static final long WRITE_MIN_Z_LONG_LIMIT = -1L << 48;
-    
+
     public static void encodeMessage(ByteBuf buffer, Message m) {
-        
+
         buffer.writeByte(VERSION);
         ByteBufUtils.writeVInt(buffer, m.type);
         writeUTF8String(buffer, m.messageId);
@@ -109,13 +110,13 @@ public class MessageUtils {
             }
         }
     }
-    
+
     public static Message decodeMessage(ByteBuf encoded) {
         byte version = encoded.readByte();
         if (version != VERSION) {
             throw new RuntimeException("bad protocol version " + version);
         }
-        
+
         int type = ByteBufUtils.readVInt(encoded);
         String messageId = readUTF8String(encoded);
         String replyMessageId = null;
@@ -155,11 +156,15 @@ public class MessageUtils {
         ByteBufUtils.writeArray(buffer, array);
     }
 
+    private static void writeUTF8String(ByteBuf buffer, RawString s) {
+        ByteBufUtils.writeArray(buffer, s.data);
+    }
+
     private static String readUTF8String(ByteBuf buffer) {
         byte[] array = ByteBufUtils.readArray(buffer);
         return new String(array, StandardCharsets.UTF_8);
     }
-    
+
     @SuppressWarnings("rawtypes")
     private static void writeEncodedSimpleValue(ByteBuf encoded, Object o) {
         if (o == null) {
@@ -167,6 +172,9 @@ public class MessageUtils {
         } else if (o instanceof String) {
             encoded.writeByte(OPCODE_STRING_VALUE);
             writeUTF8String(encoded, (String) o);
+        } else if (o instanceof RawString) {
+            encoded.writeByte(OPCODE_STRING_VALUE);
+            writeUTF8String(encoded, (RawString) o);
         } else if (o instanceof java.sql.Timestamp) {
             encoded.writeByte(OPCODE_TIMESTAMP_VALUE);
             ByteBufUtils.writeVLong(encoded, ((java.sql.Timestamp) o).getTime());
@@ -178,12 +186,12 @@ public class MessageUtils {
             encoded.writeByte(OPCODE_KEYVALUE_VALUE);
             ByteBufUtils.writeArray(encoded, kv.key);
             ByteBufUtils.writeArray(encoded, kv.value);
-            
+
         } else if (o instanceof Integer) {
-            
+
             int i = (int) o;
-            
-            if ( i < 0 ) {
+
+            if (i < 0) {
                 if (i < WRITE_MIN_Z_INT_LIMIT) {
                     encoded.writeByte(OPCODE_INT_VALUE);
                     encoded.writeInt(i);
@@ -192,7 +200,7 @@ public class MessageUtils {
                     ByteBufUtils.writeZInt(encoded, i);
                 }
             } else {
-                if ( i > WRITE_MAX_V_INT_LIMIT ) {
+                if (i > WRITE_MAX_V_INT_LIMIT) {
                     encoded.writeByte(OPCODE_INT_VALUE);
                     encoded.writeInt(i);
                 } else {
@@ -200,12 +208,12 @@ public class MessageUtils {
                     ByteBufUtils.writeVInt(encoded, i);
                 }
             }
-            
+
         } else if (o instanceof Long) {
-            
+
             long l = (long) o;
-            
-            if ( l < 0 ) {
+
+            if (l < 0) {
                 if (l < WRITE_MIN_Z_LONG_LIMIT) {
                     encoded.writeByte(OPCODE_LONG_VALUE);
                     encoded.writeLong(l);
@@ -214,7 +222,7 @@ public class MessageUtils {
                     ByteBufUtils.writeZLong(encoded, l);
                 }
             } else {
-                if ( l > WRITE_MAX_V_LONG_LIMIT ) {
+                if (l > WRITE_MAX_V_LONG_LIMIT) {
                     encoded.writeByte(OPCODE_LONG_VALUE);
                     encoded.writeLong(l);
                 } else {
@@ -222,7 +230,7 @@ public class MessageUtils {
                     ByteBufUtils.writeVLong(encoded, l);
                 }
             }
-            
+
         } else if (o instanceof Boolean) {
             encoded.writeByte(OPCODE_BOOLEAN_VALUE);
             encoded.writeByte(((Boolean) o).booleanValue() ? 1 : 0);
@@ -264,7 +272,7 @@ public class MessageUtils {
                 return null;
             case OPCODE_STRING_VALUE:
                 return readUTF8String(encoded);
-                
+
             case OPCODE_INT_VALUE:
                 return encoded.readInt();
             case OPCODE_V_INT_VALUE:
@@ -278,10 +286,10 @@ public class MessageUtils {
                 return ByteBufUtils.readVLong(encoded);
             case OPCODE_Z_LONG_VALUE:
                 return ByteBufUtils.readZLong(encoded);
-                
+
             case OPCODE_BOOLEAN_VALUE:
                 return encoded.readByte() == 1 ? true : false;
-                
+
             case OPCODE_MAP_VALUE: {
                 int len = ByteBufUtils.readVInt(encoded);
                 Map<Object, Object> ret = new HashMap<>();
@@ -313,7 +321,7 @@ public class MessageUtils {
             case OPCODE_BYTEARRAY_VALUE: {
                 return ByteBufUtils.readArray(encoded);
             }
-                
+
             case OPCODE_TIMESTAMP_VALUE:
                 return new java.sql.Timestamp(ByteBufUtils.readVLong(encoded));
             case OPCODE_BYTE_VALUE:

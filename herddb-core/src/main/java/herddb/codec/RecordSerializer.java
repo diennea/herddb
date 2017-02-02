@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import herddb.model.ColumnsList;
+import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SingleEntryMap;
 
@@ -53,7 +54,7 @@ public final class RecordSerializer {
             case ColumnTypes.LONG:
                 return Bytes.toLong(data, 0, 8);
             case ColumnTypes.STRING:
-                return Bytes.to_string(data);
+                return Bytes.to_rawstring(data);
             case ColumnTypes.TIMESTAMP:
                 return Bytes.toTimestamp(data, 0, 8);
             default:
@@ -85,7 +86,12 @@ public final class RecordSerializer {
                     return Bytes.from_long(Long.parseLong(v.toString())).data;
                 }
             case ColumnTypes.STRING:
-                return Bytes.from_string(v.toString()).data;
+                if (v instanceof RawString) {
+                    RawString rs = (RawString) v;
+                    return rs.data;
+                } else {
+                    return Bytes.from_string(v.toString()).data;
+                }
             case ColumnTypes.TIMESTAMP:
                 if (!(v instanceof java.sql.Timestamp)) {
                     throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass());
