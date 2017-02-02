@@ -1243,12 +1243,18 @@ public class TableManager implements AbstractTableManager {
                         }
                         Long pageId = entry.getValue();
                         if (pageId != null) {
-                            if (!primaryIndexSeek && predicate != null
-                                && !predicate.matchesRawPrimaryKey(key, context)) {
-                                continue;
+                            boolean pkFilterCompleteMatch = false;
+                            if (!primaryIndexSeek && predicate != null) {
+                                Predicate.PrimaryKeyMatchOutcome outcome
+                                    = predicate.matchesRawPrimaryKey(key, context);
+                                if (outcome == Predicate.PrimaryKeyMatchOutcome.FAILED) {
+                                    continue;
+                                } else if (outcome == Predicate.PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED) {
+                                    pkFilterCompleteMatch = true;
+                                }
                             }
                             Record record = fetchRecord(key, pageId);
-                            if (record != null && (predicate == null || predicate.evaluate(record, context))) {
+                            if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
                                 consumer.accept(record);
                                 keep_lock = true;
                             }

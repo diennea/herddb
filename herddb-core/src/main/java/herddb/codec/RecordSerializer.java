@@ -171,17 +171,21 @@ public final class RecordSerializer {
         }
     }
 
-    public static Map<String, Object> deserializePrimaryKeyAsMap(byte[] key, Table table) {
-
-        if (table.primaryKey.length == 1) {
-            Object value = deserializeSingleColumnPrimaryKey(key, table);
-            // value will not be null
-            return new SingleEntryMap(table.primaryKey[0], value);
-        } else {
-            Map<String, Object> result = new HashMap<>();
-            deserializeMultiColumnPrimaryKey(key, table, result);
-            return result;
+    public static Map<String, Object> deserializePrimaryKeyAsMap(Bytes key, Table table) {
+        if (key.deserialized != null) {
+            return (Map<String, Object>) key.deserialized;
         }
+        Map<String, Object> result;
+        if (table.primaryKey.length == 1) {
+            Object value = deserializeSingleColumnPrimaryKey(key.data, table);
+            // value will not be null
+            result = new SingleEntryMap(table.primaryKey[0], value);
+        } else {
+            result = new HashMap<>();
+            deserializeMultiColumnPrimaryKey(key.data, table, result);
+        }
+        key.deserialized = result;
+        return result;
     }
 
     public static Bytes serializeValue(Map<String, Object> record, Table table) {

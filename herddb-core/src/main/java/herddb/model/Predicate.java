@@ -41,8 +41,14 @@ public abstract class Predicate {
         this.indexOperation = indexOperation;
     }
 
-    public boolean matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
-        return true;
+    public PrimaryKeyMatchOutcome matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
+        return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
+    }
+
+    public static enum PrimaryKeyMatchOutcome {
+        FAILED,
+        NEED_FULL_RECORD_EVALUATION,
+        FULL_CONDITION_VERIFIED
     }
 
 }

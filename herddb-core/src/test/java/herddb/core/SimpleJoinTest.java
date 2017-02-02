@@ -70,7 +70,7 @@ public class SimpleJoinTest {
                     + " WHERE t1.n1 > 0"
                     + "   and t2.n2 >= 1", Collections.emptyList()).consume();
                 for (Tuple t : tuples) {
-
+                    System.out.println("t:" + t);
                     assertEquals(6, t.fieldNames.length);
                     assertEquals("k1", t.fieldNames[0]);
                     assertEquals("n1", t.fieldNames[1]);

@@ -80,7 +80,7 @@ public class DataScannerJoinExecutor {
         while (scanner.hasNext()) {
             int startPos = pos;
             Tuple rightTuple = scanner.next();
-            for (Object o : rightTuple.values) {
+            for (Object o : rightTuple.getValues()) {
                 tmpTuple[startPos++] = o;
             }
             nestedLoop(index + 1, startPos);

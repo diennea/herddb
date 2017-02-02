@@ -107,12 +107,19 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     }
 
     @Override
-    public boolean matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
+    public PrimaryKeyMatchOutcome matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
         if (primaryKeyFilter == null) {
-            return true;
+            return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
-        Map<String, Object> bean = RecordSerializer.deserializePrimaryKeyAsMap(key.data, table);
-        return evaluatePredicate(primaryKeyFilter, bean, context, validatedTableAlias);
+        Map<String, Object> bean = RecordSerializer.deserializePrimaryKeyAsMap(key, table);
+        boolean result = evaluatePredicate(primaryKeyFilter, bean, context, validatedTableAlias);
+        if (!result) {
+            return PrimaryKeyMatchOutcome.FAILED;
+        } else {
+            return where == primaryKeyFilter
+                ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
+                : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
+        }
     }
 
     @Override

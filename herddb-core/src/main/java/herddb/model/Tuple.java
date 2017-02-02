@@ -39,16 +39,34 @@ import java.util.Map;
  */
 public class Tuple {
 
-    /**
-     * Effetctive values. This array shoould be threated as immutable
-     */
-    public final Object[] values;
+    public Object[] getValues() {
+        if (values == null) {
+            buildValues();
+        }
+        return values;
+    }
 
     public final String[] fieldNames;
-
+    
     private Map<String, Object> map;
+    private Object[] values;
+
+    private void buildValues() {
+        if (values != null) {
+            return;
+        }
+        int i = 0;
+        Object[] newValues = new Object[fieldNames.length];
+        for (String name : fieldNames) {
+            newValues[i++] = map.get(name);
+        }
+        values = newValues;
+    }
 
     public Tuple(String[] fieldNames, Object[] values) {
+        if (fieldNames == null || values == null) {
+            throw new NullPointerException();
+        }
         this.fieldNames = fieldNames;
         this.values = values;
         if (fieldNames.length != values.length) {
@@ -57,6 +75,9 @@ public class Tuple {
     }
 
     public Tuple(Map<String, Object> record) {
+        if (record == null) {
+            throw new NullPointerException();
+        }
         int size = record.size();
         this.fieldNames = new String[size];
         this.values = new Object[size];
@@ -69,14 +90,15 @@ public class Tuple {
     }
 
     public Tuple(Map<String, Object> record, Column[] columns) {
+        if (record == null) {
+            throw new NullPointerException();
+        }
         int size = columns.length;
         this.fieldNames = new String[size];
-        this.values = new Object[size];
         this.map = record;
         int i = 0;
         for (Column c : columns) {
-            fieldNames[i] = c.name;
-            values[i++] = record.get(c.name);
+            fieldNames[i++] = c.name;
         }
     }
 
@@ -102,16 +124,18 @@ public class Tuple {
     }
 
     public Object get(int i) {
+        buildValues();
         return values[i];
     }
 
     public Object get(String name) {
-        return toMap().get(name);
+        toMap();
+        return map.get(name);
     }
 
     public VisibleByteArrayOutputStream serialize(Column[] columns) throws IOException {
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
-
+        getValues();
         try (ExtendedDataOutputStream eoo = new ExtendedDataOutputStream(oo);) {
             int i = 0;
             for (String fieldName : fieldNames) {
@@ -162,9 +186,8 @@ public class Tuple {
                 }
                 values.add(value);
             }
-            return new Tuple(
-                fieldNames,
-                values.toArray(new Object[values.size()]));
+            Object[] _values = values.toArray(new Object[nColumns]);
+            return new Tuple(fieldNames, _values);
 
         }
     }

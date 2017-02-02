@@ -478,7 +478,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                         transactionContext = new TransactionContext(data.transactionId);
                         while (data.dataScanner.hasNext()) {
                             Tuple tuple = data.dataScanner.next();
-                            SQLStatementEvaluationContext tmp_context = new SQLStatementEvaluationContext("--", Arrays.asList(tuple.values));
+                            SQLStatementEvaluationContext tmp_context = new SQLStatementEvaluationContext("--", Arrays.asList(tuple.getValues()));
                             DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(plan.mainStatement, tmp_context, transactionContext);
                             insertCount += res.getUpdateCount();
                         }

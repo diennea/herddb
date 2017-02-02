@@ -1223,13 +1223,13 @@ public class RawSQLTest {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).fieldNames.length);
-                    assertEquals(3, records.get(0).values.length);
+                    assertEquals(3, records.get(0).getValues().length);
                     assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey"), records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey"), records.get(0).getValues()[0]);
                     assertEquals("theStringConstant", records.get(0).fieldNames[1]);
-                    assertEquals("one", records.get(0).values[1]);
+                    assertEquals("one", records.get(0).getValues()[1]);
                     assertEquals("LongConstant", records.get(0).fieldNames[2]);
-                    assertEquals(Long.valueOf(3), records.get(0).values[2]);
+                    assertEquals(Long.valueOf(3), records.get(0).getValues()[2]);
                 }
             }
             {
@@ -1387,9 +1387,9 @@ public class RawSQLTest {
                     assertEquals(1, records.size());
                     System.out.println("records:" + records);
                     assertEquals(1, records.get(0).fieldNames.length);
-                    assertEquals(1, records.get(0).values.length);
+                    assertEquals(1, records.get(0).getValues().length);
                     assertEquals("k1", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey2"), records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).getValues()[0]);
                 }
             }
             {
@@ -1399,9 +1399,9 @@ public class RawSQLTest {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(1, records.get(0).fieldNames.length);
-                    assertEquals(1, records.get(0).values.length);
+                    assertEquals(1, records.get(0).getValues().length);
                     assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey2"), records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).getValues()[0]);
                 }
             }
             {
@@ -1411,13 +1411,13 @@ public class RawSQLTest {
                     List<Tuple> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).fieldNames.length);
-                    assertEquals(3, records.get(0).values.length);
+                    assertEquals(3, records.get(0).getValues().length);
                     assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey2"), records.get(0).values[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).getValues()[0]);
                     assertEquals("theStringConstant", records.get(0).fieldNames[1]);
-                    assertEquals("one", records.get(0).values[1]);
+                    assertEquals("one", records.get(0).getValues()[1]);
                     assertEquals("LongConstant", records.get(0).fieldNames[2]);
-                    assertEquals(Long.valueOf(3), records.get(0).values[2]);
+                    assertEquals(Long.valueOf(3), records.get(0).getValues()[2]);
                 }
             }
 

@@ -33,6 +33,8 @@ public final class Bytes implements Comparable<Bytes> {
     public final byte[] data;
     private final int hashCode;
 
+    public Object deserialized;
+
     public static Bytes from_string(String s) {
         return new Bytes(s.getBytes(StandardCharsets.UTF_8));
     }
