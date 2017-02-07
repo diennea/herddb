@@ -80,5 +80,7 @@ public interface AbstractTableManager extends AutoCloseable {
     long getCreatedInTransaction();
 
     public void tryReleaseMemory(long reclaim);
+
+    public void ensureMemoryLimits();
     
 }

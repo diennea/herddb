@@ -109,6 +109,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
                 return 0;
             }
 
+            @Override
+            public long getMaxTableUsedMemory() {
+                return 0;
+            }
+
         };
     }
 
@@ -194,6 +199,10 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
     @Override
     public void tryReleaseMemory(long reclaim) {
+    }
+
+    @Override
+    public void ensureMemoryLimits() {
     }
 
 }

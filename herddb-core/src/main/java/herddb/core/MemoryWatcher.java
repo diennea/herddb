@@ -68,7 +68,7 @@ public class MemoryWatcher {
     private static final Logger LOG = Logger.getLogger(MemoryWatcher.class.getName());
 
     public void run(DBManager dbManager) {
-        long explicitUsage = dbManager.collectMemoryUsage();
+        long explicitUsage = dbManager.handleLocalMemoryUsage();
         MemoryUsage usage = jvmMemory.getHeapMemoryUsage();
         long used = usage.getUsed();
         long committed = usage.getCommitted();
@@ -84,7 +84,7 @@ public class MemoryWatcher {
             reclaim + ""});
         dbManager.tryReleaseMemory(reclaim, new CheckLowerBound(dbManager));
         usage = jvmMemory.getHeapMemoryUsage();
-        explicitUsage = dbManager.collectMemoryUsage();
+        explicitUsage = dbManager.handleLocalMemoryUsage();
         used = usage.getUsed();
         committed = usage.getCommitted();
         LOG.log(Level.FINE, "After reclaim: memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
@@ -103,7 +103,7 @@ public class MemoryWatcher {
         @Override
         public Boolean get() {
             MemoryUsage _usage = jvmMemory.getHeapMemoryUsage();
-            long explicitUsage = dbManager.collectMemoryUsage();
+            long explicitUsage = dbManager.handleLocalMemoryUsage();
             long _used = _usage.getUsed();
             long _committed = _usage.getCommitted();
             if (explicitUsage < overallMaximumLimit) {

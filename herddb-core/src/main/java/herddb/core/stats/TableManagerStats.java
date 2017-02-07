@@ -35,8 +35,10 @@ public interface TableManagerStats {
     public int getDirtyrecords();
 
     public long getMaxLogicalPageSize();
-    
+
     public long getBuffersUsedMemory();
 
     public long getKeysUsedMemory();
+
+    public long getMaxTableUsedMemory();
 }

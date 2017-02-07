@@ -606,7 +606,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             throw new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
-                    + "Maybe the server is starting ");
+                + "Maybe the server is starting ");
         }
         if (errorIfNotLeader && !manager.isLeader()) {
             throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
@@ -694,15 +694,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
-
-        List<TableSpaceManager> managers;
-        generalLock.readLock().lock();
-        try {
-            managers = new ArrayList<>(tablesSpaces.values());
-        } finally {
-            generalLock.readLock().unlock();
-        }
-        for (TableSpaceManager man : managers) {
+        for (TableSpaceManager man : tablesSpaces.values()) {
             man.checkpoint();
         }
     }
@@ -835,10 +827,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    long collectMemoryUsage() {
+    long handleLocalMemoryUsage() {
         AtomicLong result = new AtomicLong();
         for (TableSpaceManager tableSpaceManager : tablesSpaces.values()) {
-            result.addAndGet(tableSpaceManager.collectMemoryUsage());
+            result.addAndGet(tableSpaceManager.handleLocalMemoryUsage());
         }
         return result.get();
     }
@@ -1010,10 +1002,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         long now = System.currentTimeMillis();
+        boolean checkpointDone = false;
         if (checkpointPeriod > 0 && now - lastCheckPointTs.get() > checkpointPeriod) {
             lastCheckPointTs.set(now);
             try {
                 checkpoint();
+                checkpointDone = true;
             } catch (DataStorageManagerException | LogNotAvailableException error) {
                 LOGGER.log(Level.SEVERE, "checkpoint failed:" + error, error);
             }
@@ -1021,6 +1015,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
         if (memoryWatcher != null) {
             memoryWatcher.run(this);
+        }
+        if (!checkpointDone) {
+            for (TableSpaceManager man : tablesSpaces.values()) {
+                man.runLocalTableCheckPoints();
+            }
         }
 
     }

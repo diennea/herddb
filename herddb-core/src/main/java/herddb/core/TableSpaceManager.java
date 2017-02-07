@@ -105,6 +105,8 @@ import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Supplier;
 
 /**
@@ -122,6 +124,7 @@ public class TableSpaceManager {
     private final String tableSpaceName;
     private final String tableSpaceUUID;
     private final String nodeId;
+    private final ConcurrentSkipListSet<String> tablesNeedingCheckPoint = new ConcurrentSkipListSet<>();
     private final ConcurrentHashMap<String, AbstractTableManager> tables = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AbstractIndexManager> indexes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Map<String, AbstractIndexManager>> indexesByTable = new ConcurrentHashMap<>();
@@ -623,14 +626,38 @@ public class TableSpaceManager {
         }
     }
 
-    long collectMemoryUsage() {
-        AtomicLong result = new AtomicLong();
+    long handleLocalMemoryUsage() {
+        long result = 0;
         for (AbstractTableManager tableManager : tables.values()) {
+            tableManager.ensureMemoryLimits();
             TableManagerStats stats = tableManager.getStats();
-            result.addAndGet(stats.getBuffersUsedMemory());
-            result.addAndGet(stats.getKeysUsedMemory());
+            result += stats.getBuffersUsedMemory();
+            result += stats.getKeysUsedMemory();
         }
-        return result.get();
+        return result;
+    }
+
+    void requestTableCheckPoint(String name) {
+        boolean ok = tablesNeedingCheckPoint.add(name);
+        if (ok) {
+            LOGGER.log(Level.SEVERE, "Table " + this.tableSpaceName + "." + name + " need a local checkpoint");
+        }
+    }
+
+    void runLocalTableCheckPoints() {
+        Set<String> tablesToDo = new HashSet<>(tablesNeedingCheckPoint);
+        tablesNeedingCheckPoint.clear();
+        for (String table : tablesToDo) {
+            LOGGER.log(Level.SEVERE, "Forcing local checkpoint table " + this.tableSpaceName + "." + table);
+            AbstractTableManager tableManager = tables.get(table);
+            if (tableManager != null) {
+                try {
+                    tableManager.checkpoint(log.getLastSequenceNumber());
+                } catch (DataStorageManagerException ex) {
+                    LOGGER.log(Level.SEVERE, "Bad error on table checkpoint", ex);
+                }
+            }
+        }
     }
 
     private class DumpReceiver extends TableSpaceDumpReceiver {

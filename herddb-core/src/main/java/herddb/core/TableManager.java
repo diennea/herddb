@@ -346,11 +346,16 @@ public class TableManager implements AbstractTableManager {
         }
         Set<Long> pagesToUnload = PageSet.selectPagesToUnload(count, pages.keySet());
         pagesToUnload.remove(NEW_PAGE);
-        if (pagesToUnload.isEmpty()) {
-            return;
+        if (!pagesToUnload.isEmpty()) {
+            LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload.size() + " pages");
+            unloadPages(pagesToUnload);
+        } else {
+            requestCheckpoint();
         }
-        LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload.size() + " pages");
-        unloadPages(pagesToUnload);
+    }
+
+    private void requestCheckpoint() {
+        this.tableSpaceManager.requestTableCheckPoint(table.name);
     }
 
     private void unloadPages(Set<Long> pagesToUnload) {
@@ -969,9 +974,11 @@ public class TableManager implements AbstractTableManager {
         return res;
     }
 
-    private void ensureMemoryLimits() {
+    @Override
+    public void ensureMemoryLimits() {
         if (maxTableUsedMemory > 0) {
-            long toReclaim = (stats.getBuffersUsedMemory() + stats.getKeysUsedMemory()) - maxTableUsedMemory;
+            long used = (stats.getBuffersUsedMemory() + stats.getKeysUsedMemory());
+            long toReclaim = used - maxTableUsedMemory;
             releaseMemory(toReclaim);
         }
     }
@@ -1384,6 +1391,11 @@ public class TableManager implements AbstractTableManager {
         @Override
         public long getKeysUsedMemory() {
             return keyToPage.getUsedMemory();
+        }
+
+        @Override
+        public long getMaxTableUsedMemory() {
+            return maxTableUsedMemory;
         }
 
     };
