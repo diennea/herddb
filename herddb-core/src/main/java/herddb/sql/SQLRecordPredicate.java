@@ -158,10 +158,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     public static boolean minorThan(Object a, Object b) throws StatementExecutionException {
         if (a == null || b == null) {
             return false;
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) < 0;
-        }
+        }        
         if (a instanceof RawString && b instanceof String) {
             return a.toString().compareTo((String) b) < 0;
         }
@@ -174,15 +171,15 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (a instanceof java.util.Date && b instanceof java.util.Date) {
             return ((java.util.Date) a).getTime() < ((java.util.Date) b).getTime();
         }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return ((Comparable) a).compareTo(b) < 0;
+        }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
     public static boolean minorThanEquals(Object a, Object b) throws StatementExecutionException {
         if (a == null || b == null) {
             return false;
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) <= 0;
         }
         if (a instanceof RawString && b instanceof String) {
             return a.toString().compareTo((String) b) <= 0;
@@ -199,15 +196,15 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (Objects.equals(a, b)) {
             return true;
         }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return ((Comparable) a).compareTo(b) <= 0;
+        }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
     public static boolean greaterThan(Object a, Object b) throws StatementExecutionException {
         if (a == null || b == null) {
             return false;
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) > 0;
         }
         if (a instanceof RawString && b instanceof String) {
             return a.toString().compareTo((String) b) > 0;
@@ -221,15 +218,15 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (a instanceof java.util.Date && b instanceof java.util.Date) {
             return ((java.util.Date) a).getTime() > ((java.util.Date) b).getTime();
         }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return ((Comparable) a).compareTo(b) > 0;
+        }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
     public static boolean greaterThanEquals(Object a, Object b) throws StatementExecutionException {
         if (a == null || b == null) {
             return false;
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) >= 0;
         }
         if (a instanceof RawString && b instanceof String) {
             return a.toString().compareTo((String) b) >= 0;
@@ -245,6 +242,9 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         }
         if (Objects.equals(a, b)) {
             return true;
+        }
+        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
+            return ((Comparable) a).compareTo(b) >= 0;
         }
         throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
