@@ -737,17 +737,14 @@ public class TableManager implements AbstractTableManager {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
         Record newRecord = new Record(key, value);
-
         if (!NEW_PAGE.equals(pageId)) {
             pageSet.setPageDirty(pageId);
         }
-        DataPage oldPage = pages.get(pageId);
-        if (oldPage == null) {
-            throw new IllegalStateException("page not loaded " + pageId + " while updating record " + key);
-        }
+
         dirtyRecords.incrementAndGet();
-        Record previous = oldPage.get(key);
-        dirtyRecordsPage.put(key, newRecord);
+
+        // previous record can be among "dirty records" or in a data page
+        Record previous = dirtyRecordsPage.put(key, newRecord);
 
         if (!NEW_PAGE.equals(pageId)) {
             memoryAcquired(newRecord);
@@ -755,6 +752,16 @@ public class TableManager implements AbstractTableManager {
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
+            if (previous == null) {
+                DataPage oldPage = pages.get(pageId);
+                if (oldPage == null) {
+                    oldPage = loadPageToMemory(pageId, false);
+                }
+                if (oldPage == null) {
+                    throw new IllegalStateException("page not loaded " + pageId + " while updating record " + key);
+                }
+                previous = oldPage.get(key);
+            }
             if (previous == null) {
                 throw new RuntimeException("updated record at " + key + " was not loaded in buffer, cannot update indexes");
             }
