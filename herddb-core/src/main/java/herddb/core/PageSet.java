@@ -144,6 +144,7 @@ public final class PageSet {
         try {
             activePages.removeAll(dirtyPagesFlushed);
             dirtyPages.removeAll(dirtyPagesFlushed);
+            LOGGER.log(Level.SEVERE, "checkpointDone " + dirtyPagesFlushed.size() + ", now activePages:" + activePages.size() + " dirty " + dirtyPages.size());
         } finally {
             lock.writeLock().unlock();
         }

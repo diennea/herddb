@@ -40,8 +40,8 @@ public class HugeTableTest extends BaseBench {
     protected void makeServerConfiguration() throws IOException {
         super.makeServerConfiguration();
         // we want to swap-in/swap-out pages
-        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY, 64 * 1024 * 1024L);
-        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 64 * 1024 * 1024L);
+        // serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY, 64 * 1024 * 1024);
+        // serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 64 * 1024 * 512);
 
     }
 

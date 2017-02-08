@@ -22,6 +22,7 @@ package herddb.core;
 import herddb.model.Record;
 import herddb.utils.Bytes;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A page of data loaded in memory
@@ -30,16 +31,16 @@ import java.util.Map;
  */
 public class DataPage {
 
-    public final long estimatedSize;
     public final Map<Bytes, Record> data;
     public final long pageId;
     public final boolean readonly;
+    public final AtomicLong usedMemory;
 
     public DataPage(long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
         this.pageId = pageId;
         this.readonly = readonly;
-        this.estimatedSize = estimatedSize;
         this.data = data;
+        this.usedMemory = new AtomicLong(estimatedSize);
     }
 
     @Override
@@ -82,11 +83,21 @@ public class DataPage {
         if (readonly) {
             throw new IllegalStateException("page " + pageId + " is readonly!");
         }
-        return data.put(key, newRecord);
+        Record prev = data.put(key, newRecord);
+        if (prev != null) {
+            usedMemory.addAndGet(newRecord.value.data.length - prev.value.data.length);
+        } else {
+            usedMemory.addAndGet(newRecord.value.data.length);
+        }
+        return prev;
     }
 
     int size() {
         return data.size();
+    }
+
+    long getUsedMemory() {
+        return usedMemory.get();
     }
 
     void clear() {

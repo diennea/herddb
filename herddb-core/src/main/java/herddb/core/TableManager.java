@@ -123,8 +123,6 @@ public class TableManager implements AbstractTableManager {
 
     private final AtomicInteger dirtyRecords = new AtomicInteger();
 
-    private final AtomicLong usedMemoryFromValues = new AtomicLong();
-
     private final AtomicLong newPageId = new AtomicLong(1);
 
     /**
@@ -176,9 +174,60 @@ public class TableManager implements AbstractTableManager {
      */
     private long createdInTransaction;
 
+    private final TableManagerStats stats;
+
+    private final class TableManagerStatsImpl implements TableManagerStats {
+
+        @Override
+        public int getLoadedpages() {
+            // dirty records pages (-1) is not counted
+            return pages.size() - 1;
+        }
+
+        @Override
+        public long getTablesize() {
+            return keyToPage.size();
+        }
+
+        @Override
+        public int getDirtypages() {
+            return pageSet.getDirtyPagesCount();
+        }
+
+        @Override
+        public int getDirtyrecords() {
+            return dirtyRecords.get();
+        }
+
+        @Override
+        public long getMaxLogicalPageSize() {
+            return maxLogicalPageSize;
+        }
+
+        @Override
+        public long getBuffersUsedMemory() {
+            long value = 0;
+            for (DataPage page : pages.values()) {
+                value += page.getUsedMemory();
+            }
+            return value;
+        }
+
+        @Override
+        public long getKeysUsedMemory() {
+            return keyToPage.getUsedMemory();
+        }
+
+        @Override
+        public long getMaxTableUsedMemory() {
+            return maxTableUsedMemory;
+        }
+    }
+
     TableManager(Table table, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID,
         long maxLogicalPageSize,
         long maxTableUsedMemory, long createdInTransaction) throws DataStorageManagerException {
+        this.stats = new TableManagerStatsImpl();
 
         this.pages.put(NEW_PAGE, dirtyRecordsPage);
 
@@ -347,9 +396,10 @@ public class TableManager implements AbstractTableManager {
         Set<Long> pagesToUnload = PageSet.selectPagesToUnload(count, pages.keySet());
         pagesToUnload.remove(NEW_PAGE);
         if (!pagesToUnload.isEmpty()) {
-            LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload.size() + " pages");
+            LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload.size() + "/"+pages.size()+" pages");
             unloadPages(pagesToUnload);
         } else {
+            LOGGER.log(Level.SEVERE, "table " + table.name + ", no page to unload, checkpoint needed");
             requestCheckpoint();
         }
     }
@@ -359,13 +409,10 @@ public class TableManager implements AbstractTableManager {
     }
 
     private void unloadPages(Set<Long> pagesToUnload) {
-        LOGGER.log(Level.SEVERE, "table {0} cleanpages {1}", new Object[]{table.name, pagesToUnload});
+        LOGGER.log(Level.SEVERE, "table {0} unloading pages {1}", new Object[]{table.name, pagesToUnload});
         for (Long pageId : pagesToUnload) {
-            LOGGER.log(Level.SEVERE, "table {0} removing page {1}", new Object[]{table.name, pageId});
-            DataPage removed = pages.remove(pageId);
-            if (removed != null) {
-                memoryReleased(removed.estimatedSize);
-            }
+            LOGGER.log(Level.FINER, "table {0} removing page {1}", new Object[]{table.name, pageId});
+            pages.remove(pageId);
         };
     }
 
@@ -559,7 +606,6 @@ public class TableManager implements AbstractTableManager {
         deletedKeys.clear();
         locksManager.clear();
         keyToPage.truncate();
-        usedMemoryFromValues.set(0);
         if (indexes != null) {
             for (AbstractIndexManager index : indexes.values()) {
                 index.truncate();
@@ -708,14 +754,16 @@ public class TableManager implements AbstractTableManager {
         Record record;
         DataPage dataPage = pages.get(pageId);
         if (dataPage == null) {
-            throw new IllegalStateException("page " + pageId + " not loaded in memory during delete!");
+            dataPage = loadPageToMemory(pageId, false);
+            if (dataPage == null) {
+                throw new IllegalStateException("page " + pageId + " not loaded in memory during delete!");
+            }
         }
         if (!NEW_PAGE.equals(pageId)) {
             record = dataPage.get(key);
             pageSet.setPageDirty(pageId);
         } else {
             record = dataPage.remove(key);
-            memoryReleased(record);
         }
         dirtyRecords.incrementAndGet();
 
@@ -745,10 +793,6 @@ public class TableManager implements AbstractTableManager {
 
         // previous record can be among "dirty records" or in a data page
         Record previous = dirtyRecordsPage.put(key, newRecord);
-
-        if (!NEW_PAGE.equals(pageId)) {
-            memoryAcquired(newRecord);
-        }
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         if (indexes != null) {
@@ -854,14 +898,8 @@ public class TableManager implements AbstractTableManager {
             }
         }
         Record record = new Record(key, value);
-        Record previous = dirtyRecordsPage.put(key, record);
+        dirtyRecordsPage.put(key, record);
 
-        if (previous != null) {
-//            LOGGER.log(Level.SEVERE, "Buffer already contains a record for key {0} ?", key);
-            memoryReleased(previous);
-        }
-
-        memoryAcquired(record);
         deletedKeys.remove(key);
         dirtyRecords.incrementAndGet();
 
@@ -936,6 +974,8 @@ public class TableManager implements AbstractTableManager {
             return result;
         }
         long _start = System.currentTimeMillis();
+        long _io = 0;
+        long _limitTime = 0;
         AtomicBoolean computed = new AtomicBoolean();
         pagesLock.lock();
         try {
@@ -949,7 +989,9 @@ public class TableManager implements AbstractTableManager {
                 }
             });
             if (computed.get()) {
+                _io = System.currentTimeMillis();
                 ensureMemoryLimits();
+                _limitTime = System.currentTimeMillis();
             }
         } catch (RuntimeException error) {
             if (error.getCause() != null
@@ -963,9 +1005,11 @@ public class TableManager implements AbstractTableManager {
         }
         if (computed.get()) {
             long _stop = System.currentTimeMillis();
-            LOGGER.log(Level.SEVERE, "table " + table.name + ","
+            LOGGER.log(Level.INFO, "table " + table.name + ","
                 + "loaded " + result.size() + " records from page " + pageId
-                + "in " + (_stop - _start) + " ms ");
+                + " in " + (_stop - _start) + " ms"
+                + ", (" + (_io - _start) + " ms read + plock"
+                + ", " + (_limitTime - _io) + " ms lim)");
         }
         return result;
     }
@@ -1362,51 +1406,6 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
-    private final TableManagerStats stats = new TableManagerStats() {
-        @Override
-        public int getLoadedpages() {
-            LOGGER.severe("Loadedpages " + pages.keySet());
-            // dirty records pages (-1) is not counted
-            return pages.size() - 1;
-        }
-
-        @Override
-        public long getTablesize() {
-            return keyToPage.size();
-        }
-
-        @Override
-        public int getDirtypages() {
-            return pageSet.getDirtyPagesCount();
-        }
-
-        @Override
-        public int getDirtyrecords() {
-            return dirtyRecords.get();
-        }
-
-        @Override
-        public long getMaxLogicalPageSize() {
-            return maxLogicalPageSize;
-        }
-
-        @Override
-        public long getBuffersUsedMemory() {
-            return usedMemoryFromValues.get();
-        }
-
-        @Override
-        public long getKeysUsedMemory() {
-            return keyToPage.getUsedMemory();
-        }
-
-        @Override
-        public long getMaxTableUsedMemory() {
-            return maxTableUsedMemory;
-        }
-
-    };
-
     @Override
     public TableManagerStats getStats() {
         return stats;
@@ -1444,28 +1443,6 @@ public class TableManager implements AbstractTableManager {
     @Override
     public long getCreatedInTransaction() {
         return createdInTransaction;
-    }
-
-    private void memoryReleased(Record old) {
-        if (old == null) {
-            return;
-        }
-        usedMemoryFromValues.addAndGet(-old.value.data.length);
-    }
-
-    private void memoryReleased(long value) {
-        usedMemoryFromValues.addAndGet(-value);
-    }
-
-    private void memoryAcquired(long value) {
-        usedMemoryFromValues.addAndGet(value);
-    }
-
-    private void memoryAcquired(Record r) {
-        if (r == null) {
-            return;
-        }
-        usedMemoryFromValues.addAndGet(r.value.data.length);
     }
 
     @Override
