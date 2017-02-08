@@ -98,7 +98,7 @@ public class TableManager implements AbstractTableManager {
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
     private static final int UNLOAD_PAGES_MIN_BATCH = SystemProperties.
-        getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 3);
+        getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 1);
 
     private static final int SORTED_PAGE_ACCESS_WINDOW_SIZE = SystemProperties.
         getIntSystemProperty(TableManager.class.getName() + ".sortedPageAccessWindowSize", 2000);
@@ -396,7 +396,9 @@ public class TableManager implements AbstractTableManager {
         Set<Long> pagesToUnload = PageSet.selectPagesToUnload(count, pages.keySet());
         pagesToUnload.remove(NEW_PAGE);
         if (!pagesToUnload.isEmpty()) {
-            LOGGER.log(Level.SEVERE, "table " + table.name + ", unloading " + pagesToUnload.size() + "/"+pages.size()+" pages");
+            LOGGER.log(Level.SEVERE, "table " + table.name + ","
+                + "unloading " + pagesToUnload.size() + " pages (" + pages.size() + " pages actually loaded),"
+                + "" + dirtyRecordsPage.data.size() + " dirty records");
             unloadPages(pagesToUnload);
         } else {
             LOGGER.log(Level.SEVERE, "table " + table.name + ", no page to unload, checkpoint needed");
@@ -411,8 +413,10 @@ public class TableManager implements AbstractTableManager {
     private void unloadPages(Set<Long> pagesToUnload) {
         LOGGER.log(Level.SEVERE, "table {0} unloading pages {1}", new Object[]{table.name, pagesToUnload});
         for (Long pageId : pagesToUnload) {
-            LOGGER.log(Level.FINER, "table {0} removing page {1}", new Object[]{table.name, pageId});
-            pages.remove(pageId);
+            DataPage removed = pages.remove(pageId);
+            if (removed != null) {
+                LOGGER.log(Level.INFO, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, removed.getUsedMemory() / (1024 * 1024) + " MB"});
+            }
         };
     }
 
@@ -974,7 +978,7 @@ public class TableManager implements AbstractTableManager {
             return result;
         }
         long _start = System.currentTimeMillis();
-        long _io = 0;
+        long _ioAndLock = 0;
         long _limitTime = 0;
         AtomicBoolean computed = new AtomicBoolean();
         pagesLock.lock();
@@ -989,7 +993,7 @@ public class TableManager implements AbstractTableManager {
                 }
             });
             if (computed.get()) {
-                _io = System.currentTimeMillis();
+                _ioAndLock = System.currentTimeMillis();
                 ensureMemoryLimits();
                 _limitTime = System.currentTimeMillis();
             }
@@ -1008,8 +1012,9 @@ public class TableManager implements AbstractTableManager {
             LOGGER.log(Level.INFO, "table " + table.name + ","
                 + "loaded " + result.size() + " records from page " + pageId
                 + " in " + (_stop - _start) + " ms"
-                + ", (" + (_io - _start) + " ms read + plock"
-                + ", " + (_limitTime - _io) + " ms lim)");
+                + ", (" + (_ioAndLock - _start) + " ms read + plock"
+                + ", " + (_limitTime - _ioAndLock) + " ms lim"
+                + ", " + (_stop - _limitTime) + " ms unlock)");
         }
         return result;
     }
@@ -1132,7 +1137,8 @@ public class TableManager implements AbstractTableManager {
                 List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
                 tablecheckpoint = System.currentTimeMillis();
                 result.addAll(actions);
-                LOGGER.log(Level.INFO, "checkpoint {0} finished, now {1}, flushed {2}", new Object[]{table.name, pageSet + "", recordsOnDirtyPages.size() + " records"});
+                LOGGER.log(Level.INFO, "checkpoint {0} finished, now {1}, flushed {2} records", new Object[]{table.name, pageSet + "", recordsOnDirtyPages.size() + " records"});
+                dirtyRecordsPage.clear();
                 checkPointRunning = false;
                 ensureMemoryLimits();
             } finally {
@@ -1468,6 +1474,9 @@ public class TableManager implements AbstractTableManager {
             + ": used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
             + dirtypages + " dirtypages, releasing " + countPages + " pages, to reclaim " + (reclaim / (1024 * 1024)) + " MB ");
         unloadPages(countPages);
+        LOGGER.log(Level.SEVERE, "Table " + table.tablespace + "." + table.name
+            + " after unload used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
+            + dirtypages + " dirtypages");
     }
 
     private static final Comparator<Map.Entry<Bytes, Long>> SORTED_PAGE_ACCESS_COMPARATOR = (a, b) -> {

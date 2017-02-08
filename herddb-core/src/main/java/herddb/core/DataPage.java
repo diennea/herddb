@@ -105,6 +105,7 @@ public class DataPage {
             throw new IllegalStateException("page " + pageId + " is readonly!");
         }
         data.clear();
+        usedMemory.set(0);
     }
 
 }

@@ -33,7 +33,7 @@ import herddb.model.Tuple;
  * 
  * @author diego.salvi
  */
-public class InStreamTupleSorter {
+public final class InStreamTupleSorter {
 
     private final int size;
     private final Comparator<Tuple> comparator;
