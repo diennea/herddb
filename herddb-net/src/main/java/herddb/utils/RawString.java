@@ -56,19 +56,23 @@ public class RawString implements Comparable<RawString> {
         if (obj == null) {
             return false;
         }
-        if (obj instanceof String) {
-            byte[] other_data = ((String) obj).getBytes(StandardCharsets.UTF_8);
-            return Arrays.equals(this.data, other_data);
+        if (obj instanceof RawString) {
+            final RawString other = (RawString) obj;
+            return (this.hashcode == other.hashcode)
+                && Arrays.equals(this.data, other.data);
         }
-        if (obj.getClass() != RawString.class) {
-            return false;
+        if (obj instanceof Boolean) {
+            boolean b = (Boolean) obj;
+            return b ? Arrays.equals(this.data, TRUE) : Arrays.equals(this.data, FALSE);
         }
-        final RawString other = (RawString) obj;
-        if (this.hashcode != other.hashcode) {
-            return false;
-        }
-        return Arrays.equals(this.data, other.data);
+        String otherString = obj.toString();
+        byte[] other_data = otherString
+            .getBytes(StandardCharsets.UTF_8);
+        return Arrays.equals(this.data, other_data);
     }
+
+    private static final byte[] TRUE = "true".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] FALSE = "false".getBytes(StandardCharsets.UTF_8);
 
     @Override
     public String toString() {

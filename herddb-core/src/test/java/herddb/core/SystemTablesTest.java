@@ -37,6 +37,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.RawString;
 import static org.junit.Assert.assertFalse;
 
 /**
@@ -102,16 +103,16 @@ public class SystemTablesTest {
                 List<Tuple> records = scan.consume();
                 assertEquals(2, records.size());
                 Tuple index1 = records.get(0);
-                assertEquals("tblspace1", index1.get("tablespace"));
-                assertEquals("brin", index1.get("index_type"));
-                assertEquals("index1", index1.get("index_name"));
-                assertEquals("tsql2", index1.get("table_name"));
+                assertEquals(RawString.of("tblspace1"), index1.get("tablespace"));
+                assertEquals(RawString.of("brin"), index1.get("index_type"));
+                assertEquals(RawString.of("index1"), index1.get("index_name"));
+                assertEquals(RawString.of("tsql2"), index1.get("table_name"));
 
                 Tuple index2 = records.get(1);
-                assertEquals("tblspace1", index2.get("tablespace"));
-                assertEquals("hash", index2.get("index_type"));
-                assertEquals("index2", index2.get("index_name"));
-                assertEquals("tsql2", index2.get("table_name"));
+                assertEquals(RawString.of("tblspace1"), index2.get("tablespace"));
+                assertEquals(RawString.of("hash"), index2.get("index_type"));
+                assertEquals(RawString.of("index2"), index2.get("index_name"));
+                assertEquals(RawString.of("tsql2"), index2.get("table_name"));
             }
 
             execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList());
