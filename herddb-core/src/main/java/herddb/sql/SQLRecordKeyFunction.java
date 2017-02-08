@@ -36,6 +36,7 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
 import herddb.model.ColumnsList;
+import herddb.utils.RawString;
 
 /**
  * Record mutator using SQL
@@ -111,7 +112,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
             } else if (expression instanceof TimestampValue) {
                 value = ((TimestampValue) expression).getValue();
             } else if (expression instanceof StringValue) {
-                value = ((StringValue) expression).getValue();
+                value = RawString.of(((StringValue) expression).getValue());
             } else {
                 throw new StatementExecutionException("unsupported type " + expression.getClass() + " " + expression);
             }

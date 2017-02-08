@@ -20,6 +20,7 @@
 package herddb.sql;
 
 import herddb.model.StatementEvaluationContext;
+import herddb.utils.RawString;
 import java.util.List;
 import org.jboss.netty.util.internal.ConcurrentIdentityHashMap;
 
@@ -42,6 +43,14 @@ public class SQLStatementEvaluationContext extends StatementEvaluationContext {
     public SQLStatementEvaluationContext(String query, List<Object> jdbcParameters) {
         this.query = query;
         this.jdbcParameters = jdbcParameters;
+        final int len = jdbcParameters.size();
+        for (int i = 0; i < len; i++) {
+            Object o = jdbcParameters.get(i);
+            if (o instanceof String) {
+                jdbcParameters.set(i, RawString.of((String) o));
+            }
+        }
+
     }
 
     public <T> T getConstant(Object key) {

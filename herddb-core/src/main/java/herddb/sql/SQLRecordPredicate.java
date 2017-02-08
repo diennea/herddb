@@ -279,8 +279,18 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     }
 
     public static boolean objectEquals(Object a, Object b) {
-        if (Objects.equals(a, b)) {
+        if (a == null && b == null) {
             return true;
+        } else if (a != null && b == null) {
+            return false;
+        } else if (a == null && b != null) {
+            return false;
+        }
+        if (a instanceof RawString) {
+            return a.equals(b);
+        }
+        if (b instanceof RawString) {
+            return b.equals(a);
         }
         if (a instanceof Number && b instanceof Number) {
             return ((Number) a).doubleValue() == ((Number) b).doubleValue();
@@ -289,16 +299,14 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return ((java.util.Date) a).getTime() == ((java.util.Date) b).getTime();
         }
         if (a instanceof java.lang.Boolean
-            && b != null
             && (Boolean.parseBoolean(b.toString()) == ((Boolean) a))) {
             return true;
         }
         if (b instanceof java.lang.Boolean
-            && a != null
             && (Boolean.parseBoolean(a.toString()) == ((Boolean) b))) {
             return true;
         }
-        return false;
+        return Objects.equals(a, b);
     }
 
     public static boolean like(Object a, Object b) {
@@ -329,7 +337,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             if (exp instanceof net.sf.jsqlparser.schema.Column) {
                 return evaluateColumn(exp);
             } else if (exp instanceof StringValue) {
-                return ((StringValue) exp).getValue();
+                return RawString.of(((StringValue) exp).getValue());
             } else if (exp instanceof LongValue) {
                 return ((LongValue) exp).getValue();
             } else if (exp instanceof TimestampValue) {

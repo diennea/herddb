@@ -26,6 +26,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableContext;
+import herddb.utils.RawString;
 
 import java.util.HashMap;
 import java.util.List;
@@ -85,7 +86,7 @@ public class SQLRecordFunction extends RecordFunction {
             } else if (e instanceof TimestampValue) {
                 bean.put(columnName, ((TimestampValue) e).getValue());
             } else if (e instanceof StringValue) {
-                bean.put(columnName, ((StringValue) e).getValue());
+                bean.put(columnName, RawString.of(((StringValue) e).getValue()));
             } else if (e instanceof Column) {
                 Column c = (Column) e;
                 bean.put(columnName, bean.get(c.getColumnName()));

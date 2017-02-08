@@ -57,7 +57,8 @@ public class RawString implements Comparable<RawString> {
             return false;
         }
         if (obj instanceof String) {
-            return toString().equals(obj);
+            byte[] other_data = ((String) obj).getBytes(StandardCharsets.UTF_8);
+            return Arrays.equals(this.data, other_data);
         }
         if (obj.getClass() != RawString.class) {
             return false;
@@ -80,7 +81,18 @@ public class RawString implements Comparable<RawString> {
 
     @Override
     public int compareTo(RawString o) {
-        return this.toString().compareTo(o.toString());
+        return compare(this.data, o.data);
+    }
+
+    private static int compare(byte[] left, byte[] right) {
+        for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
+            int a = (left[i] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
+        }
+        return left.length - right.length;
     }
 
 }

@@ -112,6 +112,9 @@ public final class RecordSerializer {
             Object name = values[i++];
             Object value = values[i];
             name = table.getColumn((String) name).name;
+            if (value instanceof String) {
+                value = RawString.of((String) value);
+            }
             record.put((String) name, value);
         }
         return toRecord(record, table);

@@ -110,15 +110,18 @@ public class TablespaceReplicasStateTest {
                     assertEquals(2, results.size());
                 }
 
-                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList());) {
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate "
+                    + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList());) {
                     assertEquals(1, scan.consume().size());
                 }
 
-                try (DataScanner scan = scan(server_2.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList());) {
+                try (DataScanner scan = scan(server_2.getManager(), "SELECT * FROM systablespacereplicastate "
+                    + "where nodeId='" + server_2.getNodeId() + "' and mode='follower'", Collections.emptyList());) {
                     assertEquals(1, scan.consume().size());
                 }
 
-                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate where nodeId='" + server_1.getNodeId() + "' and mode='leader'", Collections.emptyList());) {
+                try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate "
+                    + "where nodeId='" + server_1.getNodeId() + "' and mode='leader'", Collections.emptyList());) {
                     assertEquals(1, scan.consume().size());
                 }
 

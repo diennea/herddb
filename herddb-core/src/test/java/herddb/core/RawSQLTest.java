@@ -1227,7 +1227,7 @@ public class RawSQLTest {
                     assertEquals("theKey", records.get(0).fieldNames[0]);
                     assertEquals(RawString.of("mykey"), records.get(0).getValues()[0]);
                     assertEquals("theStringConstant", records.get(0).fieldNames[1]);
-                    assertEquals("one", records.get(0).getValues()[1]);
+                    assertEquals(RawString.of("one"), records.get(0).getValues()[1]);
                     assertEquals("LongConstant", records.get(0).fieldNames[2]);
                     assertEquals(Long.valueOf(3), records.get(0).getValues()[2]);
                 }
@@ -1415,7 +1415,7 @@ public class RawSQLTest {
                     assertEquals("theKey", records.get(0).fieldNames[0]);
                     assertEquals(RawString.of("mykey2"), records.get(0).getValues()[0]);
                     assertEquals("theStringConstant", records.get(0).fieldNames[1]);
-                    assertEquals("one", records.get(0).getValues()[1]);
+                    assertEquals(RawString.of("one"), records.get(0).getValues()[1]);
                     assertEquals("LongConstant", records.get(0).fieldNames[2]);
                     assertEquals(Long.valueOf(3), records.get(0).getValues()[2]);
                 }
