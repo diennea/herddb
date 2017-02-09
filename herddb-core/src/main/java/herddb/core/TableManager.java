@@ -101,6 +101,9 @@ public final class TableManager implements AbstractTableManager {
     private static final int SORTED_PAGE_ACCESS_WINDOW_SIZE = SystemProperties.
         getIntSystemProperty(TableManager.class.getName() + ".sortedPageAccessWindowSize", 2000);
 
+    private static final boolean ENABLE_LOCAL_SCAN_PAGE_CACHE = SystemProperties.
+        getBooleanSystemProperty(TableManager.class.getName() + ".enableLocalScanPageCache", false);
+
     public static final Long NEW_PAGE = Long.valueOf(-1);
 
     private final DataPage dirtyRecordsPage = new DataPage(NEW_PAGE, 0, new ConcurrentHashMap<>(), false);
@@ -1438,12 +1441,13 @@ public final class TableManager implements AbstractTableManager {
 
     private DataPage fetchDataPage(Long pageId, LocalScanPageCache localScanPageCache) throws DataStorageManagerException {
         DataPage dataPage;
-        if (localScanPageCache == null) {
+        if (localScanPageCache == null || !ENABLE_LOCAL_SCAN_PAGE_CACHE) {
             dataPage = loadPageToMemory(pageId, false);
         } else {
             if (pageId.equals(localScanPageCache.pageId)) {
                 dataPage = localScanPageCache.value;
             } else {
+                // TODO: add heuristics and choose whether to load the page in the main buffer
                 dataPage = temporaryLoadPageToMemory(pageId);
                 localScanPageCache.value = dataPage;
                 localScanPageCache.pageId = pageId;
