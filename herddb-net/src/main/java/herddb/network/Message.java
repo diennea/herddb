@@ -111,11 +111,13 @@ public final class Message {
         return new Message(clientId, TYPE_OPENSCANNER, data);
     }
 
-    public static Message REQUEST_TABLESPACE_DUMP(String clientId, String tableSpace, String dumpId, int fetchSize) {
+    public static Message REQUEST_TABLESPACE_DUMP(String clientId, String tableSpace, String dumpId, int fetchSize,
+        boolean includeTransactionLog) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("dumpId", dumpId);
+        data.put("includeTransactionLog", includeTransactionLog);
         data.put("fetchSize", fetchSize);
         data.put("tableSpace", tableSpace);
         return new Message(clientId, TYPE_REQUEST_TABLESPACE_DUMP, data);
@@ -225,6 +227,15 @@ public final class Message {
         return new Message(clientId, TYPE_PUSH_TABLE_DATA, data);
     }
 
+    public static Message PUSH_TXLOGCHUNK(String clientId, String tableSpace, List<KeyValue> chunk) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("tableSpace", tableSpace);
+        data.put("data", chunk);
+        return new Message(clientId, TYPE_PUSH_TXLOGCHUNK, data);
+    }
+
     public final String clientId;
     public final int type;
     public final Map<String, Object> parameters;
@@ -253,6 +264,7 @@ public final class Message {
     public static final int TYPE_PUSH_TABLE_DATA = 14;
     public static final int TYPE_EXECUTE_STATEMENTS = 15;
     public static final int TYPE_EXECUTE_STATEMENTS_RESULT = 16;
+    public static final int TYPE_PUSH_TXLOGCHUNK = 17;
 
     public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;

@@ -24,28 +24,26 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
- * This is the core write-ahead-log of the system. Every change to data is
- * logged to the CommitLog before beeing applied to memory/storage.
+ * This is the core write-ahead-log of the system. Every change to data is logged to the CommitLog before beeing applied
+ * to memory/storage.
  *
  * @author enrico.olivelli
  */
 public abstract class CommitLog implements AutoCloseable {
 
     /**
-     * Log a single entry and returns only when the entry has been safely
-     * written to the log
+     * Log a single entry and returns only when the entry has been safely written to the log
      *
      * @param entry
      * @param synch
-     * @return 
+     * @return
      * @throws LogNotAvailableException
      */
     public abstract LogSequenceNumber log(LogEntry entry, boolean synch) throws LogNotAvailableException;
 
     /**
-     * Log a batch of entries and returns only when the batch has been safely
-     * written to the log. In case of LogNotAvailableException it is not
-     * possible to know which entries have been written.
+     * Log a batch of entries and returns only when the batch has been safely written to the log. In case of
+     * LogNotAvailableException it is not possible to know which entries have been written.
      *
      * @param entries
      * @param synch
@@ -61,7 +59,7 @@ public abstract class CommitLog implements AutoCloseable {
     }
 
     public abstract void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException;
-    
+
     public abstract void followTheLeader(LogSequenceNumber skipPast, BiConsumer<LogSequenceNumber, LogEntry> consumer) throws LogNotAvailableException;
 
     public abstract LogSequenceNumber getLastSequenceNumber();
@@ -76,5 +74,41 @@ public abstract class CommitLog implements AutoCloseable {
     public abstract boolean isClosed();
 
     public abstract void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException;
+
+    protected CommitLogListener[] listeners = null;
+
+    public void attachCommitLogListener(CommitLogListener l) {
+        if (listeners == null) {
+            CommitLogListener[] _listeners = new CommitLogListener[1];
+            _listeners[0] = l;
+            listeners = _listeners;
+        } else {
+            CommitLogListener[] _listeners = new CommitLogListener[listeners.length + 1];
+            if (listeners.length > 0) {
+                System.arraycopy(listeners, 0, _listeners, 0, listeners.length);
+            }
+            _listeners[_listeners.length - 1] = l;
+            listeners = _listeners;
+        }
+    }
+
+    public void removeCommitLogListener(CommitLogListener l) {
+        CommitLogListener[] _listeners = new CommitLogListener[listeners.length - 1];
+        int pos = 0;
+        boolean found = false;
+        for (int i = 0; i < listeners.length; i++) {
+            if (listeners[i] != l) {
+                _listeners[pos++] = listeners[i];
+                found = true;
+            }
+        }
+        if (found) {
+            if (_listeners.length == 0) {
+                this.listeners = null;
+            } else {
+                this.listeners = _listeners;
+            }
+        }
+    }
 
 }

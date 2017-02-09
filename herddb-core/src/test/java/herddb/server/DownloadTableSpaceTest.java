@@ -92,10 +92,10 @@ public class DownloadTableSpaceTest {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table = Table.builder()
-                    .name("t1")
-                    .column("c", ColumnTypes.INTEGER)
-                    .primaryKey("c")
-                    .build();
+                .name("t1")
+                .column("c", ColumnTypes.INTEGER)
+                .primaryKey("c")
+                .build();
             server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             for (int i = 0; i < 1000; i++) {
@@ -106,7 +106,7 @@ public class DownloadTableSpaceTest {
             AtomicBoolean start = new AtomicBoolean();
 
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                    HDBConnection con = client.openConnection()) {
+                HDBConnection con = client.openConnection()) {
                 client.setClientSideMetadataProvider(new ZookeeperClientSideMetadataProvider(testEnv.getAddress(), testEnv.getTimeout(), testEnv.getPath()));
                 CountDownLatch count = new CountDownLatch(1);
                 con.dumpTableSpace(TableSpace.DEFAULT, new TableSpaceDumpReceiver() {
@@ -120,7 +120,7 @@ public class DownloadTableSpaceTest {
                     }
 
                     @Override
-                    public void finish() {
+                    public void finish(LogSequenceNumber logSequenceNumber) {
                         System.out.println("finish!");
                         count.countDown();
                     }
@@ -142,12 +142,12 @@ public class DownloadTableSpaceTest {
                     }
 
                     @Override
-                    public void beginTable(Table table, Map<String,Object> stats) {
+                    public void beginTable(Table table, Map<String, Object> stats) {
                         System.out.println("beginTable " + table);
                         this.table = table;
                     }
 
-                }, 89
+                }, 89, false
                 );
                 assertTrue(count.await(20, TimeUnit.SECONDS));
                 assertEquals(1000, logical_data.size());

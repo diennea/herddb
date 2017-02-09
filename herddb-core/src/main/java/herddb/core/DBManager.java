@@ -761,7 +761,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public void dumpTableSpace(String tableSpace, String dumpId, Message message, Channel _channel, int fetchSize) {
+    public void dumpTableSpace(String tableSpace, String dumpId, Message message, Channel _channel, int fetchSize, boolean includeLog) {
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
             _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("tableSpace " + tableSpace + " not booted here")));
@@ -770,7 +770,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             _channel.sendReplyMessage(message, Message.ACK(null));
         }
         try {
-            manager.dumpTableSpace(dumpId, _channel, fetchSize);
+            manager.dumpTableSpace(dumpId, _channel, fetchSize, includeLog);
         } catch (DataStorageManagerException | LogNotAvailableException error) {
             LOGGER.log(Level.SEVERE, "error before dump", error);
             _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("internal error " + error, error)));

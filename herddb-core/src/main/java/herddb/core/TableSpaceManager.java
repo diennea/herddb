@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.backup.DumpedLogEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,6 +61,7 @@ import herddb.core.system.SystransactionsTableManager;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
 import herddb.log.CommitLog;
+import herddb.log.CommitLogListener;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -105,6 +107,9 @@ import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Supplier;
@@ -539,7 +544,7 @@ public class TableSpaceManager {
             try (HDBConnection con = client.openConnection()) {
                 DumpReceiver receiver = new DumpReceiver();
                 int fetchSize = 10000;
-                con.dumpTableSpace(tableSpaceName, receiver, fetchSize);
+                con.dumpTableSpace(tableSpaceName, receiver, fetchSize, true);
                 long _start = System.currentTimeMillis();
                 boolean ok = receiver.join(1000 * 60 * 60);
                 if (!ok) {
@@ -660,6 +665,12 @@ public class TableSpaceManager {
         }
     }
 
+    public void receiveRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException {
+        for (DumpedLogEntry ld : entries) {
+            apply(ld.logSequenceNumber, LogEntry.deserialize(ld.entryData), true);
+        }
+    }
+
     private class DumpReceiver extends TableSpaceDumpReceiver {
 
         private TableManager currentTable;
@@ -697,8 +708,8 @@ public class TableSpaceManager {
         }
 
         @Override
-        public void finish() throws DataStorageManagerException {
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", finish");
+        public void finish(LogSequenceNumber pos) throws DataStorageManagerException {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", finish, at " + pos);
             latch.countDown();
         }
 
@@ -720,17 +731,41 @@ public class TableSpaceManager {
             currentTable = bootTable(table, 0);
         }
 
+        @Override
+        public void receiveTransactionLogChunk(List<DumpedLogEntry> entries) throws DataStorageManagerException {
+            LOGGER.log(Level.SEVERE, "received " + entries + " tx log entries");
+            try {
+                for (DumpedLogEntry data : entries) {
+                    LogEntry entry = LogEntry.deserialize(data.entryData);
+                    apply(data.logSequenceNumber, entry, true);
+                }
+            } catch (Exception ex) {
+                error = ex;
+                throw new DataStorageManagerException(ex);
+            }
+        }
+
     }
 
-    void dumpTableSpace(String dumpId, Channel _channel, int fetchSize) throws DataStorageManagerException, LogNotAvailableException {
+    void dumpTableSpace(String dumpId, Channel _channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
 
         checkpoint();
-        LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize);
+        LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize + ", includeLog:" + includeLog);
+
+        List<DumpedLogEntry> txlogentries = new ArrayList<>();
+        CommitLogListener logDumpReceiver = new CommitLogListener() {
+            @Override
+            public void logEntry(LogSequenceNumber logPos, LogEntry data) {
+                txlogentries.add(new DumpedLogEntry(actualLogSequenceNumber, data.serialize()));
+                LOGGER.log(Level.SEVERE, "dumping entry " + logPos + ", " + data);
+            }
+        };
         generalLock.readLock().lock();
         try {
-
+            if (includeLog) {
+                log.attachCommitLogListener(logDumpReceiver);
+            }
             final int timeout = 60000;
-
             Map<String, Object> startData = new HashMap<>();
             startData.put("command", "start");
             LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
@@ -797,7 +832,28 @@ public class TableSpaceManager {
                 _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, endTableData), timeout);
             }
 
+            if (!txlogentries.isEmpty()) {
+                Map<String, Object> data = new HashMap<>();
+                List<KeyValue> batch = new ArrayList<>();
+                for (DumpedLogEntry e : txlogentries) {
+                    VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(8 + 8);
+                    try (ExtendedDataOutputStream ee = new ExtendedDataOutputStream(oo)) {
+                        ee.writeVLong(e.logSequenceNumber.ledgerId);
+                        ee.writeVLong(e.logSequenceNumber.offset);
+                    } catch (IOException err) {
+                        throw new DataStorageManagerException(err);
+                    }
+                    batch.add(new KeyValue(oo.toByteArray(), e.entryData));
+                }
+                data.put("command", "txlog");
+                data.put("records", batch);
+                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+            }
+
             Map<String, Object> finishData = new HashMap<>();
+            LogSequenceNumber finishLogSequenceNumber = log.getLastSequenceNumber();
+            finishData.put("ledgerid", finishLogSequenceNumber.ledgerId);
+            finishData.put("offset", finishLogSequenceNumber.offset);
             finishData.put("command", "finish");
             _channel.sendOneWayMessage(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, finishData), new SendResultCallback() {
                 @Override
@@ -808,7 +864,9 @@ public class TableSpaceManager {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId);
         } finally {
             generalLock.readLock().unlock();
-
+            if (includeLog) {
+                log.removeCommitLogListener(logDumpReceiver);
+            }
         }
 
     }

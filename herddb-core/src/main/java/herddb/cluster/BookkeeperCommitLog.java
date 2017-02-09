@@ -20,6 +20,7 @@
 package herddb.cluster;
 
 import herddb.log.CommitLog;
+import herddb.log.CommitLogListener;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
@@ -55,7 +56,7 @@ import org.apache.bookkeeper.client.LedgerHandle;
  */
 public class BookkeeperCommitLog extends CommitLog {
 
-    private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());    
+    private static final Logger LOGGER = Logger.getLogger(BookkeeperCommitLog.class.getName());
 
     private String sharedSecret = "dodo";
     private final BookKeeper bookKeeper;
@@ -263,8 +264,19 @@ public class BookkeeperCommitLog extends CommitLog {
                     List<Long> newSequenceNumbers = writer.writeEntries(edits);
                     lastSequenceNumber = newSequenceNumbers.stream().max(Comparator.naturalOrder()).get();
                     List<LogSequenceNumber> res = new ArrayList<>();
-                    for (Long newSequenceNumber : newSequenceNumbers) {
-                        res.add(new LogSequenceNumber(currentLedgerId, newSequenceNumber));
+                    if (listeners != null) {
+                        int i = 0;
+                        for (Long newSequenceNumber : newSequenceNumbers) {
+                            LogSequenceNumber logPos = new LogSequenceNumber(currentLedgerId, newSequenceNumber);
+                            for (CommitLogListener l : listeners) {
+                                l.logEntry(logPos, edits.get(i++));
+                            }
+                            res.add(logPos);
+                        }
+                    } else {
+                        for (Long newSequenceNumber : newSequenceNumbers) {
+                            res.add(new LogSequenceNumber(currentLedgerId, newSequenceNumber));
+                        }
                     }
                     return res;
                 } catch (BKException.BKLedgerClosedException closed) {
@@ -455,7 +467,7 @@ public class BookkeeperCommitLog extends CommitLog {
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
         if (ledgersRetentionPeriod > 0) {
             LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, ledgersRetentionPeriod: {1} ,lastLedgerId: {2}, currentLedgerId: {3}",
-                    new Object[]{lastCheckPointSequenceNumber, ledgersRetentionPeriod, lastLedgerId, currentLedgerId});
+                new Object[]{lastCheckPointSequenceNumber, ledgersRetentionPeriod, lastLedgerId, currentLedgerId});
             long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
             List<Long> oldLedgers;
             lock.readLock().lock();
@@ -466,7 +478,7 @@ public class BookkeeperCommitLog extends CommitLog {
             }
 
             LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: {0}, lastLedgerId: {1}, dropping ledgers before {2}: {3}",
-                    new Object[]{currentLedgerId, lastLedgerId, new java.sql.Timestamp(min_timestamp), oldLedgers});
+                new Object[]{currentLedgerId, lastLedgerId, new java.sql.Timestamp(min_timestamp), oldLedgers});
             oldLedgers.remove(this.currentLedgerId);
             oldLedgers.remove(this.lastLedgerId);
             if (oldLedgers.isEmpty()) {
@@ -549,7 +561,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 LedgerHandle lh;
                 try {
                     lh = bookKeeper.openLedgerNoRecovery(previous,
-                            BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                        BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));
                 } catch (BKException.BKLedgerRecoveryException e) {
                     LOGGER.log(Level.SEVERE, "error", e);
                     return;
@@ -562,7 +574,7 @@ public class BookkeeperCommitLog extends CommitLog {
                         continue;
                     }
                     Enumeration<LedgerEntry> entries
-                            = lh.readEntries(nextEntry, lh.getLastAddConfirmed());
+                        = lh.readEntries(nextEntry, lh.getLastAddConfirmed());
 
                     while (entries.hasMoreElements()) {
                         LedgerEntry e = entries.nextElement();

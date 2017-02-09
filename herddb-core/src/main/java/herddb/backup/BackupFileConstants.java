@@ -17,35 +17,16 @@
  under the License.
 
  */
-package herddb.client;
-
-import herddb.backup.DumpedLogEntry;
-import herddb.model.Table;
-import herddb.network.KeyValue;
-import herddb.storage.DataStorageManagerException;
-import java.util.List;
+package herddb.backup;
 
 /**
- * Serves a full dump of a TableSpace for a full restore
- *
+ * Shared constants for backup files
  * @author enrico.olivelli
  */
-public class TableSpaceRestoreSource {
+public class BackupFileConstants {
 
-    public Table nextTable() throws DataStorageManagerException {
-        return null;
-    }
-
-    public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
-        return null;
-    }
-
-    public List<KeyValue> nextTransactionLogChunk() throws DataStorageManagerException {
-        return null;
-    }
-
-    public String nextEntryType() throws DataStorageManagerException {
-        return null;
-    }
-
+    public static final String ENTRY_TYPE_START = "start";
+    public static final String ENTRY_TYPE_TABLE = "table";
+    public static final String ENTRY_TYPE_TXLOGCHUNK = "txlogchunk";
+    public static final String ENTRY_TYPE_END = "end";
 }

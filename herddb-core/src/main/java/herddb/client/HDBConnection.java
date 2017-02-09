@@ -206,9 +206,10 @@ public class HDBConnection implements AutoCloseable {
         }
     }
 
-    public void dumpTableSpace(String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+    public void dumpTableSpace(String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize,
+        boolean includeTransactionLog) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
-        route.dumpTableSpace(tableSpace, fetchSize, receiver);
+        route.dumpTableSpace(tableSpace, fetchSize, includeTransactionLog, receiver);
     }
 
     private RoutedClientSideConnection getRouteToServer(String nodeId) throws ClientSideMetadataProviderException, HDBException {

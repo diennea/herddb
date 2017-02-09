@@ -20,6 +20,7 @@
 package herddb.mem;
 
 import herddb.log.CommitLog;
+import herddb.log.CommitLogListener;
 import herddb.log.CommitLogManager;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
@@ -44,7 +45,13 @@ public class MemoryCommitLogManager extends CommitLogManager {
             public LogSequenceNumber log(LogEntry entry, boolean synch) throws LogNotAvailableException {
                 // NOOP
                 entry.serialize();
-                return new LogSequenceNumber(1, offset.incrementAndGet());
+                LogSequenceNumber logPos = new LogSequenceNumber(1, offset.incrementAndGet());
+                if (listeners != null) {
+                    for (CommitLogListener l : listeners) {
+                        l.logEntry(logPos, entry);
+                    }
+                }
+                return logPos;
             }
 
             @Override
@@ -67,7 +74,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
             @Override
             public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
             }
-            
+
             @Override
             public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
             }

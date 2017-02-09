@@ -19,6 +19,10 @@
  */
 package herddb.backup;
 
+import static herddb.backup.BackupFileConstants.ENTRY_TYPE_END;
+import static herddb.backup.BackupFileConstants.ENTRY_TYPE_START;
+import static herddb.backup.BackupFileConstants.ENTRY_TYPE_TABLE;
+import static herddb.backup.BackupFileConstants.ENTRY_TYPE_TXLOGCHUNK;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,6 +48,8 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.NonClosingInputStream;
 import herddb.utils.NonClosingOutputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
+import java.io.ByteArrayOutputStream;
 
 /**
  * Backup Restore Utility
@@ -53,14 +59,14 @@ import herddb.utils.NonClosingOutputStream;
 public class BackupUtils {
 
     public static void dumpTableSpace(String schema, int fetchSize, HDBConnection connection, OutputStream fout, ProgressListener listener) throws Exception {
-        
+
         /* Do not close externally provided streams */
         try (NonClosingOutputStream nos = new NonClosingOutputStream(fout);
-             ExtendedDataOutputStream eos = new ExtendedDataOutputStream(nos)) {
+            ExtendedDataOutputStream eos = new ExtendedDataOutputStream(nos)) {
             dumpTablespace(schema, fetchSize, connection, eos, listener);
         }
     }
-    
+
     private static void dumpTablespace(String schema, int fetchSize, HDBConnection hdbconnection, ExtendedDataOutputStream out, ProgressListener listener) throws Exception {
 
         Holder<Throwable> errorHolder = new Holder<>();
@@ -78,8 +84,13 @@ public class BackupUtils {
             }
 
             @Override
-            public void finish() throws DataStorageManagerException {
-                listener.log("Dump finished for tablespace " + schema, Collections.singletonMap("tablespace", schema));
+            public void finish(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
+                listener.log("Dump finished for tablespace " + schema + " at " + logSequenceNumber, Collections.singletonMap("tablespace", schema));
+                try {
+                    out.writeUTF(ENTRY_TYPE_END);
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
                 waiter.countDown();
             }
 
@@ -113,6 +124,11 @@ public class BackupUtils {
             public void beginTable(Table table, Map<String, Object> stats) throws DataStorageManagerException {
                 currentTable = table.name;
                 listener.log("beginTable " + currentTable + ", stats " + stats, Collections.singletonMap("table", table.name));
+                try {
+                    out.writeUTF(ENTRY_TYPE_TABLE);
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
                 tableRecordsCount = 0;
                 try {
                     out.writeArray(table.serialize());
@@ -124,31 +140,84 @@ public class BackupUtils {
             @Override
             public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
                 listener.log("dumping tablespace " + schema + ", log position " + logSequenceNumber, Collections.singletonMap("tablespace", schema));
+                try {
+                    out.writeUTF(ENTRY_TYPE_START);
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
             }
 
-        }, fetchSize);
+            @Override
+            public void receiveTransactionLogChunk(List<DumpedLogEntry> entries) throws DataStorageManagerException {
+                try {
+                    out.writeUTF(ENTRY_TYPE_TXLOGCHUNK);
+                    out.writeVInt(entries.size());
+                    for (DumpedLogEntry entry : entries) {
+                        out.writeVLong(entry.logSequenceNumber.ledgerId);
+                        out.writeVLong(entry.logSequenceNumber.offset);
+                        out.writeArray(entry.entryData);
+                    }
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
+            }
+
+        }, fetchSize, true);
         if (errorHolder.value != null) {
             throw new Exception(errorHolder.value);
         }
         waiter.await();
     }
-    
+
     public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, InputStream fin, ProgressListener listener) throws Exception {
-        
+
         /* Do not close externally provided streams */
         try (NonClosingInputStream nis = new NonClosingInputStream(fin);
-             ExtendedDataInputStream eis = new ExtendedDataInputStream(nis)) {
+            ExtendedDataInputStream eis = new ExtendedDataInputStream(nis)) {
             restoreTableSpace(schema, node, hdbconnection, eis, listener);
         }
     }
 
     public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, ExtendedDataInputStream in, ProgressListener listener) throws Exception {
-            
+
         listener.log("creating tablespace " + schema + " with leader " + node, Collections.singletonMap("tablespace", schema));
         hdbconnection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLESPACE '" + schema + "','leader:" + node + "','wait:60000'", 0, false, Collections.emptyList());
 
         TableSpaceRestoreSource source = new TableSpaceRestoreSource() {
             long currentTableSize;
+
+            @Override
+            public String nextEntryType() throws DataStorageManagerException {
+                try {
+                    return in.readUTF();
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
+            }
+
+            @Override
+            public List<KeyValue> nextTransactionLogChunk() throws DataStorageManagerException {
+                try {
+                    int numRecords = in.readVInt();
+                    listener.log("receiving " + numRecords + " tx log entries",
+                        Collections.singletonMap("count", numRecords));
+                    List<KeyValue> records = new ArrayList<>(numRecords);
+                    for (int i = 0; i < numRecords; i++) {
+                        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(8 + 8);
+                        try (ExtendedDataOutputStream ooo = new ExtendedDataOutputStream(oo);) {
+                            long ledgerId = in.readVLong();
+                            long offset = in.readVLong();
+                            ooo.writeVLong(ledgerId);
+                            ooo.writeVLong(offset);
+                        }
+                        byte[] value = in.readArray();
+                        records.add(new KeyValue(oo.toByteArray(), value));
+                    }
+                    return records;
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
+            }
 
             @Override
             public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
@@ -159,7 +228,7 @@ public class BackupUtils {
                         listener.log("table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
                         return null;
                     }
-                    listener.log("sending " + numRecords + ", total " + currentTableSize,
+                    listener.log("receiving " + numRecords + ", total " + currentTableSize,
                         Collections.singletonMap("count", numRecords));
                     List<KeyValue> records = new ArrayList<>(numRecords);
                     for (int i = 0; i < numRecords; i++) {
@@ -191,8 +260,8 @@ public class BackupUtils {
 
         };
         hdbconnection.restoreTableSpace(schema, source);
-        
+
         listener.log("restore finished for tablespace " + schema, Collections.singletonMap("tablespace", schema));
-        
+
     }
 }

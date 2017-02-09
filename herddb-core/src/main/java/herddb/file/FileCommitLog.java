@@ -40,6 +40,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.log.CommitLog;
+import herddb.log.CommitLogListener;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
@@ -336,7 +337,13 @@ public class FileCommitLog extends CommitLog {
         LogEntryHolderFuture future = new LogEntryHolderFuture(edit, synch);
         try {
             writeQueue.put(future);
-            return future.ack.get();
+            LogSequenceNumber logPos = future.ack.get();
+            if (listeners != null) {
+                for (CommitLogListener l : listeners) {
+                    l.logEntry(logPos, edit);
+                }
+            }
+            return logPos;
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
@@ -352,7 +359,14 @@ public class FileCommitLog extends CommitLog {
         int size = entries.size();
         for (int i = 0; i < size; i++) {
             boolean synchLast = i == size - 1;
-            res.add(log(entries.get(i), synchLast));
+            LogEntry entry = entries.get(i);
+            LogSequenceNumber logpos = log(entry, synchLast);
+            if (listeners != null) {
+                for (CommitLogListener l : listeners) {
+                    l.logEntry(logpos, entry);
+                }
+            }
+            res.add(logpos);
         }
         return res;
     }

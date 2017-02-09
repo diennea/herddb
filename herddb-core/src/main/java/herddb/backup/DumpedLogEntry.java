@@ -17,35 +17,23 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.backup;
 
-import herddb.backup.DumpedLogEntry;
-import herddb.model.Table;
-import herddb.network.KeyValue;
-import herddb.storage.DataStorageManagerException;
-import java.util.List;
+import herddb.log.LogSequenceNumber;
 
 /**
- * Serves a full dump of a TableSpace for a full restore
+ * An entry of log dumped for backup/restore
  *
  * @author enrico.olivelli
  */
-public class TableSpaceRestoreSource {
+public final class DumpedLogEntry {
 
-    public Table nextTable() throws DataStorageManagerException {
-        return null;
-    }
+    public final LogSequenceNumber logSequenceNumber;
+    public final byte[] entryData;
 
-    public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
-        return null;
-    }
-
-    public List<KeyValue> nextTransactionLogChunk() throws DataStorageManagerException {
-        return null;
-    }
-
-    public String nextEntryType() throws DataStorageManagerException {
-        return null;
+    public DumpedLogEntry(LogSequenceNumber logSequenceNumber, byte[] entryData) {
+        this.logSequenceNumber = logSequenceNumber;
+        this.entryData = entryData;
     }
 
 }

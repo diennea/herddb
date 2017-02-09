@@ -19,8 +19,10 @@
  */
 package herddb.server;
 
+import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
 import herddb.core.stats.ConnectionsInfo;
+import herddb.log.LogSequenceNumber;
 import herddb.model.Column;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatementExecutionResult;
@@ -53,6 +55,8 @@ import herddb.network.ServerSideConnection;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -153,6 +157,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 handlePushTableData(message, _channel);
             }
             break;
+            case Message.TYPE_PUSH_TXLOGCHUNK: {
+                if (!authenticated) {
+                    sendAuthRequiredError(_channel, message);
+                    break;
+                }
+                handlePushTxLogChunk(message, _channel);
+            }
+            break;
             case Message.TYPE_OPENSCANNER: {
                 if (!authenticated) {
                     sendAuthRequiredError(_channel, message);
@@ -226,6 +238,33 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             LOGGER.log(Level.INFO, "Time restore " + data.size() + " records: data " + (_stop - _start) + " ms. with commit: " + (_stopCommit - _start) + " ms. ");
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handlePushTxLogChunk(Message message, Channel _channel) {
+        try {
+            String tableSpace = (String) message.parameters.get("tableSpace");
+            List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
+            LOGGER.log(Level.INFO, "Received " + data.size() + " records for restore of txlog in tableSpace " + tableSpace);
+
+            List<DumpedLogEntry> entries = new ArrayList<>(data.size());
+            for (KeyValue kv : data) {
+                SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(kv.key);
+                ExtendedDataInputStream iii = new ExtendedDataInputStream(ii);
+                long ledgerId = iii.readVLong();
+                long offset = iii.readVLong();
+                entries.add(new DumpedLogEntry(new LogSequenceNumber(ledgerId, offset), kv.value));
+
+            }            
+            server.getManager().getTableSpaceManager(tableSpace).receiveRawDumpedEntryLogs(entries);
+
+            _channel.sendReplyMessage(message, Message.ACK(null));
+        } catch (Exception err) {
             Message error = Message.ERROR(null, err);
             if (err instanceof NotLeaderException) {
                 error.setParameter("notLeader", "true");
@@ -350,7 +389,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             fetchSize = (Integer) message.parameters.get("fetchSize");
         }
         String tableSpace = (String) message.parameters.get("tableSpace");
-        server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize);
+        boolean includeTransactionLog = (Boolean) message.parameters.get("includeTransactionLog");
+        server.getManager().dumpTableSpace(tableSpace, dumpId, message, _channel, fetchSize, includeTransactionLog);
     }
 
     private void handleExecuteStatements(Message message, Channel _channel) {

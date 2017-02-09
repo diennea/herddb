@@ -19,6 +19,8 @@
  */
 package herddb.client;
 
+import herddb.backup.BackupFileConstants;
+import herddb.backup.DumpedLogEntry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +42,9 @@ import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.SimpleByteArrayInputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -146,7 +151,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             break;
                         }
                         case "finish": {
-                            receiver.finish();
+                            long ledgerId = (long) values.get("ledgerid");
+                            long offset = (long) values.get("offset");
+                            receiver.finish(new LogSequenceNumber(ledgerId, offset));
                             sendAck = false;
                             break;
                         }
@@ -159,6 +166,25 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             receiver.receiveTableDataChunk(records);
                             break;
                         }
+                        case "txlog": {
+                            List<KeyValue> data = (List<KeyValue>) values.get("records");
+                            List<DumpedLogEntry> records = new ArrayList<>(data.size());
+                            try {
+                                for (KeyValue kv : data) {
+                                    SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(kv.key);
+                                    ExtendedDataInputStream iii = new ExtendedDataInputStream(ii);
+                                    long ledgerId = iii.readVLong();
+                                    long offset = iii.readVLong();
+                                    records.add(new DumpedLogEntry(new LogSequenceNumber(ledgerId, offset), kv.value));
+                                }
+                            } catch (IOException err) {
+                                throw new DataStorageManagerException(err);
+                            }
+                            receiver.receiveTransactionLogChunk(records);
+                            break;
+                        }
+                        default:
+                            throw new DataStorageManagerException("invalid dump command:" + command);
                     }
                     if (_channel != null && sendAck) {
                         _channel.sendReplyMessage(message, Message.ACK(clientId));
@@ -411,11 +437,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
     }
 
-    void dumpTableSpace(String tableSpace, int fetchSize, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
+    void dumpTableSpace(String tableSpace, int fetchSize, boolean includeTransactionLog, TableSpaceDumpReceiver receiver) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
             String dumpId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
-            Message message = Message.REQUEST_TABLESPACE_DUMP(clientId, tableSpace, dumpId, fetchSize);
+            Message message = Message.REQUEST_TABLESPACE_DUMP(clientId, tableSpace, dumpId, fetchSize, includeTransactionLog);
             LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace);
             dumpReceivers.put(dumpId, receiver);
             Message reply = _channel.sendMessageWithReply(message, timeout);
@@ -436,27 +462,44 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws HDBException, ClientSideMetadataProviderException {
         try {
-            Table table = source.nextTable();
-            while (table != null) {
-
-                Channel _channel = ensureOpen();
-                Message message_create_table = Message.REQUEST_TABLE_RESTORE(clientId, tableSpace, table.serialize());
-                Message reply_create_table = _channel.sendMessageWithReply(message_create_table, timeout);
-                if (reply_create_table.type == Message.TYPE_ERROR) {
-                    throw new HDBException(reply_create_table);
-                }
-
-                List<KeyValue> chunk = source.nextTableDataChunk();
-                while (chunk != null) {
-                    Message message = Message.PUSH_TABLE_DATA(clientId, tableSpace, table.name, chunk);
-                    Message reply = _channel.sendMessageWithReply(message, timeout);
-                    if (reply.type == Message.TYPE_ERROR) {
-                        throw new HDBException(reply);
+            while (true) {
+                String entryType = source.nextEntryType();
+                LOGGER.log(Level.SEVERE, "restore, entryType:{0}", entryType);
+                switch (entryType) {
+                    case BackupFileConstants.ENTRY_TYPE_TABLE: {
+                        Table table = source.nextTable();
+                        Channel _channel = ensureOpen();
+                        Message message_create_table = Message.REQUEST_TABLE_RESTORE(clientId, tableSpace, table.serialize());
+                        Message reply_create_table = _channel.sendMessageWithReply(message_create_table, timeout);
+                        if (reply_create_table.type == Message.TYPE_ERROR) {
+                            throw new HDBException(reply_create_table);
+                        }
+                        List<KeyValue> chunk = source.nextTableDataChunk();
+                        while (chunk != null) {
+                            Message message = Message.PUSH_TABLE_DATA(clientId, tableSpace, table.name, chunk);
+                            Message reply = _channel.sendMessageWithReply(message, timeout);
+                            if (reply.type == Message.TYPE_ERROR) {
+                                throw new HDBException(reply);
+                            }
+                            chunk = source.nextTableDataChunk();
+                        }
+                        break;
                     }
-                    chunk = source.nextTableDataChunk();
+                    case BackupFileConstants.ENTRY_TYPE_TXLOGCHUNK: {
+                        Channel _channel = ensureOpen();
+                        List<KeyValue> chunk = source.nextTransactionLogChunk();
+                        Message message = Message.PUSH_TXLOGCHUNK(clientId, tableSpace, chunk);
+                        Message reply = _channel.sendMessageWithReply(message, timeout);
+                        if (reply.type == Message.TYPE_ERROR) {
+                            throw new HDBException(reply);
+                        }
+                        break;
+                    }
+                    case BackupFileConstants.ENTRY_TYPE_END: {
+                        return;
+                    }
                 }
 
-                table = source.nextTable();
             }
         } catch (InterruptedException | TimeoutException | DataStorageManagerException err) {
             throw new HDBException(err);
