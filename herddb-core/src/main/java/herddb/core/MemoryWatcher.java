@@ -60,10 +60,10 @@ public class MemoryWatcher {
         }
 
         this.overallMaximumLimit = (maxMemoryReferenceValue * overallMaximumLimitPercent) / 100f;
-        LOG.log(Level.INFO, "Overall maximum limit is " + (overallMaximumLimit / (1024 * 1024)) + " MBytes: the database will try not to use more than this amount of memory for live data");
+        LOG.log(Level.INFO, "Overall maximum limit is " + (long) (overallMaximumLimit / (1024 * 1024)) + " MBytes: the database will try not to use more than this amount of memory for live data");
 
         this.lowerbound = (overallMaximumLimit * lowerboundPercend) / 100f;
-        LOG.log(Level.INFO, "Lowerbound is " + (lowerbound / (1024 * 1024)) + " MBytes: the database will try to reach to this value while reducing memory usage");
+        LOG.log(Level.INFO, "Lowerbound is " + (long) ((lowerbound / (1024 * 1024))) + " MBytes: the database will try to reach to this value while reducing memory usage");
     }
     private static final Logger LOG = Logger.getLogger(MemoryWatcher.class.getName());
 
@@ -73,10 +73,14 @@ public class MemoryWatcher {
         long used = usage.getUsed();
         long committed = usage.getCommitted();
         if (explicitUsage < overallMaximumLimit) {
-            LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
+            LOG.log(Level.FINE, "Memory OK {0} used ({1} limit, {2} jvm used {3} jvm committed)",
                 new Object[]{explicitUsage, overallMaximumLimit + "", used + "", committed + ""});
             return;
         }
+
+        LOG.log(Level.SEVERE, "Low-Memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
+            new Object[]{explicitUsage, overallMaximumLimit + "", used + "", committed + ""});
+
         long reclaim = (long) (explicitUsage - lowerbound);
         LOG.log(Level.INFO, "Memory {0}/{1} used ({2} committed). To reclaim: {3}", new Object[]{used + "",
             overallMaximumLimit + "",

@@ -90,12 +90,13 @@ public class SimpleMemoryUsageTest {
                     Arrays.asList("mykey_" + i, Integer.valueOf(1234), tt1)).getUpdateCount());
             }
             manager.checkpoint();
-
             TableManagerStats stats = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getStats();
-            System.out.println("Memory usage for table:" + stats.getBuffersUsedMemory() + " " + stats.getKeysUsedMemory());
+            assertEquals(1, stats.getLoadedpages());
+            assertEquals(0, stats.getDirtypages());
+
             MemoryWatcher memoryWatcher = new MemoryWatcher(
                 1024, // very very low value, we want to unload everything !
-                40, 95);
+                1, 95);
             memoryWatcher.run(manager);
 
             assertEquals(0, stats.getLoadedpages());

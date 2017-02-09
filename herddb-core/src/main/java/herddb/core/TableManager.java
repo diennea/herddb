@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import com.google.common.collect.ImmutableMap;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
@@ -40,7 +39,6 @@ import herddb.model.GetResult;
 import herddb.model.Predicate;
 import herddb.model.RecordFunction;
 import herddb.model.commands.InsertStatement;
-import herddb.model.Record;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
@@ -93,7 +91,7 @@ import javax.xml.ws.Holder;
  *
  * @author enrico.olivelli
  */
-public class TableManager implements AbstractTableManager {
+public final class TableManager implements AbstractTableManager {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
@@ -828,13 +826,14 @@ public class TableManager implements AbstractTableManager {
 
     @Override
     public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException {
+        LocalScanPageCache localPageCache = new LocalScanPageCache();
         Consumer<Map.Entry<Bytes, Long>> scanExecutor = (Map.Entry<Bytes, Long> entry) -> {
             Bytes key = entry.getKey();
             LockHandle lock = lockForRead(key, null);
             try {
                 Long pageId = entry.getValue();
                 if (pageId != null) {
-                    Record record = fetchRecord(key, pageId);
+                    Record record = fetchRecord(key, pageId, localPageCache);
                     if (record != null) {
                         records.accept(record);
                     }
@@ -959,7 +958,7 @@ public class TableManager implements AbstractTableManager {
             if (pageId == null) {
                 return GetResult.NOT_FOUND(transactionId);
             }
-            Record loaded = fetchRecord(key, pageId);
+            Record loaded = fetchRecord(key, pageId, null);
             if (loaded == null || (predicate != null && !predicate.evaluate(loaded, context))) {
                 return GetResult.NOT_FOUND(transactionId);
             }
@@ -970,6 +969,23 @@ public class TableManager implements AbstractTableManager {
                 locksManager.releaseReadLockForKey(key, lock);
             }
         }
+    }
+
+    private DataPage temporaryLoadPageToMemory(Long pageId) throws DataStorageManagerException {
+        DataPage result = pages.get(pageId);;
+        if (result != null) {
+            return result;
+        }
+        long _start = System.currentTimeMillis();
+        List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+        long _io = System.currentTimeMillis();
+        result = buildDataPage(pageId, page);
+        long _stop = System.currentTimeMillis();
+        LOGGER.log(Level.INFO, "tmp table " + table.name + ","
+            + "loaded " + result.size() + " records from page " + pageId
+            + " in " + (_stop - _start) + " ms"
+            + ", (" + (_io - _start) + " ms read)");
+        return result;
     }
 
     private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
@@ -1020,13 +1036,13 @@ public class TableManager implements AbstractTableManager {
     }
 
     private DataPage buildDataPage(long pageId, List<Record> page) {
-        ImmutableMap.Builder<Bytes, Record> newPageMap = new ImmutableMap.Builder<>();
+        Map<Bytes, Record> newPageMap = new HashMap<>();
         long estimatedPageSize = 0;
         for (Record r : page) {
             newPageMap.put(r.key, r);
             estimatedPageSize += r.key.data.length + r.value.data.length;
         }
-        DataPage res = new DataPage(pageId, estimatedPageSize, newPageMap.build(), true);
+        DataPage res = new DataPage(pageId, estimatedPageSize, newPageMap, true);
         return res;
     }
 
@@ -1269,20 +1285,14 @@ public class TableManager implements AbstractTableManager {
         long _start = System.currentTimeMillis();
         boolean acquireLock = transaction != null || forWrite || lockRequired;
 
+        LocalScanPageCache lastPageRead = acquireLock ? null : new LocalScanPageCache();
+
         try {
 
             IndexOperation indexOperation = predicate != null ? predicate.getIndexOperation() : null;
             boolean primaryIndexSeek = indexOperation instanceof PrimaryIndexSeek;
-            AbstractIndexManager useIndex = null;
-            if (indexOperation != null) {
-                Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-                if (indexes != null) {
-                    useIndex = indexes.get(indexOperation.getIndexName());
-                    if (useIndex != null && !useIndex.isAvailable()) {
-                        useIndex = null;
-                    }
-                }
-            }
+            AbstractIndexManager useIndex = getIndexForTbleAccess(indexOperation);
+
             BatchOrderedExecutor.Executor<Map.Entry<Bytes, Long>> scanExecutor = (List<Map.Entry<Bytes, Long>> batch) -> {
                 for (Map.Entry<Bytes, Long> entry : batch) {
                     Bytes key = entry.getKey();
@@ -1317,7 +1327,7 @@ public class TableManager implements AbstractTableManager {
                                     pkFilterCompleteMatch = true;
                                 }
                             }
-                            Record record = fetchRecord(key, pageId);
+                            Record record = fetchRecord(key, pageId, lastPageRead);
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
                                 consumer.accept(record);
                                 keep_lock = true;
@@ -1384,14 +1394,28 @@ public class TableManager implements AbstractTableManager {
         }
     }
 
-    private Record fetchRecord(Bytes key, Long pageId) throws StatementExecutionException, DataStorageManagerException {
+    private AbstractIndexManager getIndexForTbleAccess(IndexOperation indexOperation) {
+        AbstractIndexManager useIndex = null;
+        if (indexOperation != null) {
+            Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+            if (indexes != null) {
+                useIndex = indexes.get(indexOperation.getIndexName());
+                if (useIndex != null && !useIndex.isAvailable()) {
+                    useIndex = null;
+                }
+            }
+        }
+        return useIndex;
+    }
+
+    private Record fetchRecord(Bytes key, Long pageId, LocalScanPageCache localScanPageCache) throws StatementExecutionException, DataStorageManagerException {
         int maxTrials = 10_000;
         while (true) {
             Record record;
             if (NEW_PAGE.equals(pageId)) {
                 record = dirtyRecordsPage.get(key);
             } else {
-                DataPage dataPage = loadPageToMemory(pageId, false);
+                DataPage dataPage = fetchDataPage(pageId, localScanPageCache);
                 record = dataPage.get(key);
             }
             if (record != null) {
@@ -1410,6 +1434,22 @@ public class TableManager implements AbstractTableManager {
                 throw new DataStorageManagerException("inconsistency! table " + table.name + " no record in memory for " + key + " page " + pageId + ", activePages " + pageSet.getActivePages() + " after many trials");
             }
         }
+    }
+
+    private DataPage fetchDataPage(Long pageId, LocalScanPageCache localScanPageCache) throws DataStorageManagerException {
+        DataPage dataPage;
+        if (localScanPageCache == null) {
+            dataPage = loadPageToMemory(pageId, false);
+        } else {
+            if (pageId.equals(localScanPageCache.pageId)) {
+                dataPage = localScanPageCache.value;
+            } else {
+                dataPage = temporaryLoadPageToMemory(pageId);
+                localScanPageCache.value = dataPage;
+                localScanPageCache.pageId = pageId;
+            }
+        }
+        return dataPage;
     }
 
     @Override

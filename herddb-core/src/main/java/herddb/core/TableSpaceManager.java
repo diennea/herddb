@@ -845,7 +845,6 @@ public class TableSpaceManager {
     }
 
     void setFailed() {
-        LOGGER.log(Level.SEVERE, "failed!", new Exception().fillInStackTrace());
         failed = true;
     }
 
