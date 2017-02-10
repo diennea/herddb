@@ -112,12 +112,12 @@ public class MemoryWatcher {
             long _committed = _usage.getCommitted();
             if (explicitUsage < overallMaximumLimit) {
                 LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
-                    new Object[]{explicitUsage, overallMaximumLimit + "", _used + "", _committed + ""});
+                    new Object[]{explicitUsage, overallMaximumLimit + "", (_used / (1024 * 1024)) + " MN", (_committed / (1024 * 1024)) + " MB"});
                 return true;
             }
             long _reclaim = (long) (explicitUsage - lowerbound);
             LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed). To reclaim {4}",
-                new Object[]{explicitUsage, overallMaximumLimit + "", _used + "", _committed + "", _reclaim + ""});
+                new Object[]{explicitUsage, overallMaximumLimit + "", (_used / (1024 * 1024)) + " MN", (_committed / (1024 * 1024)) + " MB", (_reclaim / (1024 * 1024)) + " MB"});
             return _reclaim <= 0;
         }
     }

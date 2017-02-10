@@ -169,16 +169,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         case "txlog": {
                             List<KeyValue> data = (List<KeyValue>) values.get("records");
                             List<DumpedLogEntry> records = new ArrayList<>(data.size());
-                            try {
-                                for (KeyValue kv : data) {
-                                    SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(kv.key);
-                                    ExtendedDataInputStream iii = new ExtendedDataInputStream(ii);
-                                    long ledgerId = iii.readVLong();
-                                    long offset = iii.readVLong();
-                                    records.add(new DumpedLogEntry(new LogSequenceNumber(ledgerId, offset), kv.value));
-                                }
-                            } catch (IOException err) {
-                                throw new DataStorageManagerException(err);
+                            for (KeyValue kv : data) {
+                                records.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
                             }
                             receiver.receiveTransactionLogChunk(records);
                             break;

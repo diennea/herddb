@@ -254,13 +254,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             List<DumpedLogEntry> entries = new ArrayList<>(data.size());
             for (KeyValue kv : data) {
-                SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(kv.key);
-                ExtendedDataInputStream iii = new ExtendedDataInputStream(ii);
-                long ledgerId = iii.readVLong();
-                long offset = iii.readVLong();
-                entries.add(new DumpedLogEntry(new LogSequenceNumber(ledgerId, offset), kv.value));
+                entries.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
 
-            }            
+            }
             server.getManager().getTableSpaceManager(tableSpace).receiveRawDumpedEntryLogs(entries);
 
             _channel.sendReplyMessage(message, Message.ACK(null));

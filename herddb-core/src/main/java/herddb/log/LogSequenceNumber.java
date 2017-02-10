@@ -19,6 +19,8 @@
  */
 package herddb.log;
 
+import herddb.utils.Bytes;
+
 /**
  * Write-ahead-log offset
  *
@@ -82,6 +84,19 @@ public final class LogSequenceNumber {
 
     public boolean isStartOfTime() {
         return ledgerId == -1 && offset == -1;
+    }
+
+    public byte[] serialize() {
+        byte[] array = new byte[8 + 8];
+        Bytes.putLong(array, 0, ledgerId);
+        Bytes.putLong(array, 8, offset);
+        return array;
+    }
+
+    public static LogSequenceNumber deserialize(byte[] array) {
+        return new LogSequenceNumber(
+            Bytes.toLong(array, 0, 8),
+            Bytes.toLong(array, 8, 8));
     }
 
 }

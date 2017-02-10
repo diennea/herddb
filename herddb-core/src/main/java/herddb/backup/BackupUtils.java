@@ -203,15 +203,10 @@ public class BackupUtils {
                         Collections.singletonMap("count", numRecords));
                     List<KeyValue> records = new ArrayList<>(numRecords);
                     for (int i = 0; i < numRecords; i++) {
-                        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(8 + 8);
-                        try (ExtendedDataOutputStream ooo = new ExtendedDataOutputStream(oo);) {
-                            long ledgerId = in.readVLong();
-                            long offset = in.readVLong();
-                            ooo.writeVLong(ledgerId);
-                            ooo.writeVLong(offset);
-                        }
+                        long ledgerId = in.readVLong();
+                        long offset = in.readVLong();
                         byte[] value = in.readArray();
-                        records.add(new KeyValue(oo.toByteArray(), value));
+                        records.add(new KeyValue(new LogSequenceNumber(ledgerId, offset).serialize(), value));
                     }
                     return records;
                 } catch (IOException err) {

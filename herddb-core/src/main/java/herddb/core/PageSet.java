@@ -58,6 +58,7 @@ public final class PageSet {
         int count = max;
         Set<Long> pagesToUnload = new HashSet<>();
         List<Long> loadedShuffled = new ArrayList<>(loadedPages);
+        loadedShuffled.remove(TableManager.NEW_PAGE);
         Collections.shuffle(loadedShuffled);
         for (Long loadedPage : loadedShuffled) {
             pagesToUnload.add(loadedPage);

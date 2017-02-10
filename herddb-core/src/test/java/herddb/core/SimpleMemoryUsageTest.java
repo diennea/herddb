@@ -39,10 +39,31 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
+ * Tests on memory usage
  *
  * @author enrico.olivelli
  */
 public class SimpleMemoryUsageTest {
+
+    @Before
+    public void setupLogger() throws Exception {
+        Level level = Level.FINEST;
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
+                e.printStackTrace();
+            }
+        });
+        java.util.logging.LogManager.getLogManager().reset();
+        ConsoleHandler ch = new ConsoleHandler();
+        ch.setLevel(level);
+        SimpleFormatter f = new SimpleFormatter();
+        ch.setFormatter(f);
+        java.util.logging.Logger.getLogger("").setLevel(level);
+        java.util.logging.Logger.getLogger("").addHandler(ch);
+    }
 
     @Test
     public void memoryCountersNotEmpty() throws Exception {
@@ -75,8 +96,8 @@ public class SimpleMemoryUsageTest {
             new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
             manager.start();
 
-            int numTablespaces = 10;
-            for (int i = 0; i < numTablespaces; i++) {
+            int numTablespaces = 1;
+            for (int i = 1; i <= numTablespaces; i++) {
                 manager.executeStatement(new CreateTableSpaceStatement("tblspace" + i,
                     Collections.singleton(nodeId), nodeId, 1, 60000, 0),
                     StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -89,15 +110,19 @@ public class SimpleMemoryUsageTest {
                 assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?)",
                     Arrays.asList("mykey_" + i, Integer.valueOf(1234), tt1)).getUpdateCount());
             }
+            System.out.println("QUI1");
             manager.checkpoint();
+            System.out.println("QUI2");
             TableManagerStats stats = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getStats();
-            assertEquals(1, stats.getLoadedpages());
+            TestUtils.scan(manager, "SELECT * FROM tblspace1.tsql WHERE k1='mykey_1'", Collections.emptyList()).close();
+            assertTrue(stats.getLoadedpages() >= 1);
             assertEquals(0, stats.getDirtypages());
 
             MemoryWatcher memoryWatcher = new MemoryWatcher(
                 1024, // very very low value, we want to unload everything !
                 1, 95);
             memoryWatcher.run(manager);
+            System.out.println("QUI3");
 
             assertEquals(0, stats.getLoadedpages());
             assertEquals(0, stats.getDirtypages());

@@ -394,16 +394,22 @@ public final class TableManager implements AbstractTableManager {
         if (count < 0) {
             return;
         }
-        Set<Long> pagesToUnload = PageSet.selectPagesToUnload(count, pages.keySet());
-        pagesToUnload.remove(NEW_PAGE);
+        Set<Long> pagesNow = new HashSet<>(pages.keySet());
+        Set<Long> pagesToUnload = PageSet.selectPagesToUnload(count, pagesNow);
+        
         if (!pagesToUnload.isEmpty()) {
-            LOGGER.log(Level.SEVERE, "table " + table.name + ","
+            LOGGER.log(Level.SEVERE, "table " + table.tablespace + "." + table.name + ","
                 + "unloading " + pagesToUnload.size() + " pages (" + pages.size() + " pages actually loaded),"
                 + "" + dirtyRecordsPage.data.size() + " dirty records");
             unloadPages(pagesToUnload);
         } else {
-            LOGGER.log(Level.SEVERE, "table " + table.name + ", no page to unload, checkpoint needed");
-            requestCheckpoint();
+            long countDirty = dirtyRecordsPage.size();
+            if (countDirty > 0) {
+                LOGGER.log(Level.SEVERE, "table " + table.tablespace + "." + table.name + ", no page to unload, " + countDirty + " dirty records, checkpoint needed");
+                requestCheckpoint();
+            } else {
+                LOGGER.log(Level.SEVERE, "table " + table.tablespace + "." + table.name + ", no page to unload, " + countDirty + " dirty records, nothing to do");
+            }
         }
     }
 
@@ -1516,7 +1522,7 @@ public final class TableManager implements AbstractTableManager {
         int dirtypages = stats.getDirtypages();
         LOGGER.log(Level.SEVERE, "Table " + table.tablespace + "." + table.name
             + ": used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
-            + dirtypages + " dirtypages, releasing " + countPages + " pages, to reclaim " + (reclaim / (1024 * 1024)) + " MB ");
+            + dirtypages + " dirtypages, try to release " + countPages + " pages, to reclaim " + (reclaim / (1024 * 1024)) + " MB ");
         unloadPages(countPages);
         LOGGER.log(Level.SEVERE, "Table " + table.tablespace + "." + table.name
             + " after unload used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "

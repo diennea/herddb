@@ -835,15 +835,8 @@ public class TableSpaceManager {
             if (!txlogentries.isEmpty()) {
                 Map<String, Object> data = new HashMap<>();
                 List<KeyValue> batch = new ArrayList<>();
-                for (DumpedLogEntry e : txlogentries) {
-                    VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(8 + 8);
-                    try (ExtendedDataOutputStream ee = new ExtendedDataOutputStream(oo)) {
-                        ee.writeVLong(e.logSequenceNumber.ledgerId);
-                        ee.writeVLong(e.logSequenceNumber.offset);
-                    } catch (IOException err) {
-                        throw new DataStorageManagerException(err);
-                    }
-                    batch.add(new KeyValue(oo.toByteArray(), e.entryData));
+                for (DumpedLogEntry e : txlogentries) {                    
+                    batch.add(new KeyValue(e.logSequenceNumber.serialize(), e.entryData));
                 }
                 data.put("command", "txlog");
                 data.put("records", batch);
