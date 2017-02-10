@@ -96,7 +96,7 @@ public final class TableManager implements AbstractTableManager {
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
     private static final int UNLOAD_PAGES_MIN_BATCH = SystemProperties.
-        getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 1);
+        getIntSystemProperty(TableManager.class.getName() + ".unloadMinBatch", 10);
 
     private static final int SORTED_PAGE_ACCESS_WINDOW_SIZE = SystemProperties.
         getIntSystemProperty(TableManager.class.getName() + ".sortedPageAccessWindowSize", 2000);
@@ -396,19 +396,19 @@ public final class TableManager implements AbstractTableManager {
         }
         Set<Long> pagesNow = new HashSet<>(pages.keySet());
         Set<Long> pagesToUnload = PageSet.selectPagesToUnload(count, pagesNow);
-        
+
         if (!pagesToUnload.isEmpty()) {
-            LOGGER.log(Level.SEVERE, "table " + table.tablespace + "." + table.name + ","
+            LOGGER.log(Level.FINER, "table " + table.tablespace + "." + table.name + ","
                 + "unloading " + pagesToUnload.size() + " pages (" + pages.size() + " pages actually loaded),"
                 + "" + dirtyRecordsPage.data.size() + " dirty records");
             unloadPages(pagesToUnload);
         } else {
             long countDirty = dirtyRecordsPage.size();
             if (countDirty > 0) {
-                LOGGER.log(Level.SEVERE, "table " + table.tablespace + "." + table.name + ", no page to unload, " + countDirty + " dirty records, checkpoint needed");
+                LOGGER.log(Level.INFO, "table " + table.tablespace + "." + table.name + ", no page to unload, " + countDirty + " dirty records, checkpoint needed");
                 requestCheckpoint();
             } else {
-                LOGGER.log(Level.SEVERE, "table " + table.tablespace + "." + table.name + ", no page to unload, " + countDirty + " dirty records, nothing to do");
+                LOGGER.log(Level.FINER, "table " + table.tablespace + "." + table.name + ", no page to unload, " + countDirty + " dirty records, nothing to do");
             }
         }
     }
@@ -418,11 +418,11 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private void unloadPages(Set<Long> pagesToUnload) {
-        LOGGER.log(Level.SEVERE, "table {0} unloading pages {1}", new Object[]{table.name, pagesToUnload});
+        LOGGER.log(Level.FINE, "table {0} unloading pages {1}", new Object[]{table.name, pagesToUnload});
         for (Long pageId : pagesToUnload) {
             DataPage removed = pages.remove(pageId);
             if (removed != null) {
-                LOGGER.log(Level.INFO, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, removed.getUsedMemory() / (1024 * 1024) + " MB"});
+                LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, removed.getUsedMemory() / (1024 * 1024) + " MB"});
             }
         };
     }
@@ -1034,7 +1034,8 @@ public final class TableManager implements AbstractTableManager {
         }
         if (computed.get()) {
             long _stop = System.currentTimeMillis();
-            LOGGER.log(Level.INFO, "table " + table.name + ","
+            LOGGER.log(Level.FINE,
+                "table " + table.name + ","
                 + "loaded " + result.size() + " records from page " + pageId
                 + " in " + (_stop - _start) + " ms"
                 + ", (" + (_ioAndLock - _start) + " ms read + plock"
@@ -1311,7 +1312,7 @@ public final class TableManager implements AbstractTableManager {
                     try {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {
-                                // skip this record. inside current transaction it has been deleted                                
+                                // skip this record. inside current transaction it has been deleted
                                 continue;
                             }
                             Record record = transaction.recordUpdated(table.name, key);

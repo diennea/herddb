@@ -90,7 +90,7 @@ public final class RecordSerializer {
                     RawString rs = (RawString) v;
                     return rs.data;
                 } else {
-                    return Bytes.from_string(v.toString()).data;
+                    return Bytes.string_to_array(v.toString());
                 }
             case ColumnTypes.TIMESTAMP:
                 if (!(v instanceof java.sql.Timestamp)) {

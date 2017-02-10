@@ -30,6 +30,13 @@ import herddb.model.TuplePredicate;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.RawString;
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
+import herddb.sql.predicates.ColumnEqualsJdbcParameter;
+import herddb.sql.predicates.ColumnGreaterThanEqualsJdbcParameter;
+import herddb.sql.predicates.ColumnGreaterThanJdbcParameter;
+import herddb.sql.predicates.ColumnMinorThanEqualsJdbcParameter;
+import herddb.sql.predicates.ColumnMinorThanJdbcParameter;
+import herddb.sql.predicates.ColumnNotEqualsJdbcParameter;
+import herddb.sql.predicates.HardcodedPredicateMatcher;
 import herddb.utils.Bytes;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +70,7 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import net.sf.jsqlparser.schema.Column;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.SelectBody;
 import net.sf.jsqlparser.statement.select.SubSelect;
@@ -89,6 +97,55 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     private final Expression where;
     private Expression primaryKeyFilter;
 
+    private HardcodedPredicateMatcher hardcodedPrimaryKeyFilter;
+    private final HardcodedPredicateMatcher hardcodedWhere;
+
+    private HardcodedPredicateMatcher discoverHardcodedPredicateMatcher(Expression e) {
+        if (!(e instanceof BinaryExpression)) {
+            return null;
+        }
+        BinaryExpression be = (BinaryExpression) e;
+        if (be.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
+            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) be.getLeftExpression();
+            if (validatedTableAlias != null) {
+                if (c.getTable() != null && c.getTable().getName() != null
+                    && !c.getTable().getName().equals(validatedTableAlias)) {
+                    return null;
+                }
+            }
+
+            String columnName = c.getColumnName();
+            switch (columnName) {
+                case BuiltinFunctions.BOOLEAN_TRUE:
+                    return null;
+                case BuiltinFunctions.BOOLEAN_FALSE:
+                    return null;
+                default:
+                    // OK !
+                    break;
+            }
+
+            if (be.getRightExpression() instanceof JdbcParameter) {
+                JdbcParameter jdbcParam = (JdbcParameter) be.getRightExpression();
+                int jdbcIndex = jdbcParam.getIndex();
+                if (be instanceof EqualsTo) {
+                    return new ColumnEqualsJdbcParameter(columnName, jdbcIndex);
+                } else if (be instanceof NotEqualsTo) {
+                    return new ColumnNotEqualsJdbcParameter(columnName, jdbcIndex);
+                } else if (be instanceof GreaterThanEquals) {
+                    return new ColumnGreaterThanEqualsJdbcParameter(columnName, jdbcIndex);
+                } else if (be instanceof GreaterThan) {
+                    return new ColumnGreaterThanJdbcParameter(columnName, jdbcIndex);
+                } else if (be instanceof MinorThan) {
+                    return new ColumnMinorThanJdbcParameter(columnName, jdbcIndex);
+                } else if (be instanceof MinorThanEquals) {
+                    return new ColumnMinorThanEqualsJdbcParameter(columnName, jdbcIndex);
+                }
+            }
+        }
+        return null;
+    }
+
     private static final class EvaluationState {
 
         final List<Object> parameters;
@@ -104,6 +161,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         this.table = table;
         this.where = where;
         this.validatedTableAlias = tableAlias;
+        this.hardcodedWhere = discoverHardcodedPredicateMatcher(where);
     }
 
     @Override
@@ -112,7 +170,13 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
         Map<String, Object> bean = RecordSerializer.deserializePrimaryKeyAsMap(key, table);
-        boolean result = evaluatePredicate(primaryKeyFilter, bean, context, validatedTableAlias);
+
+        boolean result;
+        if (hardcodedPrimaryKeyFilter != null) {
+            result = hardcodedPrimaryKeyFilter.matches(bean, context);
+        } else {
+            result = evaluatePredicate(primaryKeyFilter, bean, context, validatedTableAlias);
+        }
         if (!result) {
             return PrimaryKeyMatchOutcome.FAILED;
         } else {
@@ -125,20 +189,35 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     @Override
     public boolean matches(Tuple a, StatementEvaluationContext context) throws StatementExecutionException {
         Map<String, Object> bean = a.toMap();
-        return evaluatePredicate(where, bean, context, validatedTableAlias);
+        if (hardcodedWhere != null) {
+            return hardcodedWhere.matches(bean, context);
+        } else {
+            return evaluatePredicate(where, bean, context, validatedTableAlias);
+        }
     }
 
     @Override
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         Map<String, Object> bean = record.toBean(table);
-        return evaluatePredicate(where, bean, context, validatedTableAlias);
+        if (hardcodedWhere != null) {
+            return hardcodedWhere.matches(bean, context);
+        } else {
+            return evaluatePredicate(where, bean, context, validatedTableAlias);
+        }
     }
 
     private static boolean evaluatePredicate(Expression where, Map<String, Object> bean, StatementEvaluationContext context, String validatedTableAlias) throws StatementExecutionException {
         return toBoolean(evaluateExpression(where, bean, context, validatedTableAlias));
     }
 
+    private static boolean isSimpleExpression(Expression e) {
+        return e instanceof JdbcParameter || e instanceof Column || isConstant(e);
+    }
+
     public static Object evaluateExpression(Expression where, Map<String, Object> bean, StatementEvaluationContext context, String validatedTableAlias) throws StatementExecutionException {
+        if (where instanceof Column) {
+            return ExpressionEvaluator.evaluateFreeColumn(where, validatedTableAlias, bean);
+        }
         SQLStatementEvaluationContext sqlContext = (SQLStatementEvaluationContext) context;
         EvaluationState state = new EvaluationState(sqlContext.jdbcParameters, sqlContext);
         ExpressionEvaluator evaluator = new ExpressionEvaluator(bean, state, validatedTableAlias);
@@ -155,98 +234,44 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         return "true".equals(result.toString());
     }
 
-    public static boolean minorThan(Object a, Object b) throws StatementExecutionException {
-        if (a == null || b == null) {
-            return false;
-        }        
-        if (a instanceof RawString && b instanceof String) {
-            return a.toString().compareTo((String) b) < 0;
+    public static int compare(Object a, Object b) {
+        if (a == null && b == null) {
+            return 0;
         }
-        if (a instanceof String && b instanceof RawString) {
-            return ((String) a).compareTo(b.toString()) < 0;
+        if (a == null && b != null) {
+            return 1;
         }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() < ((Number) b).doubleValue();
+        if (b == null && a != null) {
+            return -1;
         }
-        if (a instanceof java.util.Date && b instanceof java.util.Date) {
-            return ((java.util.Date) a).getTime() < ((java.util.Date) b).getTime();
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) < 0;
-        }
-        throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
-    }
-
-    public static boolean minorThanEquals(Object a, Object b) throws StatementExecutionException {
-        if (a == null || b == null) {
-            return false;
+        if (a instanceof RawString && b instanceof RawString) {
+            return ((RawString) a).compareTo((RawString) b);
         }
         if (a instanceof RawString && b instanceof String) {
-            return a.toString().compareTo((String) b) <= 0;
+            return ((RawString) a).compareToString((String) b);
         }
         if (a instanceof String && b instanceof RawString) {
-            return ((String) a).compareTo(b.toString()) <= 0;
+            return -((RawString) b).compareToString((String) a);
+        }
+        if (a instanceof Integer && b instanceof Integer) {
+            return ((Number) a).intValue() - ((Number) b).intValue();
+        }
+        if (a instanceof Long && b instanceof Long) {
+            double delta = ((Number) a).longValue() - ((Number) b).longValue();
+            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() <= ((Number) b).doubleValue();
+            double delta = ((Number) a).doubleValue() - ((Number) b).doubleValue();
+            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof java.util.Date && b instanceof java.util.Date) {
-            return ((java.util.Date) a).getTime() <= ((java.util.Date) b).getTime();
-        }
-        if (Objects.equals(a, b)) {
-            return true;
+            long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
+            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) <= 0;
+            return ((Comparable) a).compareTo(b);
         }
-        throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
-    }
-
-    public static boolean greaterThan(Object a, Object b) throws StatementExecutionException {
-        if (a == null || b == null) {
-            return false;
-        }
-        if (a instanceof RawString && b instanceof String) {
-            return a.toString().compareTo((String) b) > 0;
-        }
-        if (a instanceof String && b instanceof RawString) {
-            return ((String) a).compareTo(b.toString()) > 0;
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() > ((Number) b).doubleValue();
-        }
-        if (a instanceof java.util.Date && b instanceof java.util.Date) {
-            return ((java.util.Date) a).getTime() > ((java.util.Date) b).getTime();
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) > 0;
-        }
-        throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
-    }
-
-    public static boolean greaterThanEquals(Object a, Object b) throws StatementExecutionException {
-        if (a == null || b == null) {
-            return false;
-        }
-        if (a instanceof RawString && b instanceof String) {
-            return a.toString().compareTo((String) b) >= 0;
-        }
-        if (a instanceof String && b instanceof RawString) {
-            return ((String) a).compareTo(b.toString()) >= 0;
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() >= ((Number) b).doubleValue();
-        }
-        if (a instanceof java.util.Date && b instanceof java.util.Date) {
-            return ((java.util.Date) a).getTime() >= ((java.util.Date) b).getTime();
-        }
-        if (Objects.equals(a, b)) {
-            return true;
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b) >= 0;
-        }
-        throw new StatementExecutionException("uncompable objects " + a.getClass() + " vs " + b.getClass());
+        throw new IllegalArgumentException("uncompable objects " + a.getClass() + " vs " + b.getClass());
     }
 
     public static Object add(Object a, Object b) throws StatementExecutionException {
@@ -521,10 +546,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             Object left = evaluateExpression(e.getLeftExpression());
             Object start = evaluateExpression(e.getBetweenExpressionStart());
             Object end = evaluateExpression(e.getBetweenExpressionEnd());
-            boolean result = (objectEquals(start, end) || minorThan(start, end)) // check impossible range
+            boolean result = (objectEquals(start, end) || compare(start, end) < 0) // check impossible range
                 && (objectEquals(left, start)
                 || objectEquals(left, end)
-                || (greaterThan(left, start) && minorThan(left, end))); // check value in range;
+                || (compare(left, start) > 0 && compare(left, end) < 0)); // check value in range;
             if (e.isNot()) {
                 return !result;
             } else {
@@ -548,7 +573,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             GreaterThanEquals e = (GreaterThanEquals) exp;
             Object left = evaluateExpression(e.getLeftExpression());
             Object right = evaluateExpression(e.getRightExpression());
-            boolean result = greaterThanEquals(left, right);
+            boolean result = compare(left, right) >= 0;
             if (e.isNot()) {
                 return !result;
             } else {
@@ -560,7 +585,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             GreaterThan e = (GreaterThan) exp;
             Object left = evaluateExpression(e.getLeftExpression());
             Object right = evaluateExpression(e.getRightExpression());
-            boolean result = greaterThan(left, right);
+            boolean result = compare(left, right) > 0;
             if (e.isNot()) {
                 return !result;
             } else {
@@ -572,7 +597,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             MinorThanEquals e = (MinorThanEquals) exp;
             Object left = evaluateExpression(e.getLeftExpression());
             Object right = evaluateExpression(e.getRightExpression());
-            boolean result = minorThanEquals(left, right);
+            boolean result = compare(left, right) <= 0;
             if (e.isNot()) {
                 return !result;
             } else {
@@ -585,7 +610,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             Object left = evaluateExpression(e.getLeftExpression());
             Object right = evaluateExpression(e.getRightExpression());
 
-            boolean result = minorThan(left, right);
+            boolean result = compare(left, right) < 0;
             if (e.isNot()) {
                 return !result;
             } else {
@@ -671,6 +696,26 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             }
         }
 
+        private static Object evaluateFreeColumn(Expression exp, String validatedTableAlias, Map<String, Object> record) throws StatementExecutionException {
+            net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
+            if (validatedTableAlias != null) {
+                if (c.getTable() != null && c.getTable().getName() != null
+                    && !c.getTable().getName().equals(validatedTableAlias)) {
+                    throw new StatementExecutionException("invalid column name " + c.getColumnName()
+                        + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
+                }
+            }
+            String columnName = c.getColumnName();
+            switch (columnName) {
+                case BuiltinFunctions.BOOLEAN_TRUE:
+                    return Boolean.TRUE;
+                case BuiltinFunctions.BOOLEAN_FALSE:
+                    return Boolean.FALSE;
+                default:
+                    return record.get(columnName);
+            }
+        }
+
         Object computeFunction(Function f) throws StatementExecutionException {
             String name = f.getName();
             switch (name) {
@@ -703,9 +748,9 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     @Override
     public String toString() {
         if (table != null) {
-            return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + validatedTableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
+            return "SQLRecordPredicate{" + "table=" + table.name + ", tableAlias=" + validatedTableAlias + ", where=" + where + " / " + hardcodedWhere + ", indexOp=" + getIndexOperation() + " " + primaryKeyFilter + "/" + hardcodedPrimaryKeyFilter + '}';
         } else {
-            return "SQLRecordPredicate{" + "table=null" + ", tableAlias=" + validatedTableAlias + ", where=" + where + ", indexOp=" + getIndexOperation() + '}';
+            return "SQLRecordPredicate{" + "table=null" + ", tableAlias=" + validatedTableAlias + ", where=" + where + " / " + hardcodedWhere + ", indexOp=" + getIndexOperation() + " " + primaryKeyFilter + "/" + hardcodedPrimaryKeyFilter + '}';
         }
     }
 
@@ -715,6 +760,19 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     public void setPrimaryKeyFilter(Expression primaryKeyFilter) {
         this.primaryKeyFilter = primaryKeyFilter;
+        this.hardcodedPrimaryKeyFilter = discoverHardcodedPredicateMatcher(primaryKeyFilter);
+    }
+
+    public HardcodedPredicateMatcher getHardcodedPrimaryKeyFilter() {
+        return hardcodedPrimaryKeyFilter;
+    }
+
+    public HardcodedPredicateMatcher getHardcodedWhere() {
+        return hardcodedWhere;
+    }
+
+    public Expression getWhere() {
+        return where;
     }
 
 }

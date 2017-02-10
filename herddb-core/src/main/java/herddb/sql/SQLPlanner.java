@@ -1278,9 +1278,9 @@ public class SQLPlanner {
                 TupleComparator comparatorOnPlan = null;
                 if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
                     if (aggregator != null) {
-                        comparatorOnPlan = new SQLTupleComparator(mainTableAlias, selectBody.getOrderByElements());;
+                        comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias, selectBody.getOrderByElements());;
                     } else {
-                        comparatorOnScan = new SQLTupleComparator(mainTableAlias, selectBody.getOrderByElements());
+                        comparatorOnScan = SingleColumnSQLTupleComparator.make(mainTableAlias, selectBody.getOrderByElements());
                     }
                 }
 
@@ -1445,7 +1445,7 @@ public class SQLPlanner {
                 }
                 TupleComparator comparatorOnPlan = null;
                 if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
-                    comparatorOnPlan = new SQLTupleComparator(mainTableAlias, selectBody.getOrderByElements());;
+                    comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias, selectBody.getOrderByElements());;
                 }
 
                 try {

@@ -40,6 +40,7 @@ public final class InStreamTupleSorter {
     
     private final Tuple[] tuples;
     private int count;
+    private Tuple reference;
     
     public InStreamTupleSorter(int size, Comparator<Tuple> comparator) {
         super();
@@ -52,7 +53,7 @@ public final class InStreamTupleSorter {
         boolean full = (count >= size);
         
         if (full) {
-            final int cmp = comparator.compare(tuples[count -1], tuple);
+            final int cmp = comparator.compare(reference, tuple);
             if (cmp < 0) {
                 return;
             }
@@ -70,6 +71,8 @@ public final class InStreamTupleSorter {
         System.arraycopy(tuples, idx, tuples, idx + 1, count - (idx + 1));
         
         tuples[idx] = tuple;
+
+        reference = tuples[count -1];
     }
     
     public void flushToRecordSet(MaterializedRecordSet rs) {

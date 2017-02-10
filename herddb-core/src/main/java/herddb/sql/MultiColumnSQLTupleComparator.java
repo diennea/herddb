@@ -31,7 +31,7 @@ import net.sf.jsqlparser.statement.select.OrderByElement;
  *
  * @author enrico.olivelli
  */
-public class SQLTupleComparator implements TupleComparator {
+public class MultiColumnSQLTupleComparator implements TupleComparator {
 
     private static final class OrderElement {
 
@@ -46,7 +46,7 @@ public class SQLTupleComparator implements TupleComparator {
     }
     private final List<OrderElement> orderByElements;
 
-    SQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {
+    MultiColumnSQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {
         if (tableAlias != null) {
             for (OrderByElement element : orderByElements) {
                 net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) element.getExpression();
@@ -67,9 +67,9 @@ public class SQLTupleComparator implements TupleComparator {
     public int compare(Tuple o1, Tuple o2) {
         for (OrderElement element : orderByElements) {
             String name = element.name;
-            Object value1 = o1.toMap().get(name);
-            Object value2 = o2.toMap().get(name);
-            int result = compareValues(value1, value2);
+            Object value1 = o1.get(name);
+            Object value2 = o2.get(name);
+            int result = SQLRecordPredicate.compare(value1, value2);
             if (result != 0) {
                 if (element.asc) {
                     return result;
@@ -79,33 +79,6 @@ public class SQLTupleComparator implements TupleComparator {
             }
         }
         return 0;
-    }
-
-    private static int compareValues(Object valueA, Object valueB) {
-        // NULLS LAST
-        if (valueA == null && valueB == null) {
-            return 0;
-        } else if (valueA != null && valueB == null) {
-            return -1;
-        } else if (valueA == null && valueB != null) {
-            return 1;
-        } else {
-            if (valueA instanceof Number
-                && valueB instanceof Number) {
-                double doubleA = ((Number) valueA).doubleValue();
-                double doubleB = ((Number) valueB).doubleValue();
-                return Double.compare(doubleA, doubleB);
-            }
-
-            if (valueA instanceof Comparable
-                && valueB instanceof Comparable) {
-                try {
-                    return ((Comparable<Object>) valueA).compareTo((Object) valueB);
-                } catch (Throwable t) {
-                }
-            }
-        }
-        throw new IllegalArgumentException("cannot compare " + valueA + " with " + valueB + "!");
     }
 
 }

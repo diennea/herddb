@@ -37,7 +37,7 @@ import java.util.Map;
  *
  * @author enrico.olivelli
  */
-public class Tuple {
+public final class Tuple {
 
     public Object[] getValues() {
         if (values == null) {
@@ -47,7 +47,7 @@ public class Tuple {
     }
 
     public final String[] fieldNames;
-    
+
     private Map<String, Object> map;
     private Object[] values;
 
@@ -106,6 +106,13 @@ public class Tuple {
         return values.length;
     }
 
+    public Object get(String column) {
+        if (map != null) {
+            return map.get(column);
+        }
+        return toMap().get(column);
+    }
+
     public Map<String, Object> toMap() {
         if (map != null) {
             return map;
@@ -127,12 +134,7 @@ public class Tuple {
         buildValues();
         return values[i];
     }
-
-    public Object get(String name) {
-        toMap();
-        return map.get(name);
-    }
-
+    
     public VisibleByteArrayOutputStream serialize(Column[] columns) throws IOException {
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         getValues();

@@ -17,28 +17,18 @@
  under the License.
 
  */
-package herddb.core;
+package herddb.sql.predicates;
+
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
+import java.util.Map;
 
 /**
- * Base class for internal exceptions
+ * A specific implementation of a predicate
  *
  * @author enrico.olivelli
  */
-public class HerdDBInternalException extends RuntimeException {
+public interface HardcodedPredicateMatcher {
 
-    public HerdDBInternalException() {
-    }
-
-    public HerdDBInternalException(String message) {
-        super(message);
-    }
-
-    public HerdDBInternalException(String message, Throwable cause) {
-        super(message, cause);
-    }
-
-    public HerdDBInternalException(Throwable cause) {
-        super(cause);
-    }
-
+    public boolean matches(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException;
 }

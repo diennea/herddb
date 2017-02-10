@@ -70,6 +70,10 @@ public class SQLRecordPredicateTest {
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate() instanceof SQLRecordPredicate);
                 SQLRecordPredicate pred = (SQLRecordPredicate) scan.getPredicate();
+                assertTrue(pred.getHardcodedPrimaryKeyFilter() != null);
+                assertTrue(pred.getPrimaryKeyFilter() != null);
+                assertTrue(pred.getHardcodedWhere()!= null);
+                assertTrue(pred.getWhere()!= null);
 
                 StatementEvaluationContext ctx = new SQLStatementEvaluationContext("the-query", Arrays.asList("my-string"));
 

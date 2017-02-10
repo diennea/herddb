@@ -198,7 +198,7 @@ public class FileDataStorageManager extends DataStorageManager {
         long delta = _stop - _start;
         long disk = _enddisk - _start;
         long hash = _endhash - _enddisk;
-        LOGGER.log(Level.INFO, "readPage " + tableSpace + "." + tableName + " " + delta + " ms (" + disk + " ms disk," + hash + " ms hash)");
+        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms ({3} ms disk,{4} ms hash)", new Object[]{tableSpace, tableName, delta+"", disk+"", hash+""});
         return result;
     }
 

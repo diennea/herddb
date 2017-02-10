@@ -35,6 +35,10 @@ public final class Bytes implements Comparable<Bytes> {
 
     public Object deserialized;
 
+    public static byte[] string_to_array(String s) {
+        return s.getBytes(StandardCharsets.UTF_8);
+    }
+
     public static Bytes from_string(String s) {
         return new Bytes(s.getBytes(StandardCharsets.UTF_8));
     }
