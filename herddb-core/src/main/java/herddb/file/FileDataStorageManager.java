@@ -198,7 +198,7 @@ public class FileDataStorageManager extends DataStorageManager {
         long delta = _stop - _start;
         long disk = _enddisk - _start;
         long hash = _endhash - _enddisk;
-        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms ({3} ms disk,{4} ms hash)", new Object[]{tableSpace, tableName, delta+"", disk+"", hash+""});
+        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms ({3} ms disk,{4} ms hash)", new Object[]{tableSpace, tableName, delta + "", disk + "", hash + ""});
         return result;
     }
 
@@ -607,10 +607,9 @@ public class FileDataStorageManager extends DataStorageManager {
         }
 
         long now = System.currentTimeMillis();
-        LOGGER.log(Level.INFO,
-            "writePage " + (size / 1024) + " KBytes," + newPage.size() + " records, "
-            + "time " + (now - _start) + " ms (" + (now - _endhash) + " disk)");
-
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.log(Level.FINER, "writePage {0} KBytes,{1} records, time {2} ms ({3} disk)", new Object[]{(size / 1024) + "", newPage.size(), (now - _start) + "", (now - _endhash) + ""});
+        }
     }
 
     @Override

@@ -96,7 +96,7 @@ public final class PageSet {
         try {
             boolean wasNotDirty = dirtyPages.add(pageId);
             if (wasNotDirty) {
-                LOGGER.log(Level.SEVERE, "now page " + pageId + " is dirty");
+                LOGGER.log(Level.FINEST, "now page " + pageId + " is dirty");
             }
         } finally {
             lock.writeLock().unlock();

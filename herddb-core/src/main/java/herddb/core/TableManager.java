@@ -1198,7 +1198,7 @@ public final class TableManager implements AbstractTableManager {
         long pageId = this.newPageId.getAndIncrement();
         DataPage dataPage = buildDataPage(pageId, newPage);
 
-        LOGGER.log(Level.SEVERE, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+        LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
             new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
         pageSet.pageCreated(pageId);
@@ -1521,13 +1521,17 @@ public final class TableManager implements AbstractTableManager {
             countPages = UNLOAD_PAGES_MIN_BATCH;
         }
         int dirtypages = stats.getDirtypages();
-        LOGGER.log(Level.SEVERE, "Table " + table.tablespace + "." + table.name
-            + ": used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
-            + dirtypages + " dirtypages, try to release " + countPages + " pages, to reclaim " + (reclaim / (1024 * 1024)) + " MB ");
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.log(Level.FINER, "Table " + table.tablespace + "." + table.name
+                + ": used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
+                + dirtypages + " dirtypages, try to release " + countPages + " pages, to reclaim " + (reclaim / (1024 * 1024)) + " MB ");
+        }
         unloadPages(countPages);
-        LOGGER.log(Level.SEVERE, "Table " + table.tablespace + "." + table.name
-            + " after unload used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
-            + dirtypages + " dirtypages");
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            LOGGER.log(Level.FINEST, "Table " + table.tablespace + "." + table.name
+                + " after unload used memory " + (stats.getKeysUsedMemory() / (1024 * 1024)) + "+" + (stats.getBuffersUsedMemory() / (1024 * 1024)) + " MB, "
+                + dirtypages + " dirtypages");
+        }
     }
 
     private static final Comparator<Map.Entry<Bytes, Long>> SORTED_PAGE_ACCESS_COMPARATOR = (a, b) -> {
