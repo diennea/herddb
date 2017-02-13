@@ -24,8 +24,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.net.BookieSocketAddress;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -35,7 +33,7 @@ import org.junit.Test;
  *
  * @author francesco.caliumi
  */
-public class CustomEnsemblePlacementPolicyTest {
+public class PreferLocalBookiePlacementPolicyTest {
     
     public static final Method registerLocalBookieAddress;
     public static final Method unregisterLocalBookieAddress;
@@ -55,7 +53,7 @@ public class CustomEnsemblePlacementPolicyTest {
     @Test
     public void testEnsamblePolicySingle() throws Exception {
         
-        BookieSocketAddress a = new BookieSocketAddress("a.diennea.com", 3181);
+        BookieSocketAddress a = new BookieSocketAddress("a.localhost", 3181);
         
         Set<BookieSocketAddress> writableBookies = new HashSet();
         writableBookies.add(a);
@@ -65,7 +63,7 @@ public class CustomEnsemblePlacementPolicyTest {
         try {
             Set<BookieSocketAddress> readOnlyBookies = Collections.EMPTY_SET;
 
-            CustomEnsemblePlacementPolicy policy = new CustomEnsemblePlacementPolicy();
+            PreferLocalBookiePlacementPolicy policy = new PreferLocalBookiePlacementPolicy();
             Set<BookieSocketAddress> deadBookies = policy.onClusterChanged(writableBookies, readOnlyBookies);
 
             assertTrue(deadBookies.isEmpty());
@@ -82,11 +80,11 @@ public class CustomEnsemblePlacementPolicyTest {
     @Test
     public void testEnsamblePolicyMultiple() throws Exception {
          
-        BookieSocketAddress a = new BookieSocketAddress("a.diennea.com", 3181);
-        BookieSocketAddress b = new BookieSocketAddress("b.diennea.com", 3181);
-        BookieSocketAddress c = new BookieSocketAddress("c.diennea.com", 3181);
-        BookieSocketAddress d = new BookieSocketAddress("d.diennea.com", 3181);
-        BookieSocketAddress e = new BookieSocketAddress("e.diennea.com", 3181);
+        BookieSocketAddress a = new BookieSocketAddress("a.localhost", 3181);
+        BookieSocketAddress b = new BookieSocketAddress("b.localhost", 3181);
+        BookieSocketAddress c = new BookieSocketAddress("c.localhost", 3181);
+        BookieSocketAddress d = new BookieSocketAddress("d.localhost", 3181);
+        BookieSocketAddress e = new BookieSocketAddress("e.localhost", 3181);
         
         Set<BookieSocketAddress> writableBookies = new HashSet();
         writableBookies.add(a);
@@ -100,7 +98,7 @@ public class CustomEnsemblePlacementPolicyTest {
         try {
             Set<BookieSocketAddress> readOnlyBookies = Collections.EMPTY_SET;
         
-            CustomEnsemblePlacementPolicy policy = new CustomEnsemblePlacementPolicy();
+            PreferLocalBookiePlacementPolicy policy = new PreferLocalBookiePlacementPolicy();
             Set<BookieSocketAddress> deadBookies = policy.onClusterChanged(writableBookies, readOnlyBookies);
 
             assertTrue(deadBookies.isEmpty());

@@ -26,8 +26,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.EnsemblePlacementPolicy;
 import org.apache.bookkeeper.net.BookieSocketAddress;
@@ -37,7 +35,7 @@ import org.apache.commons.configuration.Configuration;
  * Copied from DefaultEnsemblePlacementPolicy
  * @author francesco.caliumi
  */
-public class CustomEnsemblePlacementPolicy implements EnsemblePlacementPolicy {
+public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy {
     
     private static final Set<BookieSocketAddress> EMPTY_SET = new HashSet<BookieSocketAddress>();
 

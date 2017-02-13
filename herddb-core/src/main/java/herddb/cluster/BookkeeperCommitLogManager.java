@@ -49,7 +49,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration) {
         config = new ClientConfiguration();
         config.setThrottleValue(0);
-        config.setEnsemblePlacementPolicy(CustomEnsemblePlacementPolicy.class);
+        config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
         for (String key : serverConfiguration.keys()) {
             if (key.startsWith("bookie.")) {
                 String _key = key.substring("bookie.".length());
