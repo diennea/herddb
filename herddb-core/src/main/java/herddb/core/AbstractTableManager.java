@@ -24,6 +24,7 @@ import herddb.log.LogEntry;
 import herddb.log.LogSequenceNumber;
 import herddb.model.DDLException;
 import herddb.model.DataScanner;
+import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
@@ -33,6 +34,7 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullTableScanConsumer;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -63,7 +65,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
 
-    void dump(Consumer<Record> records) throws DataStorageManagerException;
+    void dump(FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
 
     List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
     
@@ -82,5 +84,7 @@ public interface AbstractTableManager extends AutoCloseable {
     public void tryReleaseMemory(long reclaim);
 
     public void ensureMemoryLimits();
+
+    public List<Index> getAvailableIndexes();
     
 }

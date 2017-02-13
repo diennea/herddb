@@ -29,6 +29,7 @@ import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.GetResult;
+import herddb.model.Index;
 import herddb.model.NotLeaderException;
 import herddb.model.Record;
 import herddb.model.ScanResult;
@@ -43,7 +44,6 @@ import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.BeginTransactionStatement;
 import herddb.model.commands.CommitTransactionStatement;
-import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
@@ -55,8 +55,6 @@ import herddb.network.ServerSideConnection;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.SimpleByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -68,6 +66,7 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Handles a client Connection
@@ -157,6 +156,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 handlePushTableData(message, _channel);
             }
             break;
+            case Message.TYPE_TABLE_RESTORE_FINISHED: {
+                if (!authenticated) {
+                    sendAuthRequiredError(_channel, message);
+                    break;
+                }
+                handleTableRestoreFinished(message, _channel);
+            }
+            break;
             case Message.TYPE_PUSH_TXLOGCHUNK: {
                 if (!authenticated) {
                     sendAuthRequiredError(_channel, message);
@@ -200,14 +207,40 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         try {
             String tableSpace = (String) message.parameters.get("tableSpace");
             byte[] table = (byte[]) message.parameters.get("table");
+            long dumpLedgerId = (long) message.parameters.get("dumpLedgerId");
+            long dumpOffset = (long) message.parameters.get("dumpOffset");
             Table tableSchema = Table.deserialize(table);
             tableSchema = Table
                 .builder()
                 .cloning(tableSchema)
                 .tablespace(tableSpace)
                 .build();
-            CreateTableStatement createTableStatement = new CreateTableStatement(tableSchema);
-            server.getManager().executeStatement(createTableStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server.getManager()
+                .getTableSpaceManager(tableSpace)
+                .beginRestoreTable(table, new LogSequenceNumber(dumpLedgerId, dumpOffset));
+
+            _channel.sendReplyMessage(message, Message.ACK(null));
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handleTableRestoreFinished(Message message, Channel _channel) {
+        try {
+            String tableSpace = (String) message.parameters.get("tableSpace");
+            String table = (String) message.parameters.get("table");
+
+            List<byte[]> indexesDef = (List<byte[]>) message.parameters.get("indexes");
+            List<Index> indexes = indexesDef.stream().map(Index::deserialize).collect(Collectors.toList());
+
+            server.getManager()
+                .getTableSpaceManager(tableSpace)
+                .restoreTableFinished(table, indexes);
+
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (StatementExecutionException err) {
             Message error = Message.ERROR(null, err);

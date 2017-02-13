@@ -29,6 +29,7 @@ import herddb.log.LogEntry;
 import herddb.log.LogSequenceNumber;
 import herddb.model.DDLException;
 import herddb.model.DataScanner;
+import herddb.model.Index;
 import herddb.model.InvalidTableException;
 import herddb.model.Predicate;
 import herddb.model.Record;
@@ -41,6 +42,7 @@ import herddb.model.Transaction;
 import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullTableScanConsumer;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -143,7 +145,8 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void dump(Consumer<Record> records) throws DataStorageManagerException {
+    public void dump(FullTableScanConsumer dataReceiver) throws DataStorageManagerException {
+        throw new DataStorageManagerException("you cannot dump a system table!");
     }
 
     @Override
@@ -203,6 +206,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
     @Override
     public void ensureMemoryLimits() {
+    }
+
+    @Override
+    public List<Index> getAvailableIndexes() {
+        return Collections.emptyList();
     }
 
 }

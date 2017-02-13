@@ -208,13 +208,27 @@ public final class Message {
         return new Message(null, TYPE_SASL_TOKEN_MESSAGE_TOKEN, data);
     }
 
-    public static Message REQUEST_TABLE_RESTORE(String clientId, String tableSpace, byte[] table) {
+    public static Message REQUEST_TABLE_RESTORE(String clientId, String tableSpace, byte[] table,
+        long dumpLedgerId, long dumpOffset) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("table", table);
+        data.put("dumpLedgerId", dumpLedgerId);
+        data.put("dumpOffset", dumpOffset);
+        data.put("tableSpace", tableSpace);
+        return new Message(clientId, TYPE_REQUEST_TABLE_RESTORE, data);
+    }
+
+    public static Message TABLE_RESTORE_FINISHED(String clientId, String tableSpace, String table,
+        List<byte[]> indexes) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("table", table);
         data.put("tableSpace", tableSpace);
-        return new Message(clientId, TYPE_REQUEST_TABLE_RESTORE, data);
+        data.put("indexes", indexes);
+        return new Message(clientId, TYPE_TABLE_RESTORE_FINISHED, data);
     }
 
     public static Message PUSH_TABLE_DATA(String clientId, String tableSpace, String name, List<KeyValue> chunk) {
@@ -265,6 +279,7 @@ public final class Message {
     public static final int TYPE_EXECUTE_STATEMENTS = 15;
     public static final int TYPE_EXECUTE_STATEMENTS_RESULT = 16;
     public static final int TYPE_PUSH_TXLOGCHUNK = 17;
+    public static final int TYPE_TABLE_RESTORE_FINISHED = 19;
 
     public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;

@@ -19,6 +19,7 @@
  */
 package herddb.server;
 
+import herddb.backup.DumpedTableMetadata;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -142,9 +143,9 @@ public class DownloadTableSpaceTest {
                     }
 
                     @Override
-                    public void beginTable(Table table, Map<String, Object> stats) {
+                    public void beginTable(DumpedTableMetadata table, Map<String, Object> stats) {
                         System.out.println("beginTable " + table);
-                        this.table = table;
+                        this.table = table.table;
                     }
 
                 }, 89, false

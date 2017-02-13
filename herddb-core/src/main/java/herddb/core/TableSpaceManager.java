@@ -20,6 +20,7 @@
 package herddb.core;
 
 import herddb.backup.DumpedLogEntry;
+import herddb.backup.DumpedTableMetadata;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -35,7 +36,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -106,10 +106,8 @@ import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
+import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.VisibleByteArrayOutputStream;
-import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Supplier;
@@ -219,7 +217,7 @@ public class TableSpaceManager {
         LOGGER.log(Level.SEVERE, nodeId + " " + tableSpaceName + " tablesAtBoot " + tableNames + ", indexesAtBoot " + indexNames);
 
         for (Table table : tablesAtBoot) {
-            TableManager tableManager = bootTable(table, 0);
+            TableManager tableManager = bootTable(table, 0, null);
             for (Index index : indexesAtBoot) {
                 if (index.table.equals(table.name)) {
                     bootIndex(index, tableManager, 0, false);
@@ -232,7 +230,7 @@ public class TableSpaceManager {
                 if (t.newTables != null) {
                     for (Table table : t.newTables.values()) {
                         if (!tables.containsKey(table.name)) {
-                            bootTable(table, t.transactionId);
+                            bootTable(table, t.transactionId, null);
                         }
                     }
                 }
@@ -373,7 +371,7 @@ public class TableSpaceManager {
                     transaction.registerNewTable(table, position);
                 }
 
-                bootTable(table, entry.transactionId);
+                bootTable(table, entry.transactionId, null);
                 if (entry.transactionId <= 0) {
                     writeTablesOnDataStorageManager(position);
                 }
@@ -671,6 +669,28 @@ public class TableSpaceManager {
         }
     }
 
+    public void beginRestoreTable(byte[] tableDef, LogSequenceNumber dumpLogSequenceNumber) {
+        Table table = Table.deserialize(tableDef);
+        generalLock.writeLock().lock();
+        try {
+            if (tables.containsKey(table.name)) {
+                throw new TableAlreadyExistsException(table.name);
+            }
+            bootTable(table, 0, dumpLogSequenceNumber);
+        } finally {
+            generalLock.writeLock().unlock();
+        }
+    }
+
+    public void restoreTableFinished(String table, List<Index> indexes) {
+        TableManager tableManager = (TableManager) tables.get(table);
+        tableManager.restoreFinished();
+
+        for (Index index : indexes) {
+            bootIndex(index, tableManager, 0, true);
+        }
+    }
+
     private class DumpReceiver extends TableSpaceDumpReceiver {
 
         private TableManager currentTable;
@@ -725,10 +745,11 @@ public class TableSpaceManager {
         }
 
         @Override
-        public void beginTable(Table table, Map<String, Object> stats) throws DataStorageManagerException {
+        public void beginTable(DumpedTableMetadata dumpedTable, Map<String, Object> stats) throws DataStorageManagerException {
+            Table table = dumpedTable.table;
             LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats);
             dataStorageManager.dropTable(tableSpaceUUID, table.name);
-            currentTable = bootTable(table, 0);
+            currentTable = bootTable(table, 0, null);
         }
 
         @Override
@@ -781,44 +802,9 @@ public class TableSpaceManager {
                 if (tableManager.isSystemTable()) {
                     continue;
                 }
-                Table table = tableManager.getTable();
-                byte[] serialized = table.serialize();
-                Map<String, Object> beginTableData = new HashMap<>();
-                TableManagerStats stats = tableManager.getStats();
-                beginTableData.put("command", "beginTable");
-                beginTableData.put("table", serialized);
-                beginTableData.put("estimatedSize", stats.getTablesize());
-                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, beginTableData), timeout);
-
-                List<KeyValue> batch = new ArrayList<>();
-                Consumer<Record> sink = new Consumer<Record>() {
-                    @Override
-                    public void accept(Record t) {
-                        try {
-                            batch.add(new KeyValue(t.key.data, t.value.data));
-                            if (batch.size() == fetchSize) {
-                                Map<String, Object> data = new HashMap<>();
-                                data.put("command", "data");
-                                data.put("records", batch);
-                                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
-                                batch.clear();
-                            }
-                        } catch (Exception error) {
-                            throw new RuntimeException(error);
-                        }
-                    }
-                };
                 try {
+                    FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, _channel, dumpId, timeout, fetchSize);
                     tableManager.dump(sink);
-
-                    if (!batch.isEmpty()) {
-                        Map<String, Object> data = new HashMap<>();
-                        data.put("command", "data");
-                        data.put("records", batch);
-                        _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
-                        batch.clear();
-                    }
-
                 } catch (DataStorageManagerException err) {
                     Map<String, Object> errorOnData = new HashMap<>();
                     errorOnData.put("command", "error");
@@ -826,21 +812,10 @@ public class TableSpaceManager {
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
                     return;
                 }
-
-                Map<String, Object> endTableData = new HashMap<>();
-                endTableData.put("command", "endTable");
-                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, endTableData), timeout);
             }
 
             if (!txlogentries.isEmpty()) {
-                Map<String, Object> data = new HashMap<>();
-                List<KeyValue> batch = new ArrayList<>();
-                for (DumpedLogEntry e : txlogentries) {                    
-                    batch.add(new KeyValue(e.logSequenceNumber.serialize(), e.entryData));
-                }
-                data.put("command", "txlog");
-                data.put("records", batch);
-                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+                sendDumpedCommitLog(txlogentries, _channel, dumpId, timeout);
             }
 
             Map<String, Object> finishData = new HashMap<>();
@@ -862,6 +837,17 @@ public class TableSpaceManager {
             }
         }
 
+    }
+
+    private void sendDumpedCommitLog(List<DumpedLogEntry> txlogentries, Channel _channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
+        Map<String, Object> data = new HashMap<>();
+        List<KeyValue> batch = new ArrayList<>();
+        for (DumpedLogEntry e : txlogentries) {
+            batch.add(new KeyValue(e.logSequenceNumber.serialize(), e.entryData));
+        }
+        data.put("command", "txlog");
+        data.put("records", batch);
+        _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
     }
 
     private class FollowerThread implements Runnable {
@@ -1116,15 +1102,18 @@ public class TableSpaceManager {
         }
     }
 
-    private TableManager bootTable(Table table, long transaction) throws DataStorageManagerException {
+    private TableManager bootTable(Table table, long transaction, LogSequenceNumber dumpLogSequenceNumber) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
+        if (tables.containsKey(table.name)) {
+            throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
+        }
         TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID,
             this.dbmanager.getMaxLogicalPageSize(),
             this.dbmanager.getMaxTableUsedMemory(),
             transaction);
-        if (tables.containsKey(table.name)) {
-            throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
+        if (dumpLogSequenceNumber != null) {
+            tableManager.prepareForRestore(dumpLogSequenceNumber);
         }
         tables.put(table.name, tableManager);
         tableManager.start();

@@ -20,9 +20,9 @@
 package herddb.client;
 
 import herddb.backup.DumpedLogEntry;
+import herddb.backup.DumpedTableMetadata;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Record;
-import herddb.model.Table;
 import herddb.storage.DataStorageManagerException;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +38,7 @@ public class TableSpaceDumpReceiver {
     public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
     }
 
-    public void beginTable(Table table, Map<String, Object> stats) throws DataStorageManagerException {
+    public void beginTable(DumpedTableMetadata table, Map<String, Object> stats) throws DataStorageManagerException {
     }
 
     public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {

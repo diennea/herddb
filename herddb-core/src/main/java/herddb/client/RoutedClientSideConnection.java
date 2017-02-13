@@ -21,6 +21,7 @@ package herddb.client;
 
 import herddb.backup.BackupFileConstants;
 import herddb.backup.DumpedLogEntry;
+import herddb.backup.DumpedTableMetadata;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,7 @@ import java.util.logging.Logger;
 
 import herddb.client.impl.RetryRequestException;
 import herddb.log.LogSequenceNumber;
+import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.network.Channel;
@@ -48,6 +50,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 /**
  * A real connection to a server
@@ -119,7 +122,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             case Message.TYPE_TABLESPACE_DUMP_DATA: {
                 String dumpId = (String) message.parameters.get("dumpId");
                 TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
-                LOGGER.log(Level.SEVERE, "receiver for " + dumpId + ": " + receiver);
+                LOGGER.log(Level.SEVERE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
                 if (receiver == null) {
                     if (_channel != null) {
                         _channel.sendReplyMessage(message, Message.ERROR(clientId, new Exception("no such dump receiver " + dumpId)));
@@ -128,6 +131,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 try {
                     Map<String, Object> values = (Map<String, Object>) message.parameters.get("values");
+                    LOGGER.log(Level.SEVERE, "values:" + values);
                     String command = (String) values.get("command") + "";
                     boolean sendAck = true;
                     switch (command) {
@@ -141,9 +145,18 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             byte[] tableDefinition = (byte[]) values.get("table");
                             Table table = Table.deserialize(tableDefinition);
                             Long estimatedSize = (Long) values.get("estimatedSize");
+                            long dumpLedgerId = (Long) values.get("dumpLedgerid");
+                            long dumpOffset = (Long) values.get("dumpOffset");
+                            List<byte[]> indexesDef = (List<byte[]>) values.get("indexes");
+                            List<Index> indexes = indexesDef
+                                .stream()
+                                .map(Index::deserialize)
+                                .collect(Collectors.toList());
                             Map<String, Object> stats = new HashMap<>();
                             stats.put("estimatedSize", estimatedSize);
-                            receiver.beginTable(table, stats);
+                            receiver.beginTable(new DumpedTableMetadata(table,
+                                new LogSequenceNumber(dumpLedgerId, dumpOffset), indexes),
+                                stats);
                             break;
                         }
                         case "endTable": {
@@ -459,22 +472,32 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 LOGGER.log(Level.SEVERE, "restore, entryType:{0}", entryType);
                 switch (entryType) {
                     case BackupFileConstants.ENTRY_TYPE_TABLE: {
-                        Table table = source.nextTable();
+                        DumpedTableMetadata table = source.nextTable();
                         Channel _channel = ensureOpen();
-                        Message message_create_table = Message.REQUEST_TABLE_RESTORE(clientId, tableSpace, table.serialize());
+                        Message message_create_table = Message.REQUEST_TABLE_RESTORE(clientId, tableSpace,
+                            table.table.serialize(), table.logSequenceNumber.ledgerId, table.logSequenceNumber.offset);
                         Message reply_create_table = _channel.sendMessageWithReply(message_create_table, timeout);
                         if (reply_create_table.type == Message.TYPE_ERROR) {
                             throw new HDBException(reply_create_table);
                         }
                         List<KeyValue> chunk = source.nextTableDataChunk();
                         while (chunk != null) {
-                            Message message = Message.PUSH_TABLE_DATA(clientId, tableSpace, table.name, chunk);
+                            Message message = Message.PUSH_TABLE_DATA(clientId, tableSpace, table.table.name, chunk);
                             Message reply = _channel.sendMessageWithReply(message, timeout);
                             if (reply.type == Message.TYPE_ERROR) {
                                 throw new HDBException(reply);
                             }
                             chunk = source.nextTableDataChunk();
                         }
+                        List<byte[]> indexes = table.indexes.stream().map(Index::serialize).collect(Collectors.toList());
+
+                        Message message_table_finished = Message.TABLE_RESTORE_FINISHED(clientId, tableSpace,
+                            table.table.name, indexes);
+                        Message reply_table_finished = _channel.sendMessageWithReply(message_table_finished, timeout);
+                        if (reply_table_finished.type == Message.TYPE_ERROR) {
+                            throw new HDBException(reply_table_finished);
+                        }
+
                         break;
                     }
                     case BackupFileConstants.ENTRY_TYPE_TXLOGCHUNK: {

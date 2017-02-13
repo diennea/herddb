@@ -137,6 +137,7 @@ public class BackupRestoreTest {
 
                     assertEquals(4, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
 
+                    assertEquals(1, server_2.getManager().getTableSpaceManager("newts").getIndexesOnTable("t1").size());
                 }
 
             }
@@ -229,6 +230,8 @@ public class BackupRestoreTest {
                     });
 
                     assertEquals(5, connection.executeScan("newts", "SELECT * FROM newts.t1", Collections.emptyList(), 0, 0, 10).consume().size());
+
+                    assertEquals(1, server_2.getManager().getTableSpaceManager("newts").getIndexesOnTable("t1").size());
 
                 }
 

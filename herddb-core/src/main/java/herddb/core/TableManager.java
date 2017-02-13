@@ -48,6 +48,7 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.DataScanner;
+import herddb.model.Index;
 import herddb.model.Projection;
 import herddb.model.Record;
 import herddb.model.ScanLimits;
@@ -83,6 +84,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.xml.ws.Holder;
 
@@ -176,6 +178,17 @@ public final class TableManager implements AbstractTableManager {
     private long createdInTransaction;
 
     private final TableManagerStats stats;
+
+    void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
+        LOGGER.log(Level.SEVERE, "Table " + table.name + ", receiving dump,"
+            + "done at external logPosition " + dumpLogSequenceNumber);
+        this.dumpLogSequenceNumber = dumpLogSequenceNumber;
+    }
+
+    void restoreFinished() {
+        dumpLogSequenceNumber = null;
+        LOGGER.log(Level.SEVERE, "Table " + table.name + ", received dump");
+    }
 
     private final class TableManagerStatsImpl implements TableManagerStats {
 
@@ -304,6 +317,7 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private LogSequenceNumber bootSequenceNumber;
+    private LogSequenceNumber dumpLogSequenceNumber;
 
     @Override
     public void start() throws DataStorageManagerException {
@@ -342,6 +356,11 @@ public final class TableManager implements AbstractTableManager {
             public void endPage() {
                 currentPage = -1;
             }
+
+            @Override
+            public void endTable() {
+            }
+
         });
         dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.name, activePagesAtBoot);
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
@@ -682,7 +701,20 @@ public final class TableManager implements AbstractTableManager {
 
     @Override
     public void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException {
-        if (recovery && !position.after(bootSequenceNumber)) {
+        if (recovery && dumpLogSequenceNumber != null && !position.after(dumpLogSequenceNumber)) {
+            // restore mode
+            Transaction transaction = null;
+            if (entry.transactionId > 0) {
+                transaction = tableSpaceManager.getTransaction(entry.transactionId);
+            }
+            if (transaction != null) {
+                LOGGER.log(Level.FINER, "{0}.{1} keep{2} at {3}, table restored from position {4}, it belongs to transaction {5} which was in progress during the dump of the table", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber, entry.transactionId});
+            } else {
+                LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table restored from position {4}", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber});
+                return;
+            }
+        } else if (recovery && !position.after(bootSequenceNumber)) {
+            // recovery mode
             Transaction transaction = null;
             if (entry.transactionId > 0) {
                 transaction = tableSpaceManager.getTransaction(entry.transactionId);
@@ -859,28 +891,9 @@ public final class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void dump(Consumer<Record> records) throws DataStorageManagerException {
+    public void dump(FullTableScanConsumer receiver) throws DataStorageManagerException {
 
-        dataStorageManager.fullTableScan(tableSpaceUUID, table.name, new FullTableScanConsumer() {
-            @Override
-            public void acceptTableStatus(TableStatus tableStatus) {
-
-            }
-
-            @Override
-            public void startPage(long pageId) {
-            }
-
-            @Override
-            public void acceptRecord(Record record) {
-                records.accept(record);
-            }
-
-            @Override
-            public void endPage() {
-
-            }
-        });
+        dataStorageManager.fullTableScan(tableSpaceUUID, table.name, receiver);
     }
 
     void writeFromDump(List<Record> record) throws DataStorageManagerException {
@@ -1416,6 +1429,16 @@ public final class TableManager implements AbstractTableManager {
             }
         }
         return useIndex;
+    }
+
+    @Override
+    public List<Index> getAvailableIndexes() {
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        if (indexes == null) {
+            return Collections.emptyList();
+        }
+        return indexes.values().stream().filter(AbstractIndexManager::isAvailable).map(AbstractIndexManager::getIndex)
+            .collect(Collectors.toList());
     }
 
     private Record fetchRecord(Bytes key, Long pageId, LocalScanPageCache localScanPageCache) throws StatementExecutionException, DataStorageManagerException {

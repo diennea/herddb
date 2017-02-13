@@ -17,34 +17,34 @@
  under the License.
 
  */
-package herddb.client;
+package herddb.backup;
 
-import herddb.backup.DumpedTableMetadata;
-import herddb.network.KeyValue;
-import herddb.storage.DataStorageManagerException;
+import herddb.log.LogSequenceNumber;
+import herddb.model.Index;
+import herddb.model.Table;
 import java.util.List;
 
 /**
- * Serves a full dump of a TableSpace for a full restore
+ * Data about the dump of a table. We have to persist the schema and the position of the log at the time of the dump in
+ * order to recover correctly the data
  *
  * @author enrico.olivelli
  */
-public class TableSpaceRestoreSource {
+public class DumpedTableMetadata {
 
-    public DumpedTableMetadata nextTable() throws DataStorageManagerException {
-        return null;
+    public final Table table;
+    public final LogSequenceNumber logSequenceNumber;
+    public List<Index> indexes;
+
+    public DumpedTableMetadata(Table table, LogSequenceNumber logSequenceNumber, List<Index> indexes) {
+        this.table = table;
+        this.logSequenceNumber = logSequenceNumber;
+        this.indexes = indexes;
     }
 
-    public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
-        return null;
-    }
-
-    public List<KeyValue> nextTransactionLogChunk() throws DataStorageManagerException {
-        return null;
-    }
-
-    public String nextEntryType() throws DataStorageManagerException {
-        return null;
+    @Override
+    public String toString() {
+        return "DumpedTableMetadata{" + "table=" + table + ", logSequenceNumber=" + logSequenceNumber + ", indexes=" + indexes + '}';
     }
 
 }

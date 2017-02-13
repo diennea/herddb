@@ -19,6 +19,7 @@
  */
 package herddb.file;
 
+import herddb.core.HerdDBInternalException;
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.index.ConcurrentMapKeyToPageIndex;
@@ -278,7 +279,8 @@ public class FileDataStorageManager extends DataStorageManager {
                 }
                 consumer.endPage();
             }
-        } catch (IOException err) {
+            consumer.endTable();
+        } catch (IOException | HerdDBInternalException err) {
             throw new DataStorageManagerException(err);
         }
 

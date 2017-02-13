@@ -181,8 +181,12 @@ public class SimpleClusterTest extends BaseTestcase {
 
             @Override
             public void endPage() {
-
             }
+
+            @Override
+            public void endTable() {
+            }
+
         });
         for (long pageId : _tableStatus.value.activePages) {
             List<Record> records = dataStorageManager.readPage(tableSpaceUUID, tableName, pageId);

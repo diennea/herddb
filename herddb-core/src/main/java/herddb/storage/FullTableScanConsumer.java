@@ -34,4 +34,6 @@ public interface FullTableScanConsumer {
     public void acceptRecord(Record record);
     
     public void endPage();
+
+    public void endTable();
 }
