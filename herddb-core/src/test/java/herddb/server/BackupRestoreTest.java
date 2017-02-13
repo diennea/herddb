@@ -50,6 +50,7 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.ZKTestEnv;
 import java.util.Map;
+import org.junit.Ignore;
 
 /**
  * Booting two servers, one table space
@@ -242,6 +243,7 @@ public class BackupRestoreTest {
     }
 
     @Test
+    @Ignore(value = "TODO: must implement dump of running transactions")
     public void test_backup_restore_recover_from_tx_log_with_transaction() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
