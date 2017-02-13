@@ -170,7 +170,7 @@ public class HerdDBCLI {
                         HDBConnection hdbconnection = hcon.getConnection();
                         BackupUtils.dumpTableSpace(schema, dumpfetchsize, hdbconnection, oo, new ProgressListener() {
                             @Override
-                            public void log(String message, Map<String, Object> context) {
+                            public void log(String actionType, String message, Map<String, Object> context) {
                                 println(message);
                             }
 
@@ -209,7 +209,7 @@ public class HerdDBCLI {
                         HDBConnection hdbconnection = hcon.getConnection();
                         BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, bin, new ProgressListener() {
                             @Override
-                            public void log(String message, Map<String, Object> context) {
+                            public void log(String actionType, String message, Map<String, Object> context) {
                                 println(message);
                             }
 

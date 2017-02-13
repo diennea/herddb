@@ -58,14 +58,14 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
 
     @Override
     public void onError(Throwable error) throws DataStorageManagerException {
-        listener.log("Fatal error: " + error, Collections.singletonMap("error", error));
+        listener.log("error", "Fatal error: " + error, Collections.singletonMap("error", error));
         errorHolder.value = error;
         waiter.countDown();
     }
 
     @Override
     public void finish(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-        listener.log("Dump finished for tablespace " + schema + " at " + logSequenceNumber, Collections.singletonMap("tablespace", schema));
+        listener.log("finish", "Dump finished for tablespace " + schema + " at " + logSequenceNumber, Collections.singletonMap("tablespace", schema));
         try {
             out.writeUTF(BackupFileConstants.ENTRY_TYPE_END);
         } catch (IOException err) {
@@ -76,7 +76,7 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
 
     @Override
     public void endTable() throws DataStorageManagerException {
-        listener.log("endTable " + currentTable + ", records " + tableRecordsCount, Collections.singletonMap("table", currentTable));
+        listener.log("endTable", "endTable " + currentTable + ", records " + tableRecordsCount, Collections.singletonMap("table", currentTable));
         currentTable = null;
         try {
             out.writeVInt(Integer.MIN_VALUE); // EndOfTableMarker
@@ -97,14 +97,14 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        listener.log("table " + currentTable + ", dumped " + tableRecordsCount + " records", Collections.singletonMap("count", tableRecordsCount));
+        listener.log("receivedata", "table " + currentTable + ", dumped " + tableRecordsCount + " records", Collections.singletonMap("count", tableRecordsCount));
     }
 
     @Override
     public void beginTable(DumpedTableMetadata tableMetadata, Map<String, Object> stats) throws DataStorageManagerException {
         Table table = tableMetadata.table;
         currentTable = table.name;
-        listener.log("beginTable " + currentTable + ", stats " + stats, Collections.singletonMap("table", table.name));
+        listener.log("beginTable", "beginTable " + currentTable + ", stats " + stats, Collections.singletonMap("table", table.name));
         try {
             out.writeUTF(BackupFileConstants.ENTRY_TYPE_TABLE);
         } catch (IOException err) {
@@ -126,7 +126,7 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
 
     @Override
     public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-        listener.log("dumping tablespace " + schema + ", log position " + logSequenceNumber, Collections.singletonMap("tablespace", schema));
+        listener.log("start_tablespace", "dumping tablespace " + schema + ", log position " + logSequenceNumber, Collections.singletonMap("tablespace", schema));
         try {
             out.writeUTF(BackupFileConstants.ENTRY_TYPE_START);
         } catch (IOException err) {
@@ -147,6 +147,7 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        listener.log("receivetxlog", "table " + currentTable + ", dumped " + entries.size() + " txlogentries", Collections.singletonMap("count", entries.size()));
     }
 
 }

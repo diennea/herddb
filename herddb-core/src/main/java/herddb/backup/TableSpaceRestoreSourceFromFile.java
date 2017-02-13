@@ -64,7 +64,7 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
     public List<KeyValue> nextTransactionLogChunk() throws DataStorageManagerException {
         try {
             int numRecords = in.readVInt();
-            listener.log("sending " + numRecords + " tx log entries", Collections.singletonMap("count", numRecords));
+            listener.log("nexttxchunk","sending " + numRecords + " tx log entries", Collections.singletonMap("count", numRecords));
             List<KeyValue> records = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
                 long ledgerId = in.readVLong();
@@ -84,10 +84,10 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
             int numRecords = in.readVInt();
             if (Integer.MIN_VALUE == numRecords) {
                 // EndOfTableMarker
-                listener.log("table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
+                listener.log("tablefinished","table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
                 return null;
             }
-            listener.log("sending " + numRecords + ", total " + currentTableSize, Collections.singletonMap("count", numRecords));
+            listener.log("sendtabledata","sending " + numRecords + ", total " + currentTableSize, Collections.singletonMap("count", numRecords));
             List<KeyValue> records = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
                 byte[] key = in.readArray();
@@ -121,7 +121,7 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
             data.put("dumpLedgerId", dumpLedgerId);
             data.put("dumpOffset", dumpOffset);
             data.put("indexes", indexesData.size());
-            listener.log("starting table " + tableMetadata.name, data);
+            listener.log("starttable", "starting table " + tableMetadata.name, data);
             return new DumpedTableMetadata(tableMetadata, new LogSequenceNumber(dumpLedgerId, dumpOffset), indexes);
         } catch (EOFException end) {
             return null;

@@ -28,8 +28,8 @@ import java.util.Map;
  */
 public interface ProgressListener {
 
-    public default void log(String message, Map<String, Object> context) {
-        System.out.println("PROGRESSLISTENER: " + message + " " + context);
+    public default void log(String msgType, String message, Map<String, Object> context) {
+        System.out.println("PROGRESSLISTENER " + msgType + ":" + message + " " + context);
     }
 
 }

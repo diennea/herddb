@@ -44,9 +44,6 @@ import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.SimpleByteArrayInputStream;
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -154,6 +151,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                                 .collect(Collectors.toList());
                             Map<String, Object> stats = new HashMap<>();
                             stats.put("estimatedSize", estimatedSize);
+                            stats.put("dumpLedgerId", dumpLedgerId);
+                            stats.put("dumpOffset", dumpOffset);
                             receiver.beginTable(new DumpedTableMetadata(table,
                                 new LogSequenceNumber(dumpLedgerId, dumpOffset), indexes),
                                 stats);
@@ -466,6 +465,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     void restoreTableSpace(String tableSpace, TableSpaceRestoreSource source) throws HDBException, ClientSideMetadataProviderException {
+        List<DumpedTableMetadata> tables = new ArrayList<>();
         try {
             while (true) {
                 String entryType = source.nextEntryType();
@@ -489,15 +489,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             }
                             chunk = source.nextTableDataChunk();
                         }
-                        List<byte[]> indexes = table.indexes.stream().map(Index::serialize).collect(Collectors.toList());
 
-                        Message message_table_finished = Message.TABLE_RESTORE_FINISHED(clientId, tableSpace,
-                            table.table.name, indexes);
-                        Message reply_table_finished = _channel.sendMessageWithReply(message_table_finished, timeout);
-                        if (reply_table_finished.type == Message.TYPE_ERROR) {
-                            throw new HDBException(reply_table_finished);
-                        }
-
+                        tables.add(table);
                         break;
                     }
                     case BackupFileConstants.ENTRY_TYPE_TXLOGCHUNK: {
@@ -511,6 +504,20 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         break;
                     }
                     case BackupFileConstants.ENTRY_TYPE_END: {
+                        // send a 'table finished' event only at the end of the procedure
+                        // the stream of transaction log entries is finished, so the data contained in the table is "final"
+                        // we are going to create now all the indexes too
+                        Channel _channel = ensureOpen();
+                        for (DumpedTableMetadata table : tables) {
+                            List<byte[]> indexes = table.indexes.stream().map(Index::serialize).collect(Collectors.toList());
+
+                            Message message_table_finished = Message.TABLE_RESTORE_FINISHED(clientId, tableSpace,
+                                table.table.name, indexes);
+                            Message reply_table_finished = _channel.sendMessageWithReply(message_table_finished, timeout);
+                            if (reply_table_finished.type == Message.TYPE_ERROR) {
+                                throw new HDBException(reply_table_finished);
+                            }
+                        }
                         return;
                     }
                 }

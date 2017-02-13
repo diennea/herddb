@@ -215,7 +215,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             recordInserted(key, values);
         });
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "rebuilding index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
+        LOGGER.log(Level.SEVERE, "rebuilding index {0} took {1}", new Object[]{index.name, (_stop - _start) + " ms"});
     }
 
     @Override

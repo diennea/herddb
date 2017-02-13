@@ -26,7 +26,7 @@ import herddb.log.LogSequenceNumber;
  *
  * @author enrico.olivelli
  */
-public final class DumpedLogEntry {
+public final class DumpedLogEntry implements Comparable<DumpedLogEntry> {
 
     public final LogSequenceNumber logSequenceNumber;
     public final byte[] entryData;
@@ -34,6 +34,18 @@ public final class DumpedLogEntry {
     public DumpedLogEntry(LogSequenceNumber logSequenceNumber, byte[] entryData) {
         this.logSequenceNumber = logSequenceNumber;
         this.entryData = entryData;
+    }
+
+    @Override
+    public int compareTo(DumpedLogEntry o) {
+        boolean after = this.logSequenceNumber.after(o.logSequenceNumber);
+        if (after) {
+            return 1;
+        } else if (this.logSequenceNumber.equals(o.logSequenceNumber)) {
+            return 0;
+        } else {
+            return -1;
+        }
     }
 
 }

@@ -77,7 +77,7 @@ public abstract class CommitLog implements AutoCloseable {
 
     protected CommitLogListener[] listeners = null;
 
-    public void attachCommitLogListener(CommitLogListener l) {
+    public synchronized void attachCommitLogListener(CommitLogListener l) {
         if (listeners == null) {
             CommitLogListener[] _listeners = new CommitLogListener[1];
             _listeners[0] = l;
@@ -92,13 +92,14 @@ public abstract class CommitLog implements AutoCloseable {
         }
     }
 
-    public void removeCommitLogListener(CommitLogListener l) {
+    public synchronized void removeCommitLogListener(CommitLogListener l) {
         CommitLogListener[] _listeners = new CommitLogListener[listeners.length - 1];
         int pos = 0;
         boolean found = false;
         for (int i = 0; i < listeners.length; i++) {
             if (listeners[i] != l) {
                 _listeners[pos++] = listeners[i];
+            } else {
                 found = true;
             }
         }

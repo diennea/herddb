@@ -108,8 +108,10 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 
 /**
@@ -773,12 +775,14 @@ public class TableSpaceManager {
         checkpoint();
         LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize + ", includeLog:" + includeLog);
 
-        List<DumpedLogEntry> txlogentries = new ArrayList<>();
+        List<DumpedLogEntry> txlogentries = new CopyOnWriteArrayList<>();
         CommitLogListener logDumpReceiver = new CommitLogListener() {
             @Override
             public void logEntry(LogSequenceNumber logPos, LogEntry data) {
-                txlogentries.add(new DumpedLogEntry(actualLogSequenceNumber, data.serialize()));
-                LOGGER.log(Level.SEVERE, "dumping entry " + logPos + ", " + data);
+                // we are going to capture all the canges to the tablespace during the dump, in order to replay
+                // eventually 'missed' changes during the dump
+                txlogentries.add(new DumpedLogEntry(logPos, data.serialize()));
+                LOGGER.log(Level.SEVERE, "dumping entry " + logPos + ", " + data + " nentries: " + txlogentries.size());
             }
         };
         generalLock.readLock().lock();
@@ -815,6 +819,7 @@ public class TableSpaceManager {
             }
 
             if (!txlogentries.isEmpty()) {
+                txlogentries.sort(Comparator.naturalOrder());
                 sendDumpedCommitLog(txlogentries, _channel, dumpId, timeout);
             }
 

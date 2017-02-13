@@ -197,6 +197,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
                 handleCloseScanner(message, _channel);
             }
+            break;
 
             default:
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported message type " + message.type)));

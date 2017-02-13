@@ -701,29 +701,32 @@ public final class TableManager implements AbstractTableManager {
 
     @Override
     public void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException {
-        if (recovery && dumpLogSequenceNumber != null && !position.after(dumpLogSequenceNumber)) {
-            // restore mode
-            Transaction transaction = null;
-            if (entry.transactionId > 0) {
-                transaction = tableSpaceManager.getTransaction(entry.transactionId);
-            }
-            if (transaction != null) {
-                LOGGER.log(Level.FINER, "{0}.{1} keep{2} at {3}, table restored from position {4}, it belongs to transaction {5} which was in progress during the dump of the table", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber, entry.transactionId});
-            } else {
-                LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table restored from position {4}", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber});
-                return;
-            }
-        } else if (recovery && !position.after(bootSequenceNumber)) {
-            // recovery mode
-            Transaction transaction = null;
-            if (entry.transactionId > 0) {
-                transaction = tableSpaceManager.getTransaction(entry.transactionId);
-            }
-            if (transaction != null) {
-                LOGGER.log(Level.FINER, "{0}.{1} keep{2} at {3}, table booted at {4}, it belongs to transaction {5} which was in progress during the flush of the table", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber, entry.transactionId});
-            } else {
-                LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table booted at {4}", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber});
-                return;
+        LOGGER.log(Level.SEVERE, "TABLEMANAGER " + table.name + " apply " + position + " rec " + recovery + " entry " + entry);
+        if (recovery) {
+            if (dumpLogSequenceNumber != null && !position.after(dumpLogSequenceNumber)) {
+                // in "restore mode" the 'position" parameter is from the 'old' transaction log
+                Transaction transaction = null;
+                if (entry.transactionId > 0) {
+                    transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                }
+                if (transaction != null) {
+                    LOGGER.log(Level.SEVERE, "{0}.{1} keep {2} at {3}, table restored from position {4}, it belongs to transaction {5} which was in progress during the dump of the table", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber, entry.transactionId});
+                } else {
+                    LOGGER.log(Level.SEVERE, "{0}.{1} skip {2} at {3}, table restored from position {4}", new Object[]{table.tablespace, table.name, entry, position, dumpLogSequenceNumber});
+                    return;
+                }
+            } else if (!position.after(bootSequenceNumber)) {
+                // recovery mode
+                Transaction transaction = null;
+                if (entry.transactionId > 0) {
+                    transaction = tableSpaceManager.getTransaction(entry.transactionId);
+                }
+                if (transaction != null) {
+                    LOGGER.log(Level.FINER, "{0}.{1} keep {2} at {3}, table booted at {4}, it belongs to transaction {5} which was in progress during the flush of the table", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber, entry.transactionId});
+                } else {
+                    LOGGER.log(Level.FINER, "{0}.{1} skip {2} at {3}, table booted at {4}", new Object[]{table.tablespace, table.name, entry, position, bootSequenceNumber});
+                    return;
+                }
             }
         }
         switch (entry.type) {

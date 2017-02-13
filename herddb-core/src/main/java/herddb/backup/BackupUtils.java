@@ -90,15 +90,14 @@ public class BackupUtils {
 
     public static void restoreTableSpace(String schema, String node, HDBConnection hdbconnection, ExtendedDataInputStream in, ProgressListener listener) throws Exception {
 
-        listener.log("creating tablespace " + schema + " with leader " + node, Collections.singletonMap("tablespace", schema));
+        listener.log("startRestore", "creating tablespace " + schema + " with leader " + node, Collections.singletonMap("tablespace", schema));
         hdbconnection.executeUpdate(TableSpace.DEFAULT, "CREATE TABLESPACE '" + schema + "','leader:" + node + "','wait:60000'", 0, false, Collections.emptyList());
 
         TableSpaceRestoreSource source = new TableSpaceRestoreSourceFromFile(in, listener);
         hdbconnection.restoreTableSpace(schema, source);
 
-        listener.log("restore finished for tablespace " + schema, Collections.singletonMap("tablespace", schema));
+        listener.log("restoreFinished", "restore finished for tablespace " + schema, Collections.singletonMap("tablespace", schema));
 
     }
-
 
 }
