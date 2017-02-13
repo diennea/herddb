@@ -43,6 +43,10 @@ public class TableSpaceRestoreSource {
         return null;
     }
 
+    public List<byte[]> nextTransactionsBlock() throws DataStorageManagerException {
+        return null;
+    }
+
     public String nextEntryType() throws DataStorageManagerException {
         return null;
     }

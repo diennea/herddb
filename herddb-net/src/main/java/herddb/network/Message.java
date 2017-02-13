@@ -250,6 +250,15 @@ public final class Message {
         return new Message(clientId, TYPE_PUSH_TXLOGCHUNK, data);
     }
 
+    public static Message PUSH_TRANSACTIONSBLOCK(String clientId, String tableSpace, List<byte[]> chunk) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("tableSpace", tableSpace);
+        data.put("data", chunk);
+        return new Message(clientId, TYPE_PUSH_TRANSACTIONSBLOCK, data);
+    }
+
     public final String clientId;
     public final int type;
     public final Map<String, Object> parameters;
@@ -280,6 +289,7 @@ public final class Message {
     public static final int TYPE_EXECUTE_STATEMENTS_RESULT = 16;
     public static final int TYPE_PUSH_TXLOGCHUNK = 17;
     public static final int TYPE_TABLE_RESTORE_FINISHED = 19;
+    public static final int TYPE_PUSH_TRANSACTIONSBLOCK = 20;
 
     public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;

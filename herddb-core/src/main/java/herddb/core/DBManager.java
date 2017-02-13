@@ -773,7 +773,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             manager.dumpTableSpace(dumpId, _channel, fetchSize, includeLog);
         } catch (Exception error) {
             LOGGER.log(Level.SEVERE, "error on dump", error);
-            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("internal error " + error, error)));
         }
     }
 

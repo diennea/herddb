@@ -544,7 +544,7 @@ public class TableSpaceManager {
             try (HDBConnection con = client.openConnection()) {
                 DumpReceiver receiver = new DumpReceiver();
                 int fetchSize = 10000;
-                con.dumpTableSpace(tableSpaceName, receiver, fetchSize, true);
+                con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
                 long _start = System.currentTimeMillis();
                 boolean ok = receiver.join(1000 * 60 * 60);
                 if (!ok) {
@@ -693,6 +693,13 @@ public class TableSpaceManager {
         }
     }
 
+    public void receiveRawDumpedTransactions(List<Transaction> entries) {
+        for (Transaction ld : entries) {
+            LOGGER.log(Level.SEVERE, "restore transaction " + ld);
+            transactions.put(ld.transactionId, ld);
+        }
+    }
+
     private class DumpReceiver extends TableSpaceDumpReceiver {
 
         private TableManager currentTable;
@@ -750,22 +757,7 @@ public class TableSpaceManager {
         public void beginTable(DumpedTableMetadata dumpedTable, Map<String, Object> stats) throws DataStorageManagerException {
             Table table = dumpedTable.table;
             LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats);
-            dataStorageManager.dropTable(tableSpaceUUID, table.name);
             currentTable = bootTable(table, 0, null);
-        }
-
-        @Override
-        public void receiveTransactionLogChunk(List<DumpedLogEntry> entries) throws DataStorageManagerException {
-            LOGGER.log(Level.SEVERE, "received " + entries + " tx log entries");
-            try {
-                for (DumpedLogEntry data : entries) {
-                    LogEntry entry = LogEntry.deserialize(data.entryData);
-                    apply(data.logSequenceNumber, entry, true);
-                }
-            } catch (Exception ex) {
-                error = ex;
-                throw new DataStorageManagerException(ex);
-            }
         }
 
     }
@@ -800,6 +792,19 @@ public class TableSpaceManager {
             if (response_to_start.type != Message.TYPE_ACK) {
                 LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.parameters);
                 return;
+            }
+
+            if (includeLog) {
+                List<Transaction> transactionsSnapshot = new ArrayList<>();
+                dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, transactionsSnapshot::add);
+                List<Transaction> batch = new ArrayList<>();
+                for (Transaction t : transactionsSnapshot) {
+                    batch.add(t);
+                    if (batch.size() == 10) {
+                        sendTransactionsDump(batch, _channel, dumpId, timeout, response_to_start);
+                    }
+                }
+                sendTransactionsDump(batch, _channel, dumpId, timeout, response_to_start);
             }
 
             for (AbstractTableManager tableManager : tables.values()) {
@@ -842,6 +847,27 @@ public class TableSpaceManager {
             }
         }
 
+    }
+
+    private void sendTransactionsDump(List<Transaction> batch, Channel _channel, String dumpId, final int timeout, Message response_to_start) throws TimeoutException, InterruptedException {
+        if (batch.isEmpty()) {
+            return;
+        }
+        Map<String, Object> transactionsData = new HashMap<>();
+        transactionsData.put("command", "transactions");
+        List<byte[]> encodedTransactions = batch
+            .stream()
+            .map(tr -> {
+                return tr.serialize();
+            })
+            .
+            collect(Collectors.toList());
+        transactionsData.put("transactions", encodedTransactions);
+        Message response_to_transactionsData = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, transactionsData), timeout);
+        if (response_to_transactionsData.type != Message.TYPE_ACK) {
+            LOGGER.log(Level.SEVERE, "error response at transactionsData command: " + response_to_start.parameters);
+        }
+        batch.clear();
     }
 
     private void sendDumpedCommitLog(List<DumpedLogEntry> txlogentries, Channel _channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
@@ -1192,9 +1218,9 @@ public class TableSpaceManager {
         }
     }
 
-    void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
+    LogSequenceNumber checkpoint() throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
-            return;
+            return null;
         }
         long _start = System.currentTimeMillis();
         LogSequenceNumber logSequenceNumber;
@@ -1206,7 +1232,7 @@ public class TableSpaceManager {
 
             if (logSequenceNumber.isStartOfTime()) {
                 LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
-                return;
+                return logSequenceNumber;
             }
             LOGGER.log(Level.SEVERE, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
             if (actualLogSequenceNumber == null) {
@@ -1254,6 +1280,8 @@ public class TableSpaceManager {
             + " started at " + logSequenceNumber
             + ", finished at " + _logSequenceNumber
             + ", total time " + (_stop - _start) + " s");
+
+        return logSequenceNumber;
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {

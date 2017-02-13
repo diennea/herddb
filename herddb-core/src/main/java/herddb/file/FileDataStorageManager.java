@@ -912,6 +912,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
+            LOGGER.log(Level.INFO, "loadTransactions " + sequenceNumber + " for tableSpace " + tableSpace + " from file " + file);
             if (!Files.isRegularFile(file)) {
                 return;
             }

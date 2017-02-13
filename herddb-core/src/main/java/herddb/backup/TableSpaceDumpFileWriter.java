@@ -24,6 +24,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
@@ -147,7 +148,21 @@ class TableSpaceDumpFileWriter extends TableSpaceDumpReceiver {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        listener.log("receivetxlog", "table " + currentTable + ", dumped " + entries.size() + " txlogentries", Collections.singletonMap("count", entries.size()));
+        listener.log("receivetxlog", "dumped " + entries.size() + " txlogentries", Collections.singletonMap("count", entries.size()));
+    }
+
+    @Override
+    public void receiveTransactionsAtDump(List<Transaction> entries) throws DataStorageManagerException {
+        try {
+            out.writeUTF(BackupFileConstants.ENTRY_TYPE_TRANSACTIONS);
+            out.writeVInt(entries.size());
+            for (Transaction entry : entries) {
+                out.writeArray(entry.serialize());
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        listener.log("receivetransactions", "dumped " + entries.size() + " txentries", Collections.singletonMap("count", entries.size()));
     }
 
 }

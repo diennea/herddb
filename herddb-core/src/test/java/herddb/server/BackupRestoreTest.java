@@ -242,7 +242,7 @@ public class BackupRestoreTest {
         }
     }
 
-    @Test
+    @Test    
     @Ignore(value = "TODO: must implement dump of running transactions")
     public void test_backup_restore_recover_from_tx_log_with_transaction() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());

@@ -39,6 +39,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
+import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
@@ -172,6 +173,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 handlePushTxLogChunk(message, _channel);
             }
             break;
+            case Message.TYPE_PUSH_TRANSACTIONSBLOCK: {
+                if (!authenticated) {
+                    sendAuthRequiredError(_channel, message);
+                    break;
+                }
+                handlePushTransactionsBlock(message, _channel);
+            }
+            break;
             case Message.TYPE_OPENSCANNER: {
                 if (!authenticated) {
                     sendAuthRequiredError(_channel, message);
@@ -292,6 +301,28 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             }
             server.getManager().getTableSpaceManager(tableSpace).receiveRawDumpedEntryLogs(entries);
+
+            _channel.sendReplyMessage(message, Message.ACK(null));
+        } catch (Exception err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handlePushTransactionsBlock(Message message, Channel _channel) {
+        try {
+            String tableSpace = (String) message.parameters.get("tableSpace");
+            List<byte[]> data = (List<byte[]>) message.parameters.get("data");
+            LOGGER.log(Level.INFO, "Received " + data.size() + " records for restore of transactions in tableSpace " + tableSpace);
+
+            List<Transaction> entries = new ArrayList<>(data.size());
+            for (byte[] serializedTx : data) {
+                entries.add(Transaction.deserialize(tableSpace, serializedTx));
+            }
+            server.getManager().getTableSpaceManager(tableSpace).receiveRawDumpedTransactions(entries);
 
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (Exception err) {

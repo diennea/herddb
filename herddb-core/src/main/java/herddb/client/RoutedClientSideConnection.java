@@ -35,6 +35,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
+import herddb.model.Transaction;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.KeyValue;
@@ -185,6 +186,15 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                                 records.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
                             }
                             receiver.receiveTransactionLogChunk(records);
+                            break;
+                        }
+                        case "transactions": {
+                            String tableSpace = (String) values.get("tableSpace");
+                            List<byte[]> data = (List<byte[]>) values.get("transactions");
+                            List<Transaction> transactions = data.stream().map(array -> {
+                                return Transaction.deserialize(tableSpace, array);
+                            }).collect(Collectors.toList());
+                            receiver.receiveTransactionsAtDump(transactions);
                             break;
                         }
                         default:
@@ -471,6 +481,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 String entryType = source.nextEntryType();
                 LOGGER.log(Level.SEVERE, "restore, entryType:{0}", entryType);
                 switch (entryType) {
+
+                    case BackupFileConstants.ENTRY_TYPE_START: {
+                        break;
+                    }
+
                     case BackupFileConstants.ENTRY_TYPE_TABLE: {
                         DumpedTableMetadata table = source.nextTable();
                         Channel _channel = ensureOpen();
@@ -503,6 +518,16 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         }
                         break;
                     }
+                    case BackupFileConstants.ENTRY_TYPE_TRANSACTIONS: {
+                        Channel _channel = ensureOpen();
+                        List<byte[]> chunk = source.nextTransactionsBlock();
+                        Message message = Message.PUSH_TRANSACTIONSBLOCK(clientId, tableSpace, chunk);
+                        Message reply = _channel.sendMessageWithReply(message, timeout);
+                        if (reply.type == Message.TYPE_ERROR) {
+                            throw new HDBException(reply);
+                        }
+                        break;
+                    }
                     case BackupFileConstants.ENTRY_TYPE_END: {
                         // send a 'table finished' event only at the end of the procedure
                         // the stream of transaction log entries is finished, so the data contained in the table is "final"
@@ -520,6 +545,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         }
                         return;
                     }
+                    default:
+                        throw new HDBException("bad entryType " + entryType);
                 }
 
             }

@@ -64,7 +64,7 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
     public List<KeyValue> nextTransactionLogChunk() throws DataStorageManagerException {
         try {
             int numRecords = in.readVInt();
-            listener.log("nexttxchunk","sending " + numRecords + " tx log entries", Collections.singletonMap("count", numRecords));
+            listener.log("nexttxchunk", "sending " + numRecords + " tx log entries", Collections.singletonMap("count", numRecords));
             List<KeyValue> records = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
                 long ledgerId = in.readVLong();
@@ -79,15 +79,31 @@ class TableSpaceRestoreSourceFromFile extends TableSpaceRestoreSource {
     }
 
     @Override
+    public List<byte[]> nextTransactionsBlock() throws DataStorageManagerException {
+        try {
+            int numRecords = in.readVInt();
+            listener.log("nextTransactionsBlock", "sending " + numRecords + " tx entries", Collections.singletonMap("count", numRecords));
+            List<byte[]> records = new ArrayList<>(numRecords);
+            for (int i = 0; i < numRecords; i++) {
+                byte[] value = in.readArray();
+                records.add(value);
+            }
+            return records;
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
     public List<KeyValue> nextTableDataChunk() throws DataStorageManagerException {
         try {
             int numRecords = in.readVInt();
             if (Integer.MIN_VALUE == numRecords) {
                 // EndOfTableMarker
-                listener.log("tablefinished","table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
+                listener.log("tablefinished", "table finished after " + currentTableSize + " records", Collections.singletonMap("count", numRecords));
                 return null;
             }
-            listener.log("sendtabledata","sending " + numRecords + ", total " + currentTableSize, Collections.singletonMap("count", numRecords));
+            listener.log("sendtabledata", "sending " + numRecords + ", total " + currentTableSize, Collections.singletonMap("count", numRecords));
             List<KeyValue> records = new ArrayList<>(numRecords);
             for (int i = 0; i < numRecords; i++) {
                 byte[] key = in.readArray();

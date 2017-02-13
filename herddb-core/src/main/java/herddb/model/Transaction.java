@@ -19,12 +19,15 @@
  */
 package herddb.model;
 
+import herddb.core.HerdDBInternalException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
+import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -267,6 +270,16 @@ public class Transaction {
         return droppedIndexes != null && droppedIndexes.contains(indexName) && (newIndexes == null || !newIndexes.containsKey(indexName));
     }
 
+    public byte[] serialize() {
+        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
+        try (ExtendedDataOutputStream ooo = new ExtendedDataOutputStream(oo)) {
+            serialize(ooo);
+        } catch (IOException impossible) {
+            throw new HerdDBInternalException(impossible);
+        }
+        return oo.toByteArray();
+    }
+
     public synchronized void serialize(ExtendedDataOutputStream out) throws IOException {
         out.writeInt(0); // flags        
         out.writeLong(transactionId);
@@ -331,6 +344,14 @@ public class Transaction {
             }
         }
 
+    }
+
+    public static Transaction deserialize(String tableSpace, byte[] buf) {
+        try {
+            return deserialize(tableSpace, new ExtendedDataInputStream(new SimpleByteArrayInputStream(buf)));
+        } catch (IOException err) {
+            throw new HerdDBInternalException(err);
+        }
     }
 
     public static Transaction deserialize(String tableSpace, ExtendedDataInputStream in) throws IOException {

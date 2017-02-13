@@ -29,4 +29,5 @@ public class BackupFileConstants {
     public static final String ENTRY_TYPE_TABLE = "table";
     public static final String ENTRY_TYPE_TXLOGCHUNK = "txlogchunk";
     public static final String ENTRY_TYPE_END = "end";
+    public static final String ENTRY_TYPE_TRANSACTIONS = "transactions";
 }
