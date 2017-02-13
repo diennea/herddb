@@ -73,6 +73,8 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
 import herddb.utils.SQLUtils;
@@ -468,7 +470,7 @@ public class SQLPlanner {
         List<Expression> keyValueExpression = new ArrayList<>();
         List<String> keyExpressionToColumn = new ArrayList<>();
 
-        List<Expression> valuesExpressions = new ArrayList<>();
+        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
         List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
 
         int index = 0;
@@ -498,7 +500,7 @@ public class SQLPlanner {
 
                     }
                     valuesColumns.add(c);
-                    valuesExpressions.add(expression);
+                    valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
                 }
             } else {
                 for (Column column : table.columns) {
@@ -509,7 +511,7 @@ public class SQLPlanner {
                         keyValueExpression.add(expression);
                     }
                     valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
-                    valuesExpressions.add(expression);
+                    valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
                 }
             }
 
@@ -549,7 +551,7 @@ public class SQLPlanner {
                     keyValueExpression.add(readFromResultSetAsJdbcParameter);
                 }
                 valuesColumns.add(c);
-                valuesExpressions.add(readFromResultSetAsJdbcParameter);
+                valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, readFromResultSetAsJdbcParameter));
             }
 
             RecordFunction keyfunction;
@@ -706,7 +708,11 @@ public class SQLPlanner {
             }
         }
 
-        RecordFunction function = new SQLRecordFunction(table, s.getColumns(), s.getExpressions(), 0);
+        List<CompiledSQLExpression> compiledSQLExpressions = new ArrayList<>();
+        for (Expression e : s.getExpressions()) {
+            compiledSQLExpressions.add(SQLExpressionCompiler.compileExpression(null, e));
+        }
+        RecordFunction function = new SQLRecordFunction(table, s.getColumns(), compiledSQLExpressions, 0);
 
         // Perform a scan and then update each row
         SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
@@ -943,6 +949,7 @@ public class SQLPlanner {
         }
         return result;
     }
+
     private Expression validateColumnConstaintExpressionToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         Expression result = null;
         if (expressionType.isAssignableFrom(testExpression.getClass())) {

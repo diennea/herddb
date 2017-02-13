@@ -948,11 +948,11 @@ public class RawSQLTest {
                 try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql", Collections.emptyList());) {
                     List<Tuple> result = scan1.consume();
                     assertEquals(1, result.size());
-                    assertEquals(Long.valueOf(1), result.get(0).get(0));
-                    assertEquals(Long.valueOf(1), result.get(0).get("mi"));
+                    assertEquals(Integer.valueOf(1), result.get(0).get(0));
+                    assertEquals(Integer.valueOf(1), result.get(0).get("mi"));
 
-                    assertEquals(Long.valueOf(5), result.get(0).get(1));
-                    assertEquals(Long.valueOf(5), result.get(0).get("ma"));
+                    assertEquals(Integer.valueOf(5), result.get(0).get(1));
+                    assertEquals(Integer.valueOf(5), result.get(0).get("ma"));
                 }
             }
 

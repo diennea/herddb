@@ -27,6 +27,8 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.functions.BuiltinFunctions;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,12 +66,14 @@ public class SQLProjection implements Projection {
 
         final Column column;
         final Expression expression;
+        final CompiledSQLExpression compiledExpression;
         final net.sf.jsqlparser.schema.Column directColumnReference;
 
-        public OutputColumn(Column column, Expression expression, net.sf.jsqlparser.schema.Column directColumnReference) {
+        public OutputColumn(String tableAlias, Column column, Expression expression, net.sf.jsqlparser.schema.Column directColumnReference) {
             this.column = column;
             this.expression = expression;
             this.directColumnReference = directColumnReference;
+            this.compiledExpression = SQLExpressionCompiler.compileExpression(tableAlias, expression);
         }
 
     }
@@ -138,7 +142,7 @@ public class SQLProjection implements Projection {
                     fieldName = "item" + pos;
                 }
                 Column col = Column.column(fieldName, columType);
-                OutputColumn outputColumn = new OutputColumn(col, exp, directColumnReference);
+                OutputColumn outputColumn = new OutputColumn(tableAlias, col, exp, directColumnReference);
                 raw_output.add(outputColumn);
             } else {
                 throw new StatementExecutionException("unhandled select item type " + item.getClass() + ": " + item);
@@ -226,7 +230,7 @@ public class SQLProjection implements Projection {
                     fieldName = "item" + pos;
                 }
                 Column col = Column.column(fieldName, columType);
-                OutputColumn outputColumn = new OutputColumn(col, exp, directColumnReference);
+                OutputColumn outputColumn = new OutputColumn(tableAlias, col, exp, directColumnReference);
                 raw_output.add(outputColumn);
             } else if (item instanceof AllTableColumns) {
                 AllTableColumns c = (AllTableColumns) item;
@@ -238,7 +242,7 @@ public class SQLProjection implements Projection {
                 }
                 for (herddb.model.Column tablecol : table.columns) {
                     net.sf.jsqlparser.schema.Column fakeCol = new net.sf.jsqlparser.schema.Column(c.getTable(), tablecol.name);
-                    OutputColumn outputColumn = new OutputColumn(tablecol, fakeCol, null);
+                    OutputColumn outputColumn = new OutputColumn(tableAlias, tablecol, fakeCol, null);
                     raw_output.add(outputColumn);
                 }
             } else {
@@ -299,7 +303,7 @@ public class SQLProjection implements Projection {
                     if (column == null) {
                         throw new StatementExecutionException("invalid column name " + c.getColumnName());
                     }
-                    output.add(new OutputColumn(Column.column(columnName, column.type), c, null));
+                    output.add(new OutputColumn(null, Column.column(columnName, column.type), c, null));
                 }
             }
         }
@@ -311,7 +315,7 @@ public class SQLProjection implements Projection {
         List<Object> values = new ArrayList<>(output.size());
         for (OutputColumn col : output) {
             Object value;
-            value = SQLRecordPredicate.evaluateExpression(col.expression, record, context, tableAlias);
+            value = col.compiledExpression.evaluate(record, context);
             values.add(value);
         }
         return new Tuple(

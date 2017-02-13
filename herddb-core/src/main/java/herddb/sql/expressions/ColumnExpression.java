@@ -17,18 +17,23 @@
  under the License.
 
  */
-package herddb.sql.predicates;
+package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import java.util.Map;
 
-/**
- * A specific implementation of a predicate
- *
- * @author enrico.olivelli
- */
-public interface HardcodedPredicateMatcher {
+public class ColumnExpression implements CompiledSQLExpression {
 
-    public boolean matches(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException;
+    private final String name;
+
+    public ColumnExpression(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+        return bean.get(name);
+    }
+
 }

@@ -36,7 +36,10 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
 import herddb.model.ColumnsList;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.utils.RawString;
+import java.util.Collections;
 
 /**
  * Record mutator using SQL
@@ -45,7 +48,7 @@ import herddb.utils.RawString;
  */
 public class SQLRecordKeyFunction extends RecordFunction {
 
-    private final List<Expression> expressions;
+    private final List<CompiledSQLExpression> expressions;
     private final herddb.model.Column[] columns;
     private final String[] pkColumnNames;
     private final ColumnsList table;
@@ -63,7 +66,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
             Column pkcolumn = table.getColumn(cexp);
             this.columns[i] = pkcolumn;
             Expression exp = expressions.get(i);
-            this.expressions.add(exp);
+            this.expressions.add(SQLExpressionCompiler.compileExpression(null, exp));
             if (!SQLRecordPredicate.isConstant(exp)) {
                 constant = false;
             }
@@ -98,24 +101,8 @@ public class SQLRecordKeyFunction extends RecordFunction {
         Map<String, Object> pk = new HashMap<>();
         for (int i = 0; i < expressions.size(); i++) {
             herddb.model.Column c = columns[i];
-            Expression expression = expressions.get(i);
-            Object value;
-            if (expression instanceof JdbcParameter) {
-                int index = ((JdbcParameter) expression).getIndex();
-                try {
-                    value = statementEvaluationContext.jdbcParameters.get(index);
-                } catch (IndexOutOfBoundsException missingParam) {
-                    throw new StatementExecutionException("missing JDBC parameter " + index);
-                }
-            } else if (expression instanceof LongValue) {
-                value = ((LongValue) expression).getValue();
-            } else if (expression instanceof TimestampValue) {
-                value = ((TimestampValue) expression).getValue();
-            } else if (expression instanceof StringValue) {
-                value = RawString.of(((StringValue) expression).getValue());
-            } else {
-                throw new StatementExecutionException("unsupported type " + expression.getClass() + " " + expression);
-            }
+            CompiledSQLExpression expression = expressions.get(i);
+            Object value = expression.evaluate(Collections.EMPTY_MAP, context);
             pk.put(c.name, value);
         }
         try {

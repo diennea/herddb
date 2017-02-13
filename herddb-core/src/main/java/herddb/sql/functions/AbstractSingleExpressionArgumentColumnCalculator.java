@@ -24,6 +24,8 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.SQLRecordPredicate;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
@@ -38,7 +40,7 @@ import net.sf.jsqlparser.schema.Column;
 public abstract class AbstractSingleExpressionArgumentColumnCalculator implements AggregatedColumnCalculator {
 
     final protected String fieldName;
-    final protected Expression expression;
+    final protected CompiledSQLExpression expression;
     final protected ValueComputer valueExtractor;
 
     @FunctionalInterface
@@ -51,45 +53,9 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
         StatementEvaluationContext context
     ) throws StatementExecutionException {
         this.fieldName = fieldName;
-        this.expression = expression;
-        if (expression instanceof Column) {
-            Column c = (Column) expression;
-            String name = c.getColumnName();
-            valueExtractor = (Tuple t) -> {
-                Object value = t.get(name);
-                if (value == null) {
-                    return null;
-                }
-                if (value instanceof Long) {
-                    return (Long) value;
-                } else if (value instanceof Number) {
-                    return ((Number) value).longValue();
-                } else if (value instanceof java.sql.Timestamp) {
-                    return ((java.sql.Timestamp) value);
-                } else {
-                    return Long.parseLong(value.toString());
-                }
-            };
-        } else if (this.expression instanceof LongValue) {
-            Long fixed = ((LongValue) expression).getValue();
-            valueExtractor = (Tuple t) -> fixed;
-        } else if (this.expression instanceof TimestampValue) {
-            java.sql.Timestamp fixed = ((TimestampValue) expression).getValue();
-            valueExtractor = (Tuple t) -> fixed;
-        } else if (this.expression instanceof StringValue) {
-            try {
-                Long fixed = Long.parseLong(((StringValue) expression).getValue());
-                valueExtractor = (Tuple t) -> fixed;
-            } catch (NumberFormatException err) {
-                throw new StatementExecutionException("cannot SUM expressions of type " + expression);
-            }
-        } else if (this.expression instanceof JdbcParameter) {
-            JdbcParameter param = (JdbcParameter) this.expression;
-            int index = param.getIndex();
-            Object value = context.getJdbcParameters().get(index);
-            valueExtractor = (Tuple t) -> (Comparable) value;
-        } else {
-            valueExtractor = (Tuple t) -> (Comparable) SQLRecordPredicate.evaluateExpression(this.expression, t.toMap(), context, null);
-        }
+        this.expression = SQLExpressionCompiler.compileExpression(null, expression);
+        valueExtractor = (Tuple t) -> {
+            return (Comparable) this.expression.evaluate(t.toMap(), context);
+        };
     }
 }

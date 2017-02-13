@@ -17,28 +17,19 @@
  under the License.
 
  */
-package herddb.sql.predicates;
+package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
 import java.util.Map;
 
-public class ColumnGreaterThanEqualsJdbcParameter implements HardcodedPredicateMatcher {
+/**
+ * A specific implementation of a predicate
+ *
+ * @author enrico.olivelli
+ */
+public interface CompiledSQLExpression {
 
-    private final String columnName;
-    private final int index;
-
-    public ColumnGreaterThanEqualsJdbcParameter(String columnName, int index) {
-        this.columnName = columnName;
-        this.index = index;
-    }
-
-    @Override
-    public boolean matches(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object left = bean.get(columnName);
-        Object value = context.getJdbcParameters().get(index);
-        return SQLRecordPredicate.compare(left, value) >= 0;
-    }
+    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException;
 
 }

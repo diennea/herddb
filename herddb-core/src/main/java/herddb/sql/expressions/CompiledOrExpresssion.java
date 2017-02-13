@@ -17,28 +17,37 @@
  under the License.
 
  */
-package herddb.sql.predicates;
+package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
 import java.util.Map;
 
-public class ColumnMinorThanEqualsJdbcParameter implements HardcodedPredicateMatcher {
+public class CompiledOrExpresssion implements CompiledSQLExpression {
 
-    private final String columnName;
-    private final int index;
+    private final CompiledSQLExpression left;
+    private final CompiledSQLExpression right;
+    private final boolean not;
 
-    public ColumnMinorThanEqualsJdbcParameter(String columnName, int index) {
-        this.columnName = columnName;
-        this.index = index;
+    public CompiledOrExpresssion(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+        this.left = left;
+        this.right = right;
+        this.not = not;
     }
 
     @Override
-    public boolean matches(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object left = bean.get(columnName);
-        Object value = context.getJdbcParameters().get(index);
-        return SQLRecordPredicate.compare(left, value) <= 0;
+    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+        boolean ok = SQLRecordPredicate.toBoolean(left.evaluate(bean, context));
+        if (ok) {
+            return !not;
+        }
+        ok = SQLRecordPredicate.toBoolean(right.evaluate(bean, context));
+        if (not) {
+            return !ok;
+        } else {
+            return ok;
+        }
     }
 
 }

@@ -26,17 +26,11 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableContext;
-import herddb.utils.RawString;
+import herddb.sql.expressions.CompiledSQLExpression;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.JdbcParameter;
-import net.sf.jsqlparser.expression.LongValue;
-import net.sf.jsqlparser.expression.NullValue;
-import net.sf.jsqlparser.expression.StringValue;
-import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.schema.Column;
 
 /**
@@ -48,10 +42,10 @@ public class SQLRecordFunction extends RecordFunction {
 
     private final Table table;
     private final List<Column> columns;
-    private final List<Expression> expressions;
+    private final List<CompiledSQLExpression> expressions;
     private final int jdbcParametersStartPos;
 
-    public SQLRecordFunction(Table table, List<Column> columns, List<Expression> expressions, int jdbcParametersStartPos) {
+    public SQLRecordFunction(Table table, List<Column> columns, List<CompiledSQLExpression> expressions, int jdbcParametersStartPos) {
         this.table = table;
         this.columns = columns;
         this.expressions = expressions;
@@ -64,36 +58,15 @@ public class SQLRecordFunction extends RecordFunction {
         Map<String, Object> bean = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
 
         for (int i = 0; i < columns.size(); i++) {
-            Expression e = expressions.get(i);
+            CompiledSQLExpression e = expressions.get(i);
             String columnName = columns.get(i).getColumnName();
             herddb.model.Column column = table.getColumn(columnName);
             if (column == null) {
                 throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);
             }
             columnName = column.name;
-            if (e instanceof JdbcParameter) {
-                try {
-                    int index = ((JdbcParameter) e).getIndex();
-                    Object param = statementEvaluationContext.jdbcParameters.get(index);
-                    bean.put(columnName, param);
-                } catch (IndexOutOfBoundsException missingParam) {
-                    throw new StatementExecutionException("missing JDBC parameter");
-                }
-            } else if (e instanceof NullValue) {
-                bean.put(columnName, null);
-            } else if (e instanceof LongValue) {
-                bean.put(columnName, ((LongValue) e).getValue());
-            } else if (e instanceof TimestampValue) {
-                bean.put(columnName, ((TimestampValue) e).getValue());
-            } else if (e instanceof StringValue) {
-                bean.put(columnName, RawString.of(((StringValue) e).getValue()));
-            } else if (e instanceof Column) {
-                Column c = (Column) e;
-                bean.put(columnName, bean.get(c.getColumnName()));
-            } else {
-                Object value = SQLRecordPredicate.evaluateExpression(e, bean, statementEvaluationContext, null);
-                bean.put(columnName, value);
-            }
+            Object value = e.evaluate(bean, context);
+            bean.put(columnName, value);
         }
         return RecordSerializer.toRecord(bean, table).value.data;
     }
