@@ -132,16 +132,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
         LOGGER.severe("Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "=" + host + ", " + ServerConfiguration.PROPERTY_PORT + "=" + port);
         if (host.trim().isEmpty()) {
-            try {
-                String _host = NetworkUtils.getLocalNetworkAddress();
-                LOGGER.log(Level.SEVERE, "As configuration parameter "
-                    + ServerConfiguration.PROPERTY_HOST + " is {0}, I have choosen to use {1}."
-                    + " Set to a non-empty value in order to use a fixed hostname", new Object[]{host, _host});
-                host = _host;
-            } catch (IOException err) {
-                LOGGER.log(Level.SEVERE, "Cannot get local host name", err);
-                throw new RuntimeException(err);
-            }
+            String _host = "0.0.0.0";
+            LOGGER.log(Level.SEVERE, "As configuration parameter "
+                + ServerConfiguration.PROPERTY_HOST + " is {0}, I have choosen to use {1}."
+                + " Set to a non-empty value in order to use a fixed hostname", new Object[]{host, _host});
+            host = _host;
         }
         if (port <= 0) {
             try {
@@ -156,6 +151,18 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             }
         }
         String advertised_host = configuration.getString(ServerConfiguration.PROPERTY_ADVERTISED_HOST, host);
+        if (advertised_host.trim().isEmpty() || advertised_host.equals("0.0.0.0")) {
+            try {
+                String _host = NetworkUtils.getLocalNetworkAddress();
+                LOGGER.log(Level.SEVERE, "As configuration parameter "
+                    + ServerConfiguration.PROPERTY_ADVERTISED_HOST + " is {0}, I have choosen to use {1}."
+                    + " Set to a non-empty value in order to use a fixed hostname", new Object[]{advertised_host, _host});
+                advertised_host = _host;
+            } catch (IOException err) {
+                LOGGER.log(Level.SEVERE, "Cannot get local host name", err);
+                throw new RuntimeException(err);
+            }
+        }
         int advertised_port = configuration.getInt(ServerConfiguration.PROPERTY_ADVERTISED_PORT, port);
 
         HashMap<String, String> realData = new HashMap<>();
