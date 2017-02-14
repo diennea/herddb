@@ -818,6 +818,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         List<TableSpaceManager> shuffledTablespaces = new ArrayList<>(this.tablesSpaces.values());
         Collections.shuffle(shuffledTablespaces);
         for (TableSpaceManager tableSpaceManager : shuffledTablespaces) {
+            if (tableSpaceManager.isVirtual()) {
+                return;
+            }
             LOGGER.log(Level.SEVERE, "try release " + reclaim + " bytes from tablespace " + tableSpaceManager.getTableSpaceName());
             if (stop.get()) {
                 return;

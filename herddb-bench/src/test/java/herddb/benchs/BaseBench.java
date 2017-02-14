@@ -19,16 +19,22 @@
  */
 package herddb.benchs;
 
+import herddb.backup.BackupUtils;
+import herddb.backup.ProgressListener;
 import static herddb.benchs.BaseTableDefinition.COUNT;
 import static herddb.benchs.BaseTableDefinition.CREATE_TABLE;
 import static herddb.benchs.BaseTableDefinition.INSERT;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
+import herddb.client.HDBConnection;
 import herddb.jdbc.BasicHerdDBDataSource;
 import herddb.model.TableSpace;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -40,6 +46,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 import org.junit.After;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -74,6 +82,16 @@ public class BaseBench {
     }
 
     public void generateData() throws Exception {
+        generateData(10);
+    }
+
+    public void generateData(int datasize) throws Exception {
+        StringBuilder filler = new StringBuilder();
+        for (int i = 0; i < datasize; i++) {
+            filler.append('a');
+        }
+        String padding = filler.toString();
+
         long start = System.currentTimeMillis();
         try (Connection con = dataSource.getConnection()) {
             con.setAutoCommit(false);
@@ -85,8 +103,8 @@ public class BaseBench {
                 for (int i = 0; i < dataSetSize; i++) {
                     String value = "pk" + i;
                     ps.setString(1, value);
-                    ps.setString(2, value);
-                    ps.setString(3, value);
+                    ps.setString(2, value + padding);
+                    ps.setString(3, value + padding);
                     ps.addBatch();
                     if (i % 1000 == 0) {
                         ps.executeBatch();
@@ -138,6 +156,7 @@ public class BaseBench {
 
     protected void makeServerConfiguration() throws IOException {
         serverConfiguration = new ServerConfiguration(folder.newFolder().toPath());
+        serverConfiguration.set(ServerConfiguration.PROPERTY_PORT, 7002);
     }
 
     public Future<?> submit(Callable runnable) {
@@ -155,6 +174,32 @@ public class BaseBench {
         server.waitForTableSpaceBoot(TableSpace.DEFAULT, Integer.MAX_VALUE, true);
         long _stop = System.currentTimeMillis();
         System.out.println("[BENCH] server restarted in " + (_stop - _start) + " ms");
+    }
+
+    public void backupRestore(int batchSize, ProgressListener pl) throws Exception {
+        if (pl == null) {
+            pl = new ProgressListener() {
+            };
+        }
+        System.out.println("BACKUP PHASE");
+        File backupFile = folder.newFile("test.backup");
+        try {
+            try (HDBConnection connection = client.openConnection();
+                FileOutputStream oo = new FileOutputStream(backupFile);
+                GZIPOutputStream zout = new GZIPOutputStream(oo)) {
+                BackupUtils.dumpTableSpace(TableSpace.DEFAULT, batchSize, connection, zout, pl);
+            }
+
+            System.out.println("RESTORE PHASE on a " + backupFile.length() + " bytes file");
+            try (HDBConnection connection = client.openConnection();
+                FileInputStream oo = new FileInputStream(backupFile);
+                GZIPInputStream zin = new GZIPInputStream(oo)) {
+                BackupUtils.restoreTableSpace("newschema", server.getNodeId(), connection, zin, pl);
+            }
+        } finally {
+            backupFile.delete();
+        }
+
     }
 
     public void waitForResults() throws Exception {

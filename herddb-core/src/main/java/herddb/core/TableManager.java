@@ -644,10 +644,10 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private void ensurePageLoadedOnApply(Bytes key, boolean recovery) throws DataStorageManagerException {
-        Long pageId = keyToPage.get(key);
-        if (pageId != null && !NEW_PAGE.equals(pageId)) {
-            loadPageToMemory(pageId, recovery);
-        }
+//        Long pageId = keyToPage.get(key);
+//        if (pageId != null && !NEW_PAGE.equals(pageId)) {
+//            loadPageToMemory(pageId, recovery);
+//        }
     }
 
     @Override
@@ -700,7 +700,7 @@ public final class TableManager implements AbstractTableManager {
     }
 
     @Override
-    public void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException {        
+    public void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException {
         if (recovery) {
             if (dumpLogSequenceNumber != null && !position.after(dumpLogSequenceNumber)) {
                 // in "restore mode" the 'position" parameter is from the 'old' transaction log
@@ -1138,9 +1138,14 @@ public final class TableManager implements AbstractTableManager {
                             if (record == null) {
                                 throw new DataStorageManagerException("table " + table.name
                                     + " found missing record key " + key
-                                    + " on page " + pageId);
+                                    + " on page " + pageId + ", dataPage is " + dataPage);
                             }
                             recordsOnDirtyPages.add(record);
+                            if (tmpBuffer.size() > 100_000) {
+                                LOGGER.log(Level.SEVERE, "need to flush internal tmp buffer");
+                                tmpBuffer.clear();
+                                tmpLoadedPages.clear();
+                            }
                         }
                     } catch (DataStorageManagerException err) {
                         throw new RuntimeException(err);

@@ -826,6 +826,10 @@ public class TableSpaceManager {
         checkpoint();
     }
 
+    public boolean isVirtual() {
+        return virtual;
+    }
+
     private class FollowerThread implements Runnable {
 
         @Override
@@ -1299,6 +1303,8 @@ public class TableSpaceManager {
 
     private class ApplyEntryOnRecovery implements BiConsumer<LogSequenceNumber, LogEntry> {
 
+        int count;
+
         public ApplyEntryOnRecovery() {
         }
 
@@ -1306,6 +1312,12 @@ public class TableSpaceManager {
         public void accept(LogSequenceNumber t, LogEntry u) {
             try {
                 apply(t, u, true);
+                if (count++ % 10000 == 0) {
+                    for (AbstractTableManager ab : tables.values()) {
+                        ab.ensureMemoryLimits();
+                    }
+                    runLocalTableCheckPoints();
+                }
             } catch (Exception err) {
                 throw new RuntimeException(err);
             }
