@@ -648,12 +648,7 @@ public final class TableManager implements AbstractTableManager {
         }
     }
 
-    private void ensurePageLoadedOnApply(Bytes key, boolean recovery) throws DataStorageManagerException {
-//        Long pageId = keyToPage.get(key);
-//        if (pageId != null && !NEW_PAGE.equals(pageId)) {
-//            loadPageToMemory(pageId, recovery);
-//        }
-    }
+    
 
     @Override
     public void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
@@ -673,21 +668,18 @@ public final class TableManager implements AbstractTableManager {
         // transaction is still holding locks on each record, so we can change records        
         Map<Bytes, Record> newRecords = transaction.newRecords.get(table.name);
         if (newRecords != null) {
-            for (Record record : newRecords.values()) {
-                ensurePageLoadedOnApply(record.key, recovery);
+            for (Record record : newRecords.values()) {                
                 applyInsert(record.key, record.value);
             }
         }
         if (changedRecords != null) {
-            for (Record r : changedRecords.values()) {
-                ensurePageLoadedOnApply(r.key, recovery);
+            for (Record r : changedRecords.values()) {                
                 applyUpdate(r.key, r.value);
             }
         }
         Set<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
         if (deletedRecords != null) {
-            for (Bytes key : deletedRecords) {
-                ensurePageLoadedOnApply(key, recovery);
+            for (Bytes key : deletedRecords) {                
                 applyDelete(key);
             }
         }
@@ -736,10 +728,7 @@ public final class TableManager implements AbstractTableManager {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
-                Bytes key = new Bytes(entry.key);
-                if (recovery) {
-                    ensurePageLoadedOnApply(key, recovery);
-                }
+                Bytes key = new Bytes(entry.key);                
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -753,10 +742,7 @@ public final class TableManager implements AbstractTableManager {
             }
             case LogEntryType.UPDATE: {
                 Bytes key = new Bytes(entry.key);
-                Bytes value = new Bytes(entry.value);
-                if (recovery) {
-                    ensurePageLoadedOnApply(key, recovery);
-                }
+                Bytes value = new Bytes(entry.value);                
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -770,10 +756,7 @@ public final class TableManager implements AbstractTableManager {
             }
             case LogEntryType.INSERT: {
                 Bytes key = new Bytes(entry.key);
-                Bytes value = new Bytes(entry.value);
-                if (recovery) {
-                    ensurePageLoadedOnApply(key, recovery);
-                }
+                Bytes value = new Bytes(entry.value);                
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {

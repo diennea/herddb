@@ -667,8 +667,13 @@ public class TableSpaceManager {
     }
 
     public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException {
-        for (DumpedLogEntry ld : entries) {
-            apply(ld.logSequenceNumber, LogEntry.deserialize(ld.entryData), true);
+        generalLock.readLock().lock();
+        try {
+            for (DumpedLogEntry ld : entries) {
+                apply(ld.logSequenceNumber, LogEntry.deserialize(ld.entryData), true);
+            }
+        } finally {
+            generalLock.readLock().unlock();
         }
     }
 
