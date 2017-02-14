@@ -76,19 +76,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     private void keyRemoved(Bytes key) {
         usedMemory.addAndGet(-key.data.length - ENTRY_OVERHEAD);
     }
-
-    @Override
-    public void visitPages(Set<Long> pages, Consumer<Bytes> consumer) {
-        map
-            .entrySet()
-            .stream()
-            .forEach((entry) -> {
-                if (pages.contains(entry.getValue())) {
-                    consumer.accept(entry.getKey());
-                }
-            });
-    }
-
+    
     @Override
     public boolean containsKey(Bytes key) {
         return map.containsKey(key);

@@ -39,9 +39,7 @@ public interface KeyToPageIndex extends AutoCloseable {
     public long size();
 
     public Long put(Bytes key, long currentPage);
-
-    public void visitPages(Set<Long> pageId, Consumer<Bytes> consumer);
-
+    
     public boolean containsKey(Bytes key);
 
     public Long get(Bytes key);
