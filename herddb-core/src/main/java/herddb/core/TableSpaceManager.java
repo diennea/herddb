@@ -137,11 +137,11 @@ public class TableSpaceManager {
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager dbmanager;
     private final boolean virtual;
-    
+
     private volatile boolean leader;
     private volatile boolean closed;
     private volatile boolean failed;
-    private LogSequenceNumber actualLogSequenceNumber;    
+    private LogSequenceNumber actualLogSequenceNumber;
 
     public String getTableSpaceName() {
         return tableSpaceName;
@@ -822,6 +822,7 @@ public class TableSpaceManager {
 
     public void restoreFinished() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
+        transactions.clear();
         checkpoint();
     }
 

@@ -266,14 +266,14 @@ public class FileDataStorageManager extends DataStorageManager {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
 
-            LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
+            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
             consumer.acceptTableStatus(latestStatus);
             List<Long> activePages = new ArrayList<>(latestStatus.activePages);
             activePages.sort(null);
             for (long idpage : activePages) {
                 List<Record> records = readPage(tableSpace, tableName, idpage);
                 consumer.startPage(idpage);
-                LOGGER.log(Level.SEVERE, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
+                LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
                 for (Record record : records) {
                     consumer.acceptRecord(record);
                 }
@@ -284,18 +284,6 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
-    }
-
-    private TableStatus readTableStatus(String tableSpace, String tableName, LogSequenceNumber logPosition) throws DataStorageManagerException {
-        Path dir = getTableDirectory(tableSpace, tableName);
-        try {
-            Files.createDirectories(dir);
-            Path checkpointsFile = getCheckPointsFile(dir, logPosition);
-            LOGGER.log(Level.FINER, "readActualTableStatus " + tableSpace + "." + tableName + " at " + logPosition + " from " + checkpointsFile);
-            return readTableStatusFromFile(checkpointsFile);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
     }
 
     private TableStatus readTableStatusFromFile(Path checkpointsFile) throws IOException {
@@ -326,7 +314,7 @@ public class FileDataStorageManager extends DataStorageManager {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path path : stream) {
                 if (isCheckpointsFile(path)) {
-                    LOGGER.log(Level.SEVERE, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> ACCEPT " + path);
+                    LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> ACCEPT " + path);
                     FileTime lastModifiedTime = Files.getLastModifiedTime(path);
                     long ts = lastModifiedTime.toMillis();
                     if (lastMod < 0 || lastMod < ts) {
@@ -334,24 +322,12 @@ public class FileDataStorageManager extends DataStorageManager {
                         lastMod = ts;
                     }
                 } else {
-                    LOGGER.log(Level.SEVERE, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> SKIP " + path);
+                    LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> SKIP " + path);
                 }
             }
         }
-        LOGGER.log(Level.SEVERE, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> " + result);
+        LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> " + result);
         return result;
-    }
-
-    private IndexStatus readIndexStatus(String tableSpace, String indexName, LogSequenceNumber logPosition) throws DataStorageManagerException {
-        Path dir = getIndexDirectory(tableSpace, indexName);
-        try {
-            Files.createDirectories(dir);
-            Path checkpointsFile = getCheckPointsFile(dir, logPosition);
-            LOGGER.log(Level.FINER, "readIndexStatus " + tableSpace + "." + indexName + " at " + indexName + " from " + checkpointsFile);
-            return readIndexStatusFromFile(checkpointsFile);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
     }
 
     private IndexStatus readIndexStatusFromFile(Path checkpointsFile) throws DataStorageManagerException {
