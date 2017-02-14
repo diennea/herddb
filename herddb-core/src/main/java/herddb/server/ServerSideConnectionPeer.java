@@ -21,6 +21,7 @@ package herddb.server;
 
 import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
+import herddb.core.TableManager;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Column;
@@ -52,6 +53,7 @@ import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.KeyValue;
 import herddb.network.Message;
+import static herddb.network.Message.TYPE_RESTORE_FINISHED;
 import herddb.network.ServerSideConnection;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
@@ -165,6 +167,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 handleTableRestoreFinished(message, _channel);
             }
             break;
+            case Message.TYPE_RESTORE_FINISHED: {
+                if (!authenticated) {
+                    sendAuthRequiredError(_channel, message);
+                    break;
+                }
+                handleRestoreFinished(message, _channel);
+            }
+            break;
             case Message.TYPE_PUSH_TXLOGCHUNK: {
                 if (!authenticated) {
                     sendAuthRequiredError(_channel, message);
@@ -261,6 +271,25 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
+    private void handleRestoreFinished(Message message, Channel _channel) {
+        try {
+            String tableSpace = (String) message.parameters.get("tableSpace");
+
+
+            server.getManager()
+                .getTableSpaceManager(tableSpace)
+                .restoreFinished();
+
+            _channel.sendReplyMessage(message, Message.ACK(null));
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            if (err instanceof NotLeaderException) {
+                error.setParameter("notLeader", "true");
+            }
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
     private void handlePushTableData(Message message, Channel _channel) {
         try {
             String tableSpace = (String) message.parameters.get("tableSpace");
@@ -268,17 +297,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
             LOGGER.log(Level.INFO, "Received " + data.size() + " records for restore of table " + table + " in tableSpace " + tableSpace);
             long _start = System.currentTimeMillis();
-            BeginTransactionStatement bt = new BeginTransactionStatement(tableSpace);
-            long txId = ((TransactionResult) server.getManager().executeStatement(bt, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION)).getTransactionId();
-            TransactionContext transactionContext = new TransactionContext(txId);
+            List<Record> records = new ArrayList<>(data.size());
             for (KeyValue kv : data) {
-                InsertStatement insertStatement = new InsertStatement(tableSpace, table, new Record(Bytes.from_array(kv.key), Bytes.from_array(kv.value)));
-                server.getManager().executeStatement(insertStatement, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), transactionContext);
+                records.add(new Record(Bytes.from_array(kv.key), Bytes.from_array(kv.value)));
             }
+            TableManager tableManager = (TableManager) server.getManager().getTableSpaceManager(tableSpace).getTableManager(table);
+            tableManager.writeFromDump(records);
             long _stop = System.currentTimeMillis();
-            server.getManager().executeStatement(new CommitTransactionStatement(tableSpace, txId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            long _stopCommit = System.currentTimeMillis();
-            LOGGER.log(Level.INFO, "Time restore " + data.size() + " records: data " + (_stop - _start) + " ms. with commit: " + (_stopCommit - _start) + " ms. ");
+            LOGGER.log(Level.INFO, "Time restore " + data.size() + " records: data " + (_stop - _start) + " ms");
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (StatementExecutionException err) {
             Message error = Message.ERROR(null, err);
@@ -300,7 +326,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 entries.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
 
             }
-            server.getManager().getTableSpaceManager(tableSpace).receiveRawDumpedEntryLogs(entries);
+            server.getManager().getTableSpaceManager(tableSpace).restoreRawDumpedEntryLogs(entries);
 
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (Exception err) {
@@ -322,7 +348,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             for (byte[] serializedTx : data) {
                 entries.add(Transaction.deserialize(tableSpace, serializedTx));
             }
-            server.getManager().getTableSpaceManager(tableSpace).receiveRawDumpedTransactions(entries);
+            server.getManager().getTableSpaceManager(tableSpace).restoreRawDumpedTransactions(entries);
 
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (Exception err) {

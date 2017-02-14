@@ -231,6 +231,14 @@ public final class Message {
         return new Message(clientId, TYPE_TABLE_RESTORE_FINISHED, data);
     }
 
+    public static Message RESTORE_FINISHED(String clientId, String tableSpace) {
+        HashMap<String, Object> data = new HashMap<>();
+        String ts = System.currentTimeMillis() + "";
+        data.put("ts", ts);
+        data.put("tableSpace", tableSpace);
+        return new Message(clientId, TYPE_RESTORE_FINISHED, data);
+    }
+
     public static Message PUSH_TABLE_DATA(String clientId, String tableSpace, String name, List<KeyValue> chunk) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
@@ -290,6 +298,7 @@ public final class Message {
     public static final int TYPE_PUSH_TXLOGCHUNK = 17;
     public static final int TYPE_TABLE_RESTORE_FINISHED = 19;
     public static final int TYPE_PUSH_TRANSACTIONSBLOCK = 20;
+    public static final int TYPE_RESTORE_FINISHED = 23;
 
     public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;

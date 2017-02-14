@@ -543,6 +543,13 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                                 throw new HDBException(reply_table_finished);
                             }
                         }
+
+                        Message message_restore_finished = Message.RESTORE_FINISHED(clientId, tableSpace);
+                        Message reply_restore_finished = _channel.sendMessageWithReply(message_restore_finished, timeout);
+                        if (reply_restore_finished.type == Message.TYPE_ERROR) {
+                            throw new HDBException(reply_restore_finished);
+                        }
+
                         return;
                     }
                     default:

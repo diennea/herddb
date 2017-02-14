@@ -136,11 +136,12 @@ public class TableSpaceManager {
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final AtomicLong newTransactionId = new AtomicLong();
     private final DBManager dbmanager;
+    private final boolean virtual;
+    
     private volatile boolean leader;
     private volatile boolean closed;
     private volatile boolean failed;
-    private LogSequenceNumber actualLogSequenceNumber;
-    private boolean virtual;
+    private LogSequenceNumber actualLogSequenceNumber;    
 
     public String getTableSpaceName() {
         return tableSpaceName;
@@ -542,7 +543,7 @@ public class TableSpaceManager {
                 }
             });
             try (HDBConnection con = client.openConnection()) {
-                DumpReceiver receiver = new DumpReceiver();
+                ReplicaFullTableDataDumpReceiver receiver = new ReplicaFullTableDataDumpReceiver(this);
                 int fetchSize = 10000;
                 con.dumpTableSpace(tableSpaceName, receiver, fetchSize, false);
                 long _start = System.currentTimeMillis();
@@ -665,7 +666,7 @@ public class TableSpaceManager {
         }
     }
 
-    public void receiveRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException {
+    public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException {
         for (DumpedLogEntry ld : entries) {
             apply(ld.logSequenceNumber, LogEntry.deserialize(ld.entryData), true);
         }
@@ -693,73 +694,11 @@ public class TableSpaceManager {
         }
     }
 
-    public void receiveRawDumpedTransactions(List<Transaction> entries) {
+    public void restoreRawDumpedTransactions(List<Transaction> entries) {
         for (Transaction ld : entries) {
             LOGGER.log(Level.SEVERE, "restore transaction " + ld);
             transactions.put(ld.transactionId, ld);
         }
-    }
-
-    private class DumpReceiver extends TableSpaceDumpReceiver {
-
-        private TableManager currentTable;
-        private final CountDownLatch latch;
-        private Throwable error;
-        private LogSequenceNumber logSequenceNumber;
-
-        public DumpReceiver() {
-            this.latch = new CountDownLatch(1);
-        }
-
-        @Override
-        public void start(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-            this.logSequenceNumber = logSequenceNumber;
-        }
-
-        public LogSequenceNumber getLogSequenceNumber() {
-            return logSequenceNumber;
-        }
-
-        public boolean join(int timeout) throws InterruptedException {
-            return latch.await(timeout, TimeUnit.MILLISECONDS);
-        }
-
-        public Throwable getError() {
-            return error;
-        }
-
-        @Override
-        public void onError(Throwable error) throws DataStorageManagerException {
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", onError ", error);
-            this.error = error;
-            latch.countDown();
-
-        }
-
-        @Override
-        public void finish(LogSequenceNumber pos) throws DataStorageManagerException {
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", finish, at " + pos);
-            latch.countDown();
-        }
-
-        @Override
-        public void endTable() throws DataStorageManagerException {
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", endTable " + currentTable.getTable().name);
-            currentTable = null;
-        }
-
-        @Override
-        public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {
-            currentTable.writeFromDump(record);
-        }
-
-        @Override
-        public void beginTable(DumpedTableMetadata dumpedTable, Map<String, Object> stats) throws DataStorageManagerException {
-            Table table = dumpedTable.table;
-            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats);
-            currentTable = bootTable(table, 0, null);
-        }
-
     }
 
     void dumpTableSpace(String dumpId, Channel _channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
@@ -879,6 +818,11 @@ public class TableSpaceManager {
         data.put("command", "txlog");
         data.put("records", batch);
         _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+    }
+
+    public void restoreFinished() throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
+        checkpoint();
     }
 
     private class FollowerThread implements Runnable {
@@ -1133,7 +1077,7 @@ public class TableSpaceManager {
         }
     }
 
-    private TableManager bootTable(Table table, long transaction, LogSequenceNumber dumpLogSequenceNumber) throws DataStorageManagerException {
+    TableManager bootTable(Table table, long transaction, LogSequenceNumber dumpLogSequenceNumber) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         if (tables.containsKey(table.name)) {

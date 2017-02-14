@@ -898,7 +898,7 @@ public final class TableManager implements AbstractTableManager {
         dataStorageManager.fullTableScan(tableSpaceUUID, table.name, receiver);
     }
 
-    void writeFromDump(List<Record> record) throws DataStorageManagerException {
+    public void writeFromDump(List<Record> record) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
         for (Record r : record) {
             applyInsert(r.key, r.value);
