@@ -61,7 +61,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public Long put(Bytes key, long currentPage) {
+    public Long put(Bytes key, Long currentPage) {
         Long res = map.put(key, currentPage);
         if (res == null) {
             keyAdded(key);

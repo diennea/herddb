@@ -108,4 +108,9 @@ public class DataPage {
         usedMemory.set(0);
     }
 
+    @Override
+    public String toString() {
+        return "DataPage{" + "pageId=" + pageId + ", readonly=" + readonly + ", usedMemory=" + usedMemory + '}';
+    }
+
 }

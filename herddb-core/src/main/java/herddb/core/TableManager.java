@@ -328,7 +328,7 @@ public final class TableManager implements AbstractTableManager {
         dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
             new FullTableScanConsumer() {
 
-            long currentPage;
+            Long currentPage;
 
             @Override
             public void acceptTableStatus(TableStatus tableStatus) {
@@ -354,7 +354,7 @@ public final class TableManager implements AbstractTableManager {
 
             @Override
             public void endPage() {
-                currentPage = -1;
+                currentPage = null;
             }
 
             @Override
@@ -433,7 +433,12 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private void requestCheckpoint() {
-        this.tableSpaceManager.requestTableCheckPoint(table.name);
+        if (dumpLogSequenceNumber != null) {
+            // we are restoring the table, it is better to perform the checkpoint inside the same thread
+            this.checkpoint(LogSequenceNumber.START_OF_TIME);
+        } else {
+            this.tableSpaceManager.requestTableCheckPoint(table.name);
+        }
     }
 
     private void unloadPages(Set<Long> pagesToUnload) {
@@ -900,8 +905,13 @@ public final class TableManager implements AbstractTableManager {
 
     public void writeFromDump(List<Record> record) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
-        for (Record r : record) {
-            applyInsert(r.key, r.value);
+        checkpointLock.readLock().lock();
+        try {            
+            for (Record r : record) {
+                applyInsert(r.key, r.value);
+            }
+        } finally {
+            checkpointLock.readLock().unlock();
         }
     }
 
@@ -923,6 +933,7 @@ public final class TableManager implements AbstractTableManager {
             if (!NEW_PAGE.equals(pageId)) {
                 pageSet.setPageDirty(pageId);
             }
+            LOGGER.log(Level.SEVERE, "record " + key + " already present in keyToPage?");
         }
         Record record = new Record(key, value);
         dirtyRecordsPage.put(key, record);
@@ -1223,8 +1234,9 @@ public final class TableManager implements AbstractTableManager {
         dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
         pageSet.pageCreated(pageId);
         pages.put(pageId, dataPage);
+        Long _pageId = pageId;
         for (Record record : newPage) {
-            keyToPage.put(record.key, pageId);
+            keyToPage.put(record.key, _pageId);
         }
         return pageId;
     }
