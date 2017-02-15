@@ -134,7 +134,7 @@ public final class Tuple {
         buildValues();
         return values[i];
     }
-    
+
     public VisibleByteArrayOutputStream serialize(Column[] columns) throws IOException {
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         getValues();
@@ -164,8 +164,7 @@ public final class Tuple {
                     } else {
                         throw new IOException("unsupported class " + value.getClass());
                     }
-                    eoo.writeVInt(columnType);
-                    eoo.writeArray(RecordSerializer.serialize(value, columnType));
+                    RecordSerializer.serializeTypeAndValue(value, columnType, eoo);
                 }
                 i++;
             }
@@ -178,14 +177,7 @@ public final class Tuple {
 
             List<Object> values = new ArrayList<>();
             for (int i = 0; i < nColumns; i++) {
-                int type = eoo.readVInt();
-                Object value;
-                if (type == ColumnTypes.NULL) {
-                    value = null;
-                } else {
-                    byte[] _value = eoo.readArray();
-                    value = RecordSerializer.deserialize(_value, type);
-                }
+                Object value = RecordSerializer.deserializeTypeAndValue(eoo);
                 values.add(value);
             }
             Object[] _values = values.toArray(new Object[nColumns]);

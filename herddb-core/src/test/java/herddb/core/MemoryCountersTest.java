@@ -43,7 +43,7 @@ import org.junit.Test;
  *
  * @author enrico.olivelli
  */
-public class SimpleMemoryUsageTest {
+public class MemoryCountersTest {
 
     @Before
     public void setupLogger() throws Exception {
@@ -66,44 +66,27 @@ public class SimpleMemoryUsageTest {
     }
 
     @Test
-    public void memoryWatcherReleaseMemory() throws Exception {
+    public void memoryCountersNotEmpty() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost",
             new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
             manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
 
-            int numTablespaces = 1;
-            for (int i = 1; i <= numTablespaces; i++) {
-                manager.executeStatement(new CreateTableSpaceStatement("tblspace" + i,
-                    Collections.singleton(nodeId), nodeId, 1, 60000, 0),
-                    StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-                execute(manager, "CREATE TABLE tblspace" + i + ".tsql (k1 string primary key,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
-            }
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
 
             java.sql.Timestamp tt1 = new java.sql.Timestamp(System.currentTimeMillis());
 
-            for (int i = 0; i < 1_000_000; i++) {
-                assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?)",
-                    Arrays.asList("mykey_" + i, Integer.valueOf(1234), tt1)).getUpdateCount());
-            }
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?)",
+                Arrays.asList("mykey", Integer.valueOf(1234), tt1)).getUpdateCount());
 
-            manager.checkpoint();
             TableManagerStats stats = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getStats();
-            TestUtils.scan(manager, "SELECT * FROM tblspace1.tsql WHERE k1='mykey_1'", Collections.emptyList()).close();
-            int nowLoaded = stats.getLoadedpages();
-            assertTrue(nowLoaded >= 1);
-            assertEquals(0, stats.getDirtypages());
-            System.out.println("loadedpages:" + nowLoaded);
+            assertTrue(stats.getBuffersUsedMemory() > 0);
+            assertTrue(stats.getKeysUsedMemory() > 0);
 
-            MemoryWatcher memoryWatcher = new MemoryWatcher(
-                1024, // very very low value, we want to unload everything !
-                1, 95);
-            memoryWatcher.run(manager);
-
-            int afterReleaseLoaded = stats.getLoadedpages();
-            System.out.println("afterReleaseLoaded:" + afterReleaseLoaded);
-            assertTrue(afterReleaseLoaded < nowLoaded);
-            assertEquals(0, stats.getDirtypages());
         }
     }
+
 }

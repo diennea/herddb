@@ -166,21 +166,12 @@ public class FileDataStorageManager extends DataStorageManager {
         long _start = System.currentTimeMillis();
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
-        byte[] pageData;
-        try {
-            pageData = FileUtils.fastReadFile(pageFile);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-        long _enddisk = System.currentTimeMillis();
-        boolean okHash = XXHash64Utils.verifyBlockWithFooter(pageData, 0, pageData.length);
-        if (!okHash) {
-            throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", checksum failed");
-        }
-        long _endhash = System.currentTimeMillis();
         List<Record> result;
-        try (InputStream input = new SimpleByteArrayInputStream(pageData);
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+        long hashFromFile;
+        long hashFromDigest;
+        try (InputStream input = Files.newInputStream(pageFile);
+            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(input);
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
@@ -192,14 +183,15 @@ public class FileDataStorageManager extends DataStorageManager {
                 byte[] value = dataIn.readArray();
                 result.add(new Record(new Bytes(key), new Bytes(value)));
             }
+            hashFromDigest = hash.hash();
+            hashFromFile = dataIn.readLong();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        // TODO: hashFromFile
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
-        long disk = _enddisk - _start;
-        long hash = _endhash - _enddisk;
-        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms ({3} ms disk,{4} ms hash)", new Object[]{tableSpace, tableName, delta + "", disk + "", hash + ""});
+        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms", new Object[]{tableSpace, tableName, delta + ""});
         return result;
     }
 

@@ -37,6 +37,7 @@ import herddb.model.ColumnsList;
 import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SingleEntryMap;
+import net.sf.jsqlparser.expression.ExtractExpression;
 
 /**
  * Record conversion to byte[]
@@ -57,6 +58,28 @@ public final class RecordSerializer {
                 return Bytes.to_rawstring(data);
             case ColumnTypes.TIMESTAMP:
                 return Bytes.toTimestamp(data, 0, 8);
+            case ColumnTypes.NULL:
+                return null;
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+        }
+    }
+
+    public static Object deserializeTypeAndValue(ExtendedDataInputStream dii) throws IOException {
+        int type = dii.readVInt();
+        switch (type) {
+            case ColumnTypes.BYTEARRAY:
+                return dii.readArray();
+            case ColumnTypes.INTEGER:
+                return dii.readInt();
+            case ColumnTypes.LONG:
+                return dii.readLong();
+            case ColumnTypes.STRING:
+                return new RawString(dii.readArray());
+            case ColumnTypes.TIMESTAMP:
+                return new java.sql.Timestamp(dii.readLong());
+            case ColumnTypes.NULL:
+                return null;
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -97,6 +120,57 @@ public final class RecordSerializer {
                     throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass());
                 }
                 return Bytes.from_timestamp((java.sql.Timestamp) v).data;
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+
+        }
+    }
+
+    public static void serializeTypeAndValue(Object v, int type, ExtendedDataOutputStream oo) throws IOException {
+        if (v == null) {
+            return;
+        }
+        oo.writeVInt(type);
+        serializeValue(v, type, oo);
+    }
+
+    public static void serializeValue(Object v, int type, ExtendedDataOutputStream oo) throws IOException {
+        switch (type) {
+            case ColumnTypes.BYTEARRAY:
+                oo.writeArray((byte[]) v);
+                break;
+            case ColumnTypes.INTEGER:
+                if (v instanceof Integer) {
+                    oo.writeInt((Integer) v);
+                } else if (v instanceof Number) {
+                    oo.writeInt(((Number) v).intValue());
+                } else {
+                    oo.writeInt(Integer.parseInt(v.toString()));
+                }
+                break;
+            case ColumnTypes.LONG:
+                if (v instanceof Integer) {
+                    oo.writeLong((Integer) v);
+                } else if (v instanceof Number) {
+                    oo.writeLong(((Number) v).longValue());
+                } else {
+                    oo.writeLong(Long.parseLong(v.toString()));
+                }
+                break;
+            case ColumnTypes.STRING:
+                if (v instanceof RawString) {
+                    RawString rs = (RawString) v;
+                    oo.writeArray(rs.data);
+                } else {
+                    oo.writeArray(Bytes.string_to_array(v.toString()));
+                }
+                break;
+            case ColumnTypes.TIMESTAMP:
+                if (!(v instanceof java.sql.Timestamp)) {
+                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass());
+                }
+                oo.writeLong(((java.sql.Timestamp) v).getTime());
+                break;
             default:
                 throw new IllegalArgumentException("bad column type " + type);
 
@@ -197,9 +271,8 @@ public final class RecordSerializer {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);
                 if (v != null && !table.isPrimaryKeyColumn(c.name)) {
-                    byte[] fieldValue = serialize(v, c.type);
                     doo.writeVInt(c.serialPosition);
-                    doo.writeArray(fieldValue);
+                    serializeTypeAndValue(v, c.type, doo);
                 }
             }
         } catch (IOException err) {
@@ -238,10 +311,11 @@ public final class RecordSerializer {
                     if (din.isEof()) {
                         break;
                     }
-                    byte[] v = din.readArray();
+                    // we have to deserialize always the value, even the column is no more present
+                    Object v = deserializeTypeAndValue(din);
                     Column col = table.getColumnBySerialPosition(serialPosition);
                     if (col != null) {
-                        res.put(col.name, deserialize(v, col.type));
+                        res.put(col.name, v);
                     }
                 }
             }

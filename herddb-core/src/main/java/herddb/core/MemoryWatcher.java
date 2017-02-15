@@ -69,30 +69,18 @@ public class MemoryWatcher {
 
     public void run(DBManager dbManager) {
         long explicitUsage = dbManager.handleLocalMemoryUsage();
-        MemoryUsage usage = jvmMemory.getHeapMemoryUsage();
-        long used = usage.getUsed();
-        long committed = usage.getCommitted();
         if (explicitUsage < overallMaximumLimit) {
-            LOG.log(Level.FINE, "Memory OK {0} used ({1} limit, {2} jvm used {3} jvm committed)",
-                new Object[]{explicitUsage, overallMaximumLimit + "", used + "", committed + ""});
+            LOG.log(Level.FINE, "Memory OK {0} used ({1} limit)",
+                new Object[]{explicitUsage, overallMaximumLimit + ""});
             return;
         }
-
-        LOG.log(Level.SEVERE, "Low-Memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
-            new Object[]{explicitUsage, overallMaximumLimit + "", used + "", committed + ""});
-
         long reclaim = (long) (explicitUsage - lowerbound);
-        LOG.log(Level.INFO, "Memory {0}/{1} used ({2} committed). To reclaim: {3}", new Object[]{used + "",
-            overallMaximumLimit + "",
-            committed + "",
-            reclaim + ""});
+        LOG.log(Level.SEVERE, "Low-Memory {0} used ({1} limit). To reclaim: {3}",
+            new Object[]{explicitUsage, overallMaximumLimit + "", reclaim + ""});
         dbManager.tryReleaseMemory(reclaim, new CheckLowerBound(dbManager));
-        usage = jvmMemory.getHeapMemoryUsage();
         explicitUsage = dbManager.handleLocalMemoryUsage();
-        used = usage.getUsed();
-        committed = usage.getCommitted();
-        LOG.log(Level.FINE, "After reclaim: memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
-            new Object[]{explicitUsage, overallMaximumLimit + "", used + "", committed + ""});
+        LOG.log(Level.FINE, "After reclaim: memory {0} used ({1} limit)",
+            new Object[]{explicitUsage, overallMaximumLimit});
 
     }
 
@@ -106,18 +94,15 @@ public class MemoryWatcher {
 
         @Override
         public Boolean get() {
-            MemoryUsage _usage = jvmMemory.getHeapMemoryUsage();
             long explicitUsage = dbManager.handleLocalMemoryUsage();
-            long _used = _usage.getUsed();
-            long _committed = _usage.getCommitted();
             if (explicitUsage < overallMaximumLimit) {
-                LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed)",
-                    new Object[]{explicitUsage, overallMaximumLimit + "", (_used / (1024 * 1024)) + " MN", (_committed / (1024 * 1024)) + " MB"});
+                LOG.log(Level.FINE, "Memory {0} used ({1} limit)",
+                    new Object[]{explicitUsage, overallMaximumLimit + ""});
                 return true;
             }
             long _reclaim = (long) (explicitUsage - lowerbound);
-            LOG.log(Level.FINE, "Memory {0} used ({1} limit, {2} jvm used {3} jvm committed). To reclaim {4}",
-                new Object[]{explicitUsage, overallMaximumLimit + "", (_used / (1024 * 1024)) + " MN", (_committed / (1024 * 1024)) + " MB", (_reclaim / (1024 * 1024)) + " MB"});
+            LOG.log(Level.FINE, "Memory {0} used ({1} limit. To reclaim {3}",
+                new Object[]{explicitUsage, overallMaximumLimit + "", (_reclaim / (1024 * 1024)) + " MB"});
             return _reclaim <= 0;
         }
     }
