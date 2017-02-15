@@ -24,13 +24,13 @@ import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
 import java.util.Map;
 
-public class CompiledAndExpresssion implements CompiledSQLExpression {
+public class CompiledEqualsExpresssion implements CompiledSQLExpression {
 
     private final CompiledSQLExpression left;
     private final CompiledSQLExpression right;
     private final boolean not;
 
-    public CompiledAndExpresssion(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledEqualsExpresssion(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
         this.left = left;
         this.right = right;
         this.not = not;
@@ -38,15 +38,13 @@ public class CompiledAndExpresssion implements CompiledSQLExpression {
 
     @Override
     public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
-        boolean ok = SQLRecordPredicate.toBoolean(left.evaluate(bean, context));
-        if (!ok) {
-            return not;
-        }
-        ok = SQLRecordPredicate.toBoolean(right.evaluate(bean, context));
+        Object leftValue = left.evaluate(bean, context);
+        Object rightValue = right.evaluate(bean, context);
+        boolean res = SQLRecordPredicate.objectEquals(leftValue, rightValue);
         if (not) {
-            return !ok;
+            return !res;
         } else {
-            return ok;
+            return res;
         }
     }
 

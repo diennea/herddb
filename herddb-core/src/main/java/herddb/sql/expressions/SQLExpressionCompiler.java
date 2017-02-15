@@ -23,25 +23,36 @@ import herddb.model.StatementExecutionException;
 import herddb.sql.functions.BuiltinFunctions;
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 import herddb.utils.RawString;
+import java.lang.reflect.InvocationTargetException;
 import net.sf.jsqlparser.expression.BinaryExpression;
+import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
+import net.sf.jsqlparser.expression.Parenthesis;
+import net.sf.jsqlparser.expression.SignedExpression;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
+import net.sf.jsqlparser.expression.operators.relational.Between;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.InExpression;
+import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
+import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 
 /**
- * Created a pure Java implementation of the expression which represents the given jSQLParser Excpession
+ * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
  *
  * @author enrico.olivelli
  */
@@ -54,9 +65,39 @@ public class SQLExpressionCompiler {
             return compiled;
         }
         // TODO: make all kind of expression 'compilable'
+        System.out.println(">>>> Interpreted: "+exp);
         return new InterpretedSQLExpression(validatedTableAlias, exp);
     }
-
+    
+    private static CompiledSQLExpression tryCompileBinaryExpression(
+        String validatedTableAlias,
+        BinaryExpression binExp,
+        Class<? extends CompiledSQLExpression> compiledExpClass) {
+        
+        CompiledSQLExpression left = compileExpression(validatedTableAlias, binExp.getLeftExpression());
+        if (left == null) {
+            return null;
+        }
+        CompiledSQLExpression right = compileExpression(validatedTableAlias, binExp.getRightExpression());
+        if (right == null) {
+            return null;
+        }
+        
+        try {
+            return compiledExpClass.getDeclaredConstructor(
+                Boolean.class, CompiledSQLExpression.class, CompiledSQLExpression.class)
+                    .newInstance(binExp.isNot(), left, right);
+        
+        } catch (IllegalAccessException | 
+                 IllegalArgumentException | 
+                 InstantiationException | 
+                 InvocationTargetException | 
+                 NoSuchMethodException |
+                 SecurityException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+    
     private static CompiledSQLExpression tryCompileExpression(
         String validatedTableAlias,
         Expression exp) {
@@ -65,7 +106,8 @@ public class SQLExpressionCompiler {
             if (compiled != null) {
                 return compiled;
             }
-        } else if (exp instanceof net.sf.jsqlparser.schema.Column) {
+        }
+        if (exp instanceof net.sf.jsqlparser.schema.Column) {
             CompiledSQLExpression compiled = compileColumnExpression(validatedTableAlias, exp);
             if (compiled != null) {
                 return compiled;
@@ -89,28 +131,53 @@ public class SQLExpressionCompiler {
             int index = ((JdbcParameter) exp).getIndex();
             return new JdbcParameterExpression(index);
         } else if (exp instanceof AndExpression) {
-            AndExpression and = (AndExpression) exp;
-            CompiledSQLExpression left = compileExpression(validatedTableAlias, and.getLeftExpression());
-            if (left == null) {
-                return null;
-            }
-            CompiledSQLExpression right = compileExpression(validatedTableAlias, and.getRightExpression());
-            if (right == null) {
-                return null;
-            }
-            return new CompiledAndExpresssion(and.isNot(), left, right);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledAndExpresssion.class);
         } else if (exp instanceof OrExpression) {
-            OrExpression and = (OrExpression) exp;
-            CompiledSQLExpression left = compileExpression(validatedTableAlias, and.getLeftExpression());
-            if (left == null) {
-                return null;
-            }
-            CompiledSQLExpression right = compileExpression(validatedTableAlias, and.getRightExpression());
-            if (right == null) {
-                return null;
-            }
-            return new CompiledOrExpresssion(and.isNot(), left, right);
-        }
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledOrExpresssion.class);
+//        } else if (exp instanceof Function) {
+//            Function f = (Function) exp;
+//            return computeFunction(f);
+//        } else if (exp instanceof Addition) {
+//            return evaluateAddition(exp);
+//        } else if (exp instanceof Subtraction) {
+//            return evaluateSubtraction(exp);
+//        } else if (exp instanceof TimeKeyExpression) {
+//            TimeKeyExpression ext = (TimeKeyExpression) exp;
+//            if (CURRENT_TIMESTAMP.equalsIgnoreCase(ext.getStringValue())) {
+//                return new java.sql.Timestamp(System.currentTimeMillis());
+//            } else {
+//                throw new StatementExecutionException("unhandled expression " + exp);
+//            }
+//        } else if (exp instanceof Parenthesis) {
+//            return evaluateParenthesis(exp);
+        } else if (exp instanceof EqualsTo) {
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledEqualsExpresssion.class);
+        } 
+//        else if (exp instanceof NotEqualsTo) {
+//            return !evaluateEqualsTo(exp);
+//        } else if (exp instanceof MinorThan) {
+//            return evaluateMinorThan(exp);
+//        } else if (exp instanceof MinorThanEquals) {
+//            return evaluateMinorThanEquals(exp);
+//        } else if (exp instanceof GreaterThan) {
+//            return evaluateGreaterThan(exp);
+//        } else if (exp instanceof GreaterThanEquals) {
+//            return evaluateGreaterThanEquals(exp);
+//        } else if (exp instanceof LikeExpression) {
+//            return evaluateLike(exp);
+//        } else if (exp instanceof Between) {
+//            return evaluateBetween(exp);
+//        } else if (exp instanceof SignedExpression) {
+//            return evaluateSignedEpression(exp);
+//        } else if (exp instanceof TimeKeyExpression) {
+//            return evaluateTimeKeyExpression(exp);
+//        } else if (exp instanceof InExpression) {
+//            return evaluateInExpression(exp);
+//        } else if (exp instanceof IsNullExpression) {
+//            return evaluateIsNull(exp);
+//        } else if (exp instanceof CaseExpression) {
+//            return evaluateCaseWhen(exp);
+//        }
         return null;
     }
 
