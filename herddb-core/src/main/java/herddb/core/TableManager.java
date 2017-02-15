@@ -435,7 +435,10 @@ public final class TableManager implements AbstractTableManager {
     private void requestCheckpoint() {
         if (dumpLogSequenceNumber != null) {
             // we are restoring the table, it is better to perform the checkpoint inside the same thread
-            this.checkpoint(LogSequenceNumber.START_OF_TIME);
+            List<PostCheckpointAction> postCheckPointActions = this.checkpoint(LogSequenceNumber.START_OF_TIME);
+            for (PostCheckpointAction action : postCheckPointActions) {
+                action.run();
+            }
         } else {
             this.tableSpaceManager.requestTableCheckPoint(table.name);
         }
@@ -648,8 +651,6 @@ public final class TableManager implements AbstractTableManager {
         }
     }
 
-    
-
     @Override
     public void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {
         if (transaction == null) {
@@ -668,18 +669,18 @@ public final class TableManager implements AbstractTableManager {
         // transaction is still holding locks on each record, so we can change records        
         Map<Bytes, Record> newRecords = transaction.newRecords.get(table.name);
         if (newRecords != null) {
-            for (Record record : newRecords.values()) {                
-                applyInsert(record.key, record.value);
+            for (Record record : newRecords.values()) {
+                applyInsert(record.key, record.value, true);
             }
         }
         if (changedRecords != null) {
-            for (Record r : changedRecords.values()) {                
+            for (Record r : changedRecords.values()) {
                 applyUpdate(r.key, r.value);
             }
         }
         Set<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
         if (deletedRecords != null) {
-            for (Bytes key : deletedRecords) {                
+            for (Bytes key : deletedRecords) {
                 applyDelete(key);
             }
         }
@@ -728,7 +729,7 @@ public final class TableManager implements AbstractTableManager {
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
-                Bytes key = new Bytes(entry.key);                
+                Bytes key = new Bytes(entry.key);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -742,7 +743,7 @@ public final class TableManager implements AbstractTableManager {
             }
             case LogEntryType.UPDATE: {
                 Bytes key = new Bytes(entry.key);
-                Bytes value = new Bytes(entry.value);                
+                Bytes value = new Bytes(entry.value);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -756,7 +757,7 @@ public final class TableManager implements AbstractTableManager {
             }
             case LogEntryType.INSERT: {
                 Bytes key = new Bytes(entry.key);
-                Bytes value = new Bytes(entry.value);                
+                Bytes value = new Bytes(entry.value);
                 if (entry.transactionId > 0) {
                     Transaction transaction = tableSpaceManager.getTransaction(entry.transactionId);
                     if (transaction == null) {
@@ -764,7 +765,7 @@ public final class TableManager implements AbstractTableManager {
                     }
                     transaction.registerInsertOnTable(table.name, key, value, position);
                 } else {
-                    applyInsert(key, value);
+                    applyInsert(key, value, false);
                 }
                 break;
             }
@@ -889,16 +890,16 @@ public final class TableManager implements AbstractTableManager {
     public void writeFromDump(List<Record> record) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
         checkpointLock.readLock().lock();
-        try {            
+        try {
             for (Record r : record) {
-                applyInsert(r.key, r.value);
+                applyInsert(r.key, r.value, false);
             }
         } finally {
             checkpointLock.readLock().unlock();
         }
     }
 
-    private void applyInsert(Bytes key, Bytes value) throws DataStorageManagerException {
+    private void applyInsert(Bytes key, Bytes value, boolean onTransaction) throws DataStorageManagerException {
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value            
             long pk_logical_value;
@@ -911,12 +912,14 @@ public final class TableManager implements AbstractTableManager {
         }
         Long pageId = keyToPage.put(key, NEW_PAGE);
         if (pageId != null) {
-            // very strage but possible inside a transaction which executes DELETE THEN INSERT,
-            // we have to track that the previous page is "dirty"
+            // very strage but possible inside a transaction which executes DELETE THEN INSERT,            
             if (!NEW_PAGE.equals(pageId)) {
+                // we have to track that the previous page is "dirty"
                 pageSet.setPageDirty(pageId);
             }
-            LOGGER.log(Level.SEVERE, "record " + key + " already present in keyToPage?");
+            if (!onTransaction) {
+                throw new DataStorageManagerException("new record " + key + " already present in keyToPage?");
+            }
         }
         Record record = new Record(key, value);
         dirtyRecordsPage.put(key, record);
@@ -936,7 +939,10 @@ public final class TableManager implements AbstractTableManager {
 
     @Override
     public void flush() throws DataStorageManagerException {
-        checkpoint(log.getLastSequenceNumber());
+        List<PostCheckpointAction> postActions = checkpoint(log.getLastSequenceNumber());
+        for (PostCheckpointAction action : postActions) {
+            action.run();
+        }
     }
 
     @Override
@@ -1120,7 +1126,7 @@ public final class TableManager implements AbstractTableManager {
                                 for (Record r : page) {
                                     tmpBuffer.put(r.key, r);
                                 }
-                                LOGGER.log(Level.SEVERE, "loaded dirty page " + pageId + " on tmp buffer "
+                                LOGGER.log(Level.FINEST, "loaded dirty page " + pageId + " on tmp buffer "
                                     + ": " + page.size() + " records");
                             }
                             DataPage dataPage = pages.get(pageId);
