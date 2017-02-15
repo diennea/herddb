@@ -76,6 +76,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -104,7 +106,7 @@ public final class TableManager implements AbstractTableManager {
         getIntSystemProperty(TableManager.class.getName() + ".sortedPageAccessWindowSize", 2000);
 
     private static final boolean ENABLE_LOCAL_SCAN_PAGE_CACHE = SystemProperties.
-        getBooleanSystemProperty(TableManager.class.getName() + ".enableLocalScanPageCache", false);
+        getBooleanSystemProperty(TableManager.class.getName() + ".enableLocalScanPageCache", true);
 
     public static final Long NEW_PAGE = Long.valueOf(-1);
 
@@ -171,6 +173,8 @@ public final class TableManager implements AbstractTableManager {
     private final long maxLogicalPageSize;
 
     private final long maxTableUsedMemory;
+
+    private final Semaphore maxCurrentPagesLoads = new Semaphore(4, true);
 
     /**
      * This value is not empty until the transaction who creates the table does not commit
@@ -996,19 +1000,23 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private DataPage temporaryLoadPageToMemory(Long pageId) throws DataStorageManagerException {
-        DataPage result = pages.get(pageId);;
-        if (result != null) {
-            return result;
-        }
         long _start = System.currentTimeMillis();
-        List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+        List<Record> page;
+        maxCurrentPagesLoads.acquireUninterruptibly();
+        try {
+            page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+        } finally {
+            maxCurrentPagesLoads.release();
+        }
         long _io = System.currentTimeMillis();
-        result = buildDataPage(pageId, page);
-        long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.INFO, "tmp table " + table.name + ","
-            + "loaded " + result.size() + " records from page " + pageId
-            + " in " + (_stop - _start) + " ms"
-            + ", (" + (_io - _start) + " ms read)");
+        DataPage result = buildDataPage(pageId, page);
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            long _stop = System.currentTimeMillis();
+            LOGGER.log(Level.FINEST, "tmp table " + table.name + ","
+                + "loaded " + result.size() + " records from page " + pageId
+                + " in " + (_stop - _start) + " ms"
+                + ", (" + (_io - _start) + " ms read)");
+        }
         return result;
     }
 
@@ -1021,12 +1029,18 @@ public final class TableManager implements AbstractTableManager {
         long _ioAndLock = 0;
         long _limitTime = 0;
         AtomicBoolean computed = new AtomicBoolean();
-        pagesLock.lock();
+
         try {
             result = pages.computeIfAbsent(pageId, (id) -> {
                 try {
                     computed.set(true);
-                    List<Record> page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+                    List<Record> page;
+                    maxCurrentPagesLoads.acquireUninterruptibly();
+                    try {
+                        page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+                    } finally {
+                        maxCurrentPagesLoads.release();
+                    }
                     return buildDataPage(pageId, page);
                 } catch (DataStorageManagerException err) {
                     throw new RuntimeException(err);
@@ -1044,8 +1058,6 @@ public final class TableManager implements AbstractTableManager {
             } else {
                 throw new DataStorageManagerException(error);
             }
-        } finally {
-            pagesLock.unlock();
         }
         if (computed.get()) {
             long _stop = System.currentTimeMillis();
@@ -1483,12 +1495,23 @@ public final class TableManager implements AbstractTableManager {
             dataPage = loadPageToMemory(pageId, false);
         } else {
             if (pageId.equals(localScanPageCache.pageId)) {
+                // same page needed twice
                 dataPage = localScanPageCache.value;
             } else {
-                // TODO: add heuristics and choose whether to load the page in the main buffer
-                dataPage = temporaryLoadPageToMemory(pageId);
-                localScanPageCache.value = dataPage;
-                localScanPageCache.pageId = pageId;
+                // TODO: add good heuristics and choose whether to load
+                // the page in the main buffer
+                dataPage = pages.get(pageId);
+                if (dataPage == null) {
+                    if (ThreadLocalRandom.current().nextInt(10) < 4) {
+                        // 25% of pages will be loaded to main buffer
+                        dataPage = loadPageToMemory(pageId, false);
+                    } else {
+                        // 75% of pages will be loaded only to current scan buffer
+                        dataPage = temporaryLoadPageToMemory(pageId);
+                        localScanPageCache.value = dataPage;
+                        localScanPageCache.pageId = pageId;
+                    }
+                }
             }
         }
         return dataPage;

@@ -202,7 +202,7 @@ public class FileCommitLog extends CommitLog {
 
         try {
             if (writer != null) {
-                LOGGER.log(Level.SEVERE, "closing actual file {0}", writer.filename);
+                LOGGER.log(Level.FINEST, "closing actual file {0}", writer.filename);
                 writer.close();
             }
             ensureDirectories();
