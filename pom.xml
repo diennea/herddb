@@ -257,6 +257,8 @@
                 <module>herddb-jdbc</module>
                 <module>herddb-services</module>
                 <module>herddb-cli</module>
+                <module>herddb-website</module>
+                <module>herddb-site-skin</module>
                 <!-- <module>herddb-bench</module> -->
             </modules>           
             <build>        

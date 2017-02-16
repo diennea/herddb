@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<project>
+    <custom>
+        <pageTitle>HerdDB - Diennea</pageTitle>
+        <navigationBar>
+            <items>
+                <item>
+                    <text>GitHub</text>
+                    <href>https://github.com/diennea/herddb</href>
+                </item>
+                <item>
+                    <text>Download</text>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                </item>
+            </items>
+        </navigationBar>
+        
+        <hero>
+            <title>HerdDB</title>
+            <subtitle>A distributed database</subtitle>
+            <brand>Diennea engineering</brand>
+        </hero>
+        
+        <changelog>
+            <projectNameForChangelog>HerdDB</projectNameForChangelog>
+            <releases>
+                <release>
+                    <version>0.0.6</version>
+                    <date>November 2016</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>HerdDB 0.0.6, ALPHA release</text>
+                </release>
+                <release>
+                    <version>0.0.5</version>
+                    <date>September 2016</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>HerdDB 0.0.5, ALPHA release</text>
+                </release>
+                <release>
+                    <version>0.0.1</version>
+                    <date>July 2016</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>HerdDB 0.0.1, ALPHA release</text>
+                </release>
+            </releases>
+        </changelog>
+    </custom>
+    
+    <skin>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>herddb-site-skin</artifactId>
+        <version>${project.version}</version>
+    </skin>
+</project>

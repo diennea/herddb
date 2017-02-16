@@ -1,0 +1,73 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"#if ( $locale ) xml:lang="$locale.language" lang="$locale.language"#end>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=${outputEncoding}" />
+        <title>$decoration.custom.getChild('pageTitle').getValue()</title>
+        <style type="text/css" media="all">
+            @import url("$relativePath/css/site.css");
+            @import url("$relativePath/media/favicon.ico");
+        </style>
+
+        <meta http-equiv="Content-Language" content="$locale.language" />
+    </head>
+    <body class="composite">
+        <div class="header">
+            <div class="wrap">
+                <div class="logo">
+                    <a href="http://www.diennea.com/engineering" target="_blank">          
+                        <img src="media/diennea.png" alt="Diennea">
+                    </a>
+                </div>
+                <div class="top-navigation">
+                    <ul>
+                        #foreach( $item in $decoration.custom.getChild('navigationBar').getChild('items').getChildren() )
+                        #set ( $hrf = $item.getChild( 'href' ).getValue() )
+                        #set ( $text = $item.getChild( 'text' ).getValue() )
+                        <li><a href=$hrf target="_blank">$text</a></li>
+                        #end
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="header-space"> </div>
+        <div class="hero">
+            <div class="wrap">
+                <h6>$decoration.custom.getChild('hero').getChild('brand').getValue()</h6>
+                <h1>$decoration.custom.getChild('hero').getChild('title').getValue()</h1>
+                <h4>$decoration.custom.getChild('hero').getChild('subtitle').getValue()</h4>
+            </div>
+        </div>
+
+        <div class="wrap">
+            $bodyContent
+#if ($decoration.custom.getChild('changelog').getChild('releases'))
+#set ( $project = $decoration.custom.getChild('changelog').getChild('projectNameForChangelog').getValue() )
+            <h3 id="archive">$project Release Summary</h3>
+            <div class="separator"><img src="media/separator.png"></div>
+            <div class="archive">
+            
+#foreach( $release in $decoration.custom.getChild('changelog').getChild('releases').getChildren() )
+#set ( $hrf = $release.getChild( 'href' ).getValue() )
+#set ( $version = $release.getChild('version').getValue() )
+#set ( $date = $release.getChild('date').getValue() )
+#set ( $text = $release.getChild('text').getValue() )
+                <h4>  $project $version - $date</h4>
+                <p> $text <a href=$hrf target="_blank">Release notes</a></p>
+#end    
+            </div>
+#end
+
+            <div class="footer">
+                <div class="separator"><img src="media/separator.png"></div>
+                <div class="text">&copy; 2016 Diennea S.r.l.</div>
+                <div class="links">
+                    <a href="http://www.diennea.com/" target="_blank">Diennea</a>&nbsp; | &nbsp;
+                    <a href="http://www.magnews.com/" target="_blank">MagNews</a>&nbsp; | &nbsp;
+                    <a href="http://www.emailsuccess.com/" target="_blank">EmailSuccess</a>&nbsp; | &nbsp;
+                    <a href="http://www.diennea.com/en/contact-us" target="_blank">Contact us</a>&nbsp; | &nbsp;
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
+
