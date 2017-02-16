@@ -32,7 +32,7 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.ScanStatement;
-import herddb.sql.expressions.InterpretedSQLExpression;
+import herddb.sql.expressions.CompiledSQLExpression;
 import java.util.Arrays;
 import java.util.Collections;
 import static org.junit.Assert.assertEquals;
@@ -72,9 +72,9 @@ public class SQLRecordPredicateTest {
                 assertTrue(scan.getPredicate() instanceof SQLRecordPredicate);
                 SQLRecordPredicate pred = (SQLRecordPredicate) scan.getPredicate();
 
-                assertTrue(pred.getPrimaryKeyFilter() != null && !(pred.getPrimaryKeyFilter() instanceof InterpretedSQLExpression));
+                assertTrue(pred.getPrimaryKeyFilter() != null && (pred.getPrimaryKeyFilter() instanceof CompiledSQLExpression));
 
-                assertTrue(pred.getWhere() != null && !(pred.getWhere() instanceof InterpretedSQLExpression));
+                assertTrue(pred.getWhere() != null && (pred.getWhere() instanceof CompiledSQLExpression));
 
                 StatementEvaluationContext ctx = new SQLStatementEvaluationContext("the-query", Arrays.asList("my-string"));
 

@@ -38,10 +38,8 @@ import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
-import net.sf.jsqlparser.schema.Column;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.InterpretedSQLExpression;
 
 /**
  * Predicate expressed using SQL syntax
@@ -57,8 +55,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             || exp instanceof LongValue
             || exp instanceof NullValue
             || exp instanceof TimestampValue
-            || exp instanceof JdbcParameter
-            || exp instanceof NullValue;
+            || exp instanceof JdbcParameter;
     }
 
     private final Table table;
@@ -103,9 +100,6 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     }
 
     public static Object evaluateExpression(Expression expression, Map<String, Object> bean, StatementEvaluationContext context, String validatedTableAlias) throws StatementExecutionException {
-        if (expression instanceof Column) {
-            return InterpretedSQLExpression.evaluateFreeColumn(expression, validatedTableAlias, bean);
-        }
         return SQLExpressionCompiler.compileExpression(validatedTableAlias, expression).evaluate(bean, context);
 
     }
@@ -117,7 +111,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (result instanceof Boolean) {
             return (Boolean) result;
         }
-        return "true".equals(result.toString());
+        return "true".equalsIgnoreCase(result.toString());
     }
 
     public static int compare(Object a, Object b) {
@@ -177,6 +171,9 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     }
 
     public static Object subtract(Object a, Object b) throws StatementExecutionException {
+        if (a == null && b == null) {
+            return null;
+        }
         if (a == null) {
             a = 0;
         }
@@ -190,12 +187,8 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     }
 
     public static boolean objectEquals(Object a, Object b) {
-        if (a == null && b == null) {
-            return true;
-        } else if (a != null && b == null) {
-            return false;
-        } else if (a == null && b != null) {
-            return false;
+        if (a == null || b == null) {
+            return a == b;
         }
         if (a instanceof RawString) {
             return a.equals(b);
