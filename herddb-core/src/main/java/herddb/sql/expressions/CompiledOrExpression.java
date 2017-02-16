@@ -24,13 +24,13 @@ import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
 import java.util.Map;
 
-public class CompiledOrExpresssion implements CompiledSQLExpression {
+public class CompiledOrExpression implements CompiledSQLExpression {
 
     private final CompiledSQLExpression left;
     private final CompiledSQLExpression right;
     private final boolean not;
 
-    public CompiledOrExpresssion(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledOrExpression(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
         this.left = left;
         this.right = right;
         this.not = not;

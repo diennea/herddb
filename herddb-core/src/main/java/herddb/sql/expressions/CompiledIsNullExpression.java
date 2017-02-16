@@ -21,33 +21,28 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
 import java.util.Map;
 
-public class CompiledAndExpresssion implements CompiledSQLExpression {
+public class CompiledIsNullExpression implements CompiledSQLExpression {
 
     private final CompiledSQLExpression left;
-    private final CompiledSQLExpression right;
     private final boolean not;
 
-    public CompiledAndExpresssion(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledIsNullExpression(Boolean not, CompiledSQLExpression left) {
         this.left = left;
-        this.right = right;
         this.not = not;
     }
 
     @Override
     public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
-        boolean ok = SQLRecordPredicate.toBoolean(left.evaluate(bean, context));
-        if (!ok) {
-            return not;
-        }
-        ok = SQLRecordPredicate.toBoolean(right.evaluate(bean, context));
+        Object leftValue = left.evaluate(bean, context);
+        boolean result = leftValue == null;
         if (not) {
-            return !ok;
+            return !result;
         } else {
-            return ok;
+            return result;
         }
+        
     }
 
 }
