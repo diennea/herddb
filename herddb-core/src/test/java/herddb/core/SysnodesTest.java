@@ -20,7 +20,6 @@
 package herddb.core;
 
 import static herddb.core.TestUtils.scan;
-import herddb.file.FileMetadataStorageManager;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -28,16 +27,17 @@ import static org.junit.Assert.assertTrue;
 import java.util.Collections;
 import java.util.List;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
+import herddb.file.FileMetadataStorageManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.TableSpace;
 import herddb.model.Tuple;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
 
 /**
  *
@@ -49,7 +49,7 @@ public class SysnodesTest {
     @Test
     public void listNodesTest() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 
@@ -72,7 +72,7 @@ public class SysnodesTest {
     public void listNodesFileManagerTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager(nodeId, new FileMetadataStorageManager(tmpFolder.getRoot().toPath()),
-            new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
+            new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 

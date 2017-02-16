@@ -19,6 +19,10 @@
  */
 package herddb.core.system;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Consumer;
+
 import herddb.core.AbstractTableManager;
 import herddb.core.MaterializedRecordSet;
 import herddb.core.PostCheckpointAction;
@@ -43,9 +47,6 @@ import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
-import java.util.Collections;
-import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * System tables
@@ -93,6 +94,16 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
             @Override
             public int getDirtyrecords() {
+                return 0;
+            }
+
+            @Override
+            public long getDirtyBookedMemory() {
+                return 0;
+            }
+
+            @Override
+            public long getDirtyUsedMemory() {
                 return 0;
             }
 

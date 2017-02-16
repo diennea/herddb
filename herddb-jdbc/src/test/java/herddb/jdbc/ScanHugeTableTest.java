@@ -19,20 +19,23 @@
  */
 package herddb.jdbc;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.Statement;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 
 /**
  * Basic client testing
@@ -47,6 +50,7 @@ public class ScanHugeTableTest {
     @Test
     public void testBatch() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.getManager().setMaxPagesUsedMemory(750 * 1024 * 1024);
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
@@ -63,7 +67,7 @@ public class ScanHugeTableTest {
                         con.setAutoCommit(false);
                         for (int i = 0; i < size; i++) {
                             ps.setInt(1, i);
-                            ps.setString(2, "test" + i);
+                            ps.setString(2, "testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest" + i);
                             ps.addBatch();
                             if (i % 60000 == 0) {
                                 ps.executeBatch();
@@ -76,6 +80,8 @@ public class ScanHugeTableTest {
                         long _stop = System.currentTimeMillis();
                         System.out.println("insert: " + (_stop - _start) + " ms");
                     }
+
+                    server.getManager().checkpoint();
 
                     con.setAutoCommit(true);
                     {

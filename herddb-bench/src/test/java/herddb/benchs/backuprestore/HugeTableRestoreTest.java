@@ -15,15 +15,14 @@
  */
 package herddb.benchs.backuprestore;
 
-import herddb.backup.ProgressListener;
-import herddb.benchs.simple.*;
-import herddb.benchs.BaseBench;
-import herddb.benchs.InsertOperation;
-import herddb.benchs.UpdateByPKOperation;
-import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import java.util.Map;
+
 import org.junit.Test;
+
+import herddb.backup.ProgressListener;
+import herddb.benchs.BaseBench;
+import herddb.server.ServerConfiguration;
 
 /**
  * Simple concurrent reads and writes on a single table
@@ -49,7 +48,7 @@ public class HugeTableRestoreTest extends BaseBench {
         generateData(1024);
         performOperations();
         waitForResults();
-        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY, 5 * 1024 * 1024);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY, 5 * 1024 * 1024);
         serverConfiguration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, 5 * 1024 * 1024);
         restartServer();
         backupRestore(10000, new ProgressListener() {

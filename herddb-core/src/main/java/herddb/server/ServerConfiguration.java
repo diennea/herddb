@@ -115,20 +115,21 @@ public final class ServerConfiguration {
     public static final String PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR = "server.haltontablespacebooterror";
     public static final boolean PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT = false;
 
-    /**
-     * Percent of memory used by live data (keys, buffers...). It is calculated over
-     * {@link  #PROPERTY_MEMORY_LIMIT_REFERENCE}. When the accounted memory reaches this threshold the server will try
-     * to release memory in order to reach the {@link  #PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND} reference value
-     */
-    public static final String PROPERTY_MAX_LIVE_MEMORY_THRESHOLD = "server.memstore.globallimit.hi";
-    public static final int PROPERTY_MAX_LIVE_MEMORY_THRESHOLD_DEFAULT = 40;
+//    /**
+//     * Percent of memory used by live data (keys, buffers...). It is calculated over
+//     * {@link  #PROPERTY_MEMORY_LIMIT_REFERENCE}. When the accounted memory reaches this threshold the server will try
+//     * to release memory in order to reach the {@link  #PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND} reference value
+//     */
+//    public static final String PROPERTY_MAX_LIVE_MEMORY_THRESHOLD = "server.memstore.globallimit.hi";
+//    public static final int PROPERTY_MAX_LIVE_MEMORY_THRESHOLD_DEFAULT = 40;
+//
+//    /**
+//     * Lower bound on the percent of memory used by live data (keys, buffers...). It is calculated over the actual value
+//     * {@link  #PROPERTY_MAX_LIVE_MEMORY_THRESHOLD}.
+//     */
+//    public static final String PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND = "server.memstore.globallimit.low";
+//    public static final int PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND_DEFAULT = 95;
 
-    /**
-     * Lower bound on the percent of memory used by live data (keys, buffers...). It is calculated over the actual value
-     * {@link  #PROPERTY_MAX_LIVE_MEMORY_THRESHOLD}.
-     */
-    public static final String PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND = "server.memstore.globallimit.low";
-    public static final int PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND_DEFAULT = 95;
 
     /**
      * Reference value for the calculation of {@link #PROPERTY_MAX_LIVE_MEMORY_THRESHOLD}. If 0 the system will try to
@@ -136,13 +137,40 @@ public final class ServerConfiguration {
      * to limit the usage of resources by the database.
      */
     public static final String PROPERTY_MEMORY_LIMIT_REFERENCE = "server.maxmemory.reference";
-    public static final long PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT = 0;
+    public static final long PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT = 0L;
+
+    // LOTHRUIN
+//    /**
+//     * Mamimum limit of memory used for a single table
+//     */
+//    @Deprecated
+//    public static final String PROPERTY_MAX_TABLE_USED_MEMORY = "server.memstore.table.limit";
+//    @Deprecated
+//    public static final long PROPERTY_MAX_TABLE_USED_MEMORY_DEFAULT = 300 * 1024 * 1024L;
 
     /**
-     * Mamimum limit of memory used for a single table
+     * Maximum amount of memory used for pages
      */
-    public static final String PROPERTY_MAX_TABLE_USED_MEMORY = "server.memstore.table.limit";
-    public static final long PROPERTY_MAX_TABLE_USED_MEMORY_DEFAULT = 300 * 1024 * 1024L;
+    public static final String PROPERTY_MAX_PAGES_MEMORY = "server.memstore.page.limit";
+    public static final long PROPERTY_MAX_PAGES_MEMORY_DEFAULT = 0L;
+
+    /**
+     * Maximum amount of memory used for dirty records/pages
+     */
+    public static final String PROPERTY_MAX_DIRTY_MEMORY = "server.memstore.dirty.limit";
+    public static final long PROPERTY_MAX_DIRTY_MEMORY_DEFAULT = 0L;
+
+
+    /**
+     * Percent of {@link #PROPERTY_MAX_DIRTY_MEMORY} memory to reach before try to reclaim memory.
+     * When the accounted memory reaches this threshold the server will try
+     * to release memory in order to reach the {@link  #PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND} reference value
+     */
+    public static final String PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD = "server.memstore.dirty.hi";
+    public static final int PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT = 90;
+
+    public static final String PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND = "server.memstore.dirty.low";
+    public static final int PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND_DEFAULT = 40;
 
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();

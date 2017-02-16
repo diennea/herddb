@@ -69,7 +69,7 @@ public class SimpleIHashIndexRecoveryTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+                tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -117,7 +117,7 @@ public class SimpleIHashIndexRecoveryTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+                tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
@@ -145,7 +145,7 @@ public class SimpleIHashIndexRecoveryTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+                tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -194,7 +194,7 @@ public class SimpleIHashIndexRecoveryTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+                tmoDir, null)) {
             manager.start();
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);

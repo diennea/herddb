@@ -49,7 +49,7 @@ public class AlterTablespaceSQLTest {
     @Test
     public void createAlterTableSpace() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
             execute(manager, "EXECUTE CREATETABLESPACE 'ttt'", Collections.emptyList());

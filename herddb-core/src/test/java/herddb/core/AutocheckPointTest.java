@@ -29,6 +29,7 @@ import static org.junit.Assert.assertNotEquals;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 import org.junit.Rule;
@@ -44,7 +45,6 @@ import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
-import java.util.List;
 
 /**
  *
@@ -68,7 +68,7 @@ public class AutocheckPointTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null, null)) {
+            tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -121,7 +121,7 @@ public class AutocheckPointTest {
             new FileMetadataStorageManager(metadataPath),
             new FileDataStorageManager(dataPath),
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-            tmoDir, null, null)) {
+            tmoDir, null)) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);

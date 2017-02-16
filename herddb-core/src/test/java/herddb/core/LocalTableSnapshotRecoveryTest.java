@@ -63,9 +63,9 @@ public class LocalTableSnapshotRecoveryTest {
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+                tmoDir, null)) {
             manager.start();
-            
+
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);
 
             Table table = Table
@@ -88,14 +88,14 @@ public class LocalTableSnapshotRecoveryTest {
             try (DataScanner scan = TestUtils.scan(manager, "SELECT * FROM t1", Collections.emptyList());) {
                 assertEquals(3, scan.consume().size());
             }
-            
+
         }
 
         try (DBManager manager = new DBManager("localhost",
                 new FileMetadataStorageManager(metadataPath),
                 new FileDataStorageManager(dataPath),
                 new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-                tmoDir, null, null)) {
+                tmoDir, null)) {
             manager.start();
 
             manager.waitForTablespace(TableSpace.DEFAULT, 10000);

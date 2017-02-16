@@ -19,34 +19,35 @@
  */
 package herddb.core;
 
-import herddb.backup.DumpedLogEntry;
-import herddb.backup.DumpedTableMetadata;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import herddb.backup.DumpedLogEntry;
 import herddb.client.ClientConfiguration;
 import herddb.client.ClientSideMetadataProvider;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
-import herddb.client.TableSpaceDumpReceiver;
 import herddb.core.stats.TableManagerStats;
 import herddb.core.system.SysclientsTableManager;
 import herddb.core.system.SyscolumnsTableManager;
@@ -77,7 +78,6 @@ import herddb.model.Index;
 import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
 import herddb.model.NodeMetadata;
-import herddb.model.Record;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -108,11 +108,6 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
-import java.util.Comparator;
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Supplier;
 
 /**
  * Manages a TableSet in memory
@@ -635,10 +630,15 @@ public class TableSpaceManager {
     long handleLocalMemoryUsage() {
         long result = 0;
         for (AbstractTableManager tableManager : tables.values()) {
-            tableManager.ensureMemoryLimits();
+//            tableManager.ensureMemoryLimits();
             TableManagerStats stats = tableManager.getStats();
+            // LOTHRUIN la memoria di buffer non è più "locale"
             result += stats.getBuffersUsedMemory();
+
+            // LOTHRUIN questa non è attualmente "scaricabile" dovrà finire in un conteggio di paginazione
             result += stats.getKeysUsedMemory();
+
+            result += stats.getDirtyUsedMemory();
         }
         return result;
     }
@@ -1093,10 +1093,9 @@ public class TableSpaceManager {
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
-        TableManager tableManager = new TableManager(table, log, dataStorageManager, this, tableSpaceUUID,
-            this.dbmanager.getMaxLogicalPageSize(),
-            this.dbmanager.getMaxTableUsedMemory(),
-            transaction);
+        TableManager tableManager = new TableManager(table, log, dbmanager.getPageReplacementPolicy(),
+                dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID,
+                dbmanager.getMaxLogicalPageSize(), transaction);
         if (dumpLogSequenceNumber != null) {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
         }
@@ -1199,7 +1198,7 @@ public class TableSpaceManager {
             // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
 
-            // we checkpoint all data to disk and save the actual log sequence number            
+            // we checkpoint all data to disk and save the actual log sequence number
             for (AbstractTableManager tableManager : tables.values()) {
                 // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
                 // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
@@ -1233,7 +1232,7 @@ public class TableSpaceManager {
         LOGGER.log(Level.SEVERE, nodeId + " checkpoint finish " + tableSpaceName
             + " started at " + logSequenceNumber
             + ", finished at " + _logSequenceNumber
-            + ", total time " + (_stop - _start) + " s");
+            + ", total time " + (_stop - _start) + " ms");
 
         return logSequenceNumber;
     }

@@ -20,12 +20,22 @@
  */
 package herddb.server;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+
 import herddb.client.ClientConfiguration;
 import herddb.cluster.BookkeeperCommitLogManager;
 import herddb.cluster.EmbeddedBookie;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.core.DBManager;
-import herddb.core.MemoryWatcher;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileBasedUserManager;
@@ -49,16 +59,6 @@ import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Version;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 /**
  * HerdDB Server
@@ -193,23 +193,23 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException(new Exception("Fatal error while generating the local node ID: " + error, error));
             }
         }
-        long reference = configuration.getLong(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT);
-        MemoryWatcher memoryWatcher = null;
-        if (reference >= 0) {
-            memoryWatcher = new MemoryWatcher(configuration);
-        } else {
-            LOGGER.log(Level.SEVERE, "Since " + ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE + "=" + reference + ". Memory Watcher will not be enabled");
-        }
 
         this.manager = new DBManager(nodeId,
             metadataStorageManager,
             buildDataStorageManager(),
             buildCommitLogManager(),
-            tmpDirectory, serverHostData, memoryWatcher
+            tmpDirectory, serverHostData
         );
+
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
         this.manager.setMaxLogicalPageSize(configuration.getLong(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT));
-        this.manager.setMaxTableUsedMemory(configuration.getLong(ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY, ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY_DEFAULT));
+
+        this.manager.setMaxMemoryReference(configuration.getLong(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT));
+        this.manager.setMaxPagesUsedMemory(configuration.getLong(ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY, ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY_DEFAULT));
+        this.manager.setMaximumDirtyMemory(configuration.getLong(ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY, ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_DEFAULT));
+        this.manager.setHiDirtyMemoryLimit(configuration.getInt(ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD, ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT));
+        this.manager.setLowDirtyMemoryLimit(configuration.getInt(ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND, ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND_DEFAULT));
+
         this.manager.setHaltOnTableSpaceBootError(configuration.getBoolean(ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR, ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT));
         this.manager.setConnectionsInfoProvider(this);
         this.manager.setServerConfiguration(configuration);

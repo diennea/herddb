@@ -19,10 +19,11 @@
  */
 package herddb.core;
 
-import herddb.model.Record;
-import herddb.utils.Bytes;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+
+import herddb.model.Record;
+import herddb.utils.Bytes;
 
 /**
  * A page of data loaded in memory
@@ -31,41 +32,24 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class DataPage {
 
-    public final Map<Bytes, Record> data;
+    public final TableManager owner;
     public final long pageId;
     public final boolean readonly;
+
+    public final Map<Bytes, Record> data;
+
     public final AtomicLong usedMemory;
 
-    public DataPage(long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
+    // LOTHRUIN
+    public volatile boolean reference = false;
+    public boolean filter = false;
+
+    public DataPage(TableManager owner, long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
+        this.owner = owner;
         this.pageId = pageId;
         this.readonly = readonly;
         this.data = data;
         this.usedMemory = new AtomicLong(estimatedSize);
-    }
-
-    @Override
-    public int hashCode() {
-        int hash = 3;
-        hash = 73 * hash + (int) (this.pageId ^ (this.pageId >>> 32));
-        return hash;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final DataPage other = (DataPage) obj;
-        if (this.pageId != other.pageId) {
-            return false;
-        }
-        return true;
     }
 
     Record remove(Bytes key) {
@@ -76,6 +60,8 @@ public class DataPage {
     }
 
     Record get(Bytes key) {
+        reference = true;
+        //LOTHRUIN
         return data.get(key);
     }
 
@@ -111,6 +97,28 @@ public class DataPage {
     @Override
     public String toString() {
         return "DataPage{" + "pageId=" + pageId + ", readonly=" + readonly + ", usedMemory=" + usedMemory + '}';
+    }
+
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + (int) (pageId ^ (pageId >>> 32));
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        DataPage other = (DataPage) obj;
+        if (pageId != other.pageId)
+            return false;
+        return true;
     }
 
 }

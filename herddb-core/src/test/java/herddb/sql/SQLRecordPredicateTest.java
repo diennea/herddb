@@ -48,7 +48,7 @@ public class SQLRecordPredicateTest {
 
     @Test
     public void testEvaluateExpression() throws Exception {
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 

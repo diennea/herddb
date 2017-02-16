@@ -19,6 +19,33 @@
  */
 package herddb.core;
 
+import java.lang.management.ManagementFactory;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+
 import herddb.client.ClientConfiguration;
 import herddb.core.join.DataScannerJoinExecutor;
 import herddb.core.stats.ConnectionsInfoProvider;
@@ -44,11 +71,11 @@ import herddb.model.LimitedDataScanner;
 import herddb.model.NodeMetadata;
 import herddb.model.NotLeaderException;
 import herddb.model.ScanResult;
-import herddb.model.TableSpace;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
 import herddb.model.TransactionContext;
@@ -69,31 +96,6 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ChangeThreadName;
 import herddb.utils.DefaultJVMHalt;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Supplier;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 /**
  * General Manager of the local instance of HerdDB
@@ -107,6 +109,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
     private final CommitLogManager commitLogManager;
+    private PageReplacementPolicy pageReplacementPolicy;
     private final String nodeId;
     private final String virtualTableSpaceId;
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
@@ -116,7 +119,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final SQLPlanner translator;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
-    private final MemoryWatcher memoryWatcher;
+    private MemoryManager memoryManager;
     private final ServerHostData hostData;
     private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
@@ -124,12 +127,20 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private ServerConfiguration serverConfiguration = new ServerConfiguration();
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
+
+    private long maxMemoryReference = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
-    private long maxTableUsedMemory = ServerConfiguration.PROPERTY_MAX_TABLE_USED_MEMORY_DEFAULT;
+    private long maxPagesUsedMemory = ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY_DEFAULT;
+
+    private long maxDirtyMemory = ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_DEFAULT;
+    private int hiDirtyMemoryLimit = ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT;
+    private int lowDirtyMemoryLimit = ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT;
+
     private boolean clearAtBoot = false;
     private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT;
     private Runnable haltProcedure = DefaultJVMHalt.INSTANCE;
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
+
     private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -138,6 +149,20 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             return t;
         }
     });
+
+    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
+        this.tmpDirectory = tmpDirectory;
+        this.recordSetFactory = dataStorageManager.createRecordSetFactory();
+        this.metadataStorageManager = metadataStorageManager;
+        this.dataStorageManager = dataStorageManager;
+        this.commitLogManager = commitLogManager;
+        this.nodeId = nodeId;
+        this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
+        this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
+        this.translator = new SQLPlanner(this);
+        this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
+        this.activator.setDaemon(true);
+    }
 
     public boolean isHaltOnTableSpaceBootError() {
         return haltOnTableSpaceBootError;
@@ -171,6 +196,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return dataStorageManager;
     }
 
+    public PageReplacementPolicy getPageReplacementPolicy() {
+        return pageReplacementPolicy;
+    }
+
+    public MemoryManager getMemoryManager() {
+        return memoryManager;
+    }
+
     public String getServerToServerUsername() {
         return serverToServerUsername;
     }
@@ -187,19 +220,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.serverToServerPassword = serverToServerPassword;
     }
 
-    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, herddb.core.MemoryWatcher memoryWatcher) {
-        this.tmpDirectory = tmpDirectory;
-        this.recordSetFactory = dataStorageManager.createRecordSetFactory();
-        this.metadataStorageManager = metadataStorageManager;
-        this.dataStorageManager = dataStorageManager;
-        this.commitLogManager = commitLogManager;
-        this.nodeId = nodeId;
-        this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
-        this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
-        this.translator = new SQLPlanner(this);
-        this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
-        this.activator.setDaemon(true);
-        this.memoryWatcher = memoryWatcher;
+    public ServerConfiguration getConfiguration() {
+        return serverConfiguration;
     }
 
     public ServerConfiguration getServerConfiguration() {
@@ -222,6 +244,54 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return translator;
     }
 
+    public long getMaxMemoryReference() {
+        return maxMemoryReference;
+    }
+
+    public void setMaxMemoryReference(long maxMemoryReference) {
+        this.maxMemoryReference = maxMemoryReference;
+    }
+
+    public long getMaxLogicalPageSize() {
+        return maxLogicalPageSize;
+    }
+
+    public void setMaxLogicalPageSize(long maxLogicalPageSize) {
+        this.maxLogicalPageSize = maxLogicalPageSize;
+    }
+
+    public long getMaxPagesUsedMemory() {
+        return maxPagesUsedMemory;
+    }
+
+    public void setMaxPagesUsedMemory(long maxPagesUsedMemory) {
+        this.maxPagesUsedMemory = maxPagesUsedMemory;
+    }
+
+    public long getMaximumDirtyMemory() {
+        return maxDirtyMemory;
+    }
+
+    public void setMaximumDirtyMemory(long maximumDirtyMemory) {
+        this.maxDirtyMemory = maximumDirtyMemory;
+    }
+
+    public int getHiDirtyMemoryLimit() {
+        return hiDirtyMemoryLimit;
+    }
+
+    public void setHiDirtyMemoryLimit(int hiDirtyMemoryLimit) {
+        this.hiDirtyMemoryLimit = hiDirtyMemoryLimit;
+    }
+
+    public int getLowDirtyMemoryLimit() {
+        return lowDirtyMemoryLimit;
+    }
+
+    public void setLowDirtyMemoryLimit(int lowDirtyMemoryLimit) {
+        this.lowDirtyMemoryLimit = lowDirtyMemoryLimit;
+    }
+
     /**
      * Initial boot of the system
      *
@@ -230,6 +300,27 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      * @throws herddb.metadata.MetadataStorageManagerException
      */
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+
+        final long maxHeap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getMax();
+
+        /* If max memory isn't configured or is too high default it to maximum heap */
+        if (maxMemoryReference == 0 || maxMemoryReference > maxHeap) {
+            maxMemoryReference = maxHeap;
+        }
+
+        /* If max memory for pages isn't configured or is too high default it to 0.5 maxMemoryReference */
+        if (maxPagesUsedMemory == 0 || maxPagesUsedMemory > maxMemoryReference) {
+            maxPagesUsedMemory = (long) (0.5F * maxMemoryReference);
+        }
+
+        /* If max memory for dirty data isn't configured or is too high default it to 0.2 maxMemoryReference */
+        if (maxDirtyMemory == 0 ||maxDirtyMemory > maxMemoryReference) {
+            maxDirtyMemory = (long) (0.2F * maxMemoryReference);
+        }
+
+        memoryManager = new MemoryManager(maxDirtyMemory, hiDirtyMemoryLimit, lowDirtyMemoryLimit);
+
+        pageReplacementPolicy = new ClockAdaptiveReplacement((int) (maxPagesUsedMemory / maxLogicalPageSize));
 
         metadataStorageManager.start();
 
@@ -466,7 +557,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         try (ChangeThreadName changeThreadName = new ChangeThreadName("executePlan " + plan)) {
             if (plan.mainStatement instanceof ScanStatement) {
                 DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
-                // transction can be auto generated during the scan 
+                // transction can be auto generated during the scan
                 transactionContext = new TransactionContext(result.transactionId);
                 return executeDataScannerPlan(plan, result, context, transactionContext);
             } else if (plan.dataSource != null) {
@@ -657,7 +748,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 for (int i = 0; i < timeout; i += poolTime) {
                     List<TableSpaceReplicaState> replicateStates = metadataStorageManager.getTableSpaceReplicaState(tableSpace.uuid);
                     for (TableSpaceReplicaState ts : replicateStates) {
-                        LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up, replica state node: " + ts.nodeId + ", state: " + ts.modeToSQLString(ts.mode) + ", ts " + new java.sql.Timestamp(ts.timestamp));
+                        LOGGER.log(Level.SEVERE, "waiting for  " + tableSpace.name + ", uuid " + tableSpace.uuid + ", to be up, replica state node: " + ts.nodeId + ", state: " + TableSpaceReplicaState.modeToSQLString(ts.mode) + ", ts " + new java.sql.Timestamp(ts.timestamp));
                         if (ts.mode == TableSpaceReplicaState.MODE_LEADER) {
                             okWait = true;
                             break;
@@ -780,26 +871,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         return nodeId.replace(":", "").replace(".", "").toLowerCase();
     }
 
-    public ServerConfiguration getConfiguration() {
-        return serverConfiguration;
-    }
-
-    public long getMaxLogicalPageSize() {
-        return maxLogicalPageSize;
-    }
-
-    public void setMaxLogicalPageSize(long maxLogicalPageSize) {
-        this.maxLogicalPageSize = maxLogicalPageSize;
-    }
-
-    public long getMaxTableUsedMemory() {
-        return maxTableUsedMemory;
-    }
-
-    public void setMaxTableUsedMemory(long maxTableUsedMemory) {
-        this.maxTableUsedMemory = maxTableUsedMemory;
-    }
-
     private void tryBecomeLeaderFor(TableSpace tableSpace) throws DDLException, MetadataStorageManagerException {
         LOGGER.log(Level.SEVERE, "node {0}, try to become leader of {1}", new Object[]{nodeId, tableSpace.name});
         TableSpace.Builder newTableSpaceBuilder
@@ -830,11 +901,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     long handleLocalMemoryUsage() {
-        AtomicLong result = new AtomicLong();
+        long result = 0;
         for (TableSpaceManager tableSpaceManager : tablesSpaces.values()) {
-            result.addAndGet(tableSpaceManager.handleLocalMemoryUsage());
+            result += tableSpaceManager.handleLocalMemoryUsage();
         }
-        return result.get();
+        return result;
     }
 
     private class Activator implements Runnable {
@@ -1015,9 +1086,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         }
 
-        if (memoryWatcher != null) {
-            memoryWatcher.run(this);
-        }
+        memoryManager.check();
+
         if (!checkpointDone) {
             for (TableSpaceManager man : tablesSpaces.values()) {
                 man.runLocalTableCheckPoints();

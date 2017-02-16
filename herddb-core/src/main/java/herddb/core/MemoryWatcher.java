@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import herddb.server.ServerConfiguration;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
@@ -38,26 +37,27 @@ public class MemoryWatcher {
     private float lowerbound;
     private static final MemoryMXBean jvmMemory = ManagementFactory.getMemoryMXBean();
 
-    public MemoryWatcher(ServerConfiguration config) {
-        this(
-            config.getLong(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE,
-                ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT),
-            config.getLong(ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_THRESHOLD,
-                ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_THRESHOLD_DEFAULT),
-            config.getLong(ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND,
-                ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND_DEFAULT)
-        );
-    }
+//    public MemoryWatcher(ServerConfiguration config) {
+//        this(
+//            config.getLong(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE,
+//                ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT),
+//            config.getLong(ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_THRESHOLD,
+//                ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_THRESHOLD_DEFAULT),
+//            config.getLong(ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND,
+//                ServerConfiguration.PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND_DEFAULT)
+//        );
+//    }
 
     public MemoryWatcher(long maxMemoryReferenceValue,
         float overallMaximumLimitPercent,
         float lowerboundPercend) {
-        if (maxMemoryReferenceValue == 0) {
-            maxMemoryReferenceValue = jvmMemory.getHeapMemoryUsage().getMax();
-            LOG.log(Level.INFO, "This database will use " + (maxMemoryReferenceValue / (1024 * 1024)) + " MBytes as reference max memory value (computed from JVM JMX MemoryMXBean)");
-        } else {
-            LOG.log(Level.INFO, "This database will use " + (maxMemoryReferenceValue / (1024 * 1024)) + " MBytes as reference max memory value (manually overridden value)");
-        }
+//        LOTHRUIN
+//        if (maxMemoryReferenceValue == 0) {
+//            maxMemoryReferenceValue = jvmMemory.getHeapMemoryUsage().getMax();
+//            LOG.log(Level.INFO, "This database will use " + (maxMemoryReferenceValue / (1024 * 1024)) + " MBytes as reference max memory value (computed from JVM JMX MemoryMXBean)");
+//        } else {
+            LOG.log(Level.INFO, "This database will use " + (maxMemoryReferenceValue / (1024 * 1024)) + " MBytes as reference max memory value");
+//        }
 
         this.overallMaximumLimit = (maxMemoryReferenceValue * overallMaximumLimitPercent) / 100f;
         LOG.log(Level.INFO, "Overall maximum limit is " + (long) (overallMaximumLimit / (1024 * 1024)) + " MBytes: the database will try not to use more than this amount of memory for live data");
