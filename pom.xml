@@ -298,5 +298,12 @@
                 </plugins>        
             </build>
         </profile>     
+        <profile>
+            <id>website</id>            
+            <modules>
+                <module>herddb-site-skin</module>
+                <module>herddb-website</module>                
+            </modules>
+        </profile>
     </profiles>    
 </project>
