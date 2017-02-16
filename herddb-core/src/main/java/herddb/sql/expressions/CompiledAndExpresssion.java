@@ -30,7 +30,7 @@ public class CompiledAndExpresssion implements CompiledSQLExpression {
     private final CompiledSQLExpression right;
     private final boolean not;
 
-    public CompiledAndExpresssion(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+    public CompiledAndExpresssion(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
         this.left = left;
         this.right = right;
         this.not = not;
