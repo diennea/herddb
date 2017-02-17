@@ -31,9 +31,13 @@ import herddb.model.TableSpace;
 import herddb.utils.SimpleBufferedOutputStream;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -137,15 +141,25 @@ public class HerdDBCLI {
                     executeStatement(verbose, ignoreerrors, query, statement);
                 } else if (!file.isEmpty()) {
                     StringBuilder currentStatement = new StringBuilder();
-                    for (String line : Files.readAllLines(Paths.get(file), StandardCharsets.UTF_8)) {
-                        if (line.trim().equalsIgnoreCase("GO")) {
-                            executeStatement(verbose, ignoreerrors, currentStatement.toString(), statement);
-                            currentStatement.setLength(0);
-                        } else {
-                            currentStatement.append(line + "\n");
+                    try (FileInputStream fIn = new FileInputStream(new File(file));
+                        InputStreamReader ii = new InputStreamReader(fIn, "utf-8");
+                        BufferedReader br = new BufferedReader(ii);) {
+                        String line = br.readLine();
+                        while (line != null) {
+                            if (line.trim().equalsIgnoreCase("GO")
+                                || line.endsWith(";")) {
+                                if (line.endsWith(";")) {
+                                    currentStatement.append(line);
+                                }
+                                executeStatement(verbose, ignoreerrors, currentStatement.toString(), statement);
+                                currentStatement.setLength(0);
+                            } else {
+                                currentStatement.append(line + "\n");
+                            }
+                            line = br.readLine();
                         }
+                        executeStatement(verbose, ignoreerrors, currentStatement.toString(), statement);
                     }
-                    executeStatement(verbose, ignoreerrors, currentStatement.toString(), statement);
                 } else if (!script.isEmpty()) {
                     Map<String, Object> variables = new HashMap<>();
                     variables.put("connection", connection);
@@ -235,13 +249,25 @@ public class HerdDBCLI {
     }
 
     private static void executeStatement(boolean verbose, boolean ignoreerrors, String query, final Statement statement) throws SQLException {
-        if (query.trim().isEmpty()) {
+        query = query.trim();
+        if (query.isEmpty()
+            || query.startsWith("--")
+            || query.startsWith("/*") // TODO: handle better query comments
+            || query.endsWith("/*")) {
             return;
         }
-        String formattedQuery = query.trim().toLowerCase();
+        String formattedQuery = query.toLowerCase();
+        if (formattedQuery.endsWith(";")) {
+            // mysqldump
+            formattedQuery = formattedQuery.substring(0, formattedQuery.length() - 1);
+        }
         if (formattedQuery.equals("exit") || formattedQuery.equals("quit")) {
             System.out.println("Connection closed.");
             System.exit(0);
+        }
+        if (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("UNLOCK TABLES")) {
+            // mysqldump
+            return;
         }
         Boolean setAutoCommit = null;
         if (formattedQuery.startsWith("autocommit=")) {
