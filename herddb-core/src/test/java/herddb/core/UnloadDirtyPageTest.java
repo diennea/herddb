@@ -34,10 +34,12 @@ import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import org.junit.Ignore;
 
 public class UnloadDirtyPageTest {
 
     @Test
+    @Ignore
     public void updateRecordOnDirtyPage() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {

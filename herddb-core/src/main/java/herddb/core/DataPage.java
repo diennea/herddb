@@ -102,23 +102,22 @@ public class DataPage {
     @Override
     public int hashCode() {
         final int prime = 31;
-        int result = 1;
-        result = prime * result + (int) (pageId ^ (pageId >>> 32));
-        return result;
+        return prime + (int) (pageId ^ (pageId >>> 32));
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
+        if (this == obj) {
             return true;
-        if (obj == null)
+        }
+        if (obj == null) {
             return false;
-        if (getClass() != obj.getClass())
+        }
+        if (getClass() != obj.getClass()) {
             return false;
+        }
         DataPage other = (DataPage) obj;
-        if (pageId != other.pageId)
-            return false;
-        return true;
+        return pageId == other.pageId;
     }
 
 }

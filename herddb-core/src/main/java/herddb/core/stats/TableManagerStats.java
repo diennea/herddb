@@ -43,8 +43,6 @@ public interface TableManagerStats {
     public long getBuffersUsedMemory();
 
     public long getKeysUsedMemory();
-
-    @Deprecated
-    public long getMaxTableUsedMemory();
+    
 
 }

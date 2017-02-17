@@ -106,9 +106,9 @@ public class MaxLeaderInactivityTest {
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
                     List<Tuple> tuples = scan.consume();
-                    for (Tuple t : tuples) {
-                        System.out.println("tuple:" + t);
-                    }
+//                    for (Tuple t : tuples) {
+//                        System.out.println("tuple:" + t);
+//                    }
                     assertEquals(1, tuples.size());
 
                 }
@@ -117,9 +117,9 @@ public class MaxLeaderInactivityTest {
                 for (int i = 0; i < 100; i++) {
                     try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_1.getNodeId() + "'", Collections.emptyList());) {
                         List<Tuple> tuples = scan.consume();
-                        for (Tuple t : tuples) {
-                            System.out.println("tuple:" + t);
-                        }
+//                        for (Tuple t : tuples) {
+//                            System.out.println("tuple:" + t);
+//                        }
                         assertEquals(1, tuples.size());
                         if (tuples.get(0).get("mode").equals("follower")) {
                             break;
@@ -192,9 +192,9 @@ public class MaxLeaderInactivityTest {
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where "
                     + "tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
                     List<Tuple> tuples = scan.consume();
-                    for (Tuple t : tuples) {
-                        System.out.println("tuple:" + t);
-                    }
+//                    for (Tuple t : tuples) {
+//                        System.out.println("tuple:" + t);
+//                    }
                     assertEquals(1, tuples.size());
 
                 }
@@ -203,9 +203,9 @@ public class MaxLeaderInactivityTest {
                 for (int i = 0; i < 20; i++) {
                     try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt'", Collections.emptyList());) {
                         List<Tuple> tuples = scan.consume();
-                        for (Tuple t : tuples) {
-                            System.out.println("tuple:" + t);
-                        }
+//                        for (Tuple t : tuples) {
+//                            System.out.println("tuple:" + t);
+//                        }
                         assertEquals(2, tuples.size());
                     }
                     TableSpaceManager tableSpaceManager_1 = server_1.getManager().getTableSpaceManager("ttt");

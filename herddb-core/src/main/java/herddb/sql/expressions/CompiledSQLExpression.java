@@ -30,6 +30,11 @@ import java.util.Map;
  */
 public interface CompiledSQLExpression {
 
+    public interface BinaryExpressionBuilder {
+
+        public CompiledSQLExpression build(boolean not, CompiledSQLExpression left, CompiledSQLExpression right);
+    }
+
     public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException;
 
 }

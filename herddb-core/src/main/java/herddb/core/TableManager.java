@@ -252,11 +252,7 @@ public final class TableManager implements AbstractTableManager {
         public long getKeysUsedMemory() {
             return keyToPage.getUsedMemory();
         }
-
-        @Override
-        public long getMaxTableUsedMemory() {
-            return 0;
-        }
+        
     }
 
     TableManager(Table table, CommitLog log, PageReplacementPolicy pageReplacementPolicy,

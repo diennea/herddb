@@ -87,10 +87,7 @@ public class AutocheckPointTest {
 
             long lastCheckpont = manager.getLastCheckPointTs();
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList(), new TransactionContext(tx))) {
-                List<Tuple> data = scan.consume();
-                for (Tuple t : data) {
-                    System.out.println("tuple:" + t);
-                }
+                List<Tuple> data = scan.consume();              
                 assertEquals(4, data.size());
             }
             manager.setCheckpointPeriod(1000);

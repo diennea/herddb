@@ -96,9 +96,9 @@ public class MultiServerCreateTableSpaceWaitTest {
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
                     List<Tuple> tuples = scan.consume();
-                    for (Tuple t : tuples) {
-                        System.out.println("tuple:" + t);
-                    }
+//                    for (Tuple t : tuples) {
+//                        System.out.println("tuple:" + t);
+//                    }
                     assertEquals(1, tuples.size());
 
                 }

@@ -115,12 +115,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     @Override
     public void messageReceived(Message message, Channel _channel) {
-        LOGGER.log(Level.SEVERE, "{0} - received {1}", new Object[]{nodeId, message.toString()});
         switch (message.type) {
             case Message.TYPE_TABLESPACE_DUMP_DATA: {
                 String dumpId = (String) message.parameters.get("dumpId");
                 TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
-                LOGGER.log(Level.SEVERE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
+                LOGGER.log(Level.FINE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
                 if (receiver == null) {
                     if (_channel != null) {
                         _channel.sendReplyMessage(message, Message.ERROR(clientId, new Exception("no such dump receiver " + dumpId)));
@@ -129,7 +128,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 try {
                     Map<String, Object> values = (Map<String, Object>) message.parameters.get("values");
-                    LOGGER.log(Level.SEVERE, "values:" + values);
                     String command = (String) values.get("command") + "";
                     boolean sendAck = true;
                     switch (command) {

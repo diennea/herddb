@@ -20,6 +20,7 @@
 package herddb.sql.expressions;
 
 import herddb.model.StatementExecutionException;
+import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
 import herddb.sql.functions.BuiltinFunctions;
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 import herddb.utils.RawString;
@@ -64,15 +65,15 @@ public class SQLExpressionCompiler {
         if (compiled != null) {
             return compiled;
         }
-        
+
         throw new StatementExecutionException("unsupported operand " + exp.getClass() + ", expression is " + exp);
     }
-    
+
     private static CompiledSQLExpression tryCompileBinaryExpression(
         String validatedTableAlias,
         BinaryExpression binExp,
-        Class<? extends CompiledSQLExpression> compiledExpClass) {
-        
+        BinaryExpressionBuilder compiledExpClass) {
+
         CompiledSQLExpression left = compileExpression(validatedTableAlias, binExp.getLeftExpression());
         if (left == null) {
             return null;
@@ -81,22 +82,9 @@ public class SQLExpressionCompiler {
         if (right == null) {
             return null;
         }
-        
-        try {
-            return compiledExpClass.getDeclaredConstructor(
-                Boolean.class, CompiledSQLExpression.class, CompiledSQLExpression.class)
-                    .newInstance(binExp.isNot(), left, right);
-        
-        } catch (IllegalAccessException | 
-                 IllegalArgumentException | 
-                 InstantiationException | 
-                 InvocationTargetException | 
-                 NoSuchMethodException |
-                 SecurityException ex) {
-            throw new RuntimeException(ex);
-        }
+        return compiledExpClass.build(binExp.isNot(), left, right);
     }
-    
+
     private static CompiledSQLExpression tryCompileExpression(
         String validatedTableAlias,
         Expression exp) {
@@ -130,15 +118,15 @@ public class SQLExpressionCompiler {
             int index = ((JdbcParameter) exp).getIndex();
             return new JdbcParameterExpression(index);
         } else if (exp instanceof AndExpression) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledAndExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledAndExpression(a, b, c));
         } else if (exp instanceof OrExpression) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledOrExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledOrExpression(a, b, c));
         } else if (exp instanceof Function) {
             return CompiledFunction.create((Function) exp, validatedTableAlias);
         } else if (exp instanceof Addition) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledAddExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledAddExpression(a, b, c));
         } else if (exp instanceof Subtraction) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledSubtractExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledSubtractExpression(a, b, c));
         } else if (exp instanceof Parenthesis) {
             Parenthesis p = (Parenthesis) exp;
             CompiledSQLExpression inner = compileExpression(validatedTableAlias, p.getExpression());
@@ -147,19 +135,19 @@ public class SQLExpressionCompiler {
             }
             return new CompiledParenthesisExpression(p.isNot(), inner);
         } else if (exp instanceof EqualsTo) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledEqualsExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledEqualsExpression(a, b, c));
         } else if (exp instanceof NotEqualsTo) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledNotEqualsExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledNotEqualsExpression(a, b, c));
         } else if (exp instanceof MinorThan) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledMinorThenExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledMinorThenExpression(a, b, c));
         } else if (exp instanceof MinorThanEquals) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledMinorThenEqualsExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledMinorThenEqualsExpression(a, b, c));
         } else if (exp instanceof GreaterThan) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledGreaterThenExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledGreaterThenExpression(a, b, c));
         } else if (exp instanceof GreaterThanEquals) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledGreaterThenEqualsExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledGreaterThenEqualsExpression(a, b, c));
         } else if (exp instanceof LikeExpression) {
-            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, CompiledLikeExpression.class);
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledLikeExpression(a, b, c));
         } else if (exp instanceof Between) {
             return CompiledBetweenExpression.create(validatedTableAlias, (Between) exp);
         } else if (exp instanceof SignedExpression) {
@@ -180,7 +168,7 @@ public class SQLExpressionCompiler {
             }
             return new CompiledIsNullExpression(i.isNot(), left);
         } else if (exp instanceof CaseExpression) {
-            return CompiledCaseExpression.create(validatedTableAlias, (CaseExpression)exp);
+            return CompiledCaseExpression.create(validatedTableAlias, (CaseExpression) exp);
         }
         return null;
     }
@@ -191,10 +179,10 @@ public class SQLExpressionCompiler {
             if (c.getTable() != null && c.getTable().getName() != null
                 && !c.getTable().getName().equals(validatedTableAlias)) {
                 throw new StatementExecutionException("invalid column name " + c.getColumnName()
-                        + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
+                    + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
             }
         }
-        
+
         String columnName = c.getColumnName();
         if (BuiltinFunctions.BOOLEAN_TRUE.equalsIgnoreCase(columnName)) {
             return new ConstantExpression(true);
@@ -209,7 +197,6 @@ public class SQLExpressionCompiler {
         BinaryExpression be = (BinaryExpression) exp;
 
         // MOST frequent expressions "TABLE.COLUMNNAME OPERATOR ?", we can hardcode the access to the column and to the JDBC parameter
-        
         if (be.getLeftExpression() instanceof net.sf.jsqlparser.schema.Column) {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) be.getLeftExpression();
             if (validatedTableAlias != null) {
