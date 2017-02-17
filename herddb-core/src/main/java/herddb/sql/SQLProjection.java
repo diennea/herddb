@@ -35,11 +35,14 @@ import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.CaseExpression;
+import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.Parenthesis;
 import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
 import net.sf.jsqlparser.expression.operators.arithmetic.Division;
@@ -101,20 +104,29 @@ public class SQLProjection implements Projection {
                     if (fieldName == null) {
                         fieldName = c.getColumnName();
                     }
-                    Column column = table.getColumn(c.getColumnName());
-                    if (column == null) {
-                        throw new StatementExecutionException("invalid column name " + c.getColumnName() + " in table " + table.name);
+                    if (BuiltinFunctions.BOOLEAN_TRUE.equalsIgnoreCase(c.getColumnName()) || 
+                        BuiltinFunctions.BOOLEAN_FALSE.equalsIgnoreCase(c.getColumnName())) {
+                        columType = ColumnTypes.BOOLEAN;
+                    } else {
+                        Column column = table.getColumn(c.getColumnName());
+                        if (column == null) {
+                            throw new StatementExecutionException("invalid column name " + c.getColumnName() + " in table " + table.name);
+                        }
+                        if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
+                            throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
+                        }
+                        columType = column.type;
+                        directColumnReference = c;
                     }
-                    if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
-                        throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);
-                    }
-                    columType = column.type;
-                    directColumnReference = c;
                 } else if (exp instanceof StringValue) {
                     columType = ColumnTypes.STRING;
                 } else if (exp instanceof LongValue) {
                     columType = ColumnTypes.LONG;
+                } else if (exp instanceof DoubleValue) {
+                    columType = ColumnTypes.DOUBLE;
                 } else if (exp instanceof TimestampValue) {
+                    columType = ColumnTypes.TIMESTAMP;
+                } else if (exp instanceof TimeKeyExpression) {
                     columType = ColumnTypes.TIMESTAMP;
                 } else if (exp instanceof Function) {
                     Function f = (Function) exp;
@@ -131,6 +143,8 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.LONG;
                 } else if (exp instanceof Division) {
                     columType = ColumnTypes.LONG;
+                } else if (exp instanceof Parenthesis) {
+                    columType = ColumnTypes.ANYTYPE;
                 } else if (exp instanceof JdbcParameter) {
                     columType = ColumnTypes.ANYTYPE;
                 } else if (exp instanceof CaseExpression) {
@@ -204,7 +218,11 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.STRING;
                 } else if (exp instanceof LongValue) {
                     columType = ColumnTypes.LONG;
+                } else if (exp instanceof DoubleValue) {
+                    columType = ColumnTypes.DOUBLE;
                 } else if (exp instanceof TimestampValue) {
+                    columType = ColumnTypes.TIMESTAMP;
+                } else if (exp instanceof TimeKeyExpression) {
                     columType = ColumnTypes.TIMESTAMP;
                 } else if (exp instanceof Function) {
                     Function f = (Function) exp;
@@ -221,6 +239,8 @@ public class SQLProjection implements Projection {
                     columType = ColumnTypes.LONG;
                 } else if (exp instanceof Division) {
                     columType = ColumnTypes.LONG;
+                } else if (exp instanceof Parenthesis) {
+                    columType = ColumnTypes.ANYTYPE;
                 } else if (exp instanceof JdbcParameter) {
                     columType = ColumnTypes.ANYTYPE;
                 } else {

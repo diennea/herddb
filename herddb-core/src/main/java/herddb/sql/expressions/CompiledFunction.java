@@ -33,10 +33,37 @@ public class CompiledFunction implements CompiledSQLExpression {
 
     private final String name;
     private final List<CompiledSQLExpression> parameters;
+    
+    private final long roundMultiplier;
+    private final double roundSign;
 
     public CompiledFunction(String name, List<CompiledSQLExpression> parameters) {
         this.name = name;
         this.parameters = parameters;
+        
+        if (name.equals(BuiltinFunctions.ROUND) && parameters.size() == 2) {
+            if (parameters.size() == 2) {
+                
+                long precision;
+                try {
+                    precision = (long)parameters.get(1).evaluate(null, null);
+                } catch (NullPointerException ex) {
+                    throw new IllegalArgumentException("round second parameter must be a constant value");
+                }
+                long mult = 1L;
+                for (int i=0; i<Math.abs(precision); i++) {
+                    mult *= 10;
+                }
+                roundMultiplier = mult;
+                roundSign = Math.signum(precision);
+            } else {
+                roundMultiplier = 0;
+                roundSign = 0;
+            }
+        } else {
+            roundMultiplier = 0;
+            roundSign = 0;
+        }
     }
 
     public static CompiledFunction create(Function f, String validatedTableAlias) {
@@ -62,6 +89,18 @@ public class CompiledFunction implements CompiledSQLExpression {
             case BuiltinFunctions.UPPER: {
                 if (params == null || params.size() != 1) {
                     throw new StatementExecutionException("function " + name + " must have one parameter");
+                }
+                break;
+            }
+            case BuiltinFunctions.ABS: {
+                if (params == null || params.size() != 1) {
+                    throw new StatementExecutionException("function " + name + " must have one parameter");
+                }
+                break;
+            }
+            case BuiltinFunctions.ROUND: {
+                if (params == null || (params.size() != 1 && params.size() != 2)) {
+                    throw new StatementExecutionException("function " + name + " must have one or two parameters");
                 }
                 break;
             }
@@ -94,6 +133,24 @@ public class CompiledFunction implements CompiledSQLExpression {
             case BuiltinFunctions.UPPER: {
                 Object parValue = parameters.get(0).evaluate(bean, context);
                 return parValue.toString().toUpperCase();
+            }
+            case BuiltinFunctions.ABS: {
+                Object parValue = parameters.get(0).evaluate(bean, context);
+                if (parValue instanceof Double) {
+                    return Math.abs((double) parValue);
+                } else {
+                    return Math.abs((long) parValue);
+                }
+            }
+            case BuiltinFunctions.ROUND: {
+                Object parValue = parameters.get(0).evaluate(bean, context);
+                if (roundSign == 0) {
+                    return (double)Math.round((double) parValue);
+                } else if (roundSign > 0) {
+                    return (double)Math.round((double) parValue *  roundMultiplier) / roundMultiplier;
+                } else {
+                    return (double)Math.round((double) parValue / roundMultiplier) * roundMultiplier;
+                }
             }
             default:
                 throw new StatementExecutionException("unhandled function " + name);
