@@ -422,6 +422,7 @@ public class SQLPlanner {
             case "nvarchar2":
             case "nclob":
             case "text":
+            case "longtext":
             case "clob":
                 type = ColumnTypes.STRING;
                 break;

@@ -132,7 +132,7 @@ public class HerdDBStatement implements java.sql.Statement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        if (sql.toLowerCase().contains("select")) {
+        if (sql.toLowerCase().startsWith("select")) {
             executeQuery(sql);
             moreResults = true;
             return true;

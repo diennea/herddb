@@ -265,7 +265,7 @@ public class HerdDBCLI {
             System.out.println("Connection closed.");
             System.exit(0);
         }
-        if (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("UNLOCK TABLES")) {
+        if (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables")) {
             // mysqldump
             return;
         }
