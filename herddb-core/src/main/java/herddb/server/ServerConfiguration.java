@@ -115,22 +115,6 @@ public final class ServerConfiguration {
     public static final String PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR = "server.haltontablespacebooterror";
     public static final boolean PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT = false;
 
-//    /**
-//     * Percent of memory used by live data (keys, buffers...). It is calculated over
-//     * {@link  #PROPERTY_MEMORY_LIMIT_REFERENCE}. When the accounted memory reaches this threshold the server will try
-//     * to release memory in order to reach the {@link  #PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND} reference value
-//     */
-//    public static final String PROPERTY_MAX_LIVE_MEMORY_THRESHOLD = "server.memstore.globallimit.hi";
-//    public static final int PROPERTY_MAX_LIVE_MEMORY_THRESHOLD_DEFAULT = 40;
-//
-//    /**
-//     * Lower bound on the percent of memory used by live data (keys, buffers...). It is calculated over the actual value
-//     * {@link  #PROPERTY_MAX_LIVE_MEMORY_THRESHOLD}.
-//     */
-//    public static final String PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND = "server.memstore.globallimit.low";
-//    public static final int PROPERTY_MAX_LIVE_MEMORY_LOWERBOUND_DEFAULT = 95;
-
-
     /**
      * Reference value for the calculation of {@link #PROPERTY_MAX_LIVE_MEMORY_THRESHOLD}. If 0 the system will try to
      * use most of the RAM of the JVM. When you are embedding the server in another process use this property in order
@@ -138,16 +122,7 @@ public final class ServerConfiguration {
      */
     public static final String PROPERTY_MEMORY_LIMIT_REFERENCE = "server.maxmemory.reference";
     public static final long PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT = 0L;
-
-    // LOTHRUIN
-//    /**
-//     * Mamimum limit of memory used for a single table
-//     */
-//    @Deprecated
-//    public static final String PROPERTY_MAX_TABLE_USED_MEMORY = "server.memstore.table.limit";
-//    @Deprecated
-//    public static final long PROPERTY_MAX_TABLE_USED_MEMORY_DEFAULT = 300 * 1024 * 1024L;
-
+    
     /**
      * Maximum amount of memory used for pages
      */
