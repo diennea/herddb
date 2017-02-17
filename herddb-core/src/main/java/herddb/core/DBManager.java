@@ -85,6 +85,7 @@ import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.Message;
@@ -314,7 +315,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         /* If max memory for dirty data isn't configured or is too high default it to 0.2 maxMemoryReference */
-        if (maxDirtyMemory == 0 ||maxDirtyMemory > maxMemoryReference) {
+        if (maxDirtyMemory == 0 || maxDirtyMemory > maxMemoryReference) {
             maxDirtyMemory = (long) (0.2F * maxMemoryReference);
         }
 
@@ -591,6 +592,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 return executeJoinedScansPlan(scanResults, context, transactionContext,
                     plan);
 
+            } else if (plan.insertStatements != null) {
+                int insertCount = 0;
+                for (InsertStatement insert : plan.insertStatements) {
+                    DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(insert, context, transactionContext);
+                    // transction can be auto generated during the loop
+                    transactionContext = new TransactionContext(res.transactionId);
+                    insertCount += res.getUpdateCount();
+                }
+                return new DMLStatementExecutionResult(transactionContext.transactionId, insertCount);
             } else {
                 return executeStatement(plan.mainStatement, context, transactionContext);
             }
@@ -906,6 +916,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             result += tableSpaceManager.handleLocalMemoryUsage();
         }
         return result;
+
     }
 
     private class Activator implements Runnable {

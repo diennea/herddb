@@ -248,6 +248,7 @@ class JdbcQueryRewriter implements StatementVisitor,
 
     @Override
     public void visit(Drop s) {
+        visit(s.getName());
     }
 
     @Override
@@ -535,7 +536,7 @@ class JdbcQueryRewriter implements StatementVisitor,
     public void visit(Column tableColumn) {
         String colName = tableColumn.getColumnName();
         if (colName != null) {
-            tableColumn.setColumnName(colName.toLowerCase());
+            tableColumn.setColumnName(CompatibilityUtils.fixMySqlName(colName.toLowerCase()));
         }
         visit(tableColumn.getTable());
     }
@@ -736,13 +737,13 @@ class JdbcQueryRewriter implements StatementVisitor,
         }
         String name = tableName.getName();
         if (name != null) {
-            tableName.setName(name.toLowerCase());
+            tableName.setName(CompatibilityUtils.fixMySqlName(name.toLowerCase()));
         }
         Alias alias = tableName.getAlias();
         if (alias != null) {
             String aliasName = alias.getName();
             if (aliasName != null) {
-                alias.setName(aliasName.toLowerCase());
+                alias.setName(CompatibilityUtils.fixMySqlName(aliasName.toLowerCase()));
             }
         }
     }

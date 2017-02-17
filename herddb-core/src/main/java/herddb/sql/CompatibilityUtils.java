@@ -17,38 +17,22 @@
  under the License.
 
  */
-package herddb.model.commands;
-
-import herddb.model.DDLStatement;
+package herddb.sql;
 
 /**
- * Drop table
+ * Utility for compatibility with other DBMS languages
  *
  * @author enrico.olivelli
  */
-public class DropIndexStatement extends DDLStatement {
+public class CompatibilityUtils {
 
-    private final String indexName;
-    private final boolean ifExists;
-
-    public DropIndexStatement(String tableSpace, String indexName, boolean ifExists) {
-        super(tableSpace);
-        this.indexName = indexName;
-        this.ifExists = ifExists;
+    public static String fixMySqlName(String tableName) {
+        if (tableName == null || tableName.length() <= 1) {
+            return tableName;
+        }
+        if (tableName.charAt(0) == '`' && tableName.charAt(tableName.length() - 1) == '`') {
+            return tableName.substring(1, tableName.length() - 1);
+        }
+        return tableName;
     }
-
-    @Override
-    public boolean supportsTransactionAutoCreate() {
-        /* This instruction will autocreate a transaction if issued */
-        return true;
-    }
-
-    public String getIndexName() {
-        return indexName;
-    }
-
-    public boolean isIfExists() {
-        return ifExists;
-    }
-
 }

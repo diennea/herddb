@@ -29,12 +29,14 @@ import herddb.model.DDLStatement;
 public class DropTableStatement extends DDLStatement {
 
     private final String table;
+    private final boolean ifExists;
 
-    public DropTableStatement(String tableSpace, String tableName) {
+    public DropTableStatement(String tableSpace, String tableName, boolean ifExists) {
         super(tableSpace);
         this.table = tableName;
+        this.ifExists = ifExists;
     }
-    
+
     @Override
     public boolean supportsTransactionAutoCreate() {
         /* This instruction will autocreate a transaction if issued */
@@ -43,6 +45,10 @@ public class DropTableStatement extends DDLStatement {
 
     public String getTable() {
         return table;
+    }
+
+    public boolean isIfExists() {
+        return ifExists;
     }
 
 }

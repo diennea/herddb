@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -40,6 +41,7 @@ public class ExecutionPlan {
     public final TuplePredicate joinFilter;
     public final Projection joinProjection;
     public final ExecutionPlan dataSource;
+    public final List<InsertStatement> insertStatements;
 
     private ExecutionPlan(Statement mainStatement,
         Aggregator mainAggregator,
@@ -48,7 +50,8 @@ public class ExecutionPlan {
         ExecutionPlan dataSource,
         List<ScanStatement> joinStatements,
         TuplePredicate joinFilter,
-        Projection joinProjection) {
+        Projection joinProjection,
+        List<InsertStatement> insertStatements) {
         this.mainStatement = mainStatement;
         this.mainAggregator = mainAggregator;
         this.limits = limits;
@@ -57,25 +60,30 @@ public class ExecutionPlan {
         this.joinStatements = joinStatements;
         this.joinFilter = joinFilter;
         this.joinProjection = joinProjection;
+        this.insertStatements = insertStatements;
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null, null, null, null, null);
+        return new ExecutionPlan(statement, null, null, null, null, null, null, null, null);
+    }
+
+    public static ExecutionPlan multiInsert(List<InsertStatement> statements) {
+        return new ExecutionPlan(null, null, null, null, null, null, null, null, statements);
     }
 
     public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator, null, null, null, null);
+        return new ExecutionPlan(statement, aggregator, limits, comparator, null, null, null, null, null);
     }
 
     public static ExecutionPlan joinedScan(List<ScanStatement> statements,
         TuplePredicate joinFilter,
         Projection joinProjection,
         ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(null, null, limits, comparator, null, statements, joinFilter, joinProjection);
+        return new ExecutionPlan(null, null, limits, comparator, null, statements, joinFilter, joinProjection, null);
     }
 
     public static ExecutionPlan dataManipulationFromSelect(DMLStatement statement, ExecutionPlan dataSource) {
-        return new ExecutionPlan(statement, null, null, null, dataSource, null, null, null);
+        return new ExecutionPlan(statement, null, null, null, dataSource, null, null, null, null);
     }
 
     @Override

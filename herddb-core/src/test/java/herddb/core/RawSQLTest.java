@@ -303,6 +303,77 @@ public class RawSQLTest {
     }
 
     @Test
+    public void multiInsert() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
+
+            java.sql.Timestamp tt1 = new java.sql.Timestamp(System.currentTimeMillis());
+            java.sql.Timestamp tt2 = new java.sql.Timestamp(System.currentTimeMillis() + 60000);
+
+            assertEquals(2,
+                executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,?),(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), tt1,
+                    "mykey2", Integer.valueOf(1235), tt2)).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT k1,n1,t1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList());) {
+                List<Tuple> res = scan.consume();
+                assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
+                assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
+                assertEquals(Integer.valueOf(1235), res.get(0).get("n1"));
+                assertEquals(Integer.valueOf(1234), res.get(1).get("n1"));
+                assertEquals(tt2, res.get(0).get("t1"));
+                assertEquals(tt1, res.get(1).get("t1"));
+            }
+
+            execute(manager, "CREATE TABLE tblspace1.tsql2 (a1 integer auto_increment primary key, k1 string ,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
+            assertEquals(2,
+                executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k1,n1,t1) values(?,?,?),(?,?,?)",
+                    Arrays.asList("mykey", Integer.valueOf(1234), tt1,
+                        "mykey2", Integer.valueOf(1235), tt2)).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT a1,k1,n1,t1 FROM tblspace1.tsql2 ORDER BY n1 desc", Collections.emptyList());) {
+                List<Tuple> res = scan.consume();
+                assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
+                assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
+                assertEquals(Integer.valueOf(1235), res.get(0).get("n1"));
+                assertEquals(Integer.valueOf(1234), res.get(1).get("n1"));
+                assertEquals(tt2, res.get(0).get("t1"));
+                assertEquals(tt1, res.get(1).get("t1"));
+                assertEquals(2, res.get(0).get("a1"));
+                assertEquals(1, res.get(1).get("a1"));
+            }
+
+            // auto-transaction
+            execute(manager, "CREATE TABLE tblspace1.tsql3 (a1 integer auto_increment primary key, k1 string ,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
+            DMLStatementExecutionResult resInsert = executeUpdate(manager, "INSERT INTO tblspace1.tsql3(k1,n1,t1) values(?,?,?),(?,?,?)",
+                Arrays.asList("mykey", Integer.valueOf(1234), tt1,
+                    "mykey2", Integer.valueOf(1235), tt2), TransactionContext.AUTOTRANSACTION_TRANSACTION
+            );
+            assertEquals(2,
+                resInsert.getUpdateCount());
+            assertTrue(resInsert.transactionId > 0);
+            try (DataScanner scan = scan(manager, "SELECT a1,k1,n1,t1 FROM tblspace1.tsql3 ORDER BY n1 desc", Collections.emptyList(), 0,
+                new TransactionContext(resInsert.transactionId));) {
+                List<Tuple> res = scan.consume();
+                assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
+                assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
+                assertEquals(Integer.valueOf(1235), res.get(0).get("n1"));
+                assertEquals(Integer.valueOf(1234), res.get(1).get("n1"));
+                assertEquals(tt2, res.get(0).get("t1"));
+                assertEquals(tt1, res.get(1).get("t1"));
+                assertEquals(2, res.get(0).get("a1"));
+                assertEquals(1, res.get(1).get("a1"));
+            }
+
+        }
+    }
+
+    @Test
     public void atomicCounterTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {

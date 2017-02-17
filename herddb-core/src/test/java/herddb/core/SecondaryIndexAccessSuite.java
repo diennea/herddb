@@ -819,7 +819,7 @@ public abstract class SecondaryIndexAccessSuite {
                 }
             }
 
-            DropIndexStatement dropIndex = new DropIndexStatement(index.tablespace, index.name);
+            DropIndexStatement dropIndex = new DropIndexStatement(index.tablespace, index.name, false);
             manager.executeStatement(dropIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             {
@@ -881,7 +881,7 @@ public abstract class SecondaryIndexAccessSuite {
             }
 
             long tx = TestUtils.beginTransaction(manager, "tblspace1");
-            DropIndexStatement dropIndex = new DropIndexStatement(index.tablespace, index.name);
+            DropIndexStatement dropIndex = new DropIndexStatement(index.tablespace, index.name, false);
             manager.executeStatement(dropIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             TestUtils.commitTransaction(manager, "tblspace1", tx);
 
@@ -946,7 +946,7 @@ public abstract class SecondaryIndexAccessSuite {
             assertEquals(1, manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1").size());
 
             long tx = TestUtils.beginTransaction(manager, "tblspace1");
-            DropTableStatement dropTable = new DropTableStatement(index.tablespace, index.table);
+            DropTableStatement dropTable = new DropTableStatement(index.tablespace, index.table, false);
             manager.executeStatement(dropTable, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
             assertEquals(1, manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1").size());
 
@@ -1005,7 +1005,7 @@ public abstract class SecondaryIndexAccessSuite {
 
             assertEquals(1, manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1").size());
 
-            DropTableStatement dropTable = new DropTableStatement(index.tablespace, index.table);
+            DropTableStatement dropTable = new DropTableStatement(index.tablespace, index.table, false);
             manager.executeStatement(dropTable, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             assertNull(manager.getTableSpaceManager("tblspace1").getIndexesOnTable("t1"));

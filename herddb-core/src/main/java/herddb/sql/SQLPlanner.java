@@ -467,19 +467,15 @@ public class SQLPlanner {
         }
         Table table = tableManager.getTable();
 
-        List<Expression> keyValueExpression = new ArrayList<>();
-        List<String> keyExpressionToColumn = new ArrayList<>();
-
-        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
-        List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
-
-        int index = 0;
-
         ItemsList itemlist = (ItemsList) s.getItemsList();
-        if (itemlist != null) {
-            if (itemlist instanceof MultiExpressionList) {
-                throw new StatementExecutionException("multi values insert is not supported yet");
-            }
+        if (itemlist instanceof ExpressionList) {
+            int index = 0;
+            List<Expression> keyValueExpression = new ArrayList<>();
+            List<String> keyExpressionToColumn = new ArrayList<>();
+
+            List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+            List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
+
             ExpressionList list = (ExpressionList) itemlist;
             if (s.getColumns() != null) {
                 for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
@@ -531,7 +527,80 @@ public class SQLPlanner {
             } catch (IllegalArgumentException err) {
                 throw new StatementExecutionException(err);
             }
+        } else if (itemlist instanceof MultiExpressionList) {
+            if (returnValues) {
+                throw new StatementExecutionException("cannot 'return values' on multi-values.insert");
+            }
+            MultiExpressionList multilist = (MultiExpressionList) itemlist;
+
+            List<InsertStatement> inserts = new ArrayList<>();
+            for (ExpressionList list : multilist.getExprList()) {
+                List<Expression> keyValueExpression = new ArrayList<>();
+                List<String> keyExpressionToColumn = new ArrayList<>();
+
+                List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+                List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
+
+                int index = 0;
+                if (s.getColumns() != null) {
+                    for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
+                        Column column = table.getColumn(c.getColumnName());
+                        if (column == null) {
+                            throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
+                        }
+                        Expression expression;
+                        try {
+                            expression = list.getExpressions().get(index++);
+                        } catch (IndexOutOfBoundsException badQuery) {
+                            throw new StatementExecutionException("bad number of VALUES in INSERT clause");
+                        }
+
+                        if (table.isPrimaryKeyColumn(column.name)) {
+                            keyExpressionToColumn.add(column.name);
+                            keyValueExpression.add(expression);
+
+                        }
+                        valuesColumns.add(c);
+                        valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
+                    }
+                } else {
+                    for (Column column : table.columns) {
+
+                        Expression expression = list.getExpressions().get(index++);
+                        if (table.isPrimaryKeyColumn(column.name)) {
+                            keyExpressionToColumn.add(column.name);
+                            keyValueExpression.add(expression);
+                        }
+                        valuesColumns.add(new net.sf.jsqlparser.schema.Column(column.name));
+                        valuesExpressions.add(SQLExpressionCompiler.compileExpression(null, expression));
+                    }
+                }
+
+                RecordFunction keyfunction;
+                if (keyValueExpression.isEmpty() && table.auto_increment) {
+                    keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+                } else {
+                    if (keyValueExpression.size() != table.primaryKey.length) {
+                        throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                    }
+                    keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
+                }
+                RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
+                InsertStatement insert = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction);
+                inserts.add(insert);
+            }
+            try {
+                return ExecutionPlan.multiInsert(inserts);
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err);
+            }
         } else {
+            List<Expression> keyValueExpression = new ArrayList<>();
+            List<String> keyExpressionToColumn = new ArrayList<>();
+
+            List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+            List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
+
             Select select = s.getSelect();
             ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true, -1, numJdbcParameters);
             if (s.getColumns() == null) {
@@ -1716,7 +1785,7 @@ public class SQLPlanner {
                 tableSpace = defaultTableSpace;
             }
             String tableName = drop.getName().getName();
-            return new DropTableStatement(tableSpace, tableName);
+            return new DropTableStatement(tableSpace, tableName, drop.isIfExists());
         }
         if (drop.getType().equalsIgnoreCase("index")) {
             if (drop.getName() == null) {
@@ -1727,9 +1796,8 @@ public class SQLPlanner {
                 tableSpace = defaultTableSpace;
             }
             String indexName = drop.getName().getName();
-            return new DropIndexStatement(tableSpace, indexName);
+            return new DropIndexStatement(tableSpace, indexName, drop.isIfExists());
         }
-
         throw new StatementExecutionException("only DROP TABLE and TABLESPACE is supported, drop type=" + drop.getType() + " is not implemented");
     }
 

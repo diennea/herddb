@@ -1033,9 +1033,15 @@ public class TableSpaceManager {
         try {
             generalLock.writeLock().lock();
             if (!tables.containsKey(statement.getTable())) {
+                if (statement.isIfExists()) {
+                    return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
+                }
                 throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
             }
             if (transaction != null && transaction.isTableDropped(statement.getTable())) {
+                if (statement.isIfExists()) {
+                    return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
+                }
                 throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
             }
 
@@ -1064,9 +1070,15 @@ public class TableSpaceManager {
         try {
             generalLock.writeLock().lock();
             if (!indexes.containsKey(statement.getIndexName())) {
+                if (statement.isIfExists()) {
+                    return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
+                }
                 throw new IndexDoesNotExistException("index " + statement.getIndexName() + " does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
             }
             if (transaction != null && transaction.isIndexDropped(statement.getIndexName())) {
+                if (statement.isIfExists()) {
+                    return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
+                }
                 throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
             }
             LogEntry entry = LogEntryFactory.dropIndex(statement.getTableSpace(), statement.getIndexName(), transaction);
@@ -1094,8 +1106,8 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
         TableManager tableManager = new TableManager(table, log, dbmanager.getPageReplacementPolicy(),
-                dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID,
-                dbmanager.getMaxLogicalPageSize(), transaction);
+            dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID,
+            dbmanager.getMaxLogicalPageSize(), transaction);
         if (dumpLogSequenceNumber != null) {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
         }
