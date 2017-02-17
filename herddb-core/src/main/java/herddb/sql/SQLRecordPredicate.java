@@ -186,6 +186,38 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         throw new StatementExecutionException("cannot subtract " + a + " and " + b);
     }
 
+    public static Object multiply(Object a, Object b) throws StatementExecutionException {
+        if (a == null && b == null) {
+            return null;
+        }
+        if (a == null) {
+            a = 0;
+        }
+        if (b == null) {
+            b = 0;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return ((Number) a).longValue() * ((Number) b).longValue();
+        }
+        throw new StatementExecutionException("cannot multiply " + a + " and " + b);
+    }
+
+    public static Object divide(Object a, Object b) throws StatementExecutionException {
+        if (a == null && b == null) {
+            return null;
+        }
+        if (a == null) {
+            a = 0;
+        }
+        if (b == null) {
+            b = 0;
+        }
+        if (a instanceof Number && b instanceof Number) {
+            return (double) ((Number) a).longValue() / ((Number) b).longValue();
+        }
+        throw new StatementExecutionException("cannot divide " + a + " and " + b);
+    }
+
     public static boolean objectEquals(Object a, Object b) {
         if (a == null || b == null) {
             return a == b;

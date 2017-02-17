@@ -42,6 +42,8 @@ public class BuiltinFunctions {
     // scalar
     public static final String LOWER = "lower";
     public static final String UPPER = "upper";
+    public static final String ABS = "abs";
+    public static final String ROUND = "round";
     // special
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
     public static final String BOOLEAN_TRUE = "true";
@@ -84,6 +86,8 @@ public class BuiltinFunctions {
         switch (name) {
             case LOWER:
             case UPPER:
+            case ABS:
+            case ROUND:
                 return true;
             default:
                 return false;
@@ -108,6 +112,8 @@ public class BuiltinFunctions {
             case BuiltinFunctions.SUM:
             case BuiltinFunctions.MIN:
             case BuiltinFunctions.MAX:
+            case BuiltinFunctions.ABS:
+            case BuiltinFunctions.ROUND:
                 return ColumnTypes.LONG;
 
             case BuiltinFunctions.LOWER:

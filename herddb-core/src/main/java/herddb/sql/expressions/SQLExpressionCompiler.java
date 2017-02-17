@@ -27,6 +27,7 @@ import herddb.utils.RawString;
 import java.lang.reflect.InvocationTargetException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
+import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -38,6 +39,8 @@ import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimeKeyExpression;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.arithmetic.Addition;
+import net.sf.jsqlparser.expression.operators.arithmetic.Division;
+import net.sf.jsqlparser.expression.operators.arithmetic.Multiplication;
 import net.sf.jsqlparser.expression.operators.arithmetic.Subtraction;
 import net.sf.jsqlparser.expression.operators.conditional.AndExpression;
 import net.sf.jsqlparser.expression.operators.conditional.OrExpression;
@@ -103,6 +106,8 @@ public class SQLExpressionCompiler {
             return new ConstantExpression(RawString.of(((StringValue) exp).getValue()));
         } else if (exp instanceof LongValue) {
             return new ConstantExpression(((LongValue) exp).getValue());
+        } else if (exp instanceof DoubleValue) {
+            return new ConstantExpression(((DoubleValue) exp).getValue());
         } else if (exp instanceof TimestampValue) {
             return new ConstantExpression(((TimestampValue) exp).getValue());
         } else if (exp instanceof NullValue) {
@@ -127,6 +132,10 @@ public class SQLExpressionCompiler {
             return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledAddExpression(a, b, c));
         } else if (exp instanceof Subtraction) {
             return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledSubtractExpression(a, b, c));
+        } else if (exp instanceof Multiplication) {
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledMultiplyExpression(a, b, c));
+        } else if (exp instanceof Division) {
+            return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledDivideExpression(a, b, c));
         } else if (exp instanceof Parenthesis) {
             Parenthesis p = (Parenthesis) exp;
             CompiledSQLExpression inner = compileExpression(validatedTableAlias, p.getExpression());
