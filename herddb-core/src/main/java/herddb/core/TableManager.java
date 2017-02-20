@@ -1123,14 +1123,14 @@ public final class TableManager implements AbstractTableManager {
         long estimatedPageSize = 0;
         for (Record r : page) {
             newPageMap.put(r.key, r);
-            estimatedPageSize += r.key.data.length + r.value.data.length;
+            estimatedPageSize += r.getEstimatedSize();
         }
         DataPage res = new DataPage(this, pageId, estimatedPageSize, newPageMap, true);
         return res;
     }
 
     private void ensureDirtyMemoryForRecord(Record record) {
-        final long recordSize = record.value.data.length;
+        final long recordSize = record.getEstimatedSize();
         if (bookedDirtyMemory.get() < dirtyRecordsPage.getUsedMemory() + recordSize) {
             bookedDirtyMemory.addAndGet(memoryManager.borrowDirtyMemory(
                     Math.max(MIN_BORROWED_MEMORY,recordSize), this));
@@ -1186,7 +1186,7 @@ public final class TableManager implements AbstractTableManager {
                     /* Avoid the record if has been modified or deleted */
                     if (!dirtyRecordsPage.data.containsKey(record.key) && !deletedKeys.contains(record.key)) {
                         newPage.add(record);
-                        newPageSize += record.key.data.length + record.value.data.length;
+                        newPageSize += record.getEstimatedSize();
 
                         if (newPageSize >= maxLogicalPageSize) {
                             createNewPage(newPage, newPageSize);
@@ -1205,7 +1205,7 @@ public final class TableManager implements AbstractTableManager {
             for (Record record : dirtyRecordsPage.data.values()) {
 
                 newPage.add(record);
-                newPageSize += record.key.data.length + record.value.data.length;
+                newPageSize += record.getEstimatedSize();
 
                 if (newPageSize >= maxLogicalPageSize) {
                     createNewPage(newPage, newPageSize);

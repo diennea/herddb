@@ -35,6 +35,10 @@ public final class Bytes implements Comparable<Bytes> {
 
     public Object deserialized;
 
+    public int getEstimatedSize() {
+        return data.length + 36;
+    }
+
     public static byte[] string_to_array(String s) {
         return s.getBytes(StandardCharsets.UTF_8);
     }
@@ -74,19 +78,19 @@ public final class Bytes implements Comparable<Bytes> {
         putLong(res, 0, value.getTime());
         return new Bytes(res);
     }
-    
+
     public static Bytes from_boolean(boolean value) {
         byte[] res = new byte[1];
         putBoolean(res, 0, value);
         return new Bytes(res);
     }
-    
+
     public static Bytes from_double(double value) {
         byte[] res = new byte[8];
         putDouble(res, 0, value);
         return new Bytes(res);
     }
-    
+
     public long to_long() {
         return toLong(data, 0, 8);
     }
@@ -110,15 +114,14 @@ public final class Bytes implements Comparable<Bytes> {
     public java.sql.Timestamp to_timestamp() {
         return toTimestamp(data, 0, 8);
     }
-    
+
     public boolean to_boolean() {
         return toBoolean(data, 0, 1);
     }
-    
+
     public double to_double() {
         return toDouble(data, 0, 8);
     }
-    
 
     public Bytes(byte[] data) {
         this.data = data;
@@ -169,7 +172,7 @@ public final class Bytes implements Comparable<Bytes> {
         }
         bytes[offset] = (byte) val;
     }
-    
+
     public static void putBoolean(byte[] bytes, int offset, boolean val) {
         if (val) {
             bytes[offset] = (byte) 0xFF;
@@ -177,7 +180,7 @@ public final class Bytes implements Comparable<Bytes> {
             bytes[offset] = (byte) 0x00;
         }
     }
-    
+
     public static void putDouble(byte[] bytes, int offset, double val) {
         putLong(bytes, offset, Double.doubleToRawLongBits(val));
     }
@@ -211,7 +214,7 @@ public final class Bytes implements Comparable<Bytes> {
         }
         return new java.sql.Timestamp(l);
     }
-    
+
     public static boolean toBoolean(byte[] bytes, int offset, final int length) {
         for (int i = offset; i < offset + length; i++) {
             if (bytes[i] != 0xFF) {
@@ -220,7 +223,7 @@ public final class Bytes implements Comparable<Bytes> {
         }
         return true;
     }
-    
+
     public static double toDouble(byte[] bytes, int offset, final int length) {
         return Double.longBitsToDouble(toLong(bytes, offset, length));
     }

@@ -46,6 +46,10 @@ public final class Record {
         this.cache = cache;
     }
 
+    public int getEstimatedSize() {
+        return this.key.getEstimatedSize() + this.value.getEstimatedSize() + 93;
+    }
+
     public final Map<String, Object> toBean(Table table) {
         Map<String, Object> cached = cache;
         if (cached != null) {

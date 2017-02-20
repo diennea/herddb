@@ -68,9 +68,9 @@ public class DataPage {
         }
         Record prev = data.put(key, newRecord);
         if (prev != null) {
-            usedMemory.addAndGet(newRecord.value.data.length - prev.value.data.length);
+            usedMemory.addAndGet(newRecord.value.getEstimatedSize() - prev.value.getEstimatedSize());
         } else {
-            usedMemory.addAndGet(newRecord.value.data.length);
+            usedMemory.addAndGet(newRecord.value.getEstimatedSize());
         }
         return prev;
     }

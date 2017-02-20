@@ -37,7 +37,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
      * This <i>constants</i> rules out unecessary and expensive logs at compile level if set to {@code true}.
      * Note: it <b>must</b> be static final to succesfully work.
      */
-    private static final boolean COMPILE_EXPENSIVE_LOGS = true;
+    private static final boolean COMPILE_EXPENSIVE_LOGS = false;
 
     /** Capacity */
     private final int c;

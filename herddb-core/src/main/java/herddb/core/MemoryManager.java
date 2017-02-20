@@ -90,6 +90,7 @@ public class MemoryManager {
 
 
         final int pages = (int) (maxPagesUsedMemory / maxLogicalPageSize);
+        LOGGER.log(Level.INFO, "Maximum number of loaded pages {0}", pages);
         switch(PAGE_REPLACEMENT_POLICY) {
             case "random":
                 pageReplacementPolicy = new RandomPageReplacementPolicy(pages);
