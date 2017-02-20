@@ -58,17 +58,21 @@ public class AdvancedInsertSyntaxTest {
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
                     Connection con = dataSource.getConnection();
                     Statement create = con.createStatement();
-                    PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values"
-                        + "(?),(?)");) {
+                    PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values (?),(?)");
+                    PreparedStatement statement_return_keys = con.prepareStatement("INSERT INTO mytable (name) values (?),(?)", Statement.RETURN_GENERATED_KEYS);) {
                     create.execute("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
 
+                    statement.setString(1, "v1");
+                    statement.setString(2, "v2");
+                    statement.executeUpdate();
+
                     try {
-                        statement.setString(1, "v1");
-                        statement.setString(2, "v2");
-                        statement.executeUpdate();
+                        statement_return_keys.setString(1, "v1");
+                        statement_return_keys.setString(2, "v2");
+                        statement_return_keys.executeUpdate();
                         fail();
                     } catch (SQLException err) {
-                        assertTrue(err.getMessage().contains("multi values insert is not supported yet"));
+                        assertTrue(err.getMessage().contains("cannot 'return values' on multi-values insert"));
                     }
 
                 }

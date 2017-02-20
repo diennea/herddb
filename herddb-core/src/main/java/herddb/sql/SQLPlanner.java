@@ -538,7 +538,7 @@ public class SQLPlanner {
             }
         } else if (itemlist instanceof MultiExpressionList) {
             if (returnValues) {
-                throw new StatementExecutionException("cannot 'return values' on multi-values.insert");
+                throw new StatementExecutionException("cannot 'return values' on multi-values insert");
             }
             MultiExpressionList multilist = (MultiExpressionList) itemlist;
 
