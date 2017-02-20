@@ -37,7 +37,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
      * This <i>constants</i> rules out unecessary and expensive logs at compile level if set to {@code true}.
      * Note: it <b>must</b> be static final to succesfully work.
      */
-    private static final boolean COMPILE_EXPENSIVE_LOGS = false;
+    private static final boolean COMPILE_EXPENSIVE_LOGS = true;
 
     /** Capacity */
     private final int c;
@@ -171,8 +171,12 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
          * dei poll nel cache directory replacement ma vengono eseguiti solo se b1 E b2 NON contengono la
          * pagina).
          */
-        final boolean b1Hit = b1.contains(page.pageId);
-        final boolean b2Hit = b2.contains(page.pageId);
+
+        /* Explicit boxing just to avoid too many implicit ones */
+        final Long pageId = page.pageId;
+
+        final boolean b1Hit = b1.contains(pageId);
+        final boolean b2Hit = b2.contains(pageId);
 
         DataPage replaced = null;
         if (t1.size() + t2.size() == c) {
@@ -223,41 +227,36 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
         } else if (b1Hit) {
             /* cache directory hit */
+            /* Adapt: Increase the target size for the list T1 as: p = min {p + max{1, |B2|/|B1|}, c} */
+            p = Math.min(p + Math.max(1, b2.size() / b1.size()), c);
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, "Adapt: p = min {p + max{1, |B2|/|B1|}, c} = {0}", p);
 
             /* Move x at the tail of T2. Set the page reference bit of x to 0. */
             if (COMPILE_EXPENSIVE_LOGS)
                 LOGGER.log(Level.SEVERE, "In B1: insert {0} into T2 tail", page);
 
             page.reference = false;
-            b1.remove(page.pageId);
+            b1.remove(pageId);
             t2.append(page);
-
-
-            /* Adapt: Increase the target size for the list T1 as: p = min {p + max{1, |B2|/|B1|}, c} */
-            int b1Size = b1.size();
-            p = Math.min(p + Math.max(1, b2.size() / b1Size), c);
-            // LOTHRUIN se divide by zero è un bug!!!
-//            p = b1Size>0 ? Math.min(p + Math.max(1, b2.size() / b1Size), c) : c;
-
-            if (COMPILE_EXPENSIVE_LOGS)
-                LOGGER.log(Level.SEVERE, "Adapt: p = min {p + max{1, |B2|/|B1|}, c} = {0}", p);
 
         } else {
             /* x must be in B2 */
-
-            /* Move x at the tail of T2. Set the page reference bit of x to 0. */
-            if (COMPILE_EXPENSIVE_LOGS)
-                LOGGER.log(Level.SEVERE, "In B2: insert {0} into T2 tail", page);
-
-            page.reference = false;
-            b2.remove(page.pageId);
-            t2.append(page);
 
             /* Adapt: Decrease the target size for the list T1 as: p = max {p − max{1, |B1|/|B2|}, 0} */
             p = Math.max(p - Math.max(1, b1.size() / b2.size()), 0);
 
             if (COMPILE_EXPENSIVE_LOGS)
                 LOGGER.log(Level.SEVERE, "Adapt: p = max {p − max{1, |B1|/|B2|}, 0} = {0}", p);
+
+            /* Move x at the tail of T2. Set the page reference bit of x to 0. */
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, "In B2: insert {0} into T2 tail", page);
+
+            page.reference = false;
+            b2.remove(pageId);
+            t2.append(page);
         }
 
         if (COMPILE_EXPENSIVE_LOGS)
