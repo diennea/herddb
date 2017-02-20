@@ -159,6 +159,10 @@ public final class Tuple {
                         columnType = ColumnTypes.LONG;
                     } else if (value instanceof java.sql.Timestamp) {
                         columnType = ColumnTypes.TIMESTAMP;
+                    } else if (value instanceof Double) {
+                        columnType = ColumnTypes.DOUBLE;
+                    } else if (value instanceof Boolean) {
+                        columnType = ColumnTypes.BOOLEAN;
                     } else if (value instanceof byte[]) {
                         columnType = ColumnTypes.BYTEARRAY;
                     } else {

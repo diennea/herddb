@@ -63,6 +63,7 @@ public class MessageUtils {
     private static final byte OPCODE_BYTE_VALUE = 19;
     private static final byte OPCODE_KEYVALUE_VALUE = 20;
     private static final byte OPCODE_BOOLEAN_VALUE = 21;
+    private static final byte OPCODE_DOUBLE_VALUE = 22;
 
     /**
      * When writing int <b>greater than this</b> value are better written directly as int because in vint encoding will
@@ -234,6 +235,9 @@ public class MessageUtils {
         } else if (o instanceof Boolean) {
             encoded.writeByte(OPCODE_BOOLEAN_VALUE);
             encoded.writeByte(((Boolean) o).booleanValue() ? 1 : 0);
+        } else if (o instanceof Double) {
+            encoded.writeByte(OPCODE_DOUBLE_VALUE);
+            ByteBufUtils.writeDouble(encoded, ((Double) o).doubleValue());
         } else if (o instanceof Set) {
             Set set = (Set) o;
             encoded.writeByte(OPCODE_SET_VALUE);
@@ -290,6 +294,9 @@ public class MessageUtils {
             case OPCODE_BOOLEAN_VALUE:
                 return encoded.readByte() == 1 ? true : false;
 
+            case OPCODE_DOUBLE_VALUE:
+                return ByteBufUtils.readDouble(encoded);
+                
             case OPCODE_MAP_VALUE: {
                 int len = ByteBufUtils.readVInt(encoded);
                 Map<Object, Object> ret = new HashMap<>();

@@ -446,6 +446,14 @@ public class SQLPlanner {
             case "datetime":
                 type = ColumnTypes.TIMESTAMP;
                 break;
+            case "boolean":
+            case "bool":
+                type = ColumnTypes.BOOLEAN;
+                break;
+            case "double":
+            case "float":
+                type = ColumnTypes.DOUBLE;
+                break;
             default:
                 throw new StatementExecutionException("bad type " + dataType);
         }

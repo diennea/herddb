@@ -133,6 +133,14 @@ public class ByteBufUtils {
         return zigZagDecode(readVLong(buffer));
     }
     
+    public static final void writeDouble(ByteBuf buffer, double i) {
+        writeZLong(buffer, Double.doubleToLongBits(i));
+    }
+    
+    public static final double readDouble(ByteBuf buffer) {
+        return Double.longBitsToDouble(readZLong(buffer));
+    }
+    
     /** Same as {@link #zigZagEncode(long)} but on integers. */
     private static final int zigZagEncode(int i) {
       return (i >> 31) ^ (i << 1);

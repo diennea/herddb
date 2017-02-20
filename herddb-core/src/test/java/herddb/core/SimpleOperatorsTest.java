@@ -49,15 +49,17 @@ public class SimpleOperatorsTest {
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
-            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key, n1 int, l1 long, t1 timestamp, nu string)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key, n1 int, l1 long, t1 timestamp, nu string, b1 bool, d1 double)", Collections.emptyList());
 
             assertEquals(1, executeUpdate(
-                manager, "INSERT INTO tblspace1.tsql(k1,n1,l1,t1,nu) values(?,?,?,?,?)", 
+                manager, "INSERT INTO tblspace1.tsql(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)", 
                          Arrays.asList("mykey",
                                        Integer.valueOf(1),
                                        Long.valueOf(2), 
                                        new java.sql.Timestamp(System.currentTimeMillis()),
-                                       null))
+                                       null,
+                                       Boolean.valueOf(true),
+                                       Double.valueOf(1.5)))
                 .getUpdateCount());
             
             // Simple constants
@@ -98,6 +100,12 @@ public class SimpleOperatorsTest {
             try (DataScanner scan1 = scan(manager, "SELECT nu FROM tblspace1.tsql", Collections.emptyList());) {
                 assertEquals(null, scan1.consume().get(0).get(0));
             }
+            try (DataScanner scan1 = scan(manager, "SELECT b1 FROM tblspace1.tsql", Collections.emptyList());) {
+                assertEquals(true, scan1.consume().get(0).get(0));
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT d1 FROM tblspace1.tsql", Collections.emptyList());) {
+                assertEquals(1.5, scan1.consume().get(0).get(0));
+            }
             
             // Simple expressions
             try (DataScanner scan1 = scan(manager, "SELECT 4+3+2 FROM tblspace1.tsql", Collections.emptyList());) {
@@ -106,9 +114,8 @@ public class SimpleOperatorsTest {
             try (DataScanner scan1 = scan(manager, "SELECT 7-3-2 FROM tblspace1.tsql", Collections.emptyList());) {
                 assertEquals(2L, scan1.consume().get(0).get(0));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT 1/2 FROM tblspace1.tsql", Collections.emptyList());) {
-                // WARNING!! It doesn't handle more complex expression (e.g. 1/2/2). It needs double proper handling.
-                assertEquals(0.5, scan1.consume().get(0).get(0));
+            try (DataScanner scan1 = scan(manager, "SELECT 1/2/2 FROM tblspace1.tsql", Collections.emptyList());) {
+                assertEquals(0.25, scan1.consume().get(0).get(0));
             }
             try (DataScanner scan1 = scan(manager, "SELECT 4*3*2 FROM tblspace1.tsql", Collections.emptyList());) {
                 assertEquals(24L, scan1.consume().get(0).get(0));
@@ -310,7 +317,10 @@ public class SimpleOperatorsTest {
             try (DataScanner scan1 = scan(manager, "SELECT ((4+(3+2)-1)*2) FROM tblspace1.tsql", Collections.emptyList());) {
                 assertEquals(16L, scan1.consume().get(0).get(0));
             }
-            
+            //Warning!! Requires proper double handling
+//            try (DataScanner scan1 = scan(manager, "SELECT ((3/2)*3+(1/2)) FROM tblspace1.tsql", Collections.emptyList());) {
+//                assertEquals(4.5, scan1.consume().get(0).get(0));
+//            }
 
         }
     }

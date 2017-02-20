@@ -83,14 +83,16 @@ public abstract class RecordSetSuite {
     @Test
     public void testSimpleSwap() throws Exception {
         RecordSetFactory factory = buildRecordSetFactory(1);
-        Column[] columns = new Column[6];
+        Column[] columns = new Column[8];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         columns[2] = Column.column("t1", ColumnTypes.TIMESTAMP);
         columns[3] = Column.column("i1", ColumnTypes.INTEGER);
         columns[4] = Column.column("b1", ColumnTypes.BYTEARRAY);
         columns[5] = Column.column("null1", ColumnTypes.STRING);
-
+        columns[6] = Column.column("bo1", ColumnTypes.BOOLEAN);
+        columns[7] = Column.column("d1", ColumnTypes.DOUBLE);
+        
         java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
         try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
             Set<String> expected_s1 = new HashSet<>();
@@ -105,6 +107,8 @@ public abstract class RecordSetSuite {
                 record.put("t1", ts);
                 record.put("null1", null);
                 record.put("b1", s1.getBytes(StandardCharsets.UTF_8));
+                record.put("bo1", Boolean.valueOf(true));
+                record.put("d1", Double.valueOf(1.1));
                 expected_s1.add(s1);
                 expected_n1.add(Long.valueOf(i));
                 expected_i1.add(i);
@@ -117,6 +121,8 @@ public abstract class RecordSetSuite {
                 expected_i1.remove((Integer) t.get("i1"));
                 assertEquals(ts, t.get("t1"));
                 assertNull(t.get("null1"));
+                assertEquals(true, t.get("bo1"));
+                assertEquals(1.1, t.get("d1"));
             }
             assertTrue(expected_n1.isEmpty());
             assertTrue(expected_s1.isEmpty());

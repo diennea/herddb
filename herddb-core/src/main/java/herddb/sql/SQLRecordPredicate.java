@@ -213,7 +213,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             b = 0;
         }
         if (a instanceof Number && b instanceof Number) {
-            return (double) ((Number) a).longValue() / ((Number) b).longValue();
+            return (double) ((Number) a).doubleValue() / ((Number) b).doubleValue();
         }
         throw new StatementExecutionException("cannot divide " + a + " and " + b);
     }

@@ -60,6 +60,10 @@ public final class RecordSerializer {
                 return Bytes.toTimestamp(data, 0, 8);
             case ColumnTypes.NULL:
                 return null;
+            case ColumnTypes.BOOLEAN:
+                return Bytes.toBoolean(data, 0, 1);
+            case ColumnTypes.DOUBLE:
+                return Bytes.toDouble(data, 0, 8);
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -80,6 +84,10 @@ public final class RecordSerializer {
                 return new java.sql.Timestamp(dii.readLong());
             case ColumnTypes.NULL:
                 return null;
+            case ColumnTypes.BOOLEAN:
+                return dii.readBoolean();
+            case ColumnTypes.DOUBLE:
+                return dii.readDouble();
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -114,6 +122,22 @@ public final class RecordSerializer {
                     return rs.data;
                 } else {
                     return Bytes.string_to_array(v.toString());
+                }
+            case ColumnTypes.BOOLEAN:
+                if (v instanceof Boolean) {
+                    return Bytes.from_boolean((Boolean) v).data;
+                } else {
+                    return Bytes.from_boolean(Boolean.parseBoolean(v.toString())).data;
+                }
+            case ColumnTypes.DOUBLE:
+                if (v instanceof Double) {
+                    return Bytes.from_double((Double) v).data;
+                } else if (v instanceof Long) {
+                    return Bytes.from_double((Long) v).data;
+                } else if (v instanceof Number) {
+                    return Bytes.from_double(((Number) v).longValue()).data;
+                } else {
+                    return Bytes.from_double(Double.parseDouble(v.toString())).data;
                 }
             case ColumnTypes.TIMESTAMP:
                 if (!(v instanceof java.sql.Timestamp)) {
@@ -170,6 +194,22 @@ public final class RecordSerializer {
                     throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass());
                 }
                 oo.writeLong(((java.sql.Timestamp) v).getTime());
+                break;
+            case ColumnTypes.BOOLEAN:
+                if (v instanceof Boolean) {
+                    oo.writeBoolean((Boolean) v);
+                } else {
+                    oo.writeBoolean(Boolean.parseBoolean(v.toString()));
+                }
+                break;
+            case ColumnTypes.DOUBLE:
+                if (v instanceof Integer) {
+                    oo.writeDouble((Integer) v);
+                } else if (v instanceof Number) {
+                    oo.writeDouble(((Number) v).doubleValue());
+                } else {
+                    oo.writeDouble(Double.parseDouble(v.toString()));
+                }
                 break;
             default:
                 throw new IllegalArgumentException("bad column type " + type);
