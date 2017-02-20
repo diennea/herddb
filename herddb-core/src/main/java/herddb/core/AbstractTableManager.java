@@ -83,7 +83,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     public void tryReleaseMemory(long reclaim);
 
-    public void ensureMemoryLimits();
+    public void ensureMemoryLimitsDuringRecovery();
 
     public List<Index> getAvailableIndexes();
     

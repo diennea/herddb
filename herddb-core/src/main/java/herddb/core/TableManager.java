@@ -93,6 +93,10 @@ import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /**
  * Handles Data of a Table
@@ -104,7 +108,7 @@ public final class TableManager implements AbstractTableManager {
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
     private static final long MIN_BORROWED_MEMORY = SystemProperties.
-            getIntSystemProperty(TableManager.class.getName() + ".minDirtyMemoryAllocation", /* 5M */ 5 * (1 << 20) );
+        getIntSystemProperty(TableManager.class.getName() + ".minDirtyMemoryAllocation", /* 5M */ 5 * (1 << 20));
 
     private static final int SORTED_PAGE_ACCESS_WINDOW_SIZE = SystemProperties.
         getIntSystemProperty(TableManager.class.getName() + ".sortedPageAccessWindowSize", 2000);
@@ -113,15 +117,15 @@ public final class TableManager implements AbstractTableManager {
         getBooleanSystemProperty(TableManager.class.getName() + ".enableLocalScanPageCache", true);
 
     private static final long MAX_DIRTY_SIZE = SystemProperties.
-            getIntSystemProperty(TableManager.class.getName() + ".maxDirtySize", /* 500 MB */ 500 * (1 << 20));
+        getIntSystemProperty(TableManager.class.getName() + ".maxDirtySize", /* 100 MB */ 100 * (1 << 20));
 
     public static final Long NEW_PAGE = Long.valueOf(-1);
 
     private final DataPage dirtyRecordsPage = new DataPage(this, NEW_PAGE, 0, new ConcurrentHashMap<>(), false);
 
+    private final List<CompletableFuture> checkpointWaits = new CopyOnWriteArrayList<>();
+
     private final ConcurrentMap<Long, DataPage> pages;
-
-
 
     /**
      * A structure which maps each key to the ID of the page (map<byte[], long>) (this can be quite large)
@@ -139,7 +143,9 @@ public final class TableManager implements AbstractTableManager {
 
     private final AtomicLong newPageId = new AtomicLong(1);
 
-    /** Memory booked to be used for dirty records */
+    /**
+     * Memory booked to be used for dirty records
+     */
     private final AtomicLong bookedDirtyMemory = new AtomicLong(0);
 
     /**
@@ -256,9 +262,9 @@ public final class TableManager implements AbstractTableManager {
 
     }
 
-    TableManager(Table table, CommitLog log,  MemoryManager memoryManager,
-            DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID,
-            long createdInTransaction) throws DataStorageManagerException {
+    TableManager(Table table, CommitLog log, MemoryManager memoryManager,
+        DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID,
+        long createdInTransaction) throws DataStorageManagerException {
         this.stats = new TableManagerStatsImpl();
 
         this.log = log;
@@ -418,6 +424,7 @@ public final class TableManager implements AbstractTableManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException("internal data error: " + err, err);
         } finally {
+
             checkpointLock.readLock().unlock();
             if (statement instanceof TruncateTableStatement) {
                 try {
@@ -426,35 +433,53 @@ public final class TableManager implements AbstractTableManager {
                     throw new StatementExecutionException("internal data error: " + err, err);
                 }
             }
+            requestCheckpointIfTooDirty(true);
+
         }
 
         throw new StatementExecutionException("unsupported statement " + statement);
     }
 
     /**
-     * Request a checkpoint if current dirty memory reached maximum dirty memory allowed
-     * ({@link #MAX_DIRTY_SIZE}).
+     * Request a checkpoint if current dirty memory reached maximum dirty memory allowed ({@link #MAX_DIRTY_SIZE}).
      */
-    private void requestCheckpointIfTooDirty() {
+    private void requestCheckpointIfTooDirty(boolean wait) throws StatementExecutionException {
         long dirtyMemory = dirtyRecordsPage.getUsedMemory();
 
         if (MAX_DIRTY_SIZE <= dirtyMemory) {
             LOGGER.log(Level.FINE, "table {0} requesting checkpoint for dirtiness, allowed dirty memory {1} current {2}",
-                    new Object[]{table.name, MAX_DIRTY_SIZE, dirtyMemory});
+                new Object[]{table.name, MAX_DIRTY_SIZE, dirtyMemory});
 
-            requestCheckpoint();
+            Future requestedCheckpoint = requestCheckpoint(wait);
+            if (requestedCheckpoint != null) {
+                try {
+                    requestedCheckpoint.get();
+                } catch (ExecutionException err) {
+                    throw new StatementExecutionException("internal error: " + err.getCause(), err.getCause());
+                } catch (InterruptedException err) {
+                    Thread.currentThread().interrupt();
+                    throw new StatementExecutionException("internal error: " + err, err);
+                }
+            }
         }
     }
 
-    private void requestCheckpoint() {
+    private Future requestCheckpoint(boolean registerWait) {
         if (dumpLogSequenceNumber != null) {
             // we are restoring the table, it is better to perform the checkpoint inside the same thread
             List<PostCheckpointAction> postCheckPointActions = this.checkpoint(LogSequenceNumber.START_OF_TIME);
             for (PostCheckpointAction action : postCheckPointActions) {
                 action.run();
             }
+            return registerWait ? CompletableFuture.completedFuture(null) : null;
+        } else if (registerWait) {
+            CompletableFuture res = new CompletableFuture();
+            checkpointWaits.add(res);
+            this.tableSpaceManager.requestTableCheckPoint(table.name);
+            return res;
         } else {
             this.tableSpaceManager.requestTableCheckPoint(table.name);
+            return null;
         }
     }
 
@@ -651,7 +676,6 @@ public final class TableManager implements AbstractTableManager {
 
         pageReplacementPolicy.remove(pages.values());
 
-
         dirtyRecords.set(0);
         pageSet.truncate();
 
@@ -710,15 +734,15 @@ public final class TableManager implements AbstractTableManager {
             checkpointLock.readLock().unlock();
         }
 
-
         transaction.releaseLocksOnTable(table.name, locksManager);
 
         if (forceFlushTableData) {
             LOGGER.log(Level.SEVERE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
             checkpoint(log.getLastSequenceNumber());
         } else {
-            requestCheckpointIfTooDirty();
+            requestCheckpointIfTooDirty(false);
         }
+
     }
 
     @Override
@@ -807,7 +831,6 @@ public final class TableManager implements AbstractTableManager {
                 throw new IllegalArgumentException("unhandled entry type " + entry.type);
         }
 
-        requestCheckpointIfTooDirty();
     }
 
     private void applyDelete(Bytes key) throws DataStorageManagerException {
@@ -849,7 +872,6 @@ public final class TableManager implements AbstractTableManager {
         } else {
 
             /* Otherwise we don't need to load record at all! */
-
             if (NEW_PAGE.equals(pageId)) {
                 dirtyRecordsPage.remove(key);
             } else {
@@ -945,7 +967,7 @@ public final class TableManager implements AbstractTableManager {
             checkpointLock.readLock().unlock();
         }
 
-        requestCheckpointIfTooDirty();
+        requestCheckpointIfTooDirty(true);
     }
 
     private void applyInsert(Bytes key, Bytes value, boolean onTransaction) throws DataStorageManagerException {
@@ -1139,14 +1161,13 @@ public final class TableManager implements AbstractTableManager {
         final long recordSize = record.getEstimatedSize();
         if (bookedDirtyMemory.get() < dirtyRecordsPage.getUsedMemory() + recordSize) {
             bookedDirtyMemory.addAndGet(memoryManager.borrowDirtyMemory(
-                    Math.max(MIN_BORROWED_MEMORY,recordSize), this));
+                Math.max(MIN_BORROWED_MEMORY, recordSize), this));
         }
     }
 
     @Override
-    @Deprecated
-    public void ensureMemoryLimits() {
-        requestCheckpointIfTooDirty();
+    public void ensureMemoryLimitsDuringRecovery() {
+        requestCheckpointIfTooDirty(false);
     }
 
     @Override
@@ -1161,9 +1182,11 @@ public final class TableManager implements AbstractTableManager {
         long toKeepFlush;
         long dirtyFlush;
         long tablecheckpoint;
+        List<CompletableFuture> futuresToNotify = Collections.emptyList();
         List<PostCheckpointAction> result = new ArrayList<>();
         checkpointLock.writeLock().lock();
         try {
+            futuresToNotify = new ArrayList<>(checkpointWaits);
             getlock = System.currentTimeMillis();
             checkPointRunning = true;
 
@@ -1182,7 +1205,7 @@ public final class TableManager implements AbstractTableManager {
                 if (dataPage == null) {
                     records = dataStorageManager.readPage(tableSpaceUUID, table.name, dirtyPageId);
 
-                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[] {dirtyPageId,records.size()});
+                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{dirtyPageId, records.size()});
                 } else {
                     records = dataPage.data.values();
                 }
@@ -1233,12 +1256,11 @@ public final class TableManager implements AbstractTableManager {
             dirtyFlush = System.currentTimeMillis();
 
             LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} records ",
-                    new Object[]{table.name, sequenceNumber, dirtyPages.size(), flushedRecords});
-
+                new Object[]{table.name, sequenceNumber, dirtyPages.size(), flushedRecords});
 
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed dirty pages: {2}",
-                        new Object[]{table.name, sequenceNumber, dirtyPages.toString()});
+                    new Object[]{table.name, sequenceNumber, dirtyPages.toString()});
             }
 
             pageSet.checkpointDone(dirtyPages);
@@ -1247,8 +1269,9 @@ public final class TableManager implements AbstractTableManager {
             for (Long idDirtyPage : dirtyPages) {
                 final DataPage dirtyPage = pages.remove(idDirtyPage);
 
-                if (dirtyPage != null)
+                if (dirtyPage != null) {
                     pageReplacementPolicy.remove(dirtyPage);
+                }
             }
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(),
@@ -1258,11 +1281,11 @@ public final class TableManager implements AbstractTableManager {
             result.addAll(actions);
 
             LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, flushed {4} records",
-                    new Object[] {table.name, sequenceNumber, pageSet.getActivePagesCount(), pageSet.getDirtyPagesCount(), flushedRecords});
+                new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(), pageSet.getDirtyPagesCount(), flushedRecords});
 
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
-                        new Object[]{table.name, sequenceNumber, pageSet.toString()});
+                    new Object[]{table.name, sequenceNumber, pageSet.toString()});
             }
 
             dirtyRecordsPage.clear();
@@ -1271,6 +1294,11 @@ public final class TableManager implements AbstractTableManager {
             checkPointRunning = false;
         } finally {
             checkpointLock.writeLock().unlock();
+
+            for (CompletableFuture f : futuresToNotify) {
+                f.complete(null);
+            }
+
         }
         long end = System.currentTimeMillis();
         long delta = end - start;
@@ -1639,8 +1667,8 @@ public final class TableManager implements AbstractTableManager {
             return;
         }
 
-        /* TODO: currently the only method to release memory is request a checkpoint */
-        requestCheckpoint();
+        /* TODO: currently the only method to release memory is to request a checkpoint */
+        requestCheckpoint(false);
     }
 
     private static final Comparator<Map.Entry<Bytes, Long>> SORTED_PAGE_ACCESS_COMPARATOR = (a, b) -> {

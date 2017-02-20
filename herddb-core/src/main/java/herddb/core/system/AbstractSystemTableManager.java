@@ -212,7 +212,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void ensureMemoryLimits() {
+    public void ensureMemoryLimitsDuringRecovery() {
     }
 
     @Override

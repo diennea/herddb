@@ -108,6 +108,8 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Manages a TableSet in memory
@@ -638,6 +640,41 @@ public class TableSpaceManager {
         return result;
     }
 
+    private static class CheckpointFuture extends CompletableFuture {
+
+        private final String tableName;
+
+        public CheckpointFuture(String tableName) {
+            this.tableName = tableName;
+        }
+
+        @Override
+        public int hashCode() {
+            int hash = 5;
+            hash = 31 * hash + Objects.hashCode(this.tableName);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final CheckpointFuture other = (CheckpointFuture) obj;
+            if (!Objects.equals(this.tableName, other.tableName)) {
+                return false;
+            }
+            return true;
+        }
+
+    }
+
     void requestTableCheckPoint(String name) {
         boolean ok = tablesNeedingCheckPoint.add(name);
         if (ok) {
@@ -1101,7 +1138,7 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
         TableManager tableManager = new TableManager(table, log, dbmanager.getMemoryManager(), dataStorageManager, this,
-                tableSpaceUUID, transaction);
+            tableSpaceUUID, transaction);
         if (dumpLogSequenceNumber != null) {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
         }
@@ -1324,7 +1361,7 @@ public class TableSpaceManager {
                 apply(t, u, true);
                 if (count++ % 10000 == 0) {
                     for (AbstractTableManager ab : tables.values()) {
-                        ab.ensureMemoryLimits();
+                        ab.ensureMemoryLimitsDuringRecovery();
                     }
                     runLocalTableCheckPoints();
                 }
