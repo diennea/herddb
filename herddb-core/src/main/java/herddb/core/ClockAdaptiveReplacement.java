@@ -1,6 +1,8 @@
 package herddb.core;
 
 import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
@@ -134,6 +136,11 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         } finally {
             lock.unlock();
         }
+    }
+
+    @Override
+    public ConcurrentMap<Long, DataPage> createObservedPagesMap() {
+        return new ObservedMap();
     }
 
     /* *********************** */
@@ -359,6 +366,38 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         }
 
         return false;
+    }
+
+    /* *********************** */
+    /* *** PRIVATE CLASSES *** */
+    /* *********************** */
+
+    /**
+     * Really observes only map gets setting the page as referenced when <i>getted</i>.
+     *
+     * Just created pages will not be referenced if not accessed from this map (which is a good thing, new
+     * pages shouldn't be <i>referenced</i> at their first use)
+     *
+     * @author diego.salvi
+     */
+    private static final class ObservedMap extends ConcurrentHashMap<Long, DataPage> {
+
+        /** Default Serial Version UID */
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public DataPage get(Object key) {
+
+            final DataPage page = super.get(key);
+
+            if (page != null) {
+                /* Set the page as referenced */
+                page.reference = true;
+            }
+
+            return page;
+        }
+
     }
 
 }

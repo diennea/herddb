@@ -110,7 +110,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final MetadataStorageManager metadataStorageManager;
     private final DataStorageManager dataStorageManager;
     private final CommitLogManager commitLogManager;
-    private PageReplacementPolicy pageReplacementPolicy;
     private final String nodeId;
     private final String virtualTableSpaceId;
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
@@ -195,10 +194,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public DataStorageManager getDataStorageManager() {
         return dataStorageManager;
-    }
-
-    public PageReplacementPolicy getPageReplacementPolicy() {
-        return pageReplacementPolicy;
     }
 
     public MemoryManager getMemoryManager() {
@@ -319,9 +314,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             maxDirtyMemory = (long) (0.2F * maxMemoryReference);
         }
 
-        memoryManager = new MemoryManager(maxDirtyMemory, hiDirtyMemoryLimit, lowDirtyMemoryLimit);
-
-        pageReplacementPolicy = new ClockAdaptiveReplacement((int) (maxPagesUsedMemory / maxLogicalPageSize));
+        memoryManager = new MemoryManager(
+                maxDirtyMemory, hiDirtyMemoryLimit, lowDirtyMemoryLimit,
+                maxPagesUsedMemory, maxLogicalPageSize);
 
         metadataStorageManager.start();
 

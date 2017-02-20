@@ -47,7 +47,13 @@ public class MemoryManager {
     private final long hiDirtyMemoryLimit;
     private final long lowDirtyMemoryLimit;
 
-    public MemoryManager(long maximumDirtyMemory, float hiDirtyMemoryLimit, float lowDirtyMemoryLimit) {
+    private final long maxPagesUsedMemory;
+    private final long maxLogicalPageSize;
+
+    private final PageReplacementPolicy pageReplacementPolicy;
+
+    public MemoryManager(long maximumDirtyMemory, float hiDirtyMemoryLimit, float lowDirtyMemoryLimit,
+            long maxPagesUsedMemory, long maxLogicalPageSize ) {
 
         if (maximumDirtyMemory < 1) {
             throw new IllegalArgumentException("Maximum dirty memory cannot be negative or zero");
@@ -72,6 +78,35 @@ public class MemoryManager {
         this.maximumDirtyMemory  = maximumDirtyMemory;
         this.hiDirtyMemoryLimit  = (long) (maximumDirtyMemory * hiDirtyMemoryLimit);
         this.lowDirtyMemoryLimit = (long) (maximumDirtyMemory * lowDirtyMemoryLimit);
+
+        this.maxPagesUsedMemory  = maxPagesUsedMemory;
+        this.maxLogicalPageSize  = maxLogicalPageSize;
+
+        pageReplacementPolicy = new ClockAdaptiveReplacement((int) (maxPagesUsedMemory / maxLogicalPageSize));
+    }
+
+    public long getMaximumDirtyMemory() {
+        return maximumDirtyMemory;
+    }
+
+    public long getHiDirtyMemoryLimit() {
+        return hiDirtyMemoryLimit;
+    }
+
+    public long getLowDirtyMemoryLimit() {
+        return lowDirtyMemoryLimit;
+    }
+
+    public long getMaxPagesUsedMemory() {
+        return maxPagesUsedMemory;
+    }
+
+    public long getMaxLogicalPageSize() {
+        return maxLogicalPageSize;
+    }
+
+    public PageReplacementPolicy getPageReplacementPolicy() {
+        return pageReplacementPolicy;
     }
 
     public long borrowDirtyMemory(long amount, TableManager manager) {

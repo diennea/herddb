@@ -118,7 +118,7 @@ public final class TableManager implements AbstractTableManager {
 
     private final DataPage dirtyRecordsPage = new DataPage(this, NEW_PAGE, 0, new ConcurrentHashMap<>(), false);
 
-    private final ConcurrentMap<Long, DataPage> pages = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, DataPage> pages;
 
 
 
@@ -255,26 +255,28 @@ public final class TableManager implements AbstractTableManager {
 
     }
 
-    TableManager(Table table, CommitLog log, PageReplacementPolicy pageReplacementPolicy,
-            MemoryManager memoryManager, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID,
-        long maxLogicalPageSize, long createdInTransaction) throws DataStorageManagerException {
+    TableManager(Table table, CommitLog log,  MemoryManager memoryManager,
+            DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID,
+            long createdInTransaction) throws DataStorageManagerException {
         this.stats = new TableManagerStatsImpl();
 
-        this.pages.put(NEW_PAGE, dirtyRecordsPage);
+        this.log = log;
 
         this.table = table;
         this.tableSpaceManager = tableSpaceManager;
-        this.log = log;
-        this.memoryManager = memoryManager;
+
         this.dataStorageManager = dataStorageManager;
         this.createdInTransaction = createdInTransaction;
         this.tableSpaceUUID = tableSpaceUUID;
         this.tableContext = buildTableContext();
-        this.maxLogicalPageSize = maxLogicalPageSize;
+        this.maxLogicalPageSize = memoryManager.getMaxLogicalPageSize();
         this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.name);
 
-        this.pageReplacementPolicy = pageReplacementPolicy;
+        this.pageReplacementPolicy = memoryManager.getPageReplacementPolicy();
+        this.pages = pageReplacementPolicy.createObservedPagesMap();
+        this.pages.put(NEW_PAGE, dirtyRecordsPage);
 
+        this.memoryManager = memoryManager;
         memoryManager.registerTableManager(this);
     }
 
@@ -1224,8 +1226,14 @@ public final class TableManager implements AbstractTableManager {
 
             dirtyFlush = System.currentTimeMillis();
 
-            LOGGER.log(Level.INFO, "checkpoint {0}, flush dirtyPages, {1} pages, logpos {2}, recordsOnDirtyPages {3}",
-                    new Object[]{table.name, dirtyPages.toString(), sequenceNumber, flushedRecords});
+            LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} records ",
+                    new Object[]{table.name, sequenceNumber, dirtyPages.size(), flushedRecords});
+
+
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed dirty pages: {2}",
+                        new Object[]{table.name, sequenceNumber, dirtyPages.toString()});
+            }
 
             pageSet.checkpointDone(dirtyPages);
             dirtyRecords.set(0);
@@ -1243,8 +1251,13 @@ public final class TableManager implements AbstractTableManager {
             tablecheckpoint = System.currentTimeMillis();
             result.addAll(actions);
 
-            LOGGER.log(Level.INFO, "checkpoint {0} finished, now {1}, flushed {2} records",
-                    new Object[] {table.name, pageSet.toString(), flushedRecords});
+            LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, flushed {4} records",
+                    new Object[] {table.name, sequenceNumber, pageSet.getActivePagesCount(), pageSet.getDirtyPagesCount(), flushedRecords});
+
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
+                        new Object[]{table.name, sequenceNumber, pageSet.toString()});
+            }
 
             dirtyRecordsPage.clear();
             memoryManager.releaseDirtyMemory(bookedDirtyMemory.getAndSet(0L), this);

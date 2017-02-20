@@ -20,6 +20,7 @@
 package herddb.core;
 
 import java.util.Collection;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Cache replacement policy for memory pagination.
@@ -81,5 +82,15 @@ public interface PageReplacementPolicy {
      * Clear any memorized data.
      */
     public void clear();
+
+    /**
+     * Returns a {@link ConcurrentMap} which must be used to store and access pages.
+     * <p>
+     * Map access can be observed by the {@link PageReplacementPolicy} for its internal calculations.
+     * </p>
+     *
+     * @return a map to store pages
+     */
+    public ConcurrentMap<Long, DataPage> createObservedPagesMap();
 
 }

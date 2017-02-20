@@ -1100,9 +1100,8 @@ public class TableSpaceManager {
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
-        TableManager tableManager = new TableManager(table, log, dbmanager.getPageReplacementPolicy(),
-            dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID,
-            dbmanager.getMaxLogicalPageSize(), transaction);
+        TableManager tableManager = new TableManager(table, log, dbmanager.getMemoryManager(), dataStorageManager, this,
+                tableSpaceUUID, transaction);
         if (dumpLogSequenceNumber != null) {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
         }

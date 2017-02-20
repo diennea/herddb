@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -38,9 +40,10 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
 
     private final DataPage[] pages;
     private final Map<DataPage,Integer> positions;
+
     private final Random random = new Random();
 
-    /** Lock di modifica */
+    /** Modification lock */
     private final Lock lock = new ReentrantLock();
 
     public RandomPageReplacementPolicy (int size) {
@@ -151,5 +154,12 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         } finally {
             lock.unlock();
         }
+    }
+
+
+    @Override
+    public ConcurrentMap<Long, DataPage> createObservedPagesMap() {
+        /* No observation needed in a random strategy */
+        return new ConcurrentHashMap<>();
     }
 }

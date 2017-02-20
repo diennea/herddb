@@ -81,6 +81,16 @@ public final class PageSet {
         }
     }
 
+    int getActivePagesCount() {
+        lock.readLock().lock();
+        try {
+            return activePages.size();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+
     void truncate() {
         lock.writeLock().lock();
         try {

@@ -59,8 +59,6 @@ public class DataPage {
     }
 
     Record get(Bytes key) {
-        /* Set the page as referenced */
-        reference = true;
         return data.get(key);
     }
 
