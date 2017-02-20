@@ -430,7 +430,7 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
-        LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, currentLedgerId: {2}",
+        LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, currentLedgerId: {1}",
             new Object[]{lastCheckPointSequenceNumber, currentLedgerId});
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
@@ -462,7 +462,7 @@ public class FileCommitLog extends CommitLog {
                 }
             }
 
-            LOGGER.log(Level.SEVERE, "Deleted logfiles: {}", count);
+            LOGGER.log(Level.SEVERE, "Deleted logfiles: {0}", count);
         } catch (Exception err) {
             throw new LogNotAvailableException(err);
         }
