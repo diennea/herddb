@@ -45,6 +45,7 @@ import java.util.stream.Stream;
 
 import javax.xml.ws.Holder;
 
+import herddb.core.DataPage.DataPageMetaData;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
@@ -426,8 +427,8 @@ public final class TableManager implements AbstractTableManager {
                 }
             }
         }
-        throw new StatementExecutionException("unsupported statement " + statement);
 
+        throw new StatementExecutionException("unsupported statement " + statement);
     }
 
     /**
@@ -684,34 +685,39 @@ public final class TableManager implements AbstractTableManager {
             createdInTransaction = 0;
             forceFlushTableData = true;
         }
+        checkpointLock.readLock().lock();
+        try {
+            Map<Bytes, Record> changedRecords = transaction.changedRecords.get(table.name);
+            // transaction is still holding locks on each record, so we can change records
+            Map<Bytes, Record> newRecords = transaction.newRecords.get(table.name);
+            if (newRecords != null) {
+                for (Record record : newRecords.values()) {
+                    applyInsert(record.key, record.value, true);
+                }
+            }
+            if (changedRecords != null) {
+                for (Record r : changedRecords.values()) {
+                    applyUpdate(r.key, r.value);
+                }
+            }
+            Set<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
+            if (deletedRecords != null) {
+                for (Bytes key : deletedRecords) {
+                    applyDelete(key);
+                }
+            }
+        } finally {
+            checkpointLock.readLock().unlock();
+        }
 
-        Map<Bytes, Record> changedRecords = transaction.changedRecords.get(table.name);
-        // transaction is still holding locks on each record, so we can change records
-        Map<Bytes, Record> newRecords = transaction.newRecords.get(table.name);
-        if (newRecords != null) {
-            for (Record record : newRecords.values()) {
-                applyInsert(record.key, record.value, true);
-            }
-        }
-        if (changedRecords != null) {
-            for (Record r : changedRecords.values()) {
-                applyUpdate(r.key, r.value);
-            }
-        }
-        Set<Bytes> deletedRecords = transaction.deletedRecords.get(table.name);
-        if (deletedRecords != null) {
-            for (Bytes key : deletedRecords) {
-                applyDelete(key);
-            }
-        }
-
-        requestCheckpointIfTooDirty();
 
         transaction.releaseLocksOnTable(table.name, locksManager);
 
         if (forceFlushTableData) {
             LOGGER.log(Level.SEVERE, "forcing local checkpoint, table " + table.name + " will be visible to all transactions now");
             checkpoint(log.getLastSequenceNumber());
+        } else {
+            requestCheckpointIfTooDirty();
         }
     }
 
@@ -1093,9 +1099,9 @@ public final class TableManager implements AbstractTableManager {
             if (computed.get()) {
                 _ioAndLock = System.currentTimeMillis();
 
-                final DataPage unload = pageReplacementPolicy.add(result);
+                final DataPageMetaData unload = pageReplacementPolicy.add(result);
                 if (unload != null) {
-                    unload.owner.unloadPage(unload.pageId);
+                    unload.getOwner().unloadPage(unload.getPageId());
                 }
             }
         } catch (RuntimeException error) {
@@ -1298,9 +1304,9 @@ public final class TableManager implements AbstractTableManager {
         pages.put(pageId, dataPage);
         Long _pageId = pageId;
 
-        final DataPage unload = pageReplacementPolicy.add(dataPage);
+        final DataPageMetaData unload = pageReplacementPolicy.add(dataPage);
         if (unload != null) {
-            unload.owner.unloadPage(unload.pageId);
+            unload.getOwner().unloadPage(unload.getPageId());
         }
 
         for (Record record : newPage) {

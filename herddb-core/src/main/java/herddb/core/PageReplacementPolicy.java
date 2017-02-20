@@ -22,6 +22,8 @@ package herddb.core;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentMap;
 
+import herddb.core.DataPage.DataPageMetaData;
+
 /**
  * Cache replacement policy for memory pagination.
  *
@@ -43,7 +45,7 @@ public interface PageReplacementPolicy {
      * @param page page to be added
      * @return selected page to be unloaded or {@code null}
      */
-    public DataPage add(DataPage page);
+    public DataPageMetaData add(DataPage page);
 
     /**
      * Remove a {@code DataPage} from memory.

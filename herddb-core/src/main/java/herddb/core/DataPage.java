@@ -32,6 +32,12 @@ import herddb.utils.Bytes;
  */
 public class DataPage {
 
+    /** Page metadata used by {@link PageReplacementPolicy} */
+    public static interface DataPageMetaData {
+        public TableManager getOwner();
+        public long getPageId();
+    }
+
     public final TableManager owner;
     public final long pageId;
     public final boolean readonly;
@@ -40,8 +46,8 @@ public class DataPage {
 
     public final AtomicLong usedMemory;
 
-    /** Page reference "bit" used by {@link ClockAdaptiveReplacement}*/
-    public volatile boolean reference = false;
+    /** Page metadata used by {@link PageReplacementPolicy} */
+    public DataPageMetaData metadata;
 
     public DataPage(TableManager owner, long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
         this.owner = owner;

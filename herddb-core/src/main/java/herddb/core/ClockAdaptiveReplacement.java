@@ -1,6 +1,7 @@
 package herddb.core;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
@@ -8,6 +9,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import herddb.core.DataPage.DataPageMetaData;
 import herddb.utils.ListWithMap;
 
 /**
@@ -43,16 +45,16 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     private final int c;
 
     /** Recency clock */
-    private final ListWithMap<DataPage> t1;
+    private final ListWithMap<CARMetadata> t1;
 
     /** Frequency clock */
-    private final ListWithMap<DataPage> t2;
+    private final ListWithMap<CARMetadata> t2;
 
     /** Unloaded recency */
-    private final ListWithMap<Long> b1;
+    private final ListWithMap<CARMetadata> b1;
 
     /** Unloaded frequency */
-    private final ListWithMap<Long> b2;
+    private final ListWithMap<CARMetadata> b2;
 
     /** Self tuned parameter (target size of T1) */
     private int p;
@@ -82,16 +84,20 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     }
 
     @Override
-    public DataPage add(DataPage page) {
+    public DataPageMetaData add(DataPage page) {
         lock.lock();
         try {
-            return unsafeAdd(page);
+
+            final CARMetadata metadata = new CARMetadata(page);
+            page.metadata = metadata;
+
+            return unsafeAdd(metadata);
         } finally {
             lock.unlock();
         }
     }
 
-    public DataPage pop() {
+    public DataPageMetaData pop() {
         lock.lock();
         try {
             return unsafeReplace();
@@ -105,7 +111,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         lock.lock();
         try {
             for(DataPage page : pages) {
-                unsafeRemove(page);
+                unsafeRemove((CARMetadata) page.metadata);
             }
         } finally {
             lock.unlock();
@@ -116,7 +122,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     public boolean remove(DataPage page) {
         lock.lock();
         try {
-            return unsafeRemove(page);
+            return unsafeRemove((CARMetadata) page.metadata);
         } finally {
             lock.unlock();
         }
@@ -147,7 +153,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     /* *** PRIVATE METHODS *** */
     /* *********************** */
 
-    private DataPage unsafeAdd(DataPage page) {
+    private DataPageMetaData unsafeAdd(CARMetadata page) {
 
         if (COMPILE_EXPENSIVE_LOGS)
             LOGGER.log(Level.SEVERE, "Status[add started]: p = {0}, |T1| = {1}, |T2| = {2}, |B1| = {3}, |B2| = {4}, adding {5}",
@@ -172,13 +178,10 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
          * pagina).
          */
 
-        /* Explicit boxing just to avoid too many implicit ones */
-        final Long pageId = page.pageId;
+        final boolean b1Hit = b1.contains(page);
+        final boolean b2Hit = b2.contains(page);
 
-        final boolean b1Hit = b1.contains(pageId);
-        final boolean b2Hit = b2.contains(pageId);
-
-        DataPage replaced = null;
+        CARMetadata replaced = null;
         if (t1.size() + t2.size() == c) {
 
             if (COMPILE_EXPENSIVE_LOGS)
@@ -238,7 +241,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
                 LOGGER.log(Level.SEVERE, "In B1: insert {0} into T2 tail", page);
 
             page.reference = false;
-            b1.remove(pageId);
+            b1.remove(page);
             t2.append(page);
 
         } else {
@@ -255,7 +258,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
                 LOGGER.log(Level.SEVERE, "In B2: insert {0} into T2 tail", page);
 
             page.reference = false;
-            b2.remove(pageId);
+            b2.remove(page);
             t2.append(page);
         }
 
@@ -266,7 +269,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         return replaced;
     }
 
-    private DataPage unsafeReplace() {
+    private CARMetadata unsafeReplace() {
 
 //        22: found = 0
 //        23: repeat
@@ -290,14 +293,14 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         while(true) {
             if (t1.size() >= Math.max(1, p)) {
 
-                final DataPage t1h = t1.poll();
+                final CARMetadata t1h = t1.poll();
                 if (t1h.reference == false) {
 
                     /* Demote the head page in T1 and make it the MRU page in B1. */
                     if (COMPILE_EXPENSIVE_LOGS)
                         LOGGER.log(Level.SEVERE, "T1 head {0} not referenced: demote to B1 MRU", t1h);
 
-                    b1.append(t1h.pageId);
+                    b1.append(t1h);
 
                     return t1h;
 
@@ -311,14 +314,14 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
                 }
             } else {
 
-                final DataPage t2h = t2.poll();
+                final CARMetadata t2h = t2.poll();
                 if (t2h.reference == false) {
 
                     /* Demote the head page in T2 and make it the MRU page in B2. */
                     if (COMPILE_EXPENSIVE_LOGS)
                         LOGGER.log(Level.SEVERE, "T2 head {0} not referenced: demote to B2 MRU", t2h);
 
-                    b2.append(t2h.pageId);
+                    b2.append(t2h);
 
                     return t2h;
 
@@ -334,34 +337,36 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         }
     }
 
-    private boolean unsafeRemove(DataPage page) {
+    private boolean unsafeRemove(CARMetadata page) {
 
         /* Custom addition to CAR algorithm, we need to drop pages too */
 
-        final DataPage t1r = t1.remove(page);
+        final CARMetadata t1r = t1.remove(page);
         if (t1r != null) {
 
             /* Demote the head page in T1 and make it the MRU page in B1. */
             if (COMPILE_EXPENSIVE_LOGS)
                 LOGGER.log(Level.SEVERE, "Removing T1 element: demote to B1 MRU", t1r);
 
-            b1.append(page.pageId);
+            t1r.reference = false;
+
+            b1.append(t1r);
 
             return true;
-
         }
 
-        final DataPage t2r = t2.remove(page);
+        final CARMetadata t2r = t2.remove(page);
         if (t2r != null) {
 
             /* Demote the head page in T2 and make it the MRU page in B2. */
             if (COMPILE_EXPENSIVE_LOGS)
                 LOGGER.log(Level.SEVERE, "Removing T2 element: demote to B2 MRU", t1r);
 
-            b2.append(page.pageId);
+            t2r.reference = false;
+
+            b2.append(t2r);
 
             return true;
-
         }
 
         return false;
@@ -389,14 +394,87 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
             final DataPage page = super.get(key);
 
-            if (page != null) {
+            if (page != null && page.metadata != null) {
                 /* Set the page as referenced */
-                page.reference = true;
+                ((CARMetadata)page.metadata).reference = true;
             }
 
             return page;
         }
+    }
 
+    /**
+     * Implementation of {@link DataPageMetaData} with all data needed for {@link ClockAdaptiveReplacement}.
+     *
+     * @author diego.salvi
+     */
+    private static final class CARMetadata implements DataPageMetaData {
+
+        public final TableManager owner;
+        public final long pageId;
+
+        public volatile boolean reference;
+
+        private final int hashcode;
+
+        public CARMetadata(DataPage datapage) {
+            this(datapage.owner, datapage.pageId);
+        }
+
+        public CARMetadata(TableManager owner, long pageId) {
+            super();
+            this.owner = owner;
+            this.pageId = pageId;
+
+            hashcode = Objects.hash(owner,pageId);
+
+            reference = false;
+        }
+
+        @Override
+        public int hashCode() {
+            return hashcode;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null) {
+                return false;
+            }
+            if (!(obj instanceof CARMetadata)) {
+                return false;
+            }
+            CARMetadata other = (CARMetadata) obj;
+            if (owner == null) {
+                if (other.owner != null) {
+                    return false;
+                }
+            } else if (!owner.equals(other.owner)) {
+                return false;
+            }
+            if (pageId != other.pageId) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public TableManager getOwner() {
+            return owner;
+        }
+
+        @Override
+        public long getPageId() {
+            return pageId;
+        }
+
+        @Override
+        public String toString() {
+            return "CARMetadata {pageId=" + pageId + ", owner=" + owner + '}';
+        }
     }
 
 }
