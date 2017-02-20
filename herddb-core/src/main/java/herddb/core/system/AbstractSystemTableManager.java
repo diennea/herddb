@@ -83,6 +83,16 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
             }
 
             @Override
+            public long getLoadedPagesCount() {
+                return 0;
+            }
+
+            @Override
+            public long getUnloadedPagesCount() {
+                return 0;
+            }
+
+            @Override
             public long getTablesize() {
                 return 0;
             }

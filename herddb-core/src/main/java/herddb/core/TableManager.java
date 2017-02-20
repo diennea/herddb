@@ -28,14 +28,19 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -93,10 +98,6 @@ import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 /**
  * Handles Data of a Table
@@ -123,7 +124,7 @@ public final class TableManager implements AbstractTableManager {
 
     private final DataPage dirtyRecordsPage = new DataPage(this, NEW_PAGE, 0, new ConcurrentHashMap<>(), false);
 
-    private final List<CompletableFuture> checkpointWaits = new CopyOnWriteArrayList<>();
+    private final List<CompletableFuture<Void>> checkpointWaits = new CopyOnWriteArrayList<>();
 
     private final ConcurrentMap<Long, DataPage> pages;
 
@@ -147,6 +148,16 @@ public final class TableManager implements AbstractTableManager {
      * Memory booked to be used for dirty records
      */
     private final AtomicLong bookedDirtyMemory = new AtomicLong(0);
+
+    /**
+     * Counts how many pages had been unloaded
+     */
+    private final LongAdder loadedPagesCount = new LongAdder();
+
+    /**
+     * Counts how many pages had been loaded
+     */
+    private final LongAdder unloadedPagesCount = new LongAdder();
 
     /**
      * Local locks
@@ -214,6 +225,16 @@ public final class TableManager implements AbstractTableManager {
         public int getLoadedpages() {
             // dirty records pages (-1) is not counted
             return pages.size() - 1;
+        }
+
+        @Override
+        public long getLoadedPagesCount() {
+            return loadedPagesCount.sum();
+        }
+
+        @Override
+        public long getUnloadedPagesCount() {
+            return unloadedPagesCount.sum();
         }
 
         @Override
@@ -450,7 +471,7 @@ public final class TableManager implements AbstractTableManager {
             LOGGER.log(Level.FINE, "table {0} requesting checkpoint for dirtiness, allowed dirty memory {1} current {2}",
                 new Object[]{table.name, MAX_DIRTY_SIZE, dirtyMemory});
 
-            Future requestedCheckpoint = requestCheckpoint(wait);
+            Future<Void> requestedCheckpoint = requestCheckpoint(wait);
             if (requestedCheckpoint != null) {
                 try {
                     requestedCheckpoint.get();
@@ -464,7 +485,7 @@ public final class TableManager implements AbstractTableManager {
         }
     }
 
-    private Future requestCheckpoint(boolean registerWait) {
+    private Future<Void> requestCheckpoint(boolean registerWait) {
         if (dumpLogSequenceNumber != null) {
             // we are restoring the table, it is better to perform the checkpoint inside the same thread
             List<PostCheckpointAction> postCheckPointActions = this.checkpoint(LogSequenceNumber.START_OF_TIME);
@@ -473,7 +494,7 @@ public final class TableManager implements AbstractTableManager {
             }
             return registerWait ? CompletableFuture.completedFuture(null) : null;
         } else if (registerWait) {
-            CompletableFuture res = new CompletableFuture();
+            CompletableFuture<Void> res = new CompletableFuture<>();
             checkpointWaits.add(res);
             this.tableSpaceManager.requestTableCheckPoint(table.name);
             return res;
@@ -486,6 +507,7 @@ public final class TableManager implements AbstractTableManager {
     private void unloadPage(long pageId) {
         DataPage removed = pages.remove(pageId);
         if (removed != null) {
+            unloadedPagesCount.increment();
             LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, removed.getUsedMemory() / (1024 * 1024) + " MB"});
         }
     }
@@ -1113,6 +1135,9 @@ public final class TableManager implements AbstractTableManager {
                     } finally {
                         maxCurrentPagesLoads.release();
                     }
+
+                    loadedPagesCount.increment();
+
                     return buildDataPage(pageId, page);
                 } catch (DataStorageManagerException err) {
                     throw new RuntimeException(err);
@@ -1182,7 +1207,7 @@ public final class TableManager implements AbstractTableManager {
         long toKeepFlush;
         long dirtyFlush;
         long tablecheckpoint;
-        List<CompletableFuture> futuresToNotify = Collections.emptyList();
+        List<CompletableFuture<Void>> futuresToNotify = Collections.emptyList();
         List<PostCheckpointAction> result = new ArrayList<>();
         checkpointLock.writeLock().lock();
         try {
@@ -1295,7 +1320,7 @@ public final class TableManager implements AbstractTableManager {
         } finally {
             checkpointLock.writeLock().unlock();
 
-            for (CompletableFuture f : futuresToNotify) {
+            for (CompletableFuture<Void> f : futuresToNotify) {
                 f.complete(null);
             }
 

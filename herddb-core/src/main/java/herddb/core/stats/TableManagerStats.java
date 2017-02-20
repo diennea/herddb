@@ -28,6 +28,10 @@ public interface TableManagerStats {
 
     public int getLoadedpages();
 
+    public long getLoadedPagesCount();
+
+    public long getUnloadedPagesCount();
+
     public long getTablesize();
 
     public int getDirtypages();
@@ -43,6 +47,6 @@ public interface TableManagerStats {
     public long getBuffersUsedMemory();
 
     public long getKeysUsedMemory();
-    
+
 
 }

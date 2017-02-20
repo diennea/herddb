@@ -19,6 +19,9 @@
  */
 package herddb.core.system;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractTableManager;
 import herddb.core.TableSpaceManager;
@@ -26,8 +29,6 @@ import herddb.core.stats.TableManagerStats;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Table Manager for the SYSTABLES virtual table
@@ -73,6 +74,8 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
                     "systemtable", r.name.startsWith("sys") ? "true" : "false",
                     "tablesize", stats.getTablesize(),
                     "loadedpages", stats.getLoadedpages(),
+                    "loadedpagescount", stats.getLoadedPagesCount(),
+                    "unloadedloadedpagescount", stats.getUnloadedPagesCount(),
                     "dirtypages", stats.getDirtypages(),
                     "dirtyrecords", stats.getDirtyrecords(),
                     "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
