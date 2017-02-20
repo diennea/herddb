@@ -228,7 +228,9 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
             /* Adapt: Increase the target size for the list T1 as: p = min {p + max{1, |B2|/|B1|}, c} */
             int b1Size = b1.size();
-            p = b1Size>0 ? Math.min(p + Math.max(1, b2.size() / b1Size), c) : c;
+            p = Math.min(p + Math.max(1, b2.size() / b1Size), c);
+            // LOTHRUIN se divide by zero è un bug!!!
+//            p = b1Size>0 ? Math.min(p + Math.max(1, b2.size() / b1Size), c) : c;
 
             if (COMPILE_EXPENSIVE_LOGS)
                 LOGGER.log(Level.SEVERE, "Adapt: p = min {p + max{1, |B2|/|B1|}, c} = {0}", p);
@@ -244,7 +246,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
             b2.remove(page.pageId);
             t2.append(page);
 
-            /* Adapt: Decrease the target size for the list T1 as: p = max {p − max{1, |B1|/|B2|}, 0} */            
+            /* Adapt: Decrease the target size for the list T1 as: p = max {p − max{1, |B1|/|B2|}, 0} */
             p = Math.max(p - Math.max(1, b1.size() / b2.size()), 0);
 
             if (COMPILE_EXPENSIVE_LOGS)

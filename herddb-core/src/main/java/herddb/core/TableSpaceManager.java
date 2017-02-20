@@ -630,14 +630,9 @@ public class TableSpaceManager {
     long handleLocalMemoryUsage() {
         long result = 0;
         for (AbstractTableManager tableManager : tables.values()) {
-//            tableManager.ensureMemoryLimits();
             TableManagerStats stats = tableManager.getStats();
-            // LOTHRUIN la memoria di buffer non è più "locale"
             result += stats.getBuffersUsedMemory();
-
-            // LOTHRUIN questa non è attualmente "scaricabile" dovrà finire in un conteggio di paginazione
             result += stats.getKeysUsedMemory();
-
             result += stats.getDirtyUsedMemory();
         }
         return result;

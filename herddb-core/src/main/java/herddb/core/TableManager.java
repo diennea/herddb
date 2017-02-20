@@ -118,7 +118,6 @@ public final class TableManager implements AbstractTableManager {
     private final DataPage dirtyRecordsPage = new DataPage(this, NEW_PAGE, 0, new ConcurrentHashMap<>(), false);
 
     private final ConcurrentMap<Long, DataPage> pages = new ConcurrentHashMap<>();
-//    private final ConcurrentMap<Long, DataPage> pages = CAR4.wrap(new ConcurrentHashMap<>());
 
 
 
@@ -252,7 +251,7 @@ public final class TableManager implements AbstractTableManager {
         public long getKeysUsedMemory() {
             return keyToPage.getUsedMemory();
         }
-        
+
     }
 
     TableManager(Table table, CommitLog log, PageReplacementPolicy pageReplacementPolicy,

@@ -40,9 +40,8 @@ public class DataPage {
 
     public final AtomicLong usedMemory;
 
-    // LOTHRUIN
+    /** Page reference "bit" used by {@link ClockAdaptiveReplacement}*/
     public volatile boolean reference = false;
-    public boolean filter = false;
 
     public DataPage(TableManager owner, long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
         this.owner = owner;
@@ -60,8 +59,8 @@ public class DataPage {
     }
 
     Record get(Bytes key) {
+        /* Set the page as referenced */
         reference = true;
-        //LOTHRUIN
         return data.get(key);
     }
 

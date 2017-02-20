@@ -1,3 +1,23 @@
+/*
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+ */
+
 package herddb.utils;
 
 import java.util.ArrayList;
@@ -8,7 +28,7 @@ import java.util.Map;
 /**
  * Combined strucutre linked list / hash map.
  * <p>
- * If necessari elements can be removed in <tt>O1</tt> with {@link #remove(Object)}
+ * If necessary elements can be removed in <tt>O1</tt> with {@link #remove(Object)}
  * </p>
  *
  * @author diego.salvi
@@ -19,17 +39,15 @@ public class ListWithMap<E> {
 
     /**
      * Pointer to first node.
-     * Invariant: (first == null && last == null) ||
-     *            (first.prev == null && first.item != null)
-     *
-     * O sono nulli o il precedente di first è nullo e il suo elemento non nullo
+     * Invariant: (head == null && tail == null) ||
+     *            (head.prev == null && head.item != null)
      */
     private Node<E> head;
 
     /**
      * Pointer to last node.
-     * Invariant: (first == null && last == null) ||
-     *            (last.next == null && last.item != null)
+     * Invariant: (head == null && tail == null) ||
+     *            (tail.next == null && tail.item != null)
      */
     private Node<E> tail;
 
