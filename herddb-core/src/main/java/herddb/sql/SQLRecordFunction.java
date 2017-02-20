@@ -54,7 +54,6 @@ public class SQLRecordFunction extends RecordFunction {
 
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
-        SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
         Map<String, Object> bean = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
 
         for (int i = 0; i < columns.size(); i++) {
@@ -65,7 +64,8 @@ public class SQLRecordFunction extends RecordFunction {
                 throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);
             }
             columnName = column.name;
-            Object value = e.evaluate(bean, context);
+            Object value = RecordSerializer.convert(column.type, e.evaluate(bean, context));
+
             bean.put(columnName, value);
         }
         return RecordSerializer.toRecord(bean, table).value.data;

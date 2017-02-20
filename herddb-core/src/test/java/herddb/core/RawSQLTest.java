@@ -113,6 +113,10 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_TIMESTAMP)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             Thread.sleep(500);
             assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consume().get(0).get("n1"));
+            java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
+
+            // non standard syntax, needs a decoding
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'"+now+"')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
         }
     }
 

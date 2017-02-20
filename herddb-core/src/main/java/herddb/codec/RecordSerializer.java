@@ -37,7 +37,6 @@ import herddb.model.ColumnsList;
 import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SingleEntryMap;
-import net.sf.jsqlparser.expression.ExtractExpression;
 
 /**
  * Record conversion to byte[]
@@ -141,7 +140,7 @@ public final class RecordSerializer {
                 }
             case ColumnTypes.TIMESTAMP:
                 if (!(v instanceof java.sql.Timestamp)) {
-                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass());
+                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
                 }
                 return Bytes.from_timestamp((java.sql.Timestamp) v).data;
             default:
@@ -191,7 +190,7 @@ public final class RecordSerializer {
                 break;
             case ColumnTypes.TIMESTAMP:
                 if (!(v instanceof java.sql.Timestamp)) {
-                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass());
+                    throw new IllegalArgumentException("bad value type for column " + type + ": required java.sql.Timestamp, but was " + v.getClass() + ", toString of value is " + v);
                 }
                 oo.writeLong(((java.sql.Timestamp) v).getTime());
                 break;
@@ -214,6 +213,20 @@ public final class RecordSerializer {
             default:
                 throw new IllegalArgumentException("bad column type " + type);
 
+        }
+    }
+
+    public static Object convert(int type, Object value) {
+        switch (type) {
+            case ColumnTypes.TIMESTAMP:
+                if ((value instanceof java.sql.Timestamp)) {
+                    return value;
+                } else if (value instanceof RawString
+                    || value instanceof String) {
+                    return java.sql.Timestamp.valueOf(value.toString());
+                }
+            default:
+                return value;
         }
     }
 
