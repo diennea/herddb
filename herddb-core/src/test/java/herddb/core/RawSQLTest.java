@@ -100,6 +100,44 @@ public class RawSQLTest {
     }
 
     @Test
+    public void createNumericTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,"
+                + "n1 decimal(18,0),"
+                + "n2 numeric(10,0))", Collections.emptyList());
+
+        }
+    }
+
+    @Test
+    public void escapedStringTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,"
+                + "s1 string)", Collections.emptyList());
+
+            execute(manager, "INSERT INTO tblspace1.tsql (k1 ,"
+                + "s1) values('test','test ''escaped')", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT k1,s1 FROM tblspace1.tsql where s1='test ''escaped'", Collections.emptyList());) {
+                assertEquals(1, scan.consume().size());
+            }
+
+        }
+    }
+
+    @Test
     public void currentTimestampTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
@@ -116,7 +154,7 @@ public class RawSQLTest {
             java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
 
             // non standard syntax, needs a decoding
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'"+now+"')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + now + "')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
         }
     }
 

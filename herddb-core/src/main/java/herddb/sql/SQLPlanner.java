@@ -300,7 +300,7 @@ public class SQLPlanner {
                 String columnName = cf.getColumnName().toLowerCase();
                 int type;
                 String dataType = cf.getColDataType().getDataType();
-                type = sqlDataTypeToColumnType(dataType);
+                type = sqlDataTypeToColumnType(dataType, cf.getColDataType().getArgumentsStringList());
                 tablebuilder.column(columnName, type, position++);
 
                 if (cf.getColumnSpecStrings() != null) {
@@ -413,7 +413,7 @@ public class SQLPlanner {
         return indexType;
     }
 
-    private int sqlDataTypeToColumnType(String dataType) throws StatementExecutionException {
+    private int sqlDataTypeToColumnType(String dataType, List<String> arguments) throws StatementExecutionException {
         int type;
         switch (dataType.toLowerCase()) {
             case "string":
@@ -454,6 +454,28 @@ public class SQLPlanner {
             case "float":
                 type = ColumnTypes.DOUBLE;
                 break;
+            case "numeric":
+            case "decimal":
+                if (arguments == null || arguments.isEmpty()) {
+                    type = ColumnTypes.DOUBLE;
+                } else if (arguments.size() == 2) {
+                    int precision = Integer.parseInt(arguments.get(0));
+                    int scale = Integer.parseInt(arguments.get(1));
+                    if (scale == 0) {
+                        if (precision > 0) {
+                            type = ColumnTypes.INTEGER;
+                        } else {
+                            type = ColumnTypes.LONG;
+                        }
+                    } else {
+                        type = ColumnTypes.DOUBLE;
+                    }
+                } else {
+                    throw new StatementExecutionException("bad type " + dataType + " with arguments " + arguments);
+                }
+
+                break;
+
             default:
                 throw new StatementExecutionException("bad type " + dataType);
         }
@@ -1770,7 +1792,10 @@ public class SQLPlanner {
             case ADD:
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
-                    Column newColumn = Column.column(cl.getColumnName(), sqlDataTypeToColumnType(cl.getColDataType().getDataType()));
+                    Column newColumn = Column.column(cl.getColumnName(), sqlDataTypeToColumnType(
+                        cl.getColDataType().getDataType(),
+                        cl.getColDataType().getArgumentsStringList()
+                    ));
                     addColumns.add(newColumn);
                 }
                 break;

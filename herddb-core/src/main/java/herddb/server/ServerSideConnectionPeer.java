@@ -275,7 +275,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         try {
             String tableSpace = (String) message.parameters.get("tableSpace");
 
-
             server.getManager()
                 .getTableSpaceManager(tableSpace)
                 .restoreFinished();
@@ -622,6 +621,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
             }
         } catch (StatementExecutionException err) {
+            LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ": err", err);
             Message error = Message.ERROR(null, err);
             if (err instanceof NotLeaderException) {
                 error.setParameter("notLeader", "true");

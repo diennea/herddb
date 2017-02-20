@@ -34,12 +34,10 @@ import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -86,6 +84,7 @@ public class HerdDBCLI {
         options.addOption("g", "script", true, "Groovy Script to execute");
         options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
         options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
+        options.addOption("fmd", "frommysqldump", false, "Intruct the parser that the script is coming from a MySQL Dump");
         options.addOption("d", "dump", true, "Dump tablespace");
         options.addOption("r", "restore", true, "Restore tablespace");
         options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
@@ -127,6 +126,7 @@ public class HerdDBCLI {
         int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
         boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         boolean sqlconsole = commandLine.hasOption("sqlconsole");
+        boolean frommysqldump = commandLine.hasOption("frommysqldump");
         try (HerdDBDataSource datasource = new HerdDBDataSource()) {
             datasource.setUrl(url);
             datasource.setUsername(username);
@@ -138,7 +138,7 @@ public class HerdDBCLI {
                 if (sqlconsole) {
                     runSqlConsole(connection, statement);
                 } else if (!query.isEmpty()) {
-                    executeStatement(verbose, ignoreerrors, query, statement);
+                    executeStatement(verbose, ignoreerrors, frommysqldump, query, statement);
                 } else if (!file.isEmpty()) {
                     StringBuilder currentStatement = new StringBuilder();
                     try (FileInputStream fIn = new FileInputStream(new File(file));
@@ -151,14 +151,14 @@ public class HerdDBCLI {
                                 if (line.endsWith(";")) {
                                     currentStatement.append(line);
                                 }
-                                executeStatement(verbose, ignoreerrors, currentStatement.toString(), statement);
+                                executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
                                 currentStatement.setLength(0);
                             } else {
                                 currentStatement.append(line + "\n");
                             }
                             line = br.readLine();
                         }
-                        executeStatement(verbose, ignoreerrors, currentStatement.toString(), statement);
+                        executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
                     }
                 } else if (!script.isEmpty()) {
                     Map<String, Object> variables = new HashMap<>();
@@ -248,13 +248,23 @@ public class HerdDBCLI {
         }
     }
 
-    private static void executeStatement(boolean verbose, boolean ignoreerrors, String query, final Statement statement) throws SQLException {
+    private static void executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, String query, final Statement statement) throws SQLException {
         query = query.trim();
-        if (query.isEmpty()
-            || query.startsWith("--")
-            || query.startsWith("/*") // TODO: handle better query comments
-            || query.endsWith("/*")) {
-            return;
+        if (frommysqldump) {
+            if (query.isEmpty()
+                || query.startsWith("--")
+                || query.startsWith("/*") // TODO: handle better query comments
+                || query.endsWith("/*")) {
+                return;
+            }
+        } else {
+            if (query.isEmpty()
+                || query.startsWith("--")) {
+                return;
+            }
+        }
+        if (frommysqldump) {
+            query = query.replace("\\'", "''");
         }
         String formattedQuery = query.toLowerCase();
         if (formattedQuery.endsWith(";")) {
@@ -265,7 +275,7 @@ public class HerdDBCLI {
             System.out.println("Connection closed.");
             System.exit(0);
         }
-        if (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables")) {
+        if (frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables"))) {
             // mysqldump
             return;
         }
@@ -363,7 +373,7 @@ public class HerdDBCLI {
                 if (line == null) {
                     return;
                 }
-                executeStatement(true, true, line, statement);
+                executeStatement(true, true, false, line, statement);
             } catch (UserInterruptException e) {
                 // Ignore
             } catch (EndOfFileException e) {
