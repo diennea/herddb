@@ -21,6 +21,7 @@ package herddb.core;
 
 import java.util.AbstractMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -28,6 +29,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
+import herddb.utils.SystemProperties;
 
 /**
  * Responsible to handle global memory usage.
@@ -37,6 +40,9 @@ import java.util.stream.Collectors;
 public class MemoryManager {
 
     private static final Logger LOGGER = Logger.getLogger(MemoryManager.class.getName());
+
+    private static final String PAGE_REPLACEMENT_POLICY = SystemProperties.getStringSystemProperty(
+            TableManager.class.getName() + ".pageReplacementPolicy", "car" ).toLowerCase(Locale.US);
 
     private final ConcurrentMap<TableManager, LongAdder> borrowedDirtyAmounts = new ConcurrentHashMap<>();
 
@@ -82,7 +88,18 @@ public class MemoryManager {
         this.maxPagesUsedMemory  = maxPagesUsedMemory;
         this.maxLogicalPageSize  = maxLogicalPageSize;
 
-        pageReplacementPolicy = new ClockAdaptiveReplacement((int) (maxPagesUsedMemory / maxLogicalPageSize));
+
+        final int pages = (int) (maxPagesUsedMemory / maxLogicalPageSize);
+        switch(PAGE_REPLACEMENT_POLICY) {
+            case "random":
+                pageReplacementPolicy = new RandomPageReplacementPolicy(pages);
+                break;
+
+            case "car":
+            default:
+                pageReplacementPolicy = new ClockAdaptiveReplacement(pages);
+        }
+
     }
 
     public long getMaximumDirtyMemory() {

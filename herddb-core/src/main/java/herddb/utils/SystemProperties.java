@@ -28,16 +28,12 @@ import java.security.PrivilegedAction;
  */
 public class SystemProperties {
 
-    public static int getIntSystemProperty(String name, int defaultvalue) {
-        return getIntSystemProperty(name, defaultvalue, "");
+    public static String getStringSystemProperty(String name, String defaultvalue) {
+        return getProperty(name, defaultvalue);
     }
 
-    private static String getProperty(String name, String defaultvalue) {
-        String res = (String) AccessController.doPrivileged((PrivilegedAction) (() -> {
-            return System.getProperty(name, defaultvalue);
-        }));
-        System.out.println("read system property: " + name + "=" + res);
-        return res;
+    public static int getIntSystemProperty(String name, int defaultvalue) {
+        return getIntSystemProperty(name, defaultvalue, "");
     }
 
     public static int getIntSystemProperty(String name, int defaultvalue, String description) {
@@ -71,5 +67,13 @@ public class SystemProperties {
                 + name + " =" + value + " allowed only true|false");
             throw rerr;
         }
+    }
+
+    private static String getProperty(String name, String defaultvalue) {
+        String res = AccessController.doPrivileged((PrivilegedAction<String>) (() -> {
+            return System.getProperty(name, defaultvalue);
+        }));
+        System.out.println("read system property: " + name + "=" + res);
+        return res;
     }
 }
