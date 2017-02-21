@@ -46,7 +46,7 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
         .column("tablesize", ColumnTypes.LONG)
         .column("loadedpages", ColumnTypes.INTEGER)
         .column("loadedpagescount", ColumnTypes.LONG)
-        .column("unloadedloadedpagescount", ColumnTypes.LONG)
+        .column("unloadedpagescount", ColumnTypes.LONG)
         .column("dirtypages", ColumnTypes.INTEGER)
         .column("dirtyrecords", ColumnTypes.LONG)
         .column("maxlogicalpagesize", ColumnTypes.LONG)
@@ -77,7 +77,7 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
                     "tablesize", stats.getTablesize(),
                     "loadedpages", stats.getLoadedpages(),
                     "loadedpagescount", stats.getLoadedPagesCount(),
-                    "unloadedloadedpagescount", stats.getUnloadedPagesCount(),
+                    "unloadedpagescount", stats.getUnloadedPagesCount(),
                     "dirtypages", stats.getDirtypages(),
                     "dirtyrecords", stats.getDirtyrecords(),
                     "maxlogicalpagesize", stats.getMaxLogicalPageSize(),
