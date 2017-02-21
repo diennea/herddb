@@ -42,7 +42,7 @@ public class MemoryManager {
     private static final Logger LOGGER = Logger.getLogger(MemoryManager.class.getName());
 
     private static final String PAGE_REPLACEMENT_POLICY = SystemProperties.getStringSystemProperty(
-            TableManager.class.getName() + ".pageReplacementPolicy", "car" ).toLowerCase(Locale.US);
+            TableManager.class.getName() + ".pageReplacementPolicy", "cp" ).toLowerCase(Locale.US);
 
     private final ConcurrentMap<TableManager, LongAdder> borrowedDirtyAmounts = new ConcurrentHashMap<>();
 
@@ -94,6 +94,10 @@ public class MemoryManager {
         switch(PAGE_REPLACEMENT_POLICY) {
             case "random":
                 pageReplacementPolicy = new RandomPageReplacementPolicy(pages);
+                break;
+
+            case "cp":
+                pageReplacementPolicy = new ClockPro(pages);
                 break;
 
             case "car":
