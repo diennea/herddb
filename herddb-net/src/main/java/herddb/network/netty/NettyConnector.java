@@ -55,7 +55,7 @@ public class NettyConnector {
     private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
 
     public static NettyChannel connect(String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
-            ChannelEventListener receiver, final ExecutorService callbackExecutor, final NioEventLoopGroup networkGroup, final DefaultEventLoopGroup localEventsGroup) throws IOException {
+        ChannelEventListener receiver, final ExecutorService callbackExecutor, final NioEventLoopGroup networkGroup, final DefaultEventLoopGroup localEventsGroup) throws IOException {
         try {
             final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
@@ -69,42 +69,42 @@ public class NettyConnector {
             if (LocalServerRegistry.isLocalServer(hostAddress, port, ssl)) {
                 channelType = LocalChannel.class;
                 address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
-                group = localEventsGroup;                
+                group = localEventsGroup;
             } else {
                 channelType = NioSocketChannel.class;
                 address = inet;
-                group = networkGroup;                
+                group = networkGroup;
             }
 
             Bootstrap b = new Bootstrap();
             Holder<NettyChannel> result = new Holder<>();
 
             b.group(group)
-                    .channel(channelType)
-                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
-                    .handler(new ChannelInitializer<Channel>() {
-                        @Override
-                        public void initChannel(Channel ch) throws Exception {
-                            NettyChannel channel = new NettyChannel(host + ":" + port, ch, callbackExecutor);
-                            result.value = channel;
-                            channel.setMessagesReceiver(receiver);
-                            if (ssl) {
-                                ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
-                            }
-                            if (socketTimeout > 0) {
-                                ch.pipeline().addLast("readTimeoutHandler", new ReadTimeoutHandler(socketTimeout));
-                            }
-                            ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
-                            ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
-//
-                            ch.pipeline().addLast("messageencoder", new DataMessageEncoder());
-                            ch.pipeline().addLast("messagedecoder", new DataMessageDecoder());
-                            ch.pipeline().addLast(new InboundMessageHandler(channel));
+                .channel(channelType)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, connectTimeout)
+                .handler(new ChannelInitializer<Channel>() {
+                    @Override
+                    public void initChannel(Channel ch) throws Exception {
+                        NettyChannel channel = new NettyChannel(host + ":" + port, ch, callbackExecutor);
+                        result.value = channel;
+                        channel.setMessagesReceiver(receiver);
+                        if (ssl) {
+                            ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
                         }
+                        if (socketTimeout > 0) {
+                            ch.pipeline().addLast("readTimeoutHandler", new ReadTimeoutHandler(socketTimeout));
+                        }
+                        ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
+                        ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
+//
+                        ch.pipeline().addLast("messageencoder", new DataMessageEncoder());
+                        ch.pipeline().addLast("messagedecoder", new DataMessageDecoder());
+                        ch.pipeline().addLast(new InboundMessageHandler(channel));
                     }
-                    );
+                }
+                );
 
-            LOGGER.log(Level.SEVERE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address
+            LOGGER.log(Level.FINE, "connecting to {0}:{1} ssl={2} address={3}", new Object[]{host, port, ssl, address
             }
             );
             b.connect(address).sync();

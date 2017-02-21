@@ -680,6 +680,7 @@ public class TableSpaceManager {
         if (ok) {
             LOGGER.log(Level.SEVERE, "Table " + this.tableSpaceName + "." + name + " need a local checkpoint");
         }
+        dbmanager.triggerActivator(ActivatorRunRequest.TABLECHECKPOINTS);
     }
 
     void runLocalTableCheckPoints() {

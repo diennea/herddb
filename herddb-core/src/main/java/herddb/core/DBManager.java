@@ -115,7 +115,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final Thread activator;
     private final AtomicBoolean stopped = new AtomicBoolean();
-    private final BlockingQueue<Object> activatorQueue = new LinkedBlockingDeque<>();
+    private final BlockingQueue<ActivatorRunRequest> activatorQueue = new LinkedBlockingDeque<>();
     private final SQLPlanner translator;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
@@ -315,8 +315,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         memoryManager = new MemoryManager(
-                maxDirtyMemory, hiDirtyMemoryLimit, lowDirtyMemoryLimit,
-                maxPagesUsedMemory, maxLogicalPageSize);
+            maxDirtyMemory, hiDirtyMemoryLimit, lowDirtyMemoryLimit,
+            maxPagesUsedMemory, maxLogicalPageSize);
 
         metadataStorageManager.start();
 
@@ -355,7 +355,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
         activator.start();
 
-        triggerActivator();
+        triggerActivator(ActivatorRunRequest.FULL);
     }
 
     public boolean waitForTablespace(String tableSpace, int millis) throws InterruptedException {
@@ -739,7 +739,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
         try {
             metadataStorageManager.registerTableSpace(tableSpace);
-            triggerActivator();
+            triggerActivator(ActivatorRunRequest.FULL);
 
             if (createTableSpaceStatement.getWaitForTableSpaceTimeout() > 0) {
                 boolean okWait = false;
@@ -780,7 +780,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     @Override
     public void close() throws DataStorageManagerException {
         stopped.set(true);
-        triggerActivator();
+        triggerActivator(ActivatorRunRequest.NOOP);
         try {
             activator.join();
         } catch (InterruptedException ignore) {
@@ -795,8 +795,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    private void triggerActivator() {
-        activatorQueue.offer("");
+    public void triggerActivator(ActivatorRunRequest type) {
+        activatorQueue.offer(type);
     }
 
     public String getNodeId() {
@@ -836,7 +836,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 throw new StatementExecutionException("invalid ALTER TABLESPACE statement: " + invalid.getMessage(), invalid);
             }
             metadataStorageManager.updateTableSpace(tableSpace, previous);
-            triggerActivator();
+            triggerActivator(ActivatorRunRequest.FULL);
             return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -850,7 +850,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 throw new TableSpaceDoesNotExistException(dropTableSpaceStatement.getTableSpace());
             }
             metadataStorageManager.dropTableSpace(dropTableSpaceStatement.getTableSpace(), previous);
-            triggerActivator();
+            triggerActivator(ActivatorRunRequest.TABLESPACEMANAGEMENT);
             return new DDLStatementExecutionResult(TransactionContext.NOTRANSACTION_ID);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -920,13 +920,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         public void run() {
             try {
                 while (!stopped.get()) {
-                    activatorQueue.poll(1, TimeUnit.SECONDS);
+                    ActivatorRunRequest type = activatorQueue.poll(1, TimeUnit.SECONDS);
+                    if (type == null) {
+                        type = ActivatorRunRequest.FULL;
+                    }
                     activatorQueue.clear();
                     if (!stopped.get()) {
-                        processTableSpaces();
+                        executeActivator(type);
                     }
                 }
-
             } catch (InterruptedException ee) {
             }
 
@@ -964,13 +966,47 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     }
 
-    private void processTableSpaces() {
-        generalLock.writeLock().lock();
+    private void executeActivator(ActivatorRunRequest type) {
+        if (type.enableTableSpacesManagement()) {
+            if (manageTableSpaces()) {
+                return;
+            }
+        }
+
+        boolean checkpointDone = false;
+        if (type.enableGlobalCheckPoint()) {
+            long now = System.currentTimeMillis();
+            if (checkpointPeriod > 0 && now - lastCheckPointTs.get() > checkpointPeriod) {
+                lastCheckPointTs.set(now);
+                try {
+                    checkpoint();
+                    checkpointDone = true;
+                } catch (DataStorageManagerException | LogNotAvailableException error) {
+                    LOGGER.log(Level.SEVERE, "checkpoint failed:" + error, error);
+                }
+            }
+        }
+        if (type.enableMemoryManager()) {
+            memoryManager.check();
+        }
+        if (!checkpointDone && type.enableTableCheckPoints()) {
+            for (TableSpaceManager man : tablesSpaces.values()) {
+                man.runLocalTableCheckPoints();
+            }
+        }
+    }
+
+    private boolean manageTableSpaces() {
         Collection<String> actualTablesSpaces;
-        Map<String, TableSpace> actualTableSpaceMetadata = new HashMap<>();
         try {
             actualTablesSpaces = metadataStorageManager.listTableSpaces();
-
+        } catch (MetadataStorageManagerException error) {
+            LOGGER.log(Level.SEVERE, "cannot access tablespaces metadata", error);
+            return true;
+        }
+        Map<String, TableSpace> actualTableSpaceMetadata = new HashMap<>();
+        generalLock.writeLock().lock();
+        try {
             for (String tableSpace : actualTablesSpaces) {
                 TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);
                 actualTableSpaceMetadata.put(tableSpaceMetadata.uuid, tableSpaceMetadata);
@@ -986,7 +1022,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         } catch (MetadataStorageManagerException error) {
             LOGGER.log(Level.SEVERE, "cannot access tablespaces metadata", error);
-            return;
+            return true;
         } finally {
             generalLock.writeLock().unlock();
         }
@@ -1023,7 +1059,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 }
             } catch (MetadataStorageManagerException error) {
                 LOGGER.log(Level.SEVERE, "cannot access tablespace " + entry.getKey() + " metadata", error);
-                return;
+                return true;
             }
         }
         if (!failedTableSpaces.isEmpty()) {
@@ -1034,7 +1070,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 }
             } catch (MetadataStorageManagerException error) {
                 LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
-                return;
+                return true;
             } finally {
                 generalLock.writeLock().unlock();
             }
@@ -1076,30 +1112,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 }
             } catch (MetadataStorageManagerException | DDLException error) {
                 LOGGER.log(Level.SEVERE, "cannot access tablespace metadata", error);
-                return;
+                return true;
             }
         }
-
-        long now = System.currentTimeMillis();
-        boolean checkpointDone = false;
-        if (checkpointPeriod > 0 && now - lastCheckPointTs.get() > checkpointPeriod) {
-            lastCheckPointTs.set(now);
-            try {
-                checkpoint();
-                checkpointDone = true;
-            } catch (DataStorageManagerException | LogNotAvailableException error) {
-                LOGGER.log(Level.SEVERE, "checkpoint failed:" + error, error);
-            }
-        }
-
-        memoryManager.check();
-
-        if (!checkpointDone) {
-            for (TableSpaceManager man : tablesSpaces.values()) {
-                man.runLocalTableCheckPoints();
-            }
-        }
-
+        return false;
     }
 
     private void stopTableSpace(String tableSpace, String uuid) throws MetadataStorageManagerException {
@@ -1150,7 +1166,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     @Override
     public void metadataChanged() {
         LOGGER.log(Level.SEVERE, "metadata changed");
-        triggerActivator();
+        triggerActivator(ActivatorRunRequest.TABLESPACEMANAGEMENT);
     }
 
     public boolean isClearAtBoot() {
