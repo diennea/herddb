@@ -21,6 +21,7 @@ package herddb.model;
 
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
+import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,7 +34,7 @@ public final class Record {
 
     public final Bytes key;
     public final Bytes value;
-    private Map<String, Object> cache;
+    private WeakReference<Map<String, Object>> cache;
 
     public Record(Bytes key, Bytes value) {
         this.key = key;
@@ -43,7 +44,7 @@ public final class Record {
     public Record(Bytes key, Bytes value, Map<String, Object> cache) {
         this.key = key;
         this.value = value;
-        this.cache = cache;
+        this.cache = new WeakReference<>(cache);
     }
 
     public int getEstimatedSize() {
@@ -51,12 +52,14 @@ public final class Record {
     }
 
     public final Map<String, Object> toBean(Table table) {
-        Map<String, Object> cached = cache;
-        if (cached != null) {
-            return cached;
+        WeakReference<Map<String, Object>> cachedRef = cache;
+        Map<String, Object> res = cachedRef != null ? cachedRef.get() : null;
+        if (res != null) {
+            return res;
         }
-        cache = RecordSerializer.toBean(this, table);
-        return cache;
+        res = RecordSerializer.toBean(this, table);
+        cache = new WeakReference<>(res);
+        return res;
     }
 
     @Override

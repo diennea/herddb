@@ -34,12 +34,7 @@ public enum ActivatorRunRequest {
         return this == FULL || this == TABLECHECKPOINTS;
     }
 
-
     public boolean enableGlobalCheckPoint() {
-        return this == FULL;
-    }
-
-    public boolean enableMemoryManager() {
         return this == FULL;
     }
 

@@ -79,7 +79,7 @@ public class BigTableScanTest {
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
             assertEquals(testSize, stats.getTablesize());
-            assertEquals(0, stats.getLoadedpages());
+            assertEquals(1, stats.getLoadedpages());
 
             manager.checkpoint();
 

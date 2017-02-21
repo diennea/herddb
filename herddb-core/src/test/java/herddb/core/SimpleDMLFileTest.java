@@ -67,7 +67,7 @@ public class SimpleDMLFileTest extends BaseTestcase {
         assertNull(dataStorageManager.readPage(tableSpace, tableName, 1L));
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.readPage(tableSpace, tableName, 1L));
+        assertNotNull(dataStorageManager.readPage(tableSpace, tableName, 2L));
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
 
         {

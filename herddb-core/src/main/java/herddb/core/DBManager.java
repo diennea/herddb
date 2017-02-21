@@ -132,10 +132,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
     private long maxPagesUsedMemory = ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY_DEFAULT;
 
-    private long maxDirtyMemory = ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_DEFAULT;
-    private int hiDirtyMemoryLimit = ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT;
-    private int lowDirtyMemoryLimit = ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT;
-
     private boolean clearAtBoot = false;
     private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT;
     private Runnable haltProcedure = DefaultJVMHalt.INSTANCE;
@@ -264,30 +260,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxPagesUsedMemory = maxPagesUsedMemory;
     }
 
-    public long getMaximumDirtyMemory() {
-        return maxDirtyMemory;
-    }
-
-    public void setMaximumDirtyMemory(long maximumDirtyMemory) {
-        this.maxDirtyMemory = maximumDirtyMemory;
-    }
-
-    public int getHiDirtyMemoryLimit() {
-        return hiDirtyMemoryLimit;
-    }
-
-    public void setHiDirtyMemoryLimit(int hiDirtyMemoryLimit) {
-        this.hiDirtyMemoryLimit = hiDirtyMemoryLimit;
-    }
-
-    public int getLowDirtyMemoryLimit() {
-        return lowDirtyMemoryLimit;
-    }
-
-    public void setLowDirtyMemoryLimit(int lowDirtyMemoryLimit) {
-        this.lowDirtyMemoryLimit = lowDirtyMemoryLimit;
-    }
-
     /**
      * Initial boot of the system
      *
@@ -309,13 +281,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             maxPagesUsedMemory = (long) (0.5F * maxMemoryReference);
         }
 
-        /* If max memory for dirty data isn't configured or is too high default it to 0.2 maxMemoryReference */
-        if (maxDirtyMemory == 0 || maxDirtyMemory > maxMemoryReference) {
-            maxDirtyMemory = (long) (0.2F * maxMemoryReference);
-        }
-
         memoryManager = new MemoryManager(
-            maxDirtyMemory, hiDirtyMemoryLimit, lowDirtyMemoryLimit,
             maxPagesUsedMemory, maxLogicalPageSize);
 
         metadataStorageManager.start();
@@ -985,9 +951,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     LOGGER.log(Level.SEVERE, "checkpoint failed:" + error, error);
                 }
             }
-        }
-        if (type.enableMemoryManager()) {
-            memoryManager.check();
         }
         if (!checkpointDone && type.enableTableCheckPoints()) {
             for (TableSpaceManager man : tablesSpaces.values()) {

@@ -555,7 +555,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         Path pageFile = getPageFile(tableDir, pageId);
         int size;
-        try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(10 * 1024 * 1024);) {
+        try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1 * 1024 * 1024);) {
             try (ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
                 dataOutput.writeVInt(0); // flags for future implementations
                 dataOutput.writeInt(newPage.size());

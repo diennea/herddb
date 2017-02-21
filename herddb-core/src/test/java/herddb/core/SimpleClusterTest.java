@@ -101,7 +101,7 @@ public class SimpleClusterTest extends BaseTestcase {
         }
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));
+        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 2L));
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
 
         {

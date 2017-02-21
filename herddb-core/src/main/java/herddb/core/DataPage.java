@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import herddb.model.Record;
 import herddb.utils.Bytes;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * A page of data loaded in memory
@@ -32,9 +34,15 @@ import herddb.utils.Bytes;
  */
 public class DataPage {
 
-    /** Page metadata used by {@link PageReplacementPolicy} */
+    private static final Logger LOGGER = Logger.getLogger(DataPage.class.getName());
+
+    /**
+     * Page metadata used by {@link PageReplacementPolicy}
+     */
     public static interface DataPageMetaData {
+
         public TableManager getOwner();
+
         public long getPageId();
     }
 
@@ -46,7 +54,9 @@ public class DataPage {
 
     public final AtomicLong usedMemory;
 
-    /** Page metadata used by {@link PageReplacementPolicy} */
+    /**
+     * Page metadata used by {@link PageReplacementPolicy}
+     */
     public DataPageMetaData metadata;
 
     public DataPage(TableManager owner, long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
@@ -68,17 +78,17 @@ public class DataPage {
         return data.get(key);
     }
 
-    Record put(Bytes key, Record newRecord) {
+    boolean put(Bytes key, Record newRecord, long maxSize) {
         if (readonly) {
             throw new IllegalStateException("page " + pageId + " is readonly!");
         }
+
         Record prev = data.put(key, newRecord);
         if (prev != null) {
-            usedMemory.addAndGet(newRecord.value.getEstimatedSize() - prev.value.getEstimatedSize());
+            return usedMemory.addAndGet(newRecord.value.getEstimatedSize() - prev.value.getEstimatedSize()) >= maxSize;
         } else {
-            usedMemory.addAndGet(newRecord.value.getEstimatedSize());
+            return usedMemory.addAndGet(newRecord.value.getEstimatedSize()) >= maxSize;
         }
-        return prev;
     }
 
     int size() {

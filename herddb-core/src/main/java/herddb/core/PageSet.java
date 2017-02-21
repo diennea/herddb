@@ -54,24 +54,6 @@ public final class PageSet {
         }
     }
 
-    static Set<Long> selectPagesToUnload(int max, Collection<Long> loadedPages) {
-        int count = max;
-        Set<Long> pagesToUnload = new HashSet<>();
-        List<Long> loadedShuffled = new ArrayList<>(loadedPages);
-        loadedShuffled.remove(TableManager.NEW_PAGE);
-        Collections.shuffle(loadedShuffled);
-        for (Long loadedPage : loadedShuffled) {
-            pagesToUnload.add(loadedPage);
-            if (--count <= 0) {
-                break;
-            }
-        }
-        if (pagesToUnload.isEmpty()) {
-            return Collections.emptySet();
-        }
-        return pagesToUnload;
-    }
-
     Set<Long> getActivePages() {
         lock.readLock().lock();
         try {
@@ -89,7 +71,6 @@ public final class PageSet {
             lock.readLock().unlock();
         }
     }
-
 
     void truncate() {
         lock.writeLock().lock();

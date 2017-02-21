@@ -48,20 +48,20 @@ public class HugeTableRestoreTest extends BaseBench {
         generateData(1024);
         performOperations();
         waitForResults();
-        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY, 5 * 1024 * 1024);
-        serverConfiguration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, 5 * 1024 * 1024);
+//        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY, 5 * 1024 * 1024);
+//        serverConfiguration.set(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, 5 * 1024 * 1024);
         restartServer();
         backupRestore(10000, new ProgressListener() {
             @Override
             public void log(String msgType, String message, Map<String, Object> context) {
                 System.out.println("PROGESS " + msgType + " -------------------- " + message);
-                if (msgType.equals("sendtabledata")) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException ee) {
-                        throw new RuntimeException(ee);
-                    }
-                }
+//                if (msgType.equals("sendtabledata")) {
+//                    try {
+//                        Thread.sleep(1000);
+//                    } catch (InterruptedException ee) {
+//                        throw new RuntimeException(ee);
+//                    }
+//                }
             }
 
         });

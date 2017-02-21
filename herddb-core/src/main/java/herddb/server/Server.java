@@ -206,9 +206,6 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         this.manager.setMaxMemoryReference(configuration.getLong(ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE, ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT));
         this.manager.setMaxPagesUsedMemory(configuration.getLong(ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY, ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY_DEFAULT));
-        this.manager.setMaximumDirtyMemory(configuration.getLong(ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY, ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_DEFAULT));
-        this.manager.setHiDirtyMemoryLimit(configuration.getInt(ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD, ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT));
-        this.manager.setLowDirtyMemoryLimit(configuration.getInt(ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND, ServerConfiguration.PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND_DEFAULT));
 
         this.manager.setHaltOnTableSpaceBootError(configuration.getBoolean(ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR, ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT));
         this.manager.setConnectionsInfoProvider(this);

@@ -122,30 +122,12 @@ public final class ServerConfiguration {
      */
     public static final String PROPERTY_MEMORY_LIMIT_REFERENCE = "server.maxmemory.reference";
     public static final long PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT = 0L;
-    
+
     /**
      * Maximum amount of memory used for pages
      */
     public static final String PROPERTY_MAX_PAGES_MEMORY = "server.memstore.page.limit";
     public static final long PROPERTY_MAX_PAGES_MEMORY_DEFAULT = 0L;
-
-    /**
-     * Maximum amount of memory used for dirty records/pages
-     */
-    public static final String PROPERTY_MAX_DIRTY_MEMORY = "server.memstore.dirty.limit";
-    public static final long PROPERTY_MAX_DIRTY_MEMORY_DEFAULT = 0L;
-
-
-    /**
-     * Percent of {@link #PROPERTY_MAX_DIRTY_MEMORY} memory to reach before try to reclaim memory.
-     * When the accounted memory reaches this threshold the server will try
-     * to release memory in order to reach the {@link  #PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND} reference value
-     */
-    public static final String PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD = "server.memstore.dirty.hi";
-    public static final int PROPERTY_MAX_DIRTY_MEMORY_THRESHOLD_DEFAULT = 90;
-
-    public static final String PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND = "server.memstore.dirty.low";
-    public static final int PROPERTY_MAX_DIRTY_MEMORY_LOWERBOUND_DEFAULT = 40;
 
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();
