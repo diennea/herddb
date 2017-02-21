@@ -45,6 +45,8 @@ public class SystablestatsTableManager extends AbstractSystemTableManager {
         .column("systemtable", ColumnTypes.STRING)
         .column("tablesize", ColumnTypes.LONG)
         .column("loadedpages", ColumnTypes.INTEGER)
+        .column("loadedpagescount", ColumnTypes.LONG)
+        .column("unloadedloadedpagescount", ColumnTypes.LONG)
         .column("dirtypages", ColumnTypes.INTEGER)
         .column("dirtyrecords", ColumnTypes.LONG)
         .column("maxlogicalpagesize", ColumnTypes.LONG)
