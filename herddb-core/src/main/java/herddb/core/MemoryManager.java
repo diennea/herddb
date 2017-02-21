@@ -55,7 +55,7 @@ public class MemoryManager {
                 break;
 
             case "cp":
-                pageReplacementPolicy = new ClockPro(pages);
+                pageReplacementPolicy = new ClockProPolicy(pages);
                 break;
 
             case "car":

@@ -50,7 +50,7 @@ import herddb.core.DataPage.DataPageMetaData;
  * @see http://web.cse.ohio-state.edu/hpcs/WWW/HTML/publications/papers/TR-05-3.pdf
  * @author diego.salvi
  */
-public class ClockPro implements PageReplacementPolicy {
+public class ClockProPolicy implements PageReplacementPolicy {
 
     /** Value for {@link CPMetadata#warm}: hot page */
     private final byte HOT = 0x00;
@@ -96,7 +96,7 @@ public class ClockPro implements PageReplacementPolicy {
      */
     private Map<CPMetadata,CPMetadata> space;
 
-    public ClockPro(int capacity) {
+    public ClockProPolicy(int capacity) {
         super();
 
         this.m = capacity;
@@ -741,7 +741,7 @@ public class ClockPro implements PageReplacementPolicy {
 
 
     /**
-     * Implementation of {@link DataPageMetaData} with all data needed for {@link ClockPro}.
+     * Implementation of {@link DataPageMetaData} with all data needed for {@link ClockProPolicy}.
      *
      * @author diego.salvi
      */
