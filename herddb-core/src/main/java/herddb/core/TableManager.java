@@ -523,19 +523,18 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private void unloadPage(long pageId) {
-        DataPage removed = pages.remove(pageId);
-        if (removed != null) {
+        pages.computeIfPresent(pageId, (k, toBeRemoved) -> {
             unloadedPagesCount.increment();
-            LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, removed.getUsedMemory() / (1024 * 1024) + " MB"});
-            if (!removed.readonly) {
-                LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}", new Object[]{table.name, pageId, removed.getUsedMemory() / (1024 * 1024) + " MB"});
+            if (!toBeRemoved.readonly) {
+                LOGGER.log(Level.FINER, "table {0} unload and save 'new' page {1}, {2}", new Object[]{table.name, pageId, toBeRemoved.getUsedMemory() / (1024 * 1024) + " MB"});
                 dataStorageManager.writePage(tableSpaceUUID, table.name,
                     pageId,
-                    new ArrayList<>(removed.data.values()));
+                    new ArrayList<>(toBeRemoved.data.values()));
             } else {
-                LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, removed.getUsedMemory() / (1024 * 1024) + " MB"});
+                LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, toBeRemoved.getUsedMemory() / (1024 * 1024) + " MB"});
             }
-        }
+            return null;
+        });
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {

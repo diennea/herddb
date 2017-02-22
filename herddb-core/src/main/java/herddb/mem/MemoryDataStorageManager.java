@@ -122,9 +122,9 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) {
+    public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException {
         Page page = new Page(new ArrayList<>(newPage));
-        pages.put(tableName + "_" + pageId, page);
+        Page prev = pages.put(tableName + "_" + pageId, page);
         //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
     }
 

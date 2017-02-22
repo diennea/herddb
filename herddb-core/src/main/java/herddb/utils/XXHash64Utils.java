@@ -19,10 +19,9 @@
  */
 package herddb.utils;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import net.jpountz.xxhash.StreamingXXHash64;
 import net.jpountz.xxhash.XXHash64;
@@ -125,6 +124,61 @@ public class XXHash64Utils {
 
         public long hash() {
             return hash.getValue();
+        }
+
+    }
+
+    public static final class HashingOutputStream extends OutputStream {
+
+        private final StreamingXXHash64 hash;
+        private final byte[] singleByteBuffer = new byte[1];
+        private final OutputStream out;
+        private long size;
+
+        public HashingOutputStream(OutputStream in) {
+            this.out = in;
+            hash = factory.newStreamingHash64(DEFAULT_SEED);
+        }
+
+        @Override
+        public void write(int b) throws IOException {
+            singleByteBuffer[0] = (byte) b;
+            hash.update(singleByteBuffer, 0, 1);
+            out.write(b);
+            size++;
+        }
+
+        @Override
+        public void close() throws IOException {
+            out.close();
+        }
+
+        @Override
+        public void flush() throws IOException {
+            out.flush();
+        }
+
+        @Override
+        public void write(byte[] b, int off, int len) throws IOException {
+            hash.update(b, off, len);
+            out.write(b, off, len);
+            size += len;
+        }
+
+        @Override
+        public void write(byte[] b) throws IOException {
+            int len = b.length;
+            hash.update(b, 0, len);
+            out.write(b, 0, len);
+            size += len;
+        }
+
+        public long hash() {
+            return hash.getValue();
+        }
+
+        public long size() {
+            return size;
         }
 
     }

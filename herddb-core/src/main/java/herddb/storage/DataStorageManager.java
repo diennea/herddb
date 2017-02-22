@@ -68,9 +68,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @param tableSpace
      * @param tableName
      * @param pageId
-     * @param sequenceNumber
      * @param newPage
-     * @return
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException;

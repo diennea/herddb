@@ -25,7 +25,6 @@ import herddb.core.RecordSetFactory;
 import herddb.index.ConcurrentMapKeyToPageIndex;
 import herddb.index.KeyToPageIndex;
 import herddb.log.LogSequenceNumber;
-import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -45,26 +44,22 @@ import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
-import java.security.DigestInputStream;
-import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -188,7 +183,9 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        // TODO: hashFromFile
+        if (hashFromDigest != hashFromFile) {
+            throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+        }
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
         LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms", new Object[]{tableSpace, tableName, delta + ""});
@@ -546,7 +543,6 @@ public class FileDataStorageManager extends DataStorageManager {
     public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long _start = System.currentTimeMillis();
-        long _endhash;
         Path tableDir = getTableDirectory(tableSpace, tableName);
         try {
             Files.createDirectories(tableDir);
@@ -554,36 +550,34 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         Path pageFile = getPageFile(tableDir, pageId);
-        int size;
-        try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1 * 1024 * 1024);) {
-            try (ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
-                dataOutput.writeVInt(0); // flags for future implementations
-                dataOutput.writeInt(newPage.size());
-                for (Record record : newPage) {
-                    dataOutput.writeArray(record.key.data);
-                    dataOutput.writeArray(record.value.data);
-                }
+        long size;
+        try (OutputStream foo = Files.newOutputStream(pageFile, StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING);
+            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(foo);
+            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
+            dataOutput.writeVInt(0); // flags for future implementations
+            dataOutput.writeInt(newPage.size());
+            for (Record record : newPage) {
+                dataOutput.writeArray(record.key.data);
+                dataOutput.writeArray(record.value.data);
             }
-            byte[] digest = oo.xxhash64();
-            _endhash = System.currentTimeMillis();
-
-            // footer
-            oo.write(digest);
             size = oo.size();
-
-            FileUtils.fastWriteFile(pageFile, oo.getBuffer(), 0, oo.size());
+            long digest = oo.hash();
+            // footer
+            dataOutput.writeLong(digest);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-
         long now = System.currentTimeMillis();
+
         if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.log(Level.FINER, "writePage {0} KBytes,{1} records, time {2} ms ({3} disk)", new Object[]{(size / 1024) + "", newPage.size(), (now - _start) + "", (now - _endhash) + ""});
+            LOGGER.log(Level.FINER, "writePage {0} KBytes,{1} records, time {2} ms", new Object[]{(size / 1024) + "", newPage.size(), (now - _start) + ""});
         }
     }
 
     @Override
-    public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException {
+    public void writeIndexPage(String tableSpace, String indexName,
+        long pageId, byte[] page) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long _start = System.currentTimeMillis();
         long _endhash;
@@ -715,7 +709,8 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
+    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber,
+        List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
         if (sequenceNumber.isStartOfTime() && !tables.isEmpty()) {
             throw new DataStorageManagerException("impossible to write a non empty table list at start-of-time");
         }
