@@ -35,7 +35,7 @@ public class MemoryManager {
     private static final Logger LOGGER = Logger.getLogger(MemoryManager.class.getName());
 
     private static final String PAGE_REPLACEMENT_POLICY = SystemProperties.getStringSystemProperty(
-        TableManager.class.getName() + ".pageReplacementPolicy", "car").toLowerCase(Locale.US);
+        TableManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
 
     private final long maxPagesUsedMemory;
     private final long maxLogicalPageSize;
