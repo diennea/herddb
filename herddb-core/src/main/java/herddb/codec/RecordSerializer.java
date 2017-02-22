@@ -225,6 +225,12 @@ public final class RecordSerializer {
                     || value instanceof String) {
                     return java.sql.Timestamp.valueOf(value.toString());
                 }
+            case ColumnTypes.BYTEARRAY:
+                if (value instanceof RawString) {
+                    // TODO: apply a real conversion from MySQL dump format
+                    return ((RawString)value).data;
+                }
+                return value;
             default:
                 return value;
         }

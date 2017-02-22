@@ -28,6 +28,7 @@ import herddb.client.HDBConnection;
 import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
 import herddb.model.TableSpace;
+import herddb.utils.IntHolder;
 import herddb.utils.SimpleBufferedOutputStream;
 
 import java.io.BufferedInputStream;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
@@ -113,7 +115,7 @@ public class HerdDBCLI {
             return;
         }
 
-        boolean verbose = commandLine.hasOption("verbose");
+        final boolean verbose = commandLine.hasOption("verbose");
         if (!verbose) {
             LogManager.getLogManager().reset();
         }
@@ -129,9 +131,9 @@ public class HerdDBCLI {
         String leader = commandLine.getOptionValue("newleader", "");
         String script = commandLine.getOptionValue("script", "");
         int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
-        boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
+        final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         boolean sqlconsole = commandLine.hasOption("sqlconsole");
-        boolean frommysqldump = commandLine.hasOption("frommysqldump");
+        final boolean frommysqldump = commandLine.hasOption("frommysqldump");
         boolean autotransaction = commandLine.hasOption("autotransaction");
         int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
         if (!autotransaction) {
@@ -150,37 +152,26 @@ public class HerdDBCLI {
                 } else if (!query.isEmpty()) {
                     executeStatement(verbose, ignoreerrors, frommysqldump, query, statement);
                 } else if (!file.isEmpty()) {
-                    StringBuilder currentStatement = new StringBuilder();
                     if (autotransactionbatchsize > 0) {
                         connection.setAutoCommit(false);
                     }
-                    long doneCount = 0;
+                    final IntHolder doneCount = new IntHolder();
                     try (InputStream fIn = openFile(new File(file));
-                        InputStreamReader ii = new InputStreamReader(fIn, "utf-8");
-                        BufferedReader br = new BufferedReader(ii);) {
-                        String line = br.readLine();
-                        while (line != null) {
-                            if (line.trim().equalsIgnoreCase("GO")
-                                || line.endsWith(";")) {
-                                if (line.endsWith(";")) {
-                                    currentStatement.append(line);
+                        InputStreamReader ii = new InputStreamReader(fIn, "utf-8");) {
+                        int _autotransactionbatchsize = autotransactionbatchsize;
+                        SQLFileParser.parseSQLFile(ii, (st) -> {
+                            if (!st.comment) {
+                                doneCount.value += executeStatement(verbose, ignoreerrors, frommysqldump, st.content, statement);
+                                if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
+                                    System.out.println("COMMIT after " + doneCount.value + " actions");
+                                    connection.commit();
+                                    doneCount.value = 0;
                                 }
-                                doneCount += executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
-                                currentStatement.setLength(0);
-                            } else {
-                                currentStatement.append(line + "\n");
                             }
-                            line = br.readLine();
-                            if (autotransactionbatchsize > 0 && doneCount > autotransactionbatchsize) {
-                                System.out.println("COMMIT after " + doneCount + " actions");
-                                connection.commit();
-                                doneCount = 0;
-                            }
-                        }
-                        doneCount += executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
+                        });
                     }
                     if (!connection.getAutoCommit()) {
-                        System.out.println("COMMIT after " + doneCount + " actions");
+                        System.out.println("COMMIT after " + doneCount.value + " actions");
                         connection.commit();
                     }
                 } else if (!script.isEmpty()) {
@@ -273,21 +264,10 @@ public class HerdDBCLI {
 
     private static int executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, String query, final Statement statement) throws SQLException {
         query = query.trim();
-        if (frommysqldump) {
-            if (query.isEmpty()
-                || query.startsWith("--")
-                || query.startsWith("/*") // TODO: handle better query comments
-                || query.endsWith("/*")) {
-                return 0;
-            }
-        } else {
-            if (query.isEmpty()
-                || query.startsWith("--")) {
-                return 0;
-            }
-        }
-        if (frommysqldump) {
-            query = query.replace("\\'", "''");
+
+        if (query.isEmpty()
+            || query.startsWith("--")) {
+            return 0;
         }
         String formattedQuery = query.toLowerCase();
         if (formattedQuery.endsWith(";")) {
