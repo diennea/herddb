@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -53,6 +54,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipInputStream;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
@@ -152,7 +155,7 @@ public class HerdDBCLI {
                         connection.setAutoCommit(false);
                     }
                     long doneCount = 0;
-                    try (FileInputStream fIn = new FileInputStream(new File(file));
+                    try (InputStream fIn = openFile(new File(file));
                         InputStreamReader ii = new InputStreamReader(fIn, "utf-8");
                         BufferedReader br = new BufferedReader(ii);) {
                         String line = br.readLine();
@@ -404,5 +407,17 @@ public class HerdDBCLI {
             }
 
         }
+    }
+
+    private static InputStream openFile(File file) throws IOException {
+        FileInputStream rawStream = new FileInputStream(file);
+        if (file.getName().endsWith(".gz")) {
+            return new GZIPInputStream(rawStream);
+        } else if (file.getName().endsWith(".zip")) {
+            return new ZipInputStream(rawStream, StandardCharsets.UTF_8);
+        } else {
+            return rawStream;
+        }
+
     }
 }

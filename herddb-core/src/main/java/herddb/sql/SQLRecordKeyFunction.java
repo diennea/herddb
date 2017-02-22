@@ -103,6 +103,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
             herddb.model.Column c = columns[i];
             CompiledSQLExpression expression = expressions.get(i);
             Object value = expression.evaluate(Collections.EMPTY_MAP, context);
+            value = RecordSerializer.convert(c.type, value);
             pk.put(c.name, value);
         }
         try {
