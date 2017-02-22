@@ -424,6 +424,7 @@ public class SQLPlanner {
             case "text":
             case "longtext":
             case "clob":
+            case "char":
                 type = ColumnTypes.STRING;
                 break;
             case "long":

@@ -81,6 +81,8 @@ public class HerdDBCLI {
         options.addOption("v", "verbose", false, "Verbose output");
         options.addOption("s", "schema", true, "Default tablespace (SQL schema)");
         options.addOption("f", "file", true, "SQL Script to execute (statement separated by 'GO' lines)");
+        options.addOption("at", "autotransaction", false, "Execute scripts in autocommit=false mode and commit automatically");
+        options.addOption("atbs", "autotransactionbatchsize", true, "Batch size for 'autotransaction' mode");
         options.addOption("g", "script", true, "Groovy Script to execute");
         options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
         options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
@@ -127,6 +129,11 @@ public class HerdDBCLI {
         boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         boolean sqlconsole = commandLine.hasOption("sqlconsole");
         boolean frommysqldump = commandLine.hasOption("frommysqldump");
+        boolean autotransaction = commandLine.hasOption("autotransaction");
+        int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
+        if (!autotransaction) {
+            autotransactionbatchsize = 0;
+        }
         try (HerdDBDataSource datasource = new HerdDBDataSource()) {
             datasource.setUrl(url);
             datasource.setUsername(username);
@@ -141,6 +148,10 @@ public class HerdDBCLI {
                     executeStatement(verbose, ignoreerrors, frommysqldump, query, statement);
                 } else if (!file.isEmpty()) {
                     StringBuilder currentStatement = new StringBuilder();
+                    if (autotransactionbatchsize > 0) {
+                        connection.setAutoCommit(false);
+                    }
+                    long doneCount = 0;
                     try (FileInputStream fIn = new FileInputStream(new File(file));
                         InputStreamReader ii = new InputStreamReader(fIn, "utf-8");
                         BufferedReader br = new BufferedReader(ii);) {
@@ -151,14 +162,23 @@ public class HerdDBCLI {
                                 if (line.endsWith(";")) {
                                     currentStatement.append(line);
                                 }
-                                executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
+                                doneCount += executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
                                 currentStatement.setLength(0);
                             } else {
                                 currentStatement.append(line + "\n");
                             }
                             line = br.readLine();
+                            if (autotransactionbatchsize > 0 && doneCount > autotransactionbatchsize) {
+                                System.out.println("COMMIT after " + doneCount + " actions");
+                                connection.commit();
+                                doneCount = 0;
+                            }
                         }
-                        executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
+                        doneCount += executeStatement(verbose, ignoreerrors, frommysqldump, currentStatement.toString(), statement);
+                    }
+                    if (!connection.getAutoCommit()) {
+                        System.out.println("COMMIT after " + doneCount + " actions");
+                        connection.commit();
                     }
                 } else if (!script.isEmpty()) {
                     Map<String, Object> variables = new HashMap<>();
@@ -248,19 +268,19 @@ public class HerdDBCLI {
         }
     }
 
-    private static void executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, String query, final Statement statement) throws SQLException {
+    private static int executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, String query, final Statement statement) throws SQLException {
         query = query.trim();
         if (frommysqldump) {
             if (query.isEmpty()
                 || query.startsWith("--")
                 || query.startsWith("/*") // TODO: handle better query comments
                 || query.endsWith("/*")) {
-                return;
+                return 0;
             }
         } else {
             if (query.isEmpty()
                 || query.startsWith("--")) {
-                return;
+                return 0;
             }
         }
         if (frommysqldump) {
@@ -277,7 +297,7 @@ public class HerdDBCLI {
         }
         if (frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables"))) {
             // mysqldump
-            return;
+            return 0;
         }
         Boolean setAutoCommit = null;
         if (formattedQuery.startsWith("autocommit=")) {
@@ -294,7 +314,7 @@ public class HerdDBCLI {
                     break;
                 default:
                     System.out.println("No valid value for autocommit. Only true and false allowed.");
-                    return;
+                    return 0;
             }
         }
         if (verbose) {
@@ -304,17 +324,17 @@ public class HerdDBCLI {
             if (setAutoCommit != null) {
                 statement.getConnection().setAutoCommit(setAutoCommit);
                 System.out.println("Set autocommit=" + setAutoCommit + " executed.");
-                return;
+                return 0;
             }
             if (formattedQuery.equals("commit")) {
                 statement.getConnection().commit();
                 System.out.println("Commit executed.");
-                return;
+                return 0;
             }
             if (formattedQuery.equals("rollback")) {
                 statement.getConnection().rollback();
                 System.out.println("Rollback executed.");
-                return;
+                return 0;
             }
 
             boolean resultSet = statement.execute(query);
@@ -340,13 +360,16 @@ public class HerdDBCLI {
                         System.out.println(values.stream().collect(Collectors.joining(";")));
                     }
                 }
+                return 0;
             } else {
                 int updateCount = statement.getUpdateCount();
                 System.out.println("UPDATE COUNT: " + updateCount);
+                return updateCount;
             }
         } catch (SQLException err) {
             if (ignoreerrors) {
                 println("ERROR:" + err);
+                return 0;
             } else {
                 throw err;
             }
