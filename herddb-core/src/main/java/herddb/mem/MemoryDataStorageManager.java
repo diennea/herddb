@@ -136,7 +136,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, java.util.Collection<Long> keepPages) throws DataStorageManagerException {
+    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
 
         List<Long> pagesForTable = new ArrayList<>();
         String prefix = tableName + "_";
@@ -151,15 +151,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
         List<PostCheckpointAction> result = new ArrayList<>();
 
         for (long pageId : pagesForTable) {
-            if (!keepPages.contains(pageId)) {
-                result.add(new PostCheckpointAction(tableName, "drop page " + pageId) {
-                    @Override
-                    public void run() {
-                        // remove only after checkpoint completed
-                        pages.remove(prefix + pageId);
-                    }
-                });
-            }
+            result.add(new PostCheckpointAction(tableName, "drop page " + pageId) {
+                @Override
+                public void run() {
+                    // remove only after checkpoint completed
+                    pages.remove(prefix + pageId);
+                }
+            });
         }
         return result;
     }

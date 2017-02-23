@@ -1599,8 +1599,7 @@ public final class TableManager implements AbstractTableManager {
                     pageReplacementPolicy.remove(dirtyPage);
                 }
             }
-            Collection<Long> newPagesRemoved = new ArrayList<>(newPages.keySet());
-            for (Long idNewPage : newPagesRemoved) {
+            for (Long idNewPage : newPages.keySet()) {
                 final DataPage dirtyPage = pages.remove(idNewPage);
                 if (dirtyPage != null) {
                     pageReplacementPolicy.remove(dirtyPage);
@@ -1609,7 +1608,7 @@ public final class TableManager implements AbstractTableManager {
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
                 Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId, pageSet.getActivePages());
-            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus, newPagesRemoved);
+            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
             tablecheckpoint = System.currentTimeMillis();
             result.addAll(actions);
 
