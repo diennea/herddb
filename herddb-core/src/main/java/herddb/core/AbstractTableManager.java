@@ -68,11 +68,11 @@ public interface AbstractTableManager extends AutoCloseable {
     void dump(FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
 
     List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
-    
+
     void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
     void flush() throws DataStorageManagerException;
-    
+
     long getNextPrimaryKeyValue();
 
     boolean isSystemTable();
@@ -81,10 +81,6 @@ public interface AbstractTableManager extends AutoCloseable {
 
     long getCreatedInTransaction();
 
-    public void tryReleaseMemory(long reclaim);
-
-    public void ensureMemoryLimitsDuringRecovery();
-
     public List<Index> getAvailableIndexes();
-    
+
 }

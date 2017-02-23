@@ -615,21 +615,6 @@ public class TableSpaceManager {
             .anyMatch((t) -> (t.isOnTable(name)));
     }
 
-    @Deprecated
-    void tryReleaseMemory(long reclaim, Supplier<Boolean> stop) {
-        List<AbstractTableManager> shuffledTables = new ArrayList<>(tables.values());
-        Collections.shuffle(shuffledTables);
-        for (AbstractTableManager tm : shuffledTables) {
-            if (tm.isSystemTable()) {
-                continue;
-            }
-            tm.tryReleaseMemory(reclaim);
-            if (stop.get()) {
-                return;
-            }
-        }
-    }
-
     long handleLocalMemoryUsage() {
         long result = 0;
         for (AbstractTableManager tableManager : tables.values()) {
@@ -1361,12 +1346,6 @@ public class TableSpaceManager {
         public void accept(LogSequenceNumber t, LogEntry u) {
             try {
                 apply(t, u, true);
-                if (count++ % 10000 == 0) {
-                    for (AbstractTableManager ab : tables.values()) {
-                        ab.ensureMemoryLimitsDuringRecovery();
-                    }
-                    runLocalTableCheckPoints();
-                }
             } catch (Exception err) {
                 throw new RuntimeException(err);
             }

@@ -856,22 +856,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    @Deprecated
-    void tryReleaseMemory(long reclaim, Supplier<Boolean> stop) {
-        List<TableSpaceManager> shuffledTablespaces = new ArrayList<>(this.tablesSpaces.values());
-        Collections.shuffle(shuffledTablespaces);
-        for (TableSpaceManager tableSpaceManager : shuffledTablespaces) {
-            if (tableSpaceManager.isVirtual()) {
-                break;
-            }
-            LOGGER.log(Level.SEVERE, "try release " + reclaim + " bytes from tablespace " + tableSpaceManager.getTableSpaceName());
-            if (stop.get()) {
-                return;
-            }
-            tableSpaceManager.tryReleaseMemory(reclaim, stop);
-        }
-    }
-
     long handleLocalMemoryUsage() {
         long result = 0;
         for (TableSpaceManager tableSpaceManager : tablesSpaces.values()) {

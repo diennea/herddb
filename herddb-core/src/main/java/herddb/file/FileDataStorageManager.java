@@ -334,7 +334,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, java.util.Collection<Long> keepPages) throws DataStorageManagerException {
         LogSequenceNumber logPosition = tableStatus.sequenceNumber;
         Path dir = getTableDirectory(tableSpace, tableName);
         Path checkpointFile = getCheckPointsFile(dir, logPosition);
@@ -377,6 +377,7 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
                 && !tableStatus.activePages.contains(pageId)
+                && !keepPages.contains(pageId)
                 && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath()) {

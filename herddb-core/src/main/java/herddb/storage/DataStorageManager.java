@@ -83,10 +83,11 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @param tableSpace
      * @param tableName
      * @param tableStatus
-     * @return
+     * @param keepPages the value of keepPages
      * @throws DataStorageManagerException
+     * @return the java.util.List<herddb.core.PostCheckpointAction>
      */
-    public abstract List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException;
+    public abstract List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, java.util.Collection<Long> keepPages) throws DataStorageManagerException;
 
     public abstract List<PostCheckpointAction> indexCheckpoint(String tableSpace, String tableName, IndexStatus indexStatus) throws DataStorageManagerException;
 

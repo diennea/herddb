@@ -64,7 +64,7 @@ public class UnloadDirtyPageTest {
                 Arrays.asList("b", "mykey4")).getUpdateCount());
 
             manager.checkpoint();
-            
+
             assertEquals(2, manager.getTableSpaceManager("tblspace1")
                 .getTableManager("tsql").getStats().getLoadedpages());
 
@@ -99,11 +99,6 @@ public class UnloadDirtyPageTest {
                 Arrays.asList("b", "mykey4")).getUpdateCount());
 
             manager.checkpoint();
-
-            // unload all pages!
-            manager.getTableSpaceManager("tblspace1")
-                .getTableManager("tsql")
-                .tryReleaseMemory(Integer.MAX_VALUE);
 
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1=?",
                 Arrays.asList("b", "mykey4")).getUpdateCount());

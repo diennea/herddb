@@ -52,19 +52,15 @@ public class BatchOrderedExecutor<T> implements Consumer<T> {
 
     @Override
     public void accept(T object) {
-        try {
-            batch.add(object);
-            if (++partialcount == batchsize) {
-                try {
-                    batch.sort(bufferComparator);
-                    executor.execute(batch);
-                } finally {
-                    batch.clear();
-                    partialcount = 0;
-                }
+        batch.add(object);
+        if (++partialcount == batchsize) {
+            try {
+                batch.sort(bufferComparator);
+                executor.execute(batch);
+            } finally {
+                batch.clear();
+                partialcount = 0;
             }
-        } catch (HerdDBInternalException err) {
-            throw new RuntimeException(err);
         }
     }
 

@@ -119,8 +119,6 @@ public final class TableManager implements AbstractTableManager {
 
     private final ConcurrentHashMap<Long, DataPage> newPages = new ConcurrentHashMap<>();
 
-    private final List<CompletableFuture<Void>> checkpointWaits = new CopyOnWriteArrayList<>();
-
     private final ConcurrentMap<Long, DataPage> pages;
 
     /**
@@ -416,7 +414,7 @@ public final class TableManager implements AbstractTableManager {
 
         initNewPage();
         LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
-                new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
+            new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
     }
 
     @Override
@@ -460,26 +458,6 @@ public final class TableManager implements AbstractTableManager {
 
         throw new StatementExecutionException("unsupported statement " + statement);
     }
-
-    private Future<Void> requestCheckpoint(boolean registerWait) {
-        if (dumpLogSequenceNumber != null) {
-            // we are restoring the table, it is better to perform the checkpoint inside the same thread
-            List<PostCheckpointAction> postCheckPointActions = this.checkpoint(LogSequenceNumber.START_OF_TIME);
-            for (PostCheckpointAction action : postCheckPointActions) {
-                action.run();
-            }
-            return registerWait ? CompletableFuture.completedFuture(null) : null;
-        } else if (registerWait) {
-            CompletableFuture<Void> res = new CompletableFuture<>();
-            checkpointWaits.add(res);
-            this.tableSpaceManager.requestTableCheckPoint(table.name);
-            return res;
-        } else {
-            this.tableSpaceManager.requestTableCheckPoint(table.name);
-            return null;
-        }
-    }
-
 
     /**
      * Create a new page with given data, save it and update keyToPage records
@@ -539,7 +517,7 @@ public final class TableManager implements AbstractTableManager {
                 pages.put(newId, newPage);
 
                 /* From this moment on the page has been published */
-                /* The lock is needed to block other threads up to this point */
+ /* The lock is needed to block other threads up to this point */
                 currentDirtyRecordsPage.set(newId);
 
             } finally {
@@ -589,7 +567,7 @@ public final class TableManager implements AbstractTableManager {
         pages.put(newId, newPage);
 
         /* From this moment on the page has been published */
-        /* The lock is needed to block other threads up to this point */
+ /* The lock is needed to block other threads up to this point */
         currentDirtyRecordsPage.set(newId);
     }
 
@@ -613,7 +591,7 @@ public final class TableManager implements AbstractTableManager {
                 }
 
                 LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
-                        new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                    new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
                 dataStorageManager.writePage(tableSpaceUUID, table.name, remove.pageId, remove.data.values());
 
             } else {
@@ -739,8 +717,8 @@ public final class TableManager implements AbstractTableManager {
                 final int size = Record.estimateSize(actual.key, newValue);
                 if (size > maxLogicalPageSize) {
                     throw new RecordTooBigException("New version of record " + actual.key
-                            + " is to big to be update: new size " + size + ", actual size " + actual.getEstimatedSize()
-                            + ", max size " + maxLogicalPageSize);
+                        + " is to big to be update: new size " + size + ", actual size " + actual.getEstimatedSize()
+                        + ", max size " + maxLogicalPageSize);
                 }
 
                 LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
@@ -984,7 +962,6 @@ public final class TableManager implements AbstractTableManager {
          * We'll try to remove the record if in a writable page, otherwise we'll simply set the old page
          * as dirty.
          */
-
         final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
 
         /*
@@ -1057,7 +1034,6 @@ public final class TableManager implements AbstractTableManager {
          * We'll try to replace the record if in a writable page, otherwise we'll simply set the old page
          * as dirty and continue like a normal insertion
          */
-
         final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
 
         /*
@@ -1111,7 +1087,7 @@ public final class TableManager implements AbstractTableManager {
             /* Do real insertion */
             insertionPageId = currentDirtyRecordsPage.get();
 
-            while(true) {
+            while (true) {
                 final DataPage newPage = pages.get(insertionPageId);
 
                 /* The temporary memory page could have been unloaded and loaded again in meantime */
@@ -1143,7 +1119,6 @@ public final class TableManager implements AbstractTableManager {
         if (indexes != null) {
 
             /* If there are indexes e have already forced a page load and previous record has been loaded */
-
             Map<String, Object> prevValues = previous.toBean(table);
             Map<String, Object> newValues = record.toBean(table);
             for (AbstractIndexManager index : indexes.values()) {
@@ -1221,7 +1196,6 @@ public final class TableManager implements AbstractTableManager {
         /* Normally we expect this value null or pointing to a temporary modifiable page */
         final Long prevPageId = keyToPage.get(key);
 
-
         final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
 
         /*
@@ -1291,7 +1265,7 @@ public final class TableManager implements AbstractTableManager {
             /* Do real insertion */
             insertionPageId = currentDirtyRecordsPage.get();
 
-            while(true) {
+            while (true) {
                 final DataPage newPage = pages.get(insertionPageId);
 
                 /* The temporary memory page could have been unloaded and loaded again in meantime */
@@ -1334,7 +1308,6 @@ public final class TableManager implements AbstractTableManager {
 
                 /* If there is a previous page this is a delete and insert, we really need to update indexes
                  * from old "deleted" values to the new ones. Previus record has already been loaded  */
-
                 Map<String, Object> prevValues = previous.toBean(table);
                 Map<String, Object> newValues = record.toBean(table);
                 for (AbstractIndexManager index : indexes.values()) {
@@ -1492,16 +1465,10 @@ public final class TableManager implements AbstractTableManager {
         return buildDataPage(pageId, newPageMap, estimatedPageSize);
     }
 
-    private DataPage buildDataPage(long pageId, Map<Bytes,Record> page, long estimatedPageSize) {
+    private DataPage buildDataPage(long pageId, Map<Bytes, Record> page, long estimatedPageSize) {
         boolean readonly = !newPages.contains(pageId);
         DataPage res = new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, page, readonly);
         return res;
-    }
-
-    @Override
-    @Deprecated
-    public void ensureMemoryLimitsDuringRecovery() {
-//        requestCheckpointIfTooDirty(false);
     }
 
     @Override
@@ -1516,12 +1483,9 @@ public final class TableManager implements AbstractTableManager {
         long toKeepFlush;
         long dirtyFlush;
         long tablecheckpoint;
-        List<CompletableFuture<Void>> futuresToNotify = Collections.emptyList();
         List<PostCheckpointAction> result = new ArrayList<>();
         checkpointLock.writeLock().lock();
         try {
-            futuresToNotify = new ArrayList<>(checkpointWaits);
-            checkpointWaits.clear();
             getlock = System.currentTimeMillis();
             checkPointRunning = true;
 
@@ -1635,7 +1599,8 @@ public final class TableManager implements AbstractTableManager {
                     pageReplacementPolicy.remove(dirtyPage);
                 }
             }
-            for (Long idNewPage : newPages.keySet()) {
+            Collection<Long> newPagesRemoved = new ArrayList<>(newPages.keySet());
+            for (Long idNewPage : newPagesRemoved) {
                 final DataPage dirtyPage = pages.remove(idNewPage);
                 if (dirtyPage != null) {
                     pageReplacementPolicy.remove(dirtyPage);
@@ -1643,8 +1608,8 @@ public final class TableManager implements AbstractTableManager {
             }
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
-                    Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId, pageSet.getActivePages());
-            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
+                Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId, pageSet.getActivePages());
+            List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus, newPagesRemoved);
             tablecheckpoint = System.currentTimeMillis();
             result.addAll(actions);
 
@@ -1661,11 +1626,6 @@ public final class TableManager implements AbstractTableManager {
             checkPointRunning = false;
         } finally {
             checkpointLock.writeLock().unlock();
-
-            for (CompletableFuture<Void> f : futuresToNotify) {
-                f.complete(null);
-            }
-
         }
         long end = System.currentTimeMillis();
         long delta = end - start;
@@ -1873,12 +1833,12 @@ public final class TableManager implements AbstractTableManager {
 
         } catch (ExitLoop exitLoop) {
             LOGGER.log(Level.SEVERE, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
-        } catch (DataStorageManagerException | LogNotAvailableException err) {
-            LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
-            throw new StatementExecutionException(err);
         } catch (StatementExecutionException err) {
             LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
             throw err;
+        } catch (HerdDBInternalException err) {
+            LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
+            throw new StatementExecutionException(err);
         }
     }
 
@@ -1998,22 +1958,6 @@ public final class TableManager implements AbstractTableManager {
     @Override
     public long getCreatedInTransaction() {
         return createdInTransaction;
-    }
-
-    @Override
-    @Deprecated
-    public void tryReleaseMemory(long reclaim) {
-        releaseMemory(reclaim);
-    }
-
-    @Deprecated
-    private void releaseMemory(long reclaim) {
-        if (reclaim <= 0) {
-            return;
-        }
-
-        /* TODO: currently the only method to release memory is to request a checkpoint */
-        requestCheckpoint(false);
     }
 
     private static final Comparator<Map.Entry<Bytes, Long>> SORTED_PAGE_ACCESS_COMPARATOR = (a, b) -> {
