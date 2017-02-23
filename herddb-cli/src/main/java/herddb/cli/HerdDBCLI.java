@@ -28,11 +28,11 @@ import herddb.client.HDBConnection;
 import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
 import herddb.model.TableSpace;
+import herddb.model.commands.InsertStatement;
 import herddb.utils.IntHolder;
 import herddb.utils.SimpleBufferedOutputStream;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -45,6 +45,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -53,11 +54,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipInputStream;
+import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.expression.DoubleValue;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.JdbcParameter;
+import net.sf.jsqlparser.expression.LongValue;
+import net.sf.jsqlparser.expression.NullValue;
+import net.sf.jsqlparser.expression.StringValue;
+import net.sf.jsqlparser.expression.TimestampValue;
+import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
+import net.sf.jsqlparser.expression.operators.relational.ItemsList;
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.statement.insert.Insert;
+import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
+import net.sf.jsqlparser.util.deparser.InsertDeParser;
+import net.sf.jsqlparser.util.deparser.SelectDeParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
@@ -92,6 +107,7 @@ public class HerdDBCLI {
         options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
         options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
         options.addOption("fmd", "frommysqldump", false, "Intruct the parser that the script is coming from a MySQL Dump");
+        options.addOption("rwst", "rewritestatements", false, "Rewrite all statements to use JDBC parameters");
         options.addOption("d", "dump", true, "Dump tablespace");
         options.addOption("r", "restore", true, "Restore tablespace");
         options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
@@ -134,6 +150,7 @@ public class HerdDBCLI {
         final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         boolean sqlconsole = commandLine.hasOption("sqlconsole");
         final boolean frommysqldump = commandLine.hasOption("frommysqldump");
+        final boolean rewritestatements = commandLine.hasOption("rewritestatements");
         boolean autotransaction = commandLine.hasOption("autotransaction") || frommysqldump;
         int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
         if (!autotransaction) {
@@ -150,7 +167,7 @@ public class HerdDBCLI {
                 if (sqlconsole) {
                     runSqlConsole(connection, statement);
                 } else if (!query.isEmpty()) {
-                    executeStatement(verbose, ignoreerrors, frommysqldump, query, statement);
+                    executeStatement(verbose, ignoreerrors, false, false, query, statement);
                 } else if (!file.isEmpty()) {
                     if (autotransactionbatchsize > 0) {
                         connection.setAutoCommit(false);
@@ -161,7 +178,7 @@ public class HerdDBCLI {
                         int _autotransactionbatchsize = autotransactionbatchsize;
                         SQLFileParser.parseSQLFile(ii, (st) -> {
                             if (!st.comment) {
-                                doneCount.value += executeStatement(verbose, ignoreerrors, frommysqldump, st.content, statement);
+                                doneCount.value += executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement);
                                 if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
                                     System.out.println("COMMIT after " + doneCount.value + " actions");
                                     connection.commit();
@@ -262,7 +279,7 @@ public class HerdDBCLI {
         }
     }
 
-    private static int executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, String query, final Statement statement) throws SQLException {
+    private static int executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement) throws SQLException {
         query = query.trim();
 
         if (query.isEmpty()
@@ -320,36 +337,23 @@ public class HerdDBCLI {
                 return 0;
             }
 
-            boolean resultSet = statement.execute(query);
-            if (resultSet) {
-                try (ResultSet rs = statement.getResultSet()) {
-                    ResultSetMetaData md = rs.getMetaData();
-                    List<String> columns = new ArrayList<>();
-                    int ccount = md.getColumnCount();
-                    for (int i = 1; i <= ccount; i++) {
-                        columns.add(md.getColumnName(i));
-                    }
-                    System.out.println(columns.stream().collect(Collectors.joining(";")));
+            QueryWithParameters rewritten = null;
+            if (rewritestatements) {
+                rewritten = rewriteQuery(query);
 
-                    while (rs.next()) {
-                        List<String> values = new ArrayList<>();
-                        for (int i = 1; i <= ccount; i++) {
-                            String value = rs.getString(i);
-                            if (value == null) {
-                                value = "<NULL>";
-                            }
-                            values.add(value);
-                        }
-                        System.out.println(values.stream().collect(Collectors.joining(";")));
+            }
+            if (rewritten != null) {
+                try (PreparedStatement ps = statement.getConnection().prepareStatement(rewritten.query);) {
+                    int i = 1;
+                    for (Object o : rewritten.jdbcParameters) {
+                        ps.setObject(i++, o);
                     }
+                    boolean resultSet = ps.execute();
+                    return reallyExecuteStatement(statement, resultSet, verbose);
                 }
-                return 0;
             } else {
-                int updateCount = statement.getUpdateCount();
-                if (verbose) {
-                    System.out.println("UPDATE COUNT: " + updateCount);
-                }
-                return updateCount;
+                boolean resultSet = statement.execute(query);
+                return reallyExecuteStatement(statement, resultSet, verbose);
             }
         } catch (SQLException err) {
             if (ignoreerrors) {
@@ -358,6 +362,40 @@ public class HerdDBCLI {
             } else {
                 throw err;
             }
+        }
+    }
+
+    private static int reallyExecuteStatement(final Statement statement, boolean resultSet, boolean verbose) throws SQLException {
+
+        if (resultSet) {
+            try (ResultSet rs = statement.getResultSet()) {
+                ResultSetMetaData md = rs.getMetaData();
+                List<String> columns = new ArrayList<>();
+                int ccount = md.getColumnCount();
+                for (int i = 1; i <= ccount; i++) {
+                    columns.add(md.getColumnName(i));
+                }
+                System.out.println(columns.stream().collect(Collectors.joining(";")));
+
+                while (rs.next()) {
+                    List<String> values = new ArrayList<>();
+                    for (int i = 1; i <= ccount; i++) {
+                        String value = rs.getString(i);
+                        if (value == null) {
+                            value = "<NULL>";
+                        }
+                        values.add(value);
+                    }
+                    System.out.println(values.stream().collect(Collectors.joining(";")));
+                }
+            }
+            return 0;
+        } else {
+            int updateCount = statement.getUpdateCount();
+            if (verbose) {
+                System.out.println("UPDATE COUNT: " + updateCount);
+            }
+            return updateCount;
         }
     }
 
@@ -381,7 +419,7 @@ public class HerdDBCLI {
                 if (line == null) {
                     return;
                 }
-                executeStatement(true, true, false, line, statement);
+                executeStatement(true, true, false, false, line, statement);
             } catch (UserInterruptException e) {
                 // Ignore
             } catch (EndOfFileException e) {
@@ -401,5 +439,55 @@ public class HerdDBCLI {
             return rawStream;
         }
 
+    }
+
+    private static QueryWithParameters rewriteQuery(String query) {
+        try {
+            net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
+            if (stmt instanceof Insert) {
+                List<Object> parameters = new ArrayList<>();
+                Insert insert = (Insert) stmt;
+                ItemsList itemlist = insert.getItemsList();
+                if (itemlist instanceof ExpressionList) {
+                    ExpressionList list = (ExpressionList) itemlist;
+                    List<Expression> expressions = list.getExpressions();
+                    for (int i = 0; i < expressions.size(); i++) {
+                        Expression e = expressions.get(i);
+                        boolean done = false;
+                        if (e instanceof StringValue) {
+                            StringValue sv = (StringValue) e;
+                            parameters.add(sv.getValue());
+                            done = true;
+                        } else if (e instanceof LongValue) {
+                            LongValue sv = (LongValue) e;
+                            parameters.add(sv.getValue());
+                            done = true;
+                        } else if (e instanceof NullValue) {
+                            NullValue sv = (NullValue) e;
+                            parameters.add(null);
+                            done = true;
+                        } else if (e instanceof TimestampValue) {
+                            TimestampValue sv = (TimestampValue) e;
+                            parameters.add(sv.getValue());
+                            done = true;
+                        } else if (e instanceof DoubleValue) {
+                            DoubleValue sv = (DoubleValue) e;
+                            parameters.add(sv.getValue());
+                            done = true;
+                        }
+                        if (done) {
+                            expressions.set(i, new JdbcParameter());
+                        }
+                    }
+                    StringBuilder queryResult = new StringBuilder();
+                    InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null, queryResult);
+                    deparser.deParse(insert);
+                    return new QueryWithParameters(queryResult.toString(), parameters);
+                }
+            }
+            return null;
+        } catch (JSQLParserException err) {
+            return null;
+        }
     }
 }

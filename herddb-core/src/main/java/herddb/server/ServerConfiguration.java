@@ -123,6 +123,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_MEMORY_LIMIT_REFERENCE = "server.maxmemory.reference";
     public static final long PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT = 0L;
 
+    public static final String PROPERTY_PLANSCACHE_MAXMEMORY = "server.planscache.maxmemory";
+    public static final long PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT = 50 * 1024 * 1024L;
+
     /**
      * Maximum amount of memory used for pages
      */

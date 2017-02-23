@@ -35,12 +35,12 @@ import java.util.stream.Collectors;
 public class SysconfigTableManager extends AbstractSystemTableManager {
 
     private final static Table TABLE = Table
-            .builder()
-            .name("sysconfig")
-            .column("name", ColumnTypes.STRING)
-            .column("value", ColumnTypes.STRING)
-            .primaryKey("name", false)
-            .build();
+        .builder()
+        .name("sysconfig")
+        .column("name", ColumnTypes.STRING)
+        .column("value", ColumnTypes.STRING)
+        .primaryKey("name", false)
+        .build();
 
     public SysconfigTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
@@ -48,11 +48,11 @@ public class SysconfigTableManager extends AbstractSystemTableManager {
 
     @Override
     protected Iterable<Record> buildVirtualRecordList() {
-        ServerConfiguration configuration = tableSpaceManager.getDbmanager().getConfiguration();
+        ServerConfiguration configuration = tableSpaceManager.getDbmanager().getServerConfiguration();
         return configuration.keys()
-                .stream()
-                .map(r -> RecordSerializer.makeRecord(table, "name", r, "value", configuration.getString(r, "")))
-                .collect(Collectors.toList());
+            .stream()
+            .map(r -> RecordSerializer.makeRecord(table, "name", r, "value", configuration.getString(r, "")))
+            .collect(Collectors.toList());
     }
 
 }

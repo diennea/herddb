@@ -138,9 +138,9 @@ public class SQLPlanner {
         cache.clear();
     }
 
-    public SQLPlanner(DBManager manager) {
+    public SQLPlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
-        this.cache = new PlansCache();
+        this.cache = new PlansCache(maxPlanCacheSize);
     }
 
     private static String rewriteExecuteSyntax(String query) {

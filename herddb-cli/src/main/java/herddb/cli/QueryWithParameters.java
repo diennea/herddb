@@ -17,42 +17,23 @@
  under the License.
 
  */
-package herddb.sql;
+package herddb.cli;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import herddb.model.ExecutionPlan;
+import java.util.Collections;
+import java.util.List;
 
 /**
- * LRU Cache of Execution plans
  *
  * @author enrico.olivelli
  */
-public class PlansCache {
+public final class QueryWithParameters {
 
-    private final Cache<String, ExecutionPlan> cache;
+    public final String query;
+    public final List<Object> jdbcParameters;
 
-    public PlansCache(long maxBytes) {
-        this.cache = CacheBuilder
-            .newBuilder()
-            .weigher((String sql, ExecutionPlan plan) -> {
-                return sql.length() * 2;
-            })
-            .maximumWeight(maxBytes)
-            .build();
-
-    }
-
-    public ExecutionPlan get(String sql) {
-        return this.cache.getIfPresent(sql);
-    }
-
-    public void put(String sql, ExecutionPlan statement) {
-        this.cache.put(sql, statement);
-    }
-
-    public void clear() {
-        this.cache.invalidateAll();
+    public QueryWithParameters(String query, List<Object> jdbcParameters) {
+        this.query = query;
+        this.jdbcParameters = Collections.unmodifiableList(jdbcParameters);
     }
 
 }

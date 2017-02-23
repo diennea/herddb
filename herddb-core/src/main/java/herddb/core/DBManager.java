@@ -124,7 +124,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private String serverToServerUsername = ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT;
     private String serverToServerPassword = ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT;
     private boolean errorIfNotLeader = true;
-    private ServerConfiguration serverConfiguration = new ServerConfiguration();
+    private final ServerConfiguration serverConfiguration;
     private ConnectionsInfoProvider connectionsInfoProvider;
     private long checkpointPeriod;
 
@@ -146,7 +146,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     });
 
-    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager, CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
+    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
+        CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData) {
+        this(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, tmpDirectory, hostData, new ServerConfiguration());
+    }
+
+    public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
+        CommitLogManager commitLogManager, Path tmpDirectory, herddb.network.ServerHostData hostData, ServerConfiguration configuration) {
+        this.serverConfiguration = configuration;
         this.tmpDirectory = tmpDirectory;
         this.recordSetFactory = dataStorageManager.createRecordSetFactory();
         this.metadataStorageManager = metadataStorageManager;
@@ -155,7 +162,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.nodeId = nodeId;
         this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
-        this.translator = new SQLPlanner(this);
+        this.translator = new SQLPlanner(this, configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
+            ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT));
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
     }
@@ -212,16 +220,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.serverToServerPassword = serverToServerPassword;
     }
 
-    public ServerConfiguration getConfiguration() {
-        return serverConfiguration;
-    }
-
     public ServerConfiguration getServerConfiguration() {
         return serverConfiguration;
-    }
-
-    public void setServerConfiguration(ServerConfiguration serverConfiguration) {
-        this.serverConfiguration = serverConfiguration;
     }
 
     public ConnectionsInfoProvider getConnectionsInfoProvider() {
