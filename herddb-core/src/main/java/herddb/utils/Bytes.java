@@ -30,13 +30,19 @@ import java.util.Arrays;
  */
 public final class Bytes implements Comparable<Bytes> {
 
+    private static final int CONSTANT_BYTE_SIZE = 36;
+
+    public static final int estimateSize(byte[] value) {
+        return value.length + CONSTANT_BYTE_SIZE;
+    }
+
     public final byte[] data;
     private final int hashCode;
 
     public Object deserialized;
 
     public int getEstimatedSize() {
-        return data.length + 36;
+        return data.length + CONSTANT_BYTE_SIZE;
     }
 
     public static byte[] string_to_array(String s) {
@@ -254,6 +260,7 @@ public final class Bytes implements Comparable<Bytes> {
         return true;
     }
 
+    @Override
     public String toString() {
         // ONLY FOR TESTS
         return arraytohexstring(data);

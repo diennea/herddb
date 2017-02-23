@@ -19,11 +19,12 @@
  */
 package herddb.model;
 
-import herddb.codec.RecordSerializer;
-import herddb.utils.Bytes;
 import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.Objects;
+
+import herddb.codec.RecordSerializer;
+import herddb.utils.Bytes;
 
 /**
  * A generic record
@@ -32,9 +33,16 @@ import java.util.Objects;
  */
 public final class Record {
 
+    private static final int CONSTANT_BYTE_SIZE = 93;
+
+    public static final int estimateSize(Bytes key, byte[] value) {
+        return key.getEstimatedSize() + Bytes.estimateSize(value) + CONSTANT_BYTE_SIZE;
+    }
+
     public final Bytes key;
     public final Bytes value;
     private WeakReference<Map<String, Object>> cache;
+
 
     public Record(Bytes key, Bytes value) {
         this.key = key;
@@ -48,7 +56,7 @@ public final class Record {
     }
 
     public int getEstimatedSize() {
-        return this.key.getEstimatedSize() + this.value.getEstimatedSize() + 93;
+        return this.key.getEstimatedSize() + this.value.getEstimatedSize() + CONSTANT_BYTE_SIZE;
     }
 
     public final Map<String, Object> toBean(Table table) {

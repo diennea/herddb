@@ -33,6 +33,7 @@ import org.junit.Test;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.RecordTooBigException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 
@@ -43,8 +44,8 @@ import herddb.model.commands.CreateTableSpaceStatement;
  */
 public class RecordTooBigTest {
 
-    @Test
-    public void update() throws Exception {
+    @Test(expected=RecordTooBigException.class)
+    public void insert() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.setMaxLogicalPageSize(150);
@@ -64,8 +65,8 @@ public class RecordTooBigTest {
         }
     }
 
-    @Test
-    public void insert() throws Exception {
+    @Test(expected=RecordTooBigException.class)
+    public void update() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.setMaxLogicalPageSize(200);

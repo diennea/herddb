@@ -74,6 +74,7 @@ import herddb.model.Predicate;
 import herddb.model.Projection;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
+import herddb.model.RecordTooBigException;
 import herddb.model.ScanLimits;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
@@ -673,6 +674,11 @@ public final class TableManager implements AbstractTableManager {
         Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
         byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
 
+        final int size = Record.estimateSize(key, value);
+        if (size > maxLogicalPageSize) {
+            throw new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize);
+        }
+
         LockHandle lock = lockForWrite(key, transaction);
         try {
             if (transaction != null) {
@@ -729,6 +735,14 @@ public final class TableManager implements AbstractTableManager {
             @Override
             public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
+
+                final int size = Record.estimateSize(actual.key, newValue);
+                if (size > maxLogicalPageSize) {
+                    throw new RecordTooBigException("New version of record " + actual.key
+                            + " is to big to be update: new size " + size + ", actual size " + actual.getEstimatedSize()
+                            + ", max size " + maxLogicalPageSize);
+                }
+
                 LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
                 LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
                 apply(pos, entry, false);
