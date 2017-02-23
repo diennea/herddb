@@ -28,12 +28,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -490,11 +487,14 @@ public final class TableManager implements AbstractTableManager {
     private Long allocateNewPage(Long lastKnownPageId) {
         /* This method expect that a new page actually exists! */
         nextPageLock.lock();
-        final Long newId;
-        if (lastKnownPageId == nextPageId - 1) {
 
-            final DataPage lastKnownPage;
-            try {
+        final Long newId;
+        DataPageMetaData unload = null;
+        try {
+
+            if (lastKnownPageId == nextPageId - 1) {
+
+                final DataPage lastKnownPage;
 
                 /* Is really a new page! */
                 newId = nextPageId++;
@@ -515,33 +515,33 @@ public final class TableManager implements AbstractTableManager {
                 final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
                 newPages.put(newId, newPage);
                 pages.put(newId, newPage);
+                pageSet.pageCreated(newId);
+//                pages.put(lastKnownPageId, lastKnownPage);
 
                 /* From this moment on the page has been published */
- /* The lock is needed to block other threads up to this point */
+                /* The lock is needed to block other threads up to this point */
                 currentDirtyRecordsPage.set(newId);
 
-            } finally {
-                nextPageLock.unlock();
+                /*
+                 * Now we must add the "lastKnownPage" to page replacement policy. There is only one page living
+                 * outside replacement policy (the currentDirtyRecordsPage)
+                 */
+                unload = pageReplacementPolicy.add(lastKnownPage);
+
+            } else {
+
+                /* The page has been published for sure */
+                newId = currentDirtyRecordsPage.get();
             }
 
-            /*
-             * Now we must add the "lastKnownPage" to page replacement policy. There is only one page living
-             * outside replacement policy (the currentDirtyRecordsPage)
-             *
-             * Out of locking
-             */
-            final DataPageMetaData unload = pageReplacementPolicy.add(lastKnownPage);
-            if (unload != null) {
-                unload.getOwner().unloadPage(unload.getPageId());
-            }
 
-        } else {
-
-            /* The page has been published for sure */
-            newId = currentDirtyRecordsPage.get();
-
-            /* Direct unlock */
+        } finally {
             nextPageLock.unlock();
+        }
+
+        /* Dereferenced page unload. Out of locking */
+        if (unload != null) {
+            unload.getOwner().unloadPage(unload.getPageId());
         }
 
         /* Both created now or already created */
@@ -565,6 +565,7 @@ public final class TableManager implements AbstractTableManager {
 
         newPages.put(newId, newPage);
         pages.put(newId, newPage);
+        pageSet.pageCreated(newId);
 
         /* From this moment on the page has been published */
  /* The lock is needed to block other threads up to this point */
@@ -576,29 +577,30 @@ public final class TableManager implements AbstractTableManager {
             unloadedPagesCount.increment();
             LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             if (!remove.readonly) {
-                newPages.remove(pageId);
-
-                /*
-                 * We need to keep the page lock just to write the unloaded flag... after that write any other
-                 * thread that check the page will avoid writes (thus using page data is safe)
-                 */
-                final Lock lock = remove.pageLock.writeLock();
-                lock.lock();
-                try {
-                    remove.unloaded = true;
-                } finally {
-                    lock.unlock();
-                }
-
+                flushNewPage(remove);
                 LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
-                    new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
-                dataStorageManager.writePage(tableSpaceUUID, table.name, remove.pageId, remove.data.values());
-
+                        new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                    dataStorageManager.writePage(tableSpaceUUID, table.name, remove.pageId, remove.data.values());
             } else {
                 LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             }
             return null;
         });
+    }
+
+    private void flushNewPage(DataPage page) {
+        newPages.remove(page.pageId);
+        /*
+         * We need to keep the page lock just to write the unloaded flag... after that write any other
+         * thread that check the page will avoid writes (thus using page data is safe)
+         */
+        final Lock lock = page.pageLock.writeLock();
+        lock.lock();
+        try {
+            page.unloaded = true;
+        } finally {
+            lock.unlock();
+        }
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
@@ -1399,7 +1401,7 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
-        DataPage result = pages.get(pageId);;
+        DataPage result = pages.get(pageId);
         if (result != null) {
             return result;
         }
@@ -1530,54 +1532,28 @@ public final class TableManager implements AbstractTableManager {
                 }
             }
 
-            toKeepFlush = System.currentTimeMillis();
-
-            /*
-             * Flush dirty records (and remaining records from previous step)
-             *
-             * Any newpage remaining here is unflushed.
-             *
-             * TODO: improvement: do not rewrite and compact new pages, write as they are! It must be done
-             * when changing how dirty pages are rewritten (do no rewrite dirty & new unless they are too
-             * dirty)
-             */
-            List<Long> idNewpagesSorted = new ArrayList<>(newPages.keySet());
-            idNewpagesSorted.sort(Comparator.naturalOrder());
-
-            for (Long newPageId : idNewpagesSorted) {
-                DataPage dataPage = pages.get(newPageId);
-                final Collection<Record> records;
-                if (dataPage == null) {
-                    records = dataStorageManager.readPage(tableSpaceUUID, table.name, newPageId);
-                    LOGGER.log(Level.FINEST, "loaded new page {0} on tmp buffer: {1} records", new Object[]{newPageId, records.size()});
-                } else {
-                    records = dataPage.data.values();
-                }
-                for (Record record : records) {
-                    Long currentPageId = keyToPage.get(record.key);
-                    if (!newPageId.equals(currentPageId)) {
-                        continue;
-                    }
-
-                    if (newPageSize + record.getEstimatedSize() > maxLogicalPageSize) {
-                        createNewPage(buffer, newPageSize);
-                        flushedRecords += buffer.size();
-                        newPageSize = 0;
-                        /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
-                        buffer = new HashMap<>(buffer.size());
-                    }
-
-                    buffer.put(record.key, record);
-                    newPageSize += record.getEstimatedSize();
-                }
-            }
-
             /* Flush remaining records */
             if (!buffer.isEmpty()) {
                 createNewPage(buffer, newPageSize);
                 flushedRecords += buffer.size();
                 newPageSize = 0;
                 /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
+            }
+
+            toKeepFlush = System.currentTimeMillis();
+
+            /*
+             * Flush dirty records (and remaining records from previous step).
+             *
+             * Any newpage remaining here is unflushed and is not set as dirty (if "dirty" were unloaded!).
+             * Just write the pages as they are.
+             */
+            List<Long> idNewpagesSorted = new ArrayList<>(newPages.keySet());
+            idNewpagesSorted.sort(Comparator.naturalOrder());
+
+            for (Long newPageId : idNewpagesSorted) {
+                DataPage dataPage = newPages.get(newPageId);
+                flushNewPage(dataPage);
             }
 
             dirtyFlush = System.currentTimeMillis();

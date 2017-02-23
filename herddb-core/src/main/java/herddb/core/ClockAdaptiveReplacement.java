@@ -64,6 +64,9 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
 
     public ClockAdaptiveReplacement(int capacity) {
 
+        if (capacity < 1) {
+            throw new IllegalArgumentException("Invalid capacity " + capacity);
+        }
         c = capacity;
         p = 0;
 

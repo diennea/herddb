@@ -35,7 +35,7 @@ public class MemoryManager {
     private static final Logger LOGGER = Logger.getLogger(MemoryManager.class.getName());
 
     private static final String PAGE_REPLACEMENT_POLICY = SystemProperties.getStringSystemProperty(
-        TableManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
+            MemoryManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
 
     private final long maxPagesUsedMemory;
     private final long maxLogicalPageSize;
@@ -46,6 +46,11 @@ public class MemoryManager {
 
         this.maxPagesUsedMemory = maxPagesUsedMemory;
         this.maxLogicalPageSize = maxLogicalPageSize;
+
+        if (maxPagesUsedMemory < maxLogicalPageSize) {
+            throw new IllegalArgumentException("Max memory for pages (" + maxPagesUsedMemory
+                    + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
+        }
 
         final int pages = (int) (maxPagesUsedMemory / maxLogicalPageSize);
         LOGGER.log(Level.INFO, "Maximum number of loaded pages {0}", pages);
