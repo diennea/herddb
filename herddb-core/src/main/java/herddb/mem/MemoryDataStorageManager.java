@@ -19,6 +19,19 @@
  */
 package herddb.mem;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.logging.Logger;
+
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.index.ConcurrentMapKeyToPageIndex;
@@ -36,18 +49,6 @@ import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
-import java.util.logging.Logger;
 
 /**
  * In memory StorageManager, for tests
@@ -122,7 +123,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException {
+    public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         Page page = new Page(new ArrayList<>(newPage));
         Page prev = pages.put(tableName + "_" + pageId, page);
         //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);

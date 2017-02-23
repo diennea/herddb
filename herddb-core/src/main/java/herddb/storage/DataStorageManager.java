@@ -19,6 +19,11 @@
  */
 package herddb.storage;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
+
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.index.KeyToPageIndex;
@@ -27,10 +32,6 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * Physical storage of data
@@ -71,7 +72,7 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @param newPage
      * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException;
+    public abstract void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException;
 
     public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException;
 

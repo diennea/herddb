@@ -19,6 +19,34 @@
  */
 package herddb.file;
 
+
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import herddb.core.HerdDBInternalException;
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
@@ -43,33 +71,6 @@ import herddb.utils.FileUtils;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.DirectoryStream;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.OpenOption;
-import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Data Storage on local filesystem
@@ -540,7 +541,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writePage(String tableSpace, String tableName, long pageId, List<Record> newPage) throws DataStorageManagerException {
+    public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long _start = System.currentTimeMillis();
         Path tableDir = getTableDirectory(tableSpace, tableName);
@@ -850,7 +851,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public KeyToPageIndex createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException {
         return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
-//        try {            
+//        try {
 //              return new MapDBKeyToPageIndex(tmpDirectory, tablespace + "." + name);
 //        } catch (IOException err) {
 //            throw new DataStorageManagerException(err);

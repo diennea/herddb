@@ -487,13 +487,13 @@ public final class TableManager implements AbstractTableManager {
      * "stop-the-world" procedures!</b>
      * </p>
      */
-    private long createNewPage(List<Record> newPage, long newPageSize) throws DataStorageManagerException {
+    private long createNewPage(Map<Bytes, Record> newPage, long newPageSize) throws DataStorageManagerException {
         final Long pageId = nextPageId++;
-        final DataPage dataPage = buildDataPage(pageId, newPage);
+        final DataPage dataPage = buildDataPage(pageId, newPage, newPageSize);
 
         LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
             new Object[]{table.name, pageId, newPage.size(), newPageSize});
-        dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
+        dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage.values());
         pageSet.pageCreated(pageId);
         pages.put(pageId, dataPage);
 
@@ -502,8 +502,8 @@ public final class TableManager implements AbstractTableManager {
             unload.getOwner().unloadPage(unload.getPageId());
         }
 
-        for (Record record : newPage) {
-            keyToPage.put(record.key, pageId);
+        for (Bytes key : newPage.keySet()) {
+            keyToPage.put(key, pageId);
         }
         return pageId;
     }
@@ -613,7 +613,7 @@ public final class TableManager implements AbstractTableManager {
 
                 LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
                         new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
-                dataStorageManager.writePage(tableSpaceUUID, table.name, remove.pageId, new ArrayList<>(remove.data.values()));
+                dataStorageManager.writePage(tableSpaceUUID, table.name, remove.pageId, remove.data.values());
 
             } else {
                 LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
@@ -1475,8 +1475,12 @@ public final class TableManager implements AbstractTableManager {
             newPageMap.put(r.key, r);
             estimatedPageSize += r.getEstimatedSize();
         }
+        return buildDataPage(pageId, newPageMap, estimatedPageSize);
+    }
+
+    private DataPage buildDataPage(long pageId, Map<Bytes,Record> page, long estimatedPageSize) {
         boolean readonly = !newPages.contains(pageId);
-        DataPage res = new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, newPageMap, readonly);
+        DataPage res = new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, page, readonly);
         return res;
     }
 
@@ -1509,7 +1513,7 @@ public final class TableManager implements AbstractTableManager {
 
             final Set<Long> dirtyPages = pageSet.getDirtyPages();
 
-            List<Record> buffer = new ArrayList<>();
+            Map<Bytes, Record> buffer = new HashMap<>();
             long newPageSize = 0;
             long flushedRecords = 0;
 
@@ -1539,10 +1543,11 @@ public final class TableManager implements AbstractTableManager {
                         createNewPage(buffer, newPageSize);
                         flushedRecords += buffer.size();
                         newPageSize = 0;
-                        buffer.clear();
+                        /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
+                        buffer = new HashMap<>(buffer.size());
                     }
 
-                    buffer.add(record);
+                    buffer.put(record.key, record);
                     newPageSize += record.getEstimatedSize();
                 }
             }
@@ -1580,10 +1585,11 @@ public final class TableManager implements AbstractTableManager {
                         createNewPage(buffer, newPageSize);
                         flushedRecords += buffer.size();
                         newPageSize = 0;
-                        buffer.clear();
+                        /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
+                        buffer = new HashMap<>(buffer.size());
                     }
 
-                    buffer.add(record);
+                    buffer.put(record.key, record);
                     newPageSize += record.getEstimatedSize();
                 }
             }
@@ -1593,7 +1599,7 @@ public final class TableManager implements AbstractTableManager {
                 createNewPage(buffer, newPageSize);
                 flushedRecords += buffer.size();
                 newPageSize = 0;
-                buffer.clear();
+                /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
             }
 
             dirtyFlush = System.currentTimeMillis();
