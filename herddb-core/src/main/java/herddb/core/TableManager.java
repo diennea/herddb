@@ -533,7 +533,7 @@ public final class TableManager implements AbstractTableManager {
                     throw new IllegalStateException("invalid last known new page id " + lastKnownPageId + ", " + newPages.keySet() + "/" + pages.keySet());
                 }
 
-                final DataPage newPage = new DataPage(this, newId, 0, new ConcurrentHashMap<>(), false);
+                final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
                 newPages.put(newId, newPage);
                 pages.put(newId, newPage);
 
@@ -578,7 +578,7 @@ public final class TableManager implements AbstractTableManager {
      */
     private void initNewPage() {
         final Long newId = nextPageId++;
-        final DataPage newPage = new DataPage(this, newId, 0, new ConcurrentHashMap<>(), false);
+        final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
 
         if (!newPages.isEmpty()) {
             throw new IllegalStateException("invalid new page initialization, other new pages already exist: " + newPages.keySet());
@@ -1080,7 +1080,7 @@ public final class TableManager implements AbstractTableManager {
                     pageSet.setPageDirty(prevPageId);
                 } else {
                     /* We can try to modify the page directly */
-                    inserted = prevPage.put(key, record, maxLogicalPageSize);
+                    inserted = prevPage.put(record);
                 }
             } finally {
                 lock.unlock();
@@ -1108,7 +1108,7 @@ public final class TableManager implements AbstractTableManager {
                     try {
                         if (!newPage.unloaded) {
                             /* We can try to modify the page directly */
-                            inserted = newPage.put(key, record, maxLogicalPageSize);
+                            inserted = newPage.put(record);
 
                             if (inserted) {
                                 break;
@@ -1252,7 +1252,7 @@ public final class TableManager implements AbstractTableManager {
                         pageSet.setPageDirty(prevPageId);
                     } else {
                         /* We can try to modify the page directly */
-                        inserted = prevPage.put(key, record, maxLogicalPageSize);
+                        inserted = prevPage.put(record);
                     }
                 } finally {
                     lock.unlock();
@@ -1288,7 +1288,7 @@ public final class TableManager implements AbstractTableManager {
                     try {
                         if (!newPage.unloaded) {
                             /* We can try to modify the page directly */
-                            inserted = newPage.put(key, record, maxLogicalPageSize);
+                            inserted = newPage.put(record);
 
                             if (inserted) {
                                 break;
@@ -1476,7 +1476,7 @@ public final class TableManager implements AbstractTableManager {
             estimatedPageSize += r.getEstimatedSize();
         }
         boolean readonly = !newPages.contains(pageId);
-        DataPage res = new DataPage(this, pageId, estimatedPageSize, newPageMap, readonly);
+        DataPage res = new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, newPageMap, readonly);
         return res;
     }
 

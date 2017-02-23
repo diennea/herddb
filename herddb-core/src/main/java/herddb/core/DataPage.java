@@ -47,6 +47,7 @@ public class DataPage {
 
     public final TableManager owner;
     public final long pageId;
+    public final long maxSize;
     public final boolean readonly;
 
     public final Map<Bytes, Record> data;
@@ -62,9 +63,10 @@ public class DataPage {
     /** Page metadata used by {@link PageReplacementPolicy} */
     public DataPageMetaData metadata;
 
-    public DataPage(TableManager owner, long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
+    public DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
         this.owner = owner;
         this.pageId = pageId;
+        this.maxSize = maxSize;
         this.readonly = readonly;
         this.data = data;
         this.usedMemory = new AtomicLong(estimatedSize);
@@ -83,14 +85,14 @@ public class DataPage {
         return data.get(key);
     }
 
-    boolean put(Bytes key, Record newRecord, long maxSize) {
+    boolean put(Record record) {
         if (readonly) {
             throw new IllegalStateException("page " + pageId + " is readonly!");
         }
 
-        final Record prev = data.put(key, newRecord);
+        final Record prev = data.put(record.key, record);
 
-        final long newSize = newRecord.getEstimatedSize();
+        final long newSize = record.getEstimatedSize();
         if (newSize > maxSize) {
             throw new IllegalStateException(
                     "record too big to fit in any page " + newSize + " / " + maxSize + " bytes");
@@ -106,7 +108,7 @@ public class DataPage {
 
         if( old > target ) {
             /* Remove the added key */
-            data.remove(key);
+            data.remove(record.key);
 
             return false;
         }
