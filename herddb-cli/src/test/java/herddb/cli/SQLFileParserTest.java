@@ -75,7 +75,8 @@ public class SQLFileParserTest {
             + "/*!40000 ALTER TABLE `sm_general_log` ENABLE KEYS */;\n"
             + "UNLOCK TABLES;\n"
             + "\n"
-            + "--";
+            + "--\n"
+            + "INSERT INTO jiraaction VALUES (24880,19803,'aaaa','comment',NULL,NULL,'backslash nella json var deve essere escaped così:\\r\\n{noformat}\\r\\n \\\\\\\\\\\\\\\\\\r\\n{noformat}\\r\\n\\r\\nperchè si trova *dentro una stringa*.\\r\\nInfatti una volta parsata la stringa il doppio \\\\\\\\ diventa \\\\','2014-07-02 12:13:38','xxxx','2014-07-02 12:13:38',NULL);\n";
         List<SQLFileParser.Statement> res = new ArrayList<>();
         SQLFileParser.parseSQLFile(new StringReader(sql), (s -> {
             if (s.comment) {

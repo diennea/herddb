@@ -134,7 +134,7 @@ public class HerdDBCLI {
         final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         boolean sqlconsole = commandLine.hasOption("sqlconsole");
         final boolean frommysqldump = commandLine.hasOption("frommysqldump");
-        boolean autotransaction = commandLine.hasOption("autotransaction");
+        boolean autotransaction = commandLine.hasOption("autotransaction") || frommysqldump;
         int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
         if (!autotransaction) {
             autotransactionbatchsize = 0;
@@ -346,7 +346,9 @@ public class HerdDBCLI {
                 return 0;
             } else {
                 int updateCount = statement.getUpdateCount();
-                System.out.println("UPDATE COUNT: " + updateCount);
+                if (verbose) {
+                    System.out.println("UPDATE COUNT: " + updateCount);
+                }
                 return updateCount;
             }
         } catch (SQLException err) {

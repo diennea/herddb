@@ -200,6 +200,7 @@ public class SQLFileParser {
                         current.append(c);
                         state = State.INSTRING;
                     } else {
+                        current.append('\\');
                         current.append(c);
                         state = State.INSTRING;
                     }
