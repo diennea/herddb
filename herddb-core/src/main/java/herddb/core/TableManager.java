@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import herddb.codec.RecordSerializer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -34,7 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
@@ -42,6 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.logging.Level;
@@ -104,6 +104,7 @@ import herddb.utils.SystemProperties;
  * Handles Data of a Table
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
 public final class TableManager implements AbstractTableManager {
 
@@ -114,11 +115,6 @@ public final class TableManager implements AbstractTableManager {
 
     private static final boolean ENABLE_LOCAL_SCAN_PAGE_CACHE = SystemProperties.
         getBooleanSystemProperty(TableManager.class.getName() + ".enableLocalScanPageCache", true);
-
-    private static final long MAX_DIRTY_SIZE = SystemProperties.
-        getIntSystemProperty(TableManager.class.getName() + ".maxDirtySize", /* 100 MB */ 100 * (1 << 20));
-
-    public static final Long NEW_PAGE = Long.valueOf(-1);
 
     private final ConcurrentHashMap<Long, DataPage> newPages = new ConcurrentHashMap<>();
 
@@ -138,7 +134,8 @@ public final class TableManager implements AbstractTableManager {
 
     private final PageSet pageSet = new PageSet();
 
-    private final AtomicLong newPageId = new AtomicLong(1);
+    private long nextPageId = 1;
+    private final Lock nextPageLock = new ReentrantLock();
 
     private final AtomicLong currentDirtyRecordsPage = new AtomicLong();
 
@@ -308,23 +305,6 @@ public final class TableManager implements AbstractTableManager {
         this.pages = pageReplacementPolicy.createObservedPagesMap();
     }
 
-    private Long allocateNewPage() {
-        Long newId = newPageId.getAndIncrement();
-        if (newPages.containsKey(newId) || pages.containsKey(newId)) {
-            throw new IllegalStateException("invalid newpage id " + newId + ", " + newPages.keySet() + "/" + pages.keySet());
-        }
-        DataPage newPage = new DataPage(this, newId, 0, new ConcurrentHashMap<>(), false);
-        newPages.put(newId, newPage);
-        currentDirtyRecordsPage.set(newId);
-        pages.put(newId, newPage);
-        //LOGGER.log(Level.SEVERE, "new dirty records will go to new page " + newId);
-        final DataPageMetaData unload = pageReplacementPolicy.add(newPage);
-        if (unload != null) {
-            unload.getOwner().unloadPage(unload.getPageId());
-        }
-        return newId;
-    }
-
     private TableContext buildTableContext() {
         TableContext tableContext;
         if (!table.auto_increment) {
@@ -402,7 +382,7 @@ public final class TableManager implements AbstractTableManager {
             public void acceptTableStatus(TableStatus tableStatus) {
                 LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
                 nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
-                newPageId.set(tableStatus.nextPageId);
+                nextPageId = tableStatus.nextPageId;
                 bootSequenceNumber = tableStatus.sequenceNumber;
             }
 
@@ -432,8 +412,10 @@ public final class TableManager implements AbstractTableManager {
         });
         dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.name, activePagesAtBoot);
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
-        allocateNewPage();
-        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}", new Object[]{keyToPage.size(), table.name, newPageId.get(), nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
+
+        initNewPage();
+        LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
+                new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
     }
 
     @Override
@@ -472,35 +454,10 @@ public final class TableManager implements AbstractTableManager {
                     throw new StatementExecutionException("internal data error: " + err, err);
                 }
             }
-//            requestCheckpointIfTooDirty(true);
 
         }
 
         throw new StatementExecutionException("unsupported statement " + statement);
-    }
-
-    /**
-     * Request a checkpoint if current dirty memory reached maximum dirty memory allowed ({@link #MAX_DIRTY_SIZE}).
-     */
-    private void requestCheckpointIfTooDirty(boolean wait) throws StatementExecutionException {
-        long dirtyMemory = stats.getDirtyUsedMemory();
-
-        if (MAX_DIRTY_SIZE <= dirtyMemory) {
-            LOGGER.log(Level.FINE, "table {0} requesting checkpoint for dirtiness, allowed dirty memory {1} current {2}",
-                new Object[]{table.name, MAX_DIRTY_SIZE, dirtyMemory});
-
-            Future<Void> requestedCheckpoint = requestCheckpoint(wait);
-            if (requestedCheckpoint != null) {
-                try {
-                    requestedCheckpoint.get();
-                } catch (ExecutionException err) {
-                    throw new StatementExecutionException("internal error: " + err.getCause(), err.getCause());
-                } catch (InterruptedException err) {
-                    Thread.currentThread().interrupt();
-                    throw new StatementExecutionException("internal error: " + err, err);
-                }
-            }
-        }
     }
 
     private Future<Void> requestCheckpoint(boolean registerWait) {
@@ -522,16 +479,144 @@ public final class TableManager implements AbstractTableManager {
         }
     }
 
+
+    /**
+     * Create a new page with given data, save it and update keyToPage records
+     * <p>
+     * Will not place any lock, this method should be invoked at startup time or during checkpoint: <b>during
+     * "stop-the-world" procedures!</b>
+     * </p>
+     */
+    private long createNewPage(List<Record> newPage, long newPageSize) throws DataStorageManagerException {
+        final Long pageId = nextPageId++;
+        final DataPage dataPage = buildDataPage(pageId, newPage);
+
+        LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+            new Object[]{table.name, pageId, newPage.size(), newPageSize});
+        dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
+        pageSet.pageCreated(pageId);
+        pages.put(pageId, dataPage);
+
+        final DataPageMetaData unload = pageReplacementPolicy.add(dataPage);
+        if (unload != null) {
+            unload.getOwner().unloadPage(unload.getPageId());
+        }
+
+        for (Record record : newPage) {
+            keyToPage.put(record.key, pageId);
+        }
+        return pageId;
+    }
+
+    private Long allocateNewPage(Long lastKnownPageId) {
+        /* This method expect that a new page actually exists! */
+        nextPageLock.lock();
+        final Long newId;
+        if (lastKnownPageId == nextPageId - 1) {
+
+            final DataPage lastKnownPage;
+            try {
+
+                /* Is really a new page! */
+                newId = nextPageId++;
+
+                if (newPages.containsKey(newId) || pages.containsKey(newId)) {
+                    throw new IllegalStateException("invalid newpage id " + newId + ", " + newPages.keySet() + "/" + pages.keySet());
+                }
+
+                /*
+                 * If really was the last new page id it MUST be in pages. It cannot be unloaded before the
+                 * creation of a new page!
+                 */
+                lastKnownPage = pages.get(lastKnownPageId);
+                if (lastKnownPage == null) {
+                    throw new IllegalStateException("invalid last known new page id " + lastKnownPageId + ", " + newPages.keySet() + "/" + pages.keySet());
+                }
+
+                final DataPage newPage = new DataPage(this, newId, 0, new ConcurrentHashMap<>(), false);
+                newPages.put(newId, newPage);
+                pages.put(newId, newPage);
+
+                /* From this moment on the page has been published */
+                /* The lock is needed to block other threads up to this point */
+                currentDirtyRecordsPage.set(newId);
+
+            } finally {
+                nextPageLock.unlock();
+            }
+
+            /*
+             * Now we must add the "lastKnownPage" to page replacement policy. There is only one page living
+             * outside replacement policy (the currentDirtyRecordsPage)
+             *
+             * Out of locking
+             */
+            final DataPageMetaData unload = pageReplacementPolicy.add(lastKnownPage);
+            if (unload != null) {
+                unload.getOwner().unloadPage(unload.getPageId());
+            }
+
+        } else {
+
+            /* The page has been published for sure */
+            newId = currentDirtyRecordsPage.get();
+
+            /* Direct unlock */
+            nextPageLock.unlock();
+        }
+
+        /* Both created now or already created */
+        return newId;
+    }
+
+    /**
+     * Create a new page and set it as the target page for dirty records.
+     * <p>
+     * Will not place any lock, this method should be invoked at startup time or during checkpoint: <b>during
+     * "stop-the-world" procedures!</b>
+     * </p>
+     */
+    private void initNewPage() {
+        final Long newId = nextPageId++;
+        final DataPage newPage = new DataPage(this, newId, 0, new ConcurrentHashMap<>(), false);
+
+        if (!newPages.isEmpty()) {
+            throw new IllegalStateException("invalid new page initialization, other new pages already exist: " + newPages.keySet());
+        }
+
+        newPages.put(newId, newPage);
+        pages.put(newId, newPage);
+
+        /* From this moment on the page has been published */
+        /* The lock is needed to block other threads up to this point */
+        currentDirtyRecordsPage.set(newId);
+    }
+
     private void unloadPage(long pageId) {
-        pages.computeIfPresent(pageId, (k, toBeRemoved) -> {
+        pages.computeIfPresent(pageId, (k, remove) -> {
             unloadedPagesCount.increment();
-            if (!toBeRemoved.readonly) {
-                LOGGER.log(Level.FINER, "table {0} unload and save 'new' page {1}, {2}", new Object[]{table.name, pageId, toBeRemoved.getUsedMemory() / (1024 * 1024) + " MB"});
-                dataStorageManager.writePage(tableSpaceUUID, table.name,
-                    pageId,
-                    new ArrayList<>(toBeRemoved.data.values()));
+            LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+            if (!remove.readonly) {
+                newPages.remove(pageId);
+
+                /*
+                 * We need to keep the page lock just to write the unloaded flag... after that write any other
+                 * thread that check the page will avoid writes (thus using page data is safe)
+                 */
+                final Lock lock = remove.pageLock.writeLock();
+                lock.lock();
+                try {
+                    remove.unloaded = true;
+                } finally {
+                    lock.unlock();
+                }
+
+                LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
+                        new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                dataStorageManager.writePage(tableSpaceUUID, table.name, remove.pageId, new ArrayList<>(remove.data.values()));
+
             } else {
-                LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, toBeRemoved.getUsedMemory() / (1024 * 1024) + " MB"});
+                LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             }
             return null;
         });
@@ -727,7 +812,8 @@ public final class TableManager implements AbstractTableManager {
 
         pages.clear();
         newPages.clear();
-        allocateNewPage();
+
+        initNewPage();
 
         deletedKeys.clear();
         locksManager.clear();
@@ -874,77 +960,178 @@ public final class TableManager implements AbstractTableManager {
     }
 
     private void applyDelete(Bytes key) throws DataStorageManagerException {
-        Long pageId = keyToPage.remove(key);
+        /* This could be a normal or a temporary modifiable page */
+        final Long pageId = keyToPage.remove(key);
         if (pageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
-        deletedKeys.add(key);
-        Record record;
 
-        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        /*
+         * We'll try to remove the record if in a writable page, otherwise we'll simply set the old page
+         * as dirty.
+         */
+
+        final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+
+        /*
+         * When index is enabled we need the old value to update them, we'll force the page load only if that
+         * record is really needed.
+         */
+        final DataPage page;
+        final Record previous;
+        if (indexes == null) {
+            /* We don't need the page if isn't loaded or isn't a mutable new page*/
+            page = newPages.get(pageId);
+            previous = null;
+        } else {
+            /* We really need the page for update index old values */
+            page = loadPageToMemory(pageId, false);
+            previous = page.get(key);
+
+            if (previous == null) {
+                throw new RuntimeException("deleted record at " + key + " was not found ?");
+            }
+        }
+
+        if (page == null || page.readonly) {
+            /* Unloaded or immutable, set it as dirty */
+            pageSet.setPageDirty(pageId);
+        } else {
+            /* Mutable page, need to check if still modifiable or already unloaded */
+            final Lock lock = page.pageLock.readLock();
+            lock.lock();
+            try {
+                if (page.unloaded) {
+                    /* Unfortunately unloaded, set it as dirty */
+                    pageSet.setPageDirty(pageId);
+                } else {
+                    /* We can modify the page directly */
+                    page.remove(key);
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        deletedKeys.add(key);
+
         if (indexes != null) {
 
-            /* If there are indexes record data is needed to update them */
-            DataPage dataPage = pages.get(pageId);
-            if (dataPage == null) {
-                dataPage = loadPageToMemory(pageId, false);
-                if (dataPage == null) {
-                    throw new IllegalStateException("page " + pageId + " not loaded in memory during delete!");
-                }
-            }
-
-            if (dataPage.readonly) {
-                record = dataPage.get(key);
-                pageSet.setPageDirty(pageId);
-            } else {
-                record = dataPage.remove(key);
-            }
-
-            if (record == null) {
-                throw new RuntimeException("deleted record at " + key + " was not loaded in buffer, cannot update indexes");
-            }
-
-            Map<String, Object> values = record.toBean(table);
+            /* If there are indexes e have already forced a page load and previous record has been loaded */
+            Map<String, Object> values = previous.toBean(table);
             for (AbstractIndexManager index : indexes.values()) {
                 index.recordDeleted(key, values);
-            }
-        } else {
-            /* Otherwise we don't need to load record at all! */
-            DataPage newPage = newPages.get(pageId);
-            if (newPage != null) {
-                newPage.remove(key);
-            } else {
-                pageSet.setPageDirty(pageId);
             }
         }
     }
 
     private void applyUpdate(Bytes key, Bytes value) throws DataStorageManagerException {
-        Long newPageId = currentDirtyRecordsPage.get();
-        Long prevPageId = keyToPage.put(key, newPageId);
+        /*
+         * New record to be updated, it will always updated if there aren't errors thus is simpler to create
+         * the record now
+         */
+        final Record record = new Record(key, value);
+
+        /* This could be a normal or a temporary modifiable page */
+        final Long prevPageId = keyToPage.get(key);
+
         if (prevPageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
-        Record newRecord = new Record(key, value);
-        DataPage prevDataPage = loadPageToMemory(prevPageId, false);
-        if (prevDataPage.readonly) {
+
+        /*
+         * We'll try to replace the record if in a writable page, otherwise we'll simply set the old page
+         * as dirty and continue like a normal insertion
+         */
+
+        final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+
+        /*
+         * When index is enabled we need the old value to update them, we'll force the page load only if that
+         * record is really needed.
+         */
+        final DataPage prevPage;
+        final Record previous;
+        boolean inserted = false;
+        if (indexes == null) {
+            /* We don't need the page if isn't loaded or isn't a mutable new page*/
+            prevPage = newPages.get(prevPageId);
+            previous = null;
+        } else {
+            /* We really need the page for update index old values */
+            prevPage = loadPageToMemory(prevPageId, false);
+            previous = prevPage.get(key);
+
+            if (previous == null) {
+                throw new RuntimeException("updated record at " + key + " was not found ?");
+            }
+        }
+
+        if (prevPage == null || prevPage.readonly) {
+            /* Unloaded or immutable, set it as dirty */
             pageSet.setPageDirty(prevPageId);
+        } else {
+            /* Mutable page, need to check if still modifiable or already unloaded */
+            final Lock lock = prevPage.pageLock.readLock();
+            lock.lock();
+            try {
+                if (prevPage.unloaded) {
+                    /* Unfortunately unloaded, set it as dirty */
+                    pageSet.setPageDirty(prevPageId);
+                } else {
+                    /* We can try to modify the page directly */
+                    inserted = prevPage.put(key, record, maxLogicalPageSize);
+                }
+            } finally {
+                lock.unlock();
+            }
         }
 
-        DataPage newDataPage = newPageId.equals(prevPageId) ? prevDataPage : loadPageToMemory(newPageId, false);
-        Record previous = prevDataPage.get(key);
-        if (previous == null) {
-            throw new RuntimeException("updated record at " + key + " was not found ?");
-        }
-        boolean sizeExceeded = newDataPage.put(key, newRecord, maxLogicalPageSize);
+        /* Insertion page */
+        Long insertionPageId;
 
-        if (sizeExceeded) {
-            allocateNewPage();
+        if (inserted) {
+            /* Inserted in temporary mutable previous page */
+            insertionPageId = prevPageId;
+        } else {
+            /* Do real insertion */
+            insertionPageId = currentDirtyRecordsPage.get();
+
+            while(true) {
+                final DataPage newPage = pages.get(insertionPageId);
+
+                /* The temporary memory page could have been unloaded and loaded again in meantime */
+                if (!newPage.readonly) {
+                    /* Mutable page, need to check if still modifiable or already unloaded */
+                    final Lock lock = newPage.pageLock.readLock();
+                    lock.lock();
+                    try {
+                        if (!newPage.unloaded) {
+                            /* We can try to modify the page directly */
+                            inserted = newPage.put(key, record, maxLogicalPageSize);
+
+                            if (inserted) {
+                                break;
+                            }
+                        }
+                    } finally {
+                        lock.unlock();
+                    }
+                }
+
+                /* Try allocate a new page if no already done */
+                insertionPageId = allocateNewPage(insertionPageId);
+            }
         }
-        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+
+        keyToPage.put(key, insertionPageId);
+
         if (indexes != null) {
+
+            /* If there are indexes e have already forced a page load and previous record has been loaded */
+
             Map<String, Object> prevValues = previous.toBean(table);
-            Map<String, Object> newValues = newRecord.toBean(table);
+            Map<String, Object> newValues = record.toBean(table);
             for (AbstractIndexManager index : indexes.values()) {
                 index.recordUpdated(key, prevValues, newValues);
             }
@@ -1010,30 +1197,135 @@ public final class TableManager implements AbstractTableManager {
             }
             nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
         }
-        Long newPageId = currentDirtyRecordsPage.get();
-        Long prevPageId = keyToPage.put(key, newPageId);
-        DataPage newPage = loadPageToMemory(newPageId, false);
+
+        /*
+         * New record to be added, it will always added if there aren't DataStorageManagerException thus is
+         * simpler to create the record now
+         */
+        final Record record = new Record(key, value);
+
+        /* Normally we expect this value null or pointing to a temporary modifiable page */
+        final Long prevPageId = keyToPage.get(key);
+
+
+        final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+
+        /*
+         * When index is enabled we need the old value to update them, we'll force the page load only if that
+         * record is really needed.
+         */
+        final DataPage prevPage;
+        final Record previous;
+        boolean inserted = false;
         if (prevPageId != null) {
-            // very strage but possible inside a transaction which executes DELETE THEN INSERT,
-            if (!this.newPages.containsKey(prevPageId)) {
-                // we have to track that the previous page is "dirty"
-                pageSet.setPageDirty(prevPageId);
-            }
+
+            /* Very strage but possible inside a transaction which executes DELETE THEN INSERT */
             if (!onTransaction) {
                 throw new DataStorageManagerException("new record " + key + " already present in keyToPage?");
             }
+
+            if (indexes == null) {
+                /* We don't need the page if isn't loaded or isn't a mutable new page*/
+                prevPage = newPages.get(prevPageId);
+                previous = null;
+
+            } else {
+                /* We really need the page for update index old values */
+                prevPage = loadPageToMemory(prevPageId, false);
+                previous = prevPage.get(key);
+
+                if (previous == null) {
+                    throw new RuntimeException("insert upon delete record at " + key + " was not found ?");
+                }
+            }
+
+            if (prevPage == null || prevPage.readonly) {
+                /* Unloaded or immutable, set it as dirty */
+                pageSet.setPageDirty(prevPageId);
+            } else {
+                /* Mutable page, need to check if still modifiable or already unloaded */
+                final Lock lock = prevPage.pageLock.readLock();
+                lock.lock();
+                try {
+                    if (prevPage.unloaded) {
+                        /* Unfortunately unloaded, set it as dirty */
+                        pageSet.setPageDirty(prevPageId);
+                    } else {
+                        /* We can try to modify the page directly */
+                        inserted = prevPage.put(key, record, maxLogicalPageSize);
+                    }
+                } finally {
+                    lock.unlock();
+                }
+            }
+
+        } else {
+            /*
+             * Initialize previous record to null... Non really needed but otherwise compiler cannot compile
+             * indexing instructions below.
+             */
+            previous = null;
         }
-        Record record = new Record(key, value);
-        boolean sizeExceeded = newPage.put(key, record, maxLogicalPageSize);
+
+        /* Insertion page */
+        Long insertionPageId;
+
+        if (inserted) {
+            /* Inserted in temporary mutable previous page */
+            insertionPageId = prevPageId;
+        } else {
+            /* Do real insertion */
+            insertionPageId = currentDirtyRecordsPage.get();
+
+            while(true) {
+                final DataPage newPage = pages.get(insertionPageId);
+
+                /* The temporary memory page could have been unloaded and loaded again in meantime */
+                if (!newPage.readonly) {
+                    /* Mutable page, need to check if still modifiable or already unloaded */
+                    final Lock lock = newPage.pageLock.readLock();
+                    lock.lock();
+                    try {
+                        if (!newPage.unloaded) {
+                            /* We can try to modify the page directly */
+                            inserted = newPage.put(key, record, maxLogicalPageSize);
+
+                            if (inserted) {
+                                break;
+                            }
+                        }
+                    } finally {
+                        lock.unlock();
+                    }
+
+                }
+
+                /* Try allocate a new page if no already done */
+                insertionPageId = allocateNewPage(insertionPageId);
+            }
+        }
+
+        keyToPage.put(key, insertionPageId);
         deletedKeys.remove(key);
-        if (sizeExceeded) {
-            allocateNewPage();
-        }
-        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+
         if (indexes != null) {
-            Map<String, Object> values = record.toBean(table);
-            for (AbstractIndexManager index : indexes.values()) {
-                index.recordInserted(key, values);
+            if (previous == null) {
+
+                /* Standard insert */
+                Map<String, Object> values = record.toBean(table);
+                for (AbstractIndexManager index : indexes.values()) {
+                    index.recordInserted(key, values);
+                }
+            } else {
+
+                /* If there is a previous page this is a delete and insert, we really need to update indexes
+                 * from old "deleted" values to the new ones. Previus record has already been loaded  */
+
+                Map<String, Object> prevValues = previous.toBean(table);
+                Map<String, Object> newValues = record.toBean(table);
+                for (AbstractIndexManager index : indexes.values()) {
+                    index.recordUpdated(key, prevValues, newValues);
+                }
             }
         }
 
@@ -1189,6 +1481,7 @@ public final class TableManager implements AbstractTableManager {
     }
 
     @Override
+    @Deprecated
     public void ensureMemoryLimitsDuringRecovery() {
 //        requestCheckpointIfTooDirty(false);
     }
@@ -1216,7 +1509,7 @@ public final class TableManager implements AbstractTableManager {
 
             final Set<Long> dirtyPages = pageSet.getDirtyPages();
 
-            List<Record> newPage = new ArrayList<>();
+            List<Record> buffer = new ArrayList<>();
             long newPageSize = 0;
             long flushedRecords = 0;
 
@@ -1240,21 +1533,31 @@ public final class TableManager implements AbstractTableManager {
                     if (!dirtyPageId.equals(currentPageId)) {
                         continue;
                     }
-                    newPage.add(record);
-                    newPageSize += record.getEstimatedSize();
 
-                    if (newPageSize >= maxLogicalPageSize) {
-                        createNewPage(newPage, newPageSize);
-                        flushedRecords += newPage.size();
+                    /* Flush the page if it would exceed max page size */
+                    if (newPageSize + record.getEstimatedSize() > maxLogicalPageSize) {
+                        createNewPage(buffer, newPageSize);
+                        flushedRecords += buffer.size();
                         newPageSize = 0;
-                        newPage.clear();
+                        buffer.clear();
                     }
+
+                    buffer.add(record);
+                    newPageSize += record.getEstimatedSize();
                 }
             }
 
             toKeepFlush = System.currentTimeMillis();
 
-            /* Flush dirty records (and remaining records from previous step) */
+            /*
+             * Flush dirty records (and remaining records from previous step)
+             *
+             * Any newpage remaining here is unflushed.
+             *
+             * TODO: improvement: do not rewrite and compact new pages, write as they are! It must be done
+             * when changing how dirty pages are rewritten (do no rewrite dirty & new unless they are too
+             * dirty)
+             */
             List<Long> idNewpagesSorted = new ArrayList<>(newPages.keySet());
             idNewpagesSorted.sort(Comparator.naturalOrder());
 
@@ -1272,23 +1575,25 @@ public final class TableManager implements AbstractTableManager {
                     if (!newPageId.equals(currentPageId)) {
                         continue;
                     }
-                    newPage.add(record);
-                    newPageSize += record.getEstimatedSize();
-                    if (newPageSize >= maxLogicalPageSize) {
-                        createNewPage(newPage, newPageSize);
-                        flushedRecords += newPage.size();
+
+                    if (newPageSize + record.getEstimatedSize() > maxLogicalPageSize) {
+                        createNewPage(buffer, newPageSize);
+                        flushedRecords += buffer.size();
                         newPageSize = 0;
-                        newPage.clear();
+                        buffer.clear();
                     }
+
+                    buffer.add(record);
+                    newPageSize += record.getEstimatedSize();
                 }
             }
 
             /* Flush remaining records */
-            if (!newPage.isEmpty()) {
-                createNewPage(newPage, newPageSize);
-                flushedRecords += newPage.size();
+            if (!buffer.isEmpty()) {
+                createNewPage(buffer, newPageSize);
+                flushedRecords += buffer.size();
                 newPageSize = 0;
-                newPage.clear();
+                buffer.clear();
             }
 
             dirtyFlush = System.currentTimeMillis();
@@ -1317,8 +1622,8 @@ public final class TableManager implements AbstractTableManager {
                 }
             }
 
-            TableStatus tableStatus = new TableStatus(table.name, sequenceNumber, Bytes.from_long(nextPrimaryKeyValue.get()).data, newPageId.get(),
-                pageSet.getActivePages());
+            TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
+                    Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId, pageSet.getActivePages());
             List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
             tablecheckpoint = System.currentTimeMillis();
             result.addAll(actions);
@@ -1332,7 +1637,7 @@ public final class TableManager implements AbstractTableManager {
             }
 
             newPages.clear();
-            allocateNewPage();
+            initNewPage();
             checkPointRunning = false;
         } finally {
             checkpointLock.writeLock().unlock();
@@ -1360,29 +1665,6 @@ public final class TableManager implements AbstractTableManager {
                 + "+" + delta_unload + ")"});
         }
         return result;
-    }
-
-    private long createNewPage(List<Record> newPage, long newPageSize) throws DataStorageManagerException {
-
-        long pageId = this.newPageId.getAndIncrement();
-        DataPage dataPage = buildDataPage(pageId, newPage);
-
-        LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
-            new Object[]{table.name, pageId, newPage.size(), newPageSize});
-        dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage);
-        pageSet.pageCreated(pageId);
-        pages.put(pageId, dataPage);
-        Long _pageId = pageId;
-
-        final DataPageMetaData unload = pageReplacementPolicy.add(dataPage);
-        if (unload != null) {
-            unload.getOwner().unloadPage(unload.getPageId());
-        }
-
-        for (Record record : newPage) {
-            keyToPage.put(record.key, _pageId);
-        }
-        return pageId;
     }
 
     @Override
@@ -1699,10 +1981,12 @@ public final class TableManager implements AbstractTableManager {
     }
 
     @Override
+    @Deprecated
     public void tryReleaseMemory(long reclaim) {
         releaseMemory(reclaim);
     }
 
+    @Deprecated
     private void releaseMemory(long reclaim) {
         if (reclaim <= 0) {
             return;

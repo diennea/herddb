@@ -63,7 +63,7 @@ public class ScanDuringCheckPointTest {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(),
             new MemoryCommitLogManager(), null, null);) {
-            manager.setMaxLogicalPageSize(10);
+//            manager.setMaxLogicalPageSize(10);
 //            manager.setMaxPagesUsedMemory(Long.MAX_VALUE);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);

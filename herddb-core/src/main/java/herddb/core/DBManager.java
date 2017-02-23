@@ -856,6 +856,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
+    @Deprecated
     void tryReleaseMemory(long reclaim, Supplier<Boolean> stop) {
         List<TableSpaceManager> shuffledTablespaces = new ArrayList<>(this.tablesSpaces.values());
         Collections.shuffle(shuffledTablespaces);

@@ -27,8 +27,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -108,8 +110,6 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Manages a TableSet in memory
@@ -615,6 +615,7 @@ public class TableSpaceManager {
             .anyMatch((t) -> (t.isOnTable(name)));
     }
 
+    @Deprecated
     void tryReleaseMemory(long reclaim, Supplier<Boolean> stop) {
         List<AbstractTableManager> shuffledTables = new ArrayList<>(tables.values());
         Collections.shuffle(shuffledTables);

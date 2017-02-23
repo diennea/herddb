@@ -21,20 +21,19 @@ package herddb.core;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import herddb.model.Record;
 import herddb.utils.Bytes;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * A page of data loaded in memory
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
 public class DataPage {
-
-    private static final Logger LOGGER = Logger.getLogger(DataPage.class.getName());
 
     /**
      * Page metadata used by {@link PageReplacementPolicy}
@@ -54,9 +53,13 @@ public class DataPage {
 
     public final AtomicLong usedMemory;
 
-    /**
-     * Page metadata used by {@link PageReplacementPolicy}
-     */
+    /** Access lock, exists only for mutable pages ({@code readonly == false}) */
+    public final ReadWriteLock pageLock;
+
+    /** Unloaded flag, to be accessed only under {@link #pageLock} */
+    public boolean unloaded = false;
+
+    /** Page metadata used by {@link PageReplacementPolicy} */
     public DataPageMetaData metadata;
 
     public DataPage(TableManager owner, long pageId, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
@@ -65,6 +68,8 @@ public class DataPage {
         this.readonly = readonly;
         this.data = data;
         this.usedMemory = new AtomicLong(estimatedSize);
+
+        pageLock = readonly ? null : new ReentrantReadWriteLock(false);
     }
 
     Record remove(Bytes key) {
@@ -83,12 +88,30 @@ public class DataPage {
             throw new IllegalStateException("page " + pageId + " is readonly!");
         }
 
-        Record prev = data.put(key, newRecord);
-        if (prev != null) {
-            return usedMemory.addAndGet(newRecord.value.getEstimatedSize() - prev.value.getEstimatedSize()) >= maxSize;
-        } else {
-            return usedMemory.addAndGet(newRecord.value.getEstimatedSize()) >= maxSize;
+        final Record prev = data.put(key, newRecord);
+
+        final long newSize = newRecord.getEstimatedSize();
+        if (newSize > maxSize) {
+            throw new IllegalStateException(
+                    "record too big to fit in any page " + newSize + " / " + maxSize + " bytes");
         }
+
+        final long diff = prev == null ?
+                newSize : newSize - prev.getEstimatedSize();
+
+        final long target = maxSize - diff;
+
+
+        final long old = usedMemory.getAndAccumulate(diff, (curr,change) -> curr > target ? curr : curr + diff);
+
+        if( old > target ) {
+            /* Remove the added key */
+            data.remove(key);
+
+            return false;
+        }
+
+        return true;
     }
 
     int size() {
