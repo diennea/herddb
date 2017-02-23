@@ -29,6 +29,7 @@ import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.Index;
 import herddb.model.NotLeaderException;
@@ -621,7 +622,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
             }
         } catch (StatementExecutionException err) {
-            LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ": err", err);
+            if (!(err instanceof DuplicatePrimaryKeyException)) {
+                LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ": err", err);
+            }
             Message error = Message.ERROR(null, err);
             if (err instanceof NotLeaderException) {
                 error.setParameter("notLeader", "true");
