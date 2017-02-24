@@ -132,6 +132,10 @@ public final class ServerConfiguration {
     public static final String PROPERTY_MAX_PAGES_MEMORY = "server.memstore.page.limit";
     public static final long PROPERTY_MAX_PAGES_MEMORY_DEFAULT = 0L;
 
+
+    public static final String PROPERTY_JMX_ENABLE = "server.jmx.enable";
+    public static final boolean PROPERTY_JMX_ENABLE_DEFAULT = true;
+
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();
         this.properties.putAll(properties);

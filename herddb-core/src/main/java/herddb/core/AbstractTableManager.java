@@ -55,6 +55,7 @@ public interface AbstractTableManager extends AutoCloseable {
 
     void start() throws DataStorageManagerException;
 
+    @Override
     void close();
 
     void dropTableData() throws DataStorageManagerException;

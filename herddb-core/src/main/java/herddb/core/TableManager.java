@@ -1359,7 +1359,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public void close() {
         dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.name, keyToPage);
-
     }
 
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction,

@@ -105,10 +105,12 @@ import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
+import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
+import herddb.jmx.JMXUtils;
 
 /**
  * Manages a TableSet in memory
@@ -1125,6 +1127,9 @@ public class TableSpaceManager {
         }
         TableManager tableManager = new TableManager(table, log, dbmanager.getMemoryManager(), dataStorageManager, this,
             tableSpaceUUID, transaction);
+        if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
+            JMXUtils.registerTableManagerStatsMXBean(tableSpaceName, table.name, tableManager.getStats());
+        }
         if (dumpLogSequenceNumber != null) {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
         }
@@ -1183,12 +1188,17 @@ public class TableSpaceManager {
     }
 
     public void close() throws LogNotAvailableException {
+        boolean useJmx = dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT);
         closed = true;
         if (!virtual) {
+            generalLock.writeLock().lock();
             try {
-                generalLock.writeLock().lock();
-                for (AbstractTableManager table : tables.values()) {
-                    table.close();
+                for (Map.Entry<String, AbstractTableManager> table : tables.entrySet()) {
+                    if (useJmx) {
+                        JMXUtils.unregisterTableManagerStatsMXBean(tableSpaceName, table.getKey());
+                    }
+                    table.getValue().close();
+
                 }
                 for (AbstractIndexManager index : indexes.values()) {
                     index.close();
