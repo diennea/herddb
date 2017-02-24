@@ -33,31 +33,42 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import herddb.core.Page;
+import herddb.core.PageReplacementPolicy;
 import herddb.utils.EnsureIntegerIncrementAccumulator;
 
 /**
- * Very Simple BRIN (Block Range Index) implementation
+ * Very Simple BRIN (Block Range Index) implementation with pagination managed by a {@link PageReplacementPolicy}
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
-@Deprecated
-public class BlockRangeIndex<K extends Comparable<K>, V> {
+public class PagedBlockRangeIndex<K extends Comparable<K>, V> {
 
-    private static final Logger LOG = Logger.getLogger(BlockRangeIndex.class.getName());
+    private static final Logger LOG = Logger.getLogger(PagedBlockRangeIndex.class.getName());
 
     private final int maxBlockSize;
-    private final ConcurrentNavigableMap<BlockStartKey<K>, Block<K, V>> blocks = new ConcurrentSkipListMap<>();
+    private final ConcurrentNavigableMap<BlockStartKey<K>, Block> blocks = new ConcurrentSkipListMap<>();
     private final AtomicInteger blockIdGenerator = new AtomicInteger();
 
-    private final BlockStartKey HEAD_KEY = new BlockStartKey(null, -1);
-    private final IndexDataStorage dataStorage;
-    private final int maxLoadedBlocks;
-    private final AtomicInteger loadedBlocksCount = new AtomicInteger();
+    private final BlockStartKey<K> HEAD_KEY = new BlockStartKey<>(null, -1);
+    private final IndexDataStorage<K,V> dataStorage;
+
+    private final PageReplacementPolicy pageReplacementPolicy;
+
+    public PagedBlockRangeIndex(int maxBlockSize, PageReplacementPolicy pageReplacementPolicy) {
+        this(maxBlockSize, pageReplacementPolicy, new MemoryIndexDataStorage<>());
+    }
+
+    public PagedBlockRangeIndex(int maxBlockSize, PageReplacementPolicy pageReplacementPolicy, IndexDataStorage<K,V> dataStorage) {
+        this.maxBlockSize = maxBlockSize;
+        this.pageReplacementPolicy = pageReplacementPolicy;
+        this.dataStorage = dataStorage;
+    }
 
     private final class BlockStartKey<K extends Comparable<K>> implements Comparable<BlockStartKey<K>> {
 
@@ -125,20 +136,28 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
     }
 
-    class Block<SK extends Comparable<SK>, SV> {
+    private final class BRINPage extends Page<Block> {
+        public BRINPage(Block owner, long blockId) {
+            super(owner, blockId);
+        }
+    }
 
-        final BlockStartKey<SK> key;
-        SK minKey;
-        SK maxKey;
-        NavigableMap<SK, List<SV>> values;
+    class Block implements Page.Owner {
+
+        final BlockStartKey<K> key;
+        K minKey;
+        K maxKey;
+        NavigableMap<K, List<V>> values;
         int size;
-        Block<SK, SV> next;
+        Block next;
         private final ReentrantLock lock = new ReentrantLock(true);
         private volatile boolean loaded;
         private volatile boolean dirty;
         private volatile long pageId;
 
-        public Block(int blockId, SK firstKey, SK lastKey, int size, long pageId) {
+        private final Page<Block> page;
+
+        public Block(int blockId, K firstKey, K lastKey, int size, long pageId) {
             this.key = new BlockStartKey<>(firstKey, blockId);
             this.minKey = firstKey;
             this.maxKey = lastKey;
@@ -146,12 +165,15 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.loaded = false;
             this.dirty = false;
             this.pageId = pageId;
+
+            /* Immutable Block ID not mutable pageID */
+            page = new BRINPage(this, blockId);
         }
 
-        public Block(SK firstKey, SV firstValue) {
+        public Block(K firstKey, V firstValue) {
             this.key = HEAD_KEY;
             this.minKey = firstKey;
-            List<SV> firstKeyValues = new ArrayList<>(maxBlockSize);
+            List<V> firstKeyValues = new ArrayList<>(maxBlockSize);
             firstKeyValues.add(firstValue);
             values = new TreeMap<>();
             values.put(firstKey, firstKeyValues);
@@ -160,9 +182,15 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.loaded = true;
             this.dirty = true;
             this.pageId = IndexDataStorage.NEW_PAGE;
+
+            /* Immutable Block ID not mutable pageID */
+            page = new BRINPage(this, HEAD_KEY.blockId);
+
+            /* Unpon "loading" add the block to knowledgebase */
+            pageReplacementPolicy.add(page);
         }
 
-        private Block(SK newOtherMinKey, SK newOtherMaxKey, NavigableMap<SK, List<SV>> other_values, int size) {
+        private Block(K newOtherMinKey, K newOtherMaxKey, NavigableMap<K, List<V>> other_values, int size) {
             this.key = new BlockStartKey<>(newOtherMinKey, blockIdGenerator.incrementAndGet());
             this.minKey = newOtherMinKey;
             this.values = other_values;
@@ -171,6 +199,12 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             this.loaded = true;
             this.dirty = true;
             this.pageId = IndexDataStorage.NEW_PAGE;
+
+            /* Immutable Block ID not mutable pageID */
+            page = new BRINPage(this, key.blockId);
+
+            /* Unpon "loading" add the block to knowledgebase */
+            pageReplacementPolicy.add(page);
         }
 
         @Override
@@ -178,8 +212,8 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             return "Block{" + "key=" + key + ", minKey=" + minKey + ", maxKey=" + maxKey + ", size=" + size;
         }
 
-        private void mergeAddValue(SK key1, SV value, Map<SK, List<SV>> values) {
-            List<SV> valuesForKey = values.get(key1);
+        private void mergeAddValue(K key1, V value, Map<K, List<V>> values) {
+            List<V> valuesForKey = values.get(key1);
             if (valuesForKey == null) {
                 valuesForKey = new ArrayList<>();
                 values.put(key1, valuesForKey);
@@ -187,10 +221,10 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             valuesForKey.add(value);
         }
 
-        boolean addValue(SK key, SV value, ConcurrentNavigableMap<BlockStartKey<SK>, Block<SK, SV>> blocks) {
+        boolean addValue(K key, V value, ConcurrentNavigableMap<BlockStartKey<K>, Block> blocks) {
             lock.lock();
             try {
-                Block<SK, SV> _next = next;
+                Block _next = next;
                 if (_next != null && _next.minKey.compareTo(key) <= 0) {
                     // unfortunately this occours during split
                     // put #1 -> causes split
@@ -218,12 +252,12 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             return true;
         }
 
-        boolean delete(SK key, SV value, Set<BlockStartKey<SK>> visitedBlocks) {
+        boolean delete(K key, V value, Set<BlockStartKey<K>> visitedBlocks) {
             visitedBlocks.add(this.key);
             lock.lock();
             try {
                 ensureBlockLoaded();
-                List<SV> valuesForKey = values.get(key);
+                List<V> valuesForKey = values.get(key);
                 if (valuesForKey != null) {
                     boolean removed = valuesForKey.remove(value);
                     if (removed) {
@@ -247,22 +281,26 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 try {
                     values = new TreeMap<>();
                     List<Map.Entry<K, V>> loadDataPage = dataStorage.loadDataPage(pageId);
-                    for (Map.Entry entry : loadDataPage) {
-                        mergeAddValue((SK) entry.getKey(), (SV) entry.getValue(), values);
+                    for (Map.Entry<K,V> entry : loadDataPage) {
+                        mergeAddValue(entry.getKey(), entry.getValue(), values);
                     }
                     loaded = true;
-                    loadedBlocksCount.incrementAndGet();
+
+                    /* Unpon loading add the block to knowledgebase */
+                    pageReplacementPolicy.add(page);
                 } catch (IOException err) {
                     throw new RuntimeException(err);
                 }
+            } else {
+                pageReplacementPolicy.pageHit(page);
             }
         }
 
-        Stream<SV> lookUpRange(SK firstKey, SK lastKey, Set<BlockStartKey<SK>> visitedBlocks) {
+        Stream<V> lookUpRange(K firstKey, K lastKey, Set<BlockStartKey<K>> visitedBlocks) {
             if (!visitedBlocks.add(this.key)) {
                 return null;
             }
-            List<SV> result = new ArrayList<>();
+            List<V> result = new ArrayList<>();
             lock.lock();
             try {
                 if (firstKey != null && lastKey != null) {
@@ -270,7 +308,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                     // index seek case
                     ensureBlockLoaded();
                     if (firstKey.equals(lastKey)) {
-                        List<SV> seek = values.get(firstKey);
+                        List<V> seek = values.get(firstKey);
                         if (seek != null) {
                             result.addAll(seek);
                         }
@@ -296,9 +334,9 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             } finally {
                 lock.unlock();
             }
-            Block<SK, SV> _next = this.next;
+            Block _next = this.next;
             if (_next != null && !visitedBlocks.contains(_next.key)) {
-                Stream<SV> lookUpRangeOnNext = _next.lookUpRange(firstKey, lastKey, visitedBlocks);
+                Stream<V> lookUpRangeOnNext = _next.lookUpRange(firstKey, lastKey, visitedBlocks);
                 if (lookUpRangeOnNext != null && !result.isEmpty()) {
                     return Stream.concat(result.stream(), lookUpRangeOnNext);
                 } else if (lookUpRangeOnNext != null) {
@@ -315,20 +353,20 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             }
         }
 
-        private void split(ConcurrentNavigableMap<BlockStartKey<SK>, Block<SK, SV>> blocks) {
+        private void split(ConcurrentNavigableMap<BlockStartKey<K>, Block> blocks) {
             if (size < maxBlockSize) {
                 throw new IllegalStateException();
             }
 
-            NavigableMap<SK, List<SV>> keep_values = new TreeMap<>();
-            NavigableMap<SK, List<SV>> other_values = new TreeMap<>();
+            NavigableMap<K, List<V>> keep_values = new TreeMap<>();
+            NavigableMap<K, List<V>> other_values = new TreeMap<>();
             final int splitmid = (maxBlockSize / 2) - 1;
             int count = 0;
             int otherSize = 0;
             int mySize = 0;
-            for (Map.Entry<SK, List<SV>> entry : values.entrySet()) {
-                SK key = entry.getKey();
-                for (SV v : entry.getValue()) {
+            for (Map.Entry<K, List<V>> entry : values.entrySet()) {
+                K key = entry.getKey();
+                for (V v : entry.getValue()) {
                     if (count <= splitmid) {
                         mergeAddValue(key, v, keep_values);
                         mySize++;
@@ -341,17 +379,15 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             }
 
             if (!other_values.isEmpty()) {
-                SK newOtherMinKey = other_values.firstKey();
-                SK newOtherMaxKey = other_values.lastKey();
-                Block<SK, SV> newblock = new Block<>(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
+                K newOtherMinKey = other_values.firstKey();
+                K newOtherMaxKey = other_values.lastKey();
+                Block newblock = new Block(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
 
                 // access to external field, this is the cause of most of the concurrency problems
                 blocks.put(newblock.key, newblock);
 
-                loadedBlocksCount.incrementAndGet();
-
-                SK firstKey = keep_values.firstKey();
-                SK lastKey = keep_values.lastKey();
+                K firstKey = keep_values.firstKey();
+                K lastKey = keep_values.lastKey();
                 this.next = newblock;
                 this.minKey = firstKey;
                 this.maxKey = lastKey;
@@ -360,13 +396,13 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
             }
         }
 
-        private BlockRangeIndexMetadata.BlockMetadata<SK> checkpoint() throws IOException {
+        private BlockRangeIndexMetadata.BlockMetadata<K> checkpoint() throws IOException {
             lock.lock();
             try {
                 if (!dirty || !loaded) {
                     return new BlockRangeIndexMetadata.BlockMetadata<>(minKey, maxKey, key.blockId, size, pageId);
                 }
-                List<Map.Entry<SK, SV>> result = new ArrayList<>();
+                List<Map.Entry<K, V>> result = new ArrayList<>();
                 values.forEach((k, l) -> {
                     l.forEach(v -> {
                         result.add(new AbstractMap.SimpleImmutableEntry<>(k, v));
@@ -394,7 +430,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
                 }
                 values = null;
                 loaded = false;
-                loadedBlocksCount.decrementAndGet();
+
                 return true;
             } finally {
                 lock.unlock();
@@ -402,38 +438,34 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
 
         }
 
+        @Override
+        public void unload(long pageId) {
+            if (page.pageId == this.page.pageId) {
+                try {
+                    unload();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                throw new IllegalArgumentException("Expecting to receive managed page " + this.page.pageId + " got " + pageId);
+            }
+        }
+
     }
 
-    public BlockRangeIndex(int maxBlockSize) {
-        this(maxBlockSize, Integer.MAX_VALUE, new MemoryIndexDataStorage());
-    }
-
-    public BlockRangeIndex(int maxBlockSize, int maxLoadedBlocks, IndexDataStorage dataStorage) {
-        this.maxBlockSize = maxBlockSize;
-        this.dataStorage = dataStorage;
-        this.maxLoadedBlocks = maxLoadedBlocks;
-    }
 
     public int getNumBlocks() {
         return blocks.size();
     }
 
-    public int getLoadedBlocksCount() {
-        return loadedBlocksCount.get();
-    }
-
     public void put(K key, V value) {
         BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
-        while (!tryPut(key, value, lookUp)) {
-        }
-        if (loadedBlocksCount.get() > maxLoadedBlocks) {
-            unloadBlocks();
-        }
+        while (!tryPut(key, value, lookUp)) {}
     }
 
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
         List<BlockRangeIndexMetadata.BlockMetadata<K>> blocksMetadata = new ArrayList<>();
-        for (Block<K, V> block : blocks.values()) {
+        for (Block block : blocks.values()) {
             BlockRangeIndexMetadata.BlockMetadata<K> metadata = block.checkpoint();
             if (metadata.size > 0) {
                 LOG.severe("block " + block.key + " has " + metadata.size + " records at checkpoint");
@@ -446,70 +478,33 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
     }
 
     public void unloadAllBlocks() throws IOException {
-        for (Block<K, V> block : blocks.values()) {
+        for (Block block : blocks.values()) {
             block.unload();
         }
     }
 
-    private void unloadBlocks() {
-        try {
-            int diff = loadedBlocksCount.get() - maxLoadedBlocks;
-            if (diff <= 0) {
-                return;
-            }
-            int unloadedCount = 0;
-            for (Block<K, V> block : blocks.values()) {
-                if (!block.loaded) {
-                    // access out of lock
-                    continue;
-                }
-                boolean unloaded = block.unload();
-                if (unloaded) {
-                    unloadedCount++;
-                    if (unloadedCount >= diff) {
-                        break;
-                    }
-                }
-            }
-            LOG.log(Level.SEVERE, "try unloadBlocks {0} blocks unloaded", unloadedCount);
-        } catch (IOException error) {
-            throw new RuntimeException(error);
-        }
-    }
-
     private boolean tryPut(K key, V value, BlockStartKey<K> lookUp) {
-        Map.Entry<BlockStartKey<K>, Block<K, V>> segmentEntry = blocks.floorEntry(lookUp);
+        Map.Entry<BlockStartKey<K>, Block> segmentEntry = blocks.floorEntry(lookUp);
         if (segmentEntry == null) {
-            Block<K, V> headBlock = new Block<>(key, value);
+            Block headBlock = new Block(key, value);
             boolean result = blocks.putIfAbsent(HEAD_KEY, headBlock) == null;
-            loadedBlocksCount.incrementAndGet();
             return result;
         }
-        Block<K, V> choosenSegment = segmentEntry.getValue();
+        Block choosenSegment = segmentEntry.getValue();
         return choosenSegment.addValue(key, value, blocks);
+
     }
 
     public void delete(K key, V value) {
         Set<BlockStartKey<K>> visitedBlocks = new HashSet<>();
-        blocks.values().forEach(b -> {
-            b.delete(key, value, visitedBlocks);
-        });
-        if (loadedBlocksCount.get() > maxLoadedBlocks) {
-            unloadBlocks();
-        }
+        blocks.values().forEach(b -> b.delete(key, value, visitedBlocks));
     }
 
     public Stream<V> query(K firstKey, K lastKey) {
 
         List<Block> candidates = findCandidates(firstKey, lastKey);
         Set<BlockStartKey<K>> visitedBlocks = new HashSet<>();
-        return candidates.stream().flatMap((s) -> {
-            Stream<V> lookUpRange = s.lookUpRange(firstKey, lastKey, visitedBlocks);
-            if (loadedBlocksCount.get() > maxLoadedBlocks) {
-                unloadBlocks();
-            }
-            return lookUpRange;
-        });
+        return candidates.stream().flatMap((s) -> s.lookUpRange(firstKey, lastKey, visitedBlocks));
     }
 
     public List<V> lookUpRange(K firstKey, K lastKey) {
@@ -564,7 +559,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         this.blocks.clear();
 
         for (BlockRangeIndexMetadata.BlockMetadata<K> blockData : metadata.getBlocksMetadata()) {
-            Block<K, V> block = new Block<>(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size, blockData.pageId);
+            Block block = new Block(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size, blockData.pageId);
             blocks.put(block.key, block);
             LOG.severe("boot block at " + block.key + " " + block.minKey + " - " + block.maxKey);
             blockIdGenerator.accumulateAndGet(block.key.blockId, EnsureIntegerIncrementAccumulator.INSTANCE);
@@ -575,7 +570,7 @@ public class BlockRangeIndex<K extends Comparable<K>, V> {
         blocks.clear();
     }
 
-    ConcurrentNavigableMap<BlockStartKey<K>, Block<K, V>> getBlocks() {
+    ConcurrentNavigableMap<BlockStartKey<K>, Block> getBlocks() {
         return blocks;
     }
 

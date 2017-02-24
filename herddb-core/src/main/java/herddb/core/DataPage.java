@@ -33,20 +33,8 @@ import herddb.utils.Bytes;
  * @author enrico.olivelli
  * @author diego.salvi
  */
-public class DataPage {
+public class DataPage extends Page<TableManager> {
 
-    /**
-     * Page metadata used by {@link PageReplacementPolicy}
-     */
-    public static interface DataPageMetaData {
-
-        public TableManager getOwner();
-
-        public long getPageId();
-    }
-
-    public final TableManager owner;
-    public final long pageId;
     public final long maxSize;
     public final boolean readonly;
 
@@ -60,12 +48,8 @@ public class DataPage {
     /** Unloaded flag, to be accessed only under {@link #pageLock} */
     public boolean unloaded = false;
 
-    /** Page metadata used by {@link PageReplacementPolicy} */
-    public DataPageMetaData metadata;
-
     public DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
-        this.owner = owner;
-        this.pageId = pageId;
+        super(owner,pageId);
         this.maxSize = maxSize;
         this.readonly = readonly;
         this.data = data;

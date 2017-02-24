@@ -20,9 +20,6 @@
 package herddb.core;
 
 import java.util.Collection;
-import java.util.concurrent.ConcurrentMap;
-
-import herddb.core.DataPage.DataPageMetaData;
 
 /**
  * Cache replacement policy for memory pagination.
@@ -37,7 +34,14 @@ import herddb.core.DataPage.DataPageMetaData;
 public interface PageReplacementPolicy {
 
     /**
-     * Add a new {@code DataPage} to memory.
+     * Track a page cache hit.
+     *
+     * @param page for which track an hit
+     */
+    public void pageHit(Page<?> page);
+
+    /**
+     * Add a new {@code Page} to memory.
      * <p>
      * Adding a new page could force an older page to be unloaded
      * </p>
@@ -45,38 +49,38 @@ public interface PageReplacementPolicy {
      * @param page page to be added
      * @return selected page to be unloaded or {@code null}
      */
-    public DataPageMetaData add(DataPage page);
+    public Page.Metadata add(Page<?> page);
 
     /**
-     * Remove a {@code DataPage} from memory.
+     * Remove a {@code Page} from memory.
      *
      * @param page page to be removed.
      * @return {@code true} if the memory really contained the given page
      */
-    public boolean remove(DataPage page);
+    public boolean remove(Page<?> page);
 
     /**
-     * Remove many {@code DataPage DataPages} from memory.
+     * Remove many {@code Page Pages} from memory.
      * <p>
-     * This method is logically equivalent to multiple {@link #remove(DataPage)} invocations but is expected
+     * This method is logically equivalent to multiple {@link #remove(Page)} invocations but is expected
      * to be more efficient.
      * </p>
      *
      * @param pages pages to be removed.
      */
-    public void remove(Collection<DataPage> pages);
+    public <P extends Page<?>> void remove(Collection<P> pages);
 
     /**
-     * Returns the current number of {@link DataPage DataPages} memorized.
+     * Returns the current number of {@link Page Pages} memorized.
      *
-     * @return current number of <tt>DataPages</tt>
+     * @return current number of <tt>Pages</tt>
      */
     public int size();
 
     /**
-     * Returns the maximum number of {@link DataPage DataPages} memorizable.
+     * Returns the maximum number of {@link Page Pages} memorizable.
      *
-     * @return maximum number of <tt>DataPages</tt>
+     * @return maximum number of <tt>Pages</tt>
      */
     public int capacity();
 
@@ -84,15 +88,5 @@ public interface PageReplacementPolicy {
      * Clear any memorized data.
      */
     public void clear();
-
-    /**
-     * Returns a {@link ConcurrentMap} which must be used to store and access pages.
-     * <p>
-     * Map access can be observed by the {@link PageReplacementPolicy} for its internal calculations.
-     * </p>
-     *
-     * @return a map to store pages
-     */
-    public ConcurrentMap<Long, DataPage> createObservedPagesMap();
 
 }

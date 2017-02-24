@@ -24,12 +24,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import herddb.core.DataPage.DataPageMetaData;
 
 /**
  * Simple randomic implementation of {@link PageReplacementPolicy}.
@@ -57,7 +53,7 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
 
 
     @Override
-    public PlainMetadata add(DataPage page) {
+    public PlainMetadata add(Page<?> page) {
         lock.lock();
 
         final PlainMetadata metadata = new PlainMetadata(page);
@@ -120,8 +116,8 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
 
 
     @Override
-    public void remove(Collection<DataPage> pages) {
-        for(DataPage page : pages) {
+    public <P extends Page<?>> void remove(Collection<P> pages) {
+        for(Page<?> page : pages) {
             remove(page);
         }
     }
@@ -129,7 +125,7 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
 
 
     @Override
-    public boolean remove(DataPage page) {
+    public boolean remove(Page<?> page) {
         lock.lock();
 
         final PlainMetadata metadata = (PlainMetadata) page.metadata;
@@ -166,33 +162,26 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         }
     }
 
-
     @Override
-    public ConcurrentMap<Long, DataPage> createObservedPagesMap() {
+    public void pageHit(Page<?> page) {
         /* No observation needed in a random strategy */
-        return new ConcurrentHashMap<>();
     }
 
     /**
-     * Implementation of {@link DataPageMetaData} with all data needed for {@link RandomPageReplacement}.
+     * Implementation of {@link Page.Metadata} with all data needed for {@link RandomPageReplacement}.
      *
      * @author diego.salvi
      */
-    private static final class PlainMetadata implements DataPageMetaData {
-
-        public final TableManager owner;
-        public final long pageId;
+    private static final class PlainMetadata extends Page.Metadata {
 
         private final int hashcode;
 
-        public PlainMetadata(DataPage datapage) {
+        public PlainMetadata(Page<?> datapage) {
             this(datapage.owner, datapage.pageId);
         }
 
-        public PlainMetadata(TableManager owner, long pageId) {
-            super();
-            this.owner = owner;
-            this.pageId = pageId;
+        public PlainMetadata(Page.Owner owner, long pageId) {
+            super(owner,pageId);
 
             hashcode = Objects.hash(owner,pageId);
         }
@@ -225,16 +214,6 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
                 return false;
             }
             return true;
-        }
-
-        @Override
-        public TableManager getOwner() {
-            return owner;
-        }
-
-        @Override
-        public long getPageId() {
-            return pageId;
         }
 
         @Override

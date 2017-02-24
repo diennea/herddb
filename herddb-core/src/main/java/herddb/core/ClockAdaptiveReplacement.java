@@ -2,14 +2,11 @@ package herddb.core;
 
 import java.util.Collection;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import herddb.core.DataPage.DataPageMetaData;
 import herddb.utils.ListWithMap;
 
 /**
@@ -87,7 +84,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     }
 
     @Override
-    public DataPageMetaData add(DataPage page) {
+    public Page.Metadata add(Page<?> page) {
         lock.lock();
         try {
 
@@ -100,7 +97,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         }
     }
 
-    public DataPageMetaData pop() {
+    public Page.Metadata pop() {
         lock.lock();
         try {
             return unsafeReplace();
@@ -110,10 +107,10 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     }
 
     @Override
-    public void remove(Collection<DataPage> pages) {
+    public <P extends Page<?>> void remove(Collection<P> pages) {
         lock.lock();
         try {
-            for(DataPage page : pages) {
+            for(Page<?> page : pages) {
                 unsafeRemove((CARMetadata) page.metadata);
             }
         } finally {
@@ -122,7 +119,7 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     }
 
     @Override
-    public boolean remove(DataPage page) {
+    public boolean remove(Page<?> page) {
         lock.lock();
         try {
             return unsafeRemove((CARMetadata) page.metadata);
@@ -148,15 +145,15 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
     }
 
     @Override
-    public ConcurrentMap<Long, DataPage> createObservedPagesMap() {
-        return new ObservedMap();
+    public void pageHit(Page<?> page) {
+        hit(page);
     }
 
     /* *********************** */
     /* *** PRIVATE METHODS *** */
     /* *********************** */
 
-    private DataPageMetaData unsafeAdd(CARMetadata page) {
+    private Page.Metadata unsafeAdd(CARMetadata page) {
 
         if (COMPILE_EXPENSIVE_LOGS)
             LOGGER.log(Level.SEVERE, "Status[add started]: p = {0}, |T1| = {1}, |T2| = {2}, |B1| = {3}, |B2| = {4}, adding {5}",
@@ -375,59 +372,38 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
         return false;
     }
 
+    /** Signal a page hit if really the page exists and ase the right metadata */
+    private static final <P extends Page<?>> P hit(P page) {
+
+        if (page != null && page.metadata != null) {
+            /* Set the page as referenced */
+            ((CARMetadata)page.metadata).reference = true;
+        }
+
+        return page;
+    }
+
     /* *********************** */
     /* *** PRIVATE CLASSES *** */
     /* *********************** */
 
     /**
-     * Really observes only map gets setting the page as referenced when <i>getted</i>.
-     *
-     * Just created pages will not be referenced if not accessed from this map (which is a good thing, new
-     * pages shouldn't be <i>referenced</i> at their first use)
+     * Implementation of {@link Page.Metadata} with all data needed for {@link ClockAdaptiveReplacement}.
      *
      * @author diego.salvi
      */
-    private static final class ObservedMap extends ConcurrentHashMap<Long, DataPage> {
-
-        /** Default Serial Version UID */
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public DataPage get(Object key) {
-
-            final DataPage page = super.get(key);
-
-            if (page != null && page.metadata != null) {
-                /* Set the page as referenced */
-                ((CARMetadata)page.metadata).reference = true;
-            }
-
-            return page;
-        }
-    }
-
-    /**
-     * Implementation of {@link DataPageMetaData} with all data needed for {@link ClockAdaptiveReplacement}.
-     *
-     * @author diego.salvi
-     */
-    private static final class CARMetadata implements DataPageMetaData {
-
-        public final TableManager owner;
-        public final long pageId;
+    private static final class CARMetadata extends Page.Metadata {
 
         public volatile boolean reference;
 
         private final int hashcode;
 
-        public CARMetadata(DataPage datapage) {
+        public CARMetadata(Page<?> datapage) {
             this(datapage.owner, datapage.pageId);
         }
 
-        public CARMetadata(TableManager owner, long pageId) {
-            super();
-            this.owner = owner;
-            this.pageId = pageId;
+        public CARMetadata(Page.Owner owner, long pageId) {
+            super(owner,pageId);
 
             hashcode = Objects.hash(owner,pageId);
 
@@ -462,16 +438,6 @@ public class ClockAdaptiveReplacement implements PageReplacementPolicy {
                 return false;
             }
             return true;
-        }
-
-        @Override
-        public TableManager getOwner() {
-            return owner;
-        }
-
-        @Override
-        public long getPageId() {
-            return pageId;
         }
 
         @Override

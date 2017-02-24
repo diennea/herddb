@@ -40,6 +40,8 @@ import javax.xml.ws.Holder;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
+import herddb.core.MemoryManager;
+import herddb.core.PageReplacementPolicy;
 import herddb.core.PostCheckpointAction;
 import herddb.core.TableSpaceManager;
 import herddb.index.IndexOperation;
@@ -64,24 +66,24 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 
 /**
- * Block-range like index
+ * Block-range like index with pagination managed by a {@link PageReplacementPolicy}
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
-@Deprecated
-public class BRINIndexManager extends AbstractIndexManager {
+public class PagedBRINIndexManager extends AbstractIndexManager {
 
-    private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(PagedBRINIndexManager.class.getName());
     public static final int MAX_BLOCK_SIZE = 10000;
     public static final int MAX_LOADED_BLOCKS = 1000;
     LogSequenceNumber bootSequenceNumber;
     private final AtomicLong newPageId = new AtomicLong(1);
-    private final BlockRangeIndex<Bytes, Bytes> data;
+    private final PagedBlockRangeIndex<Bytes, Bytes> data;
     private final IndexDataStorage<Bytes, Bytes> storageLayer = new IndexDataStorageImpl();
 
-    public BRINIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
+    public PagedBRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
-        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, MAX_LOADED_BLOCKS, storageLayer);
+        this.data = new PagedBlockRangeIndex<>(MAX_BLOCK_SIZE, memoryManager.getPageReplacementPolicy(), storageLayer);
     }
 
     private static final class PageContents {

@@ -48,7 +48,6 @@ import java.util.stream.Stream;
 
 import javax.xml.ws.Holder;
 
-import herddb.core.DataPage.DataPageMetaData;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
@@ -104,7 +103,7 @@ import herddb.utils.SystemProperties;
  * @author enrico.olivelli
  * @author diego.salvi
  */
-public final class TableManager implements AbstractTableManager {
+public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
@@ -298,8 +297,8 @@ public final class TableManager implements AbstractTableManager {
         this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.name);
 
         this.pageReplacementPolicy = memoryManager.getPageReplacementPolicy();
-        this.pages = pageReplacementPolicy.createObservedPagesMap();
-        this.newPages = pageReplacementPolicy.createObservedPagesMap();
+        this.pages = new ConcurrentHashMap<>();
+        this.newPages = new ConcurrentHashMap<>();
     }
 
     private TableContext buildTableContext() {
@@ -476,9 +475,9 @@ public final class TableManager implements AbstractTableManager {
 
         /* We mustn't update currentDirtyRecordsPage. This page isn't created to host live dirty data */
 
-        final DataPageMetaData unload = pageReplacementPolicy.add(dataPage);
+        final Page.Metadata unload = pageReplacementPolicy.add(dataPage);
         if (unload != null) {
-            unload.getOwner().unloadPage(unload.getPageId());
+            unload.owner.unload(unload.pageId);
         }
 
         for (Bytes key : newPage.keySet()) {
@@ -492,7 +491,7 @@ public final class TableManager implements AbstractTableManager {
         nextPageLock.lock();
 
         final Long newId;
-        DataPageMetaData unload = null;
+        Page.Metadata unload = null;
         try {
 
 //            if (lastKnownPageId == nextPageId - 1) {
@@ -548,7 +547,7 @@ public final class TableManager implements AbstractTableManager {
 
         /* Dereferenced page unload. Out of locking */
         if (unload != null) {
-            unload.getOwner().unloadPage(unload.getPageId());
+            unload.owner.unload(unload.pageId);
         }
 
         /* Both created now or already created */
@@ -578,7 +577,8 @@ public final class TableManager implements AbstractTableManager {
         currentDirtyRecordsPage.set(newId);
     }
 
-    private void unloadPage(long pageId) {
+    @Override
+    public void unload(long pageId) {
         pages.computeIfPresent(pageId, (k, remove) -> {
             unloadedPagesCount.increment();
             LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
@@ -984,6 +984,10 @@ public final class TableManager implements AbstractTableManager {
             /* We don't need the page if isn't loaded or isn't a mutable new page */
             page = newPages.get(pageId);
             previous = null;
+
+            if (page != null) {
+                pageReplacementPolicy.pageHit(page);
+            }
         } else {
             /* We really need the page for update index old values */
             page = loadPageToMemory(pageId, false);
@@ -1057,6 +1061,10 @@ public final class TableManager implements AbstractTableManager {
             /* We don't need the page if isn't loaded or isn't a mutable new page*/
             prevPage = newPages.get(prevPageId);
             previous = null;
+
+            if (prevPage != null) {
+                pageReplacementPolicy.pageHit(prevPage);
+            }
         } else {
             /* We really need the page for update index old values */
             prevPage = loadPageToMemory(prevPageId, false);
@@ -1098,24 +1106,28 @@ public final class TableManager implements AbstractTableManager {
             insertionPageId = currentDirtyRecordsPage.get();
 
             while (true) {
-                final DataPage newPage = pages.get(insertionPageId);
+                final DataPage newPage = newPages.get(insertionPageId);
 
-                /* The temporary memory page could have been unloaded and loaded again in meantime */
-                if (!newPage.readonly) {
-                    /* Mutable page, need to check if still modifiable or already unloaded */
-                    final Lock lock = newPage.pageLock.readLock();
-                    lock.lock();
-                    try {
-                        if (!newPage.unloaded) {
-                            /* We can try to modify the page directly */
-                            inserted = newPage.put(record);
+                if (newPage != null) {
+                    pageReplacementPolicy.pageHit(newPage);
 
-                            if (inserted) {
-                                break;
+                    /* The temporary memory page could have been unloaded and loaded again in meantime */
+                    if (!newPage.readonly) {
+                        /* Mutable page, need to check if still modifiable or already unloaded */
+                        final Lock lock = newPage.pageLock.readLock();
+                        lock.lock();
+                        try {
+                            if (!newPage.unloaded) {
+                                /* We can try to modify the page directly */
+                                inserted = newPage.put(record);
+
+                                if (inserted) {
+                                    break;
+                                }
                             }
+                        } finally {
+                            lock.unlock();
                         }
-                    } finally {
-                        lock.unlock();
                     }
                 }
 
@@ -1227,6 +1239,10 @@ public final class TableManager implements AbstractTableManager {
                 prevPage = newPages.get(prevPageId);
                 previous = null;
 
+                if (prevPage != null) {
+                    pageReplacementPolicy.pageHit(prevPage);
+                }
+
             } else {
                 /* We really need the page for update index old values */
                 prevPage = loadPageToMemory(prevPageId, false);
@@ -1276,26 +1292,30 @@ public final class TableManager implements AbstractTableManager {
             insertionPageId = currentDirtyRecordsPage.get();
 
             while (true) {
-                final DataPage newPage = pages.get(insertionPageId);
+                final DataPage newPage = newPages.get(insertionPageId);
 
-                /* The temporary memory page could have been unloaded and loaded again in meantime */
-                if (!newPage.readonly) {
-                    /* Mutable page, need to check if still modifiable or already unloaded */
-                    final Lock lock = newPage.pageLock.readLock();
-                    lock.lock();
-                    try {
-                        if (!newPage.unloaded) {
-                            /* We can try to modify the page directly */
-                            inserted = newPage.put(record);
+                if (newPage != null) {
+                    pageReplacementPolicy.pageHit(newPage);
 
-                            if (inserted) {
-                                break;
+                    /* The temporary memory page could have been unloaded and loaded again in meantime */
+                    if (!newPage.readonly) {
+                        /* Mutable page, need to check if still modifiable or already unloaded */
+                        final Lock lock = newPage.pageLock.readLock();
+                        lock.lock();
+                        try {
+                            if (!newPage.unloaded) {
+                                /* We can try to modify the page directly */
+                                inserted = newPage.put(record);
+
+                                if (inserted) {
+                                    break;
+                                }
                             }
+                        } finally {
+                            lock.unlock();
                         }
-                    } finally {
-                        lock.unlock();
-                    }
 
+                    }
                 }
 
                 /* Try allocate a new page if no already done */
@@ -1411,6 +1431,7 @@ public final class TableManager implements AbstractTableManager {
     private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
         DataPage result = pages.get(pageId);
         if (result != null) {
+            pageReplacementPolicy.pageHit(result);
             return result;
         }
 
@@ -1440,9 +1461,9 @@ public final class TableManager implements AbstractTableManager {
             if (computed.get()) {
                 _ioAndLock = System.currentTimeMillis();
 
-                final DataPageMetaData unload = pageReplacementPolicy.add(result);
+                final Page.Metadata unload = pageReplacementPolicy.add(result);
                 if (unload != null) {
-                    unload.getOwner().unloadPage(unload.getPageId());
+                    unload.owner.unload(unload.pageId);
                 }
             }
         } catch (RuntimeException error) {
@@ -1874,7 +1895,7 @@ public final class TableManager implements AbstractTableManager {
         DataPage dataPage;
         if (localScanPageCache == null
             || !ENABLE_LOCAL_SCAN_PAGE_CACHE
-            || newPages.containsKey(pageId)) {
+            || pages.containsKey(pageId)) {
             dataPage = loadPageToMemory(pageId, false);
         } else {
             if (pageId.equals(localScanPageCache.pageId)) {
@@ -1894,6 +1915,8 @@ public final class TableManager implements AbstractTableManager {
                         localScanPageCache.value = dataPage;
                         localScanPageCache.pageId = pageId;
                     }
+                } else {
+                    pageReplacementPolicy.pageHit(dataPage);
                 }
             }
         }

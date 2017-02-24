@@ -23,12 +23,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
-import herddb.core.DataPage.DataPageMetaData;
 
 /**
  * Basic implementation of ClockPro algorithm.
@@ -107,7 +103,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
     }
 
     @Override
-    public CPMetadata add(DataPage page) {
+    public CPMetadata add(Page<?> page) {
         lock.lock();
         try {
 
@@ -118,7 +114,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
     }
 
     @Override
-    public boolean remove(DataPage page) {
+    public boolean remove(Page<?> page) {
         lock.lock();
         try {
 
@@ -129,10 +125,10 @@ public class ClockProPolicy implements PageReplacementPolicy {
     }
 
     @Override
-    public void remove(Collection<DataPage> pages) {
+    public <P extends Page<?>> void remove(Collection<P> pages) {
         lock.lock();
         try {
-            for(DataPage page : pages) {
+            for(Page<?> page : pages) {
                 unsafeRemove((CPMetadata) page.metadata);
             }
         } finally {
@@ -168,15 +164,15 @@ public class ClockProPolicy implements PageReplacementPolicy {
     }
 
     @Override
-    public ConcurrentMap<Long, DataPage> createObservedPagesMap() {
-        return new ObservedMap();
+    public void pageHit(Page<?> page) {
+        hit(page);
     }
 
     /* *********************** */
     /* *** PRIVATE METHODS *** */
     /* *********************** */
 
-    private CPMetadata unsafeAdd(DataPage page) {
+    private CPMetadata unsafeAdd(Page<?> page) {
 
         if (handHot == null) {
 
@@ -218,7 +214,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
     }
 
-    private CPMetadata unsafeAdd(DataPage page, boolean freespace) {
+    private CPMetadata unsafeAdd(Page<?> page, boolean freespace) {
 
         /*
          * When there is a page fault, the faulted page must be a cold page.
@@ -717,49 +713,27 @@ public class ClockProPolicy implements PageReplacementPolicy {
         node.next = node.prev = null;
     }
 
+    /** Signal a page hit if really the page exists and ase the right metadata */
+    private static final <P extends Page<?>> P hit(P page) {
 
+        if (page != null && page.metadata != null) {
+            /* Set the page as referenced */
+            ((CPMetadata)page.metadata).reference = true;
+        }
+
+        return page;
+    }
 
     /* *********************** */
     /* *** PRIVATE CLASSES *** */
     /* *********************** */
 
     /**
-     * Really observes only map gets setting the page as referenced when <i>getted</i>.
-     *
-     * Just created pages will not be referenced if not accessed from this map (which is a good thing, new
-     * pages shouldn't be <i>referenced</i> at their first use)
+     * Implementation of {@link Page.Metadata} with all data needed for {@link ClockProPolicy}.
      *
      * @author diego.salvi
      */
-    private static final class ObservedMap extends ConcurrentHashMap<Long, DataPage> {
-
-        /** Default Serial Version UID */
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public DataPage get(Object key) {
-
-            final DataPage page = super.get(key);
-
-            if (page != null && page.metadata != null) {
-                /* Set the page as referenced */
-                ((CPMetadata)page.metadata).reference = true;
-            }
-
-            return page;
-        }
-    }
-
-
-    /**
-     * Implementation of {@link DataPageMetaData} with all data needed for {@link ClockProPolicy}.
-     *
-     * @author diego.salvi
-     */
-    private static final class CPMetadata implements DataPageMetaData {
-
-        public final TableManager owner;
-        public final long pageId;
+    private static final class CPMetadata extends Page.Metadata {
 
         public volatile boolean reference;
         public byte warm;
@@ -773,14 +747,12 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
         private final int hashcode;
 
-        public CPMetadata(DataPage datapage) {
-            this(datapage.owner, datapage.pageId);
+        public CPMetadata(Page<?> page) {
+            this(page.owner, page.pageId);
         }
 
-        public CPMetadata(TableManager owner, long pageId) {
-            super();
-            this.owner = owner;
-            this.pageId = pageId;
+        public CPMetadata(Page.Owner owner, long pageId) {
+            super(owner,pageId);
 
             hashcode = Objects.hash(owner,pageId);
 
@@ -815,16 +787,6 @@ public class ClockProPolicy implements PageReplacementPolicy {
                 return false;
             }
             return true;
-        }
-
-        @Override
-        public TableManager getOwner() {
-            return owner;
-        }
-
-        @Override
-        public long getPageId() {
-            return pageId;
         }
 
         @Override
