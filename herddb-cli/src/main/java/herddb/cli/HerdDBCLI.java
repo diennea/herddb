@@ -172,15 +172,34 @@ public class HerdDBCLI {
                     if (autotransactionbatchsize > 0) {
                         connection.setAutoCommit(false);
                     }
+                    long _start = System.currentTimeMillis();
                     final IntHolder doneCount = new IntHolder();
-                    try (InputStream fIn = openFile(new File(file));
-                        InputStreamReader ii = new InputStreamReader(fIn, "utf-8");) {
+                    final IntHolder totalDoneCount = new IntHolder();
+                    File f = new File(file);
+                    long fileSize = f.length();
+                    try (FileInputStream rawStream = new FileInputStream(file);
+                        CounterInputStream counter = new CounterInputStream(rawStream);
+                        InputStream fIn = wrapStream(f, rawStream);
+                        CounterInputStream counterUnzipped = new CounterInputStream(fIn);
+                        InputStreamReader ii = new InputStreamReader(counterUnzipped, "utf-8");) {
                         int _autotransactionbatchsize = autotransactionbatchsize;
                         SQLFileParser.parseSQLFile(ii, (st) -> {
                             if (!st.comment) {
-                                doneCount.value += executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement);
+                                int count = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement);;
+                                doneCount.value += count;
+                                totalDoneCount.value += count;
                                 if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
-                                    System.out.println("COMMIT after " + doneCount.value + " actions");
+                                    long _now = System.currentTimeMillis();
+                                    int percent = (int) (counter.count * 100.0 / fileSize);
+                                    long speed = (long) ((counter.count * 1000.0 / (1024 * 1024.0 * (_now - _start))));
+                                    long countUnzipped = counterUnzipped.count;
+                                    if (countUnzipped != counter.count) {
+                                        System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
+                                            + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB (" + (countUnzipped / (1024 * 1024)) + " MB unzipped) over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
+                                    } else {
+                                        System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
+                                            + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
+                                    }
                                     connection.commit();
                                     doneCount.value = 0;
                                 }
@@ -188,7 +207,7 @@ public class HerdDBCLI {
                         });
                     }
                     if (!connection.getAutoCommit()) {
-                        System.out.println("COMMIT after " + doneCount.value + " actions");
+                        System.out.println("final COMMIT after " + totalDoneCount.value + " records");
                         connection.commit();
                     }
                 } else if (!script.isEmpty()) {
@@ -429,8 +448,7 @@ public class HerdDBCLI {
         }
     }
 
-    private static InputStream openFile(File file) throws IOException {
-        FileInputStream rawStream = new FileInputStream(file);
+    private static InputStream wrapStream(File file, InputStream rawStream) throws IOException {
         if (file.getName().endsWith(".gz")) {
             return new GZIPInputStream(rawStream);
         } else if (file.getName().endsWith(".zip")) {
