@@ -114,7 +114,7 @@ public final class TableManager implements AbstractTableManager {
     private static final boolean ENABLE_LOCAL_SCAN_PAGE_CACHE = SystemProperties.
         getBooleanSystemProperty(TableManager.class.getName() + ".enableLocalScanPageCache", true);
 
-    private final ConcurrentHashMap<Long, DataPage> newPages = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, DataPage> newPages;
 
     private final ConcurrentMap<Long, DataPage> pages;
 
@@ -299,6 +299,7 @@ public final class TableManager implements AbstractTableManager {
 
         this.pageReplacementPolicy = memoryManager.getPageReplacementPolicy();
         this.pages = pageReplacementPolicy.createObservedPagesMap();
+        this.newPages = pageReplacementPolicy.createObservedPagesMap();
     }
 
     private TableContext buildTableContext() {
@@ -463,15 +464,17 @@ public final class TableManager implements AbstractTableManager {
      * "stop-the-world" procedures!</b>
      * </p>
      */
-    private long createNewPage(Map<Bytes, Record> newPage, long newPageSize) throws DataStorageManagerException {
+    private long createImmutablePage(Map<Bytes, Record> newPage, long newPageSize) throws DataStorageManagerException {
         final Long pageId = nextPageId++;
-        final DataPage dataPage = buildDataPage(pageId, newPage, newPageSize);
+        final DataPage dataPage = buildImmutableDataPage(pageId, newPage, newPageSize);
 
         LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
             new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage.values());
         pageSet.pageCreated(pageId);
         pages.put(pageId, dataPage);
+
+        /* We mustn't update currentDirtyRecordsPage. This page isn't created to host live dirty data */
 
         final DataPageMetaData unload = pageReplacementPolicy.add(dataPage);
         if (unload != null) {
@@ -484,7 +487,7 @@ public final class TableManager implements AbstractTableManager {
         return pageId;
     }
 
-    private Long allocateNewPage(Long lastKnownPageId) {
+    private Long allocateLivePage(Long lastKnownPageId) {
         /* This method expect that a new page actually exists! */
         nextPageLock.lock();
 
@@ -492,14 +495,19 @@ public final class TableManager implements AbstractTableManager {
         DataPageMetaData unload = null;
         try {
 
-            if (lastKnownPageId == nextPageId - 1) {
+//            if (lastKnownPageId == nextPageId - 1) {
+            /*
+             * Use currentDirtyRecordsPage to check because nextPageId could be advanced for other needings
+             * like rebuild a dirty page during checkpoint
+             */
+            if (lastKnownPageId == currentDirtyRecordsPage.get()) {
 
                 final DataPage lastKnownPage;
 
                 /* Is really a new page! */
                 newId = nextPageId++;
 
-                if (newPages.containsKey(newId) || pages.containsKey(newId)) {
+                if (pages.containsKey(newId)) {
                     throw new IllegalStateException("invalid newpage id " + newId + ", " + newPages.keySet() + "/" + pages.keySet());
                 }
 
@@ -516,7 +524,6 @@ public final class TableManager implements AbstractTableManager {
                 newPages.put(newId, newPage);
                 pages.put(newId, newPage);
                 pageSet.pageCreated(newId);
-//                pages.put(lastKnownPageId, lastKnownPage);
 
                 /* From this moment on the page has been published */
                 /* The lock is needed to block other threads up to this point */
@@ -551,7 +558,7 @@ public final class TableManager implements AbstractTableManager {
     /**
      * Create a new page and set it as the target page for dirty records.
      * <p>
-     * Will not place any lock, this method should be invoked at startup time or during checkpoint: <b>during
+     * Will not place any lock, this method should be invoked at startup time: <b>during
      * "stop-the-world" procedures!</b>
      * </p>
      */
@@ -562,13 +569,12 @@ public final class TableManager implements AbstractTableManager {
         if (!newPages.isEmpty()) {
             throw new IllegalStateException("invalid new page initialization, other new pages already exist: " + newPages.keySet());
         }
-
         newPages.put(newId, newPage);
         pages.put(newId, newPage);
         pageSet.pageCreated(newId);
 
         /* From this moment on the page has been published */
- /* The lock is needed to block other threads up to this point */
+        /* The lock is needed to block other threads up to this point */
         currentDirtyRecordsPage.set(newId);
     }
 
@@ -580,7 +586,6 @@ public final class TableManager implements AbstractTableManager {
                 flushNewPage(remove);
                 LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
                         new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
-                    dataStorageManager.writePage(tableSpaceUUID, table.name, remove.pageId, remove.data.values());
             } else {
                 LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             }
@@ -588,6 +593,7 @@ public final class TableManager implements AbstractTableManager {
         });
     }
 
+    /** Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk */
     private void flushNewPage(DataPage page) {
         newPages.remove(page.pageId);
         /*
@@ -601,6 +607,8 @@ public final class TableManager implements AbstractTableManager {
         } finally {
             lock.unlock();
         }
+
+        dataStorageManager.writePage(tableSpaceUUID, table.name, page.pageId, page.data.values());
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
@@ -973,7 +981,7 @@ public final class TableManager implements AbstractTableManager {
         final DataPage page;
         final Record previous;
         if (indexes == null) {
-            /* We don't need the page if isn't loaded or isn't a mutable new page*/
+            /* We don't need the page if isn't loaded or isn't a mutable new page */
             page = newPages.get(pageId);
             previous = null;
         } else {
@@ -1112,7 +1120,7 @@ public final class TableManager implements AbstractTableManager {
                 }
 
                 /* Try allocate a new page if no already done */
-                insertionPageId = allocateNewPage(insertionPageId);
+                insertionPageId = allocateLivePage(insertionPageId);
             }
         }
 
@@ -1291,7 +1299,7 @@ public final class TableManager implements AbstractTableManager {
                 }
 
                 /* Try allocate a new page if no already done */
-                insertionPageId = allocateNewPage(insertionPageId);
+                insertionPageId = allocateLivePage(insertionPageId);
             }
         }
 
@@ -1389,7 +1397,7 @@ public final class TableManager implements AbstractTableManager {
             maxCurrentPagesLoads.release();
         }
         long _io = System.currentTimeMillis();
-        DataPage result = buildDataPage(pageId, page);
+        DataPage result = buildImmutableDataPage(pageId, page);
         if (LOGGER.isLoggable(Level.FINEST)) {
             long _stop = System.currentTimeMillis();
             LOGGER.log(Level.FINEST, "tmp table " + table.name + ","
@@ -1424,7 +1432,7 @@ public final class TableManager implements AbstractTableManager {
 
                     loadedPagesCount.increment();
 
-                    return buildDataPage(pageId, page);
+                    return buildImmutableDataPage(pageId, page);
                 } catch (DataStorageManagerException err) {
                     throw new RuntimeException(err);
                 }
@@ -1457,19 +1465,18 @@ public final class TableManager implements AbstractTableManager {
         return result;
     }
 
-    private DataPage buildDataPage(long pageId, List<Record> page) {
+    private DataPage buildImmutableDataPage(long pageId, List<Record> page) {
         Map<Bytes, Record> newPageMap = new HashMap<>();
         long estimatedPageSize = 0;
         for (Record r : page) {
             newPageMap.put(r.key, r);
             estimatedPageSize += r.getEstimatedSize();
         }
-        return buildDataPage(pageId, newPageMap, estimatedPageSize);
+        return buildImmutableDataPage(pageId, newPageMap, estimatedPageSize);
     }
 
-    private DataPage buildDataPage(long pageId, Map<Bytes, Record> page, long estimatedPageSize) {
-        boolean readonly = !newPages.contains(pageId);
-        DataPage res = new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, page, readonly);
+    private DataPage buildImmutableDataPage(long pageId, Map<Bytes, Record> page, long estimatedPageSize) {
+        DataPage res = new DataPage(this, pageId, maxLogicalPageSize, estimatedPageSize, page, true);
         return res;
     }
 
@@ -1520,7 +1527,7 @@ public final class TableManager implements AbstractTableManager {
 
                     /* Flush the page if it would exceed max page size */
                     if (newPageSize + record.getEstimatedSize() > maxLogicalPageSize) {
-                        createNewPage(buffer, newPageSize);
+                        createImmutablePage(buffer, newPageSize);
                         flushedRecords += buffer.size();
                         newPageSize = 0;
                         /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
@@ -1534,7 +1541,7 @@ public final class TableManager implements AbstractTableManager {
 
             /* Flush remaining records */
             if (!buffer.isEmpty()) {
-                createNewPage(buffer, newPageSize);
+                createImmutablePage(buffer, newPageSize);
                 flushedRecords += buffer.size();
                 newPageSize = 0;
                 /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
@@ -1548,10 +1555,7 @@ public final class TableManager implements AbstractTableManager {
              * Any newpage remaining here is unflushed and is not set as dirty (if "dirty" were unloaded!).
              * Just write the pages as they are.
              */
-            List<Long> idNewpagesSorted = new ArrayList<>(newPages.keySet());
-            idNewpagesSorted.sort(Comparator.naturalOrder());
-
-            for (Long newPageId : idNewpagesSorted) {
+            for (Long newPageId : newPages.keySet()) {
                 DataPage dataPage = newPages.get(newPageId);
                 flushNewPage(dataPage);
             }
@@ -1575,12 +1579,6 @@ public final class TableManager implements AbstractTableManager {
                     pageReplacementPolicy.remove(dirtyPage);
                 }
             }
-            for (Long idNewPage : newPages.keySet()) {
-                final DataPage dirtyPage = pages.remove(idNewPage);
-                if (dirtyPage != null) {
-                    pageReplacementPolicy.remove(dirtyPage);
-                }
-            }
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
                 Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId, pageSet.getActivePages());
@@ -1596,8 +1594,14 @@ public final class TableManager implements AbstractTableManager {
                     new Object[]{table.name, sequenceNumber, pageSet.toString()});
             }
 
-            newPages.clear();
-            initNewPage();
+            /*
+             * Can happen when at checkpoint start all pages are set as dirty and immutable (readonly or
+             * unloaded) due do a deletion: all pages will be removed and no page will remain alive.
+             */
+            if (pageSet.getActivePagesCount() == 0) {
+                initNewPage();
+            }
+
             checkPointRunning = false;
         } finally {
             checkpointLock.writeLock().unlock();

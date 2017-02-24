@@ -281,7 +281,11 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
         } else {
 
-//            assertEquals(NON_RESIDENT_COLD,node.item.warm);
+//            assertEquals(NON_RESIDENT_COLD,known.warm);
+
+            if (known.warm != NON_RESIDENT_COLD) {
+                throw new IllegalArgumentException("Added a page twice: " + page);
+            }
 
             /*
              * If the cold page is in the list, the faulted page turns into a hot page and is placed at the
@@ -449,8 +453,10 @@ public class ClockProPolicy implements PageReplacementPolicy {
         }
 
         /* The hand will keep moving until ... and stops at the next resident cold page */
-        while(handCold.warm != COLD) {
-            handCold = handCold.next;
+        if (countCold > 0) {
+            while(handCold.warm != COLD) {
+                handCold = handCold.next;
+            }
         }
 
         return unloading;
@@ -562,9 +568,11 @@ public class ClockProPolicy implements PageReplacementPolicy {
         }
 
         /* Finally the hand stops at a hot page. */
-        do {
-            handHot = handHot.next;
-        } while(handHot.warm != HOT);
+        if (countHot > 0) {
+            do {
+                handHot = handHot.next;
+            } while(handHot.warm != HOT);
+        }
 
 
 
@@ -690,6 +698,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
     private void moveBefore(CPMetadata moving, CPMetadata point) {
 //        assertNotNull(moving.next);
 //        assertNotNull(moving.prev);
+
+        if (moving == point)
+            return;
 
         detach(moving);
         insertBefore(moving, point);

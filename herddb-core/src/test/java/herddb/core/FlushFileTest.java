@@ -46,7 +46,7 @@ import herddb.storage.DataStorageManager;
 import herddb.utils.Bytes;
 
 /**
- * 
+ *
  *
  * @author enrico.olivelli
  */
@@ -89,7 +89,7 @@ public class FlushFileTest extends BaseTestcase {
 
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 2L));
+        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));
         assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
 
         {
