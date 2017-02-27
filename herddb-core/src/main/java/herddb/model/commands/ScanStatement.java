@@ -39,7 +39,7 @@ public class ScanStatement extends TableAwareStatement {
     private final ScanLimits limits;
 
     public ScanStatement(String tableSpace, Table table, Predicate predicate) {
-        this(tableSpace, table.name, Projection.IDENTITY(table.columns), predicate, null, null);
+        this(tableSpace, table.name, Projection.IDENTITY(table.columnNames, table.columns), predicate, null, null);
     }
 
     public ScanStatement(final String tableSpace, final String table, final Projection projection, final Predicate predicate, final TupleComparator comparator, final ScanLimits limits) {

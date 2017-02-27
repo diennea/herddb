@@ -46,6 +46,11 @@ public class KeyOnlyProjection implements Projection {
     }
 
     @Override
+    public String[] getFieldNames() {
+        return fieldNames;
+    }
+
+    @Override
     public Column[] getColumns() {
         return columns;
     }

@@ -31,12 +31,12 @@ import herddb.model.Column;
 public class MemoryRecordSetFactory extends RecordSetFactory {
 
     @Override
-    public MaterializedRecordSet createRecordSet(Column[] columns) {
-        return new MemoryRecordSet(columns, this);
+    public MaterializedRecordSet createRecordSet(String[] fieldNames, Column[] columns) {
+        return new MemoryRecordSet(fieldNames, columns, this);
     }
 
     @Override
-    public MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns) {
-        return new MemoryRecordSet(size, columns, this);
+    public MaterializedRecordSet createFixedSizeRecordSet(int size, String[] fieldNames, Column[] columns) {
+        return new MemoryRecordSet(size, fieldNames, columns, this);
     }
 }

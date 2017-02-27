@@ -116,7 +116,7 @@ public class SQLAggregator implements Aggregator {
         private StatementEvaluationContext context;
 
         public AggregatedDataScanner(DataScanner wrapped, StatementEvaluationContext context) throws StatementExecutionException {
-            super(wrapped.transactionId, createOutputColumns(selectItems, wrapped));
+            super(wrapped.transactionId, null, createOutputColumns(selectItems, wrapped));
             this.wrapped = wrapped;
             this.context = context;
         }
@@ -172,7 +172,9 @@ public class SQLAggregator implements Aggregator {
                             cc.consume(tuple);
                         }
                     }
-                    MaterializedRecordSet results = recordSetFactory.createFixedSizeRecordSet(groups.values().size(), getSchema());
+                    MaterializedRecordSet results = recordSetFactory
+                        .createFixedSizeRecordSet(groups.values().size(),
+                        getFieldNames(), getSchema());
                     for (Group group : groups.values()) {
                         AggregatedColumnCalculator[] columns = group.columns;
                         String[] fieldNames = new String[columns.length];
@@ -206,7 +208,8 @@ public class SQLAggregator implements Aggregator {
                         k++;
                     }
                     Tuple tuple = new Tuple(fieldNames, values);
-                    MaterializedRecordSet results = recordSetFactory.createFixedSizeRecordSet(1, getSchema());
+                    MaterializedRecordSet results = recordSetFactory
+                        .createFixedSizeRecordSet(1, getFieldNames(), getSchema());
                     results.add(tuple);
                     results.writeFinished();
                     aggregatedScanner = new SimpleDataScanner(wrapped.transactionId, results);

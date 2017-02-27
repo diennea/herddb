@@ -26,13 +26,18 @@ package herddb.model;
  */
 public interface Projection {
 
-    public static Projection IDENTITY(Column[] columns) {
+    public static Projection IDENTITY(String[] fieldNames, Column[] columns) {
         return new Projection() {
             @Override
             public Column[] getColumns() {
                 return columns;
             }
 
+            @Override
+            public String[] getFieldNames() {
+                return fieldNames;
+            }
+            
             @Override
             public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
                 return tuple;
@@ -50,7 +55,12 @@ public interface Projection {
         return new Projection() {
             @Override
             public Column[] getColumns() {
-                return columns;
+                return table.columns;
+            }
+
+            @Override
+            public String[] getFieldNames() {
+                return table.primaryKey;
             }
 
             @Override
@@ -67,9 +77,11 @@ public interface Projection {
 
     public Column[] getColumns();
 
+    public String[] getFieldNames();
+
     public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException;
 
     public default Tuple map(Record record, Table table, StatementEvaluationContext context) throws StatementExecutionException {
-        return map(new Tuple(record.toBean(table), table.columns), context);
+        return map(new Tuple(record.toBean(table), table.columnNames), context);
     }
 }

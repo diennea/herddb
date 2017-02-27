@@ -161,7 +161,7 @@ public class AutoTransactionTest extends BaseTestcase {
         DMLStatementExecutionResult executeUpdate = manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         long tx;
-        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, tableName, Projection.IDENTITY(table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);) {
+        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, tableName, Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);) {
             tx = scan.transactionId;
             assertEquals(1, scan.consume().size());
         }
@@ -183,7 +183,7 @@ public class AutoTransactionTest extends BaseTestcase {
         DMLStatementExecutionResult executeUpdate = manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         long tx;
-        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, "no_table", Projection.IDENTITY(table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);) {
+        try (DataScanner scan = manager.scan(new ScanStatement(tableSpace, "no_table", Projection.IDENTITY(table.columnNames, table.getColumns()), null, null, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);) {
             fail();
         } catch (TableDoesNotExistException ok) {
         }

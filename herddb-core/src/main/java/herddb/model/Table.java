@@ -46,6 +46,7 @@ public class Table implements ColumnsList {
     public final String name;
     public final String tablespace;
     public final Column[] columns;
+    public final String[] columnNames;
     public final Map<String, Column> columnsByName;
     public final Map<Integer, Column> columnsBySerialPosition;
     public final String[] primaryKey;
@@ -62,6 +63,7 @@ public class Table implements ColumnsList {
         this.columnsByName = new HashMap<>();
         this.columnsBySerialPosition = new HashMap<>();
         this.auto_increment = auto_increment;
+        this.columnNames = new String[columns.length];
         int i = 0;
         for (Column c : columns) {
             String cname = c.name.toLowerCase();
@@ -70,6 +72,7 @@ public class Table implements ColumnsList {
                 throw new IllegalArgumentException();
             }
             columnsBySerialPosition.put(c.serialPosition, c);
+            columnNames[i] = cname;
             i++;
         }
         this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));

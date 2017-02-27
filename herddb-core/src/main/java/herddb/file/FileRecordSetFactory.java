@@ -40,12 +40,12 @@ public class FileRecordSetFactory extends RecordSetFactory {
     }
 
     @Override
-    public MaterializedRecordSet createRecordSet(Column[] columns) {
-        return new FileRecordSet(-1, swapThreshold, columns, this);
+    public MaterializedRecordSet createRecordSet(String[] fieldNames, Column[] columns) {
+        return new FileRecordSet(-1, swapThreshold, columns, fieldNames, this);
     }
 
     @Override
-    public MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns) {
-        return new FileRecordSet(size, swapThreshold, columns, this);
+    public MaterializedRecordSet createFixedSizeRecordSet(int size, String[] fieldNames, Column[] columns) {
+        return new FileRecordSet(size, swapThreshold, columns, fieldNames, this);
     }
 }

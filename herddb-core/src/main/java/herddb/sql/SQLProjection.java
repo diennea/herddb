@@ -104,8 +104,8 @@ public class SQLProjection implements Projection {
                     if (fieldName == null) {
                         fieldName = c.getColumnName();
                     }
-                    if (BuiltinFunctions.BOOLEAN_TRUE.equalsIgnoreCase(c.getColumnName()) || 
-                        BuiltinFunctions.BOOLEAN_FALSE.equalsIgnoreCase(c.getColumnName())) {
+                    if (BuiltinFunctions.BOOLEAN_TRUE.equalsIgnoreCase(c.getColumnName())
+                        || BuiltinFunctions.BOOLEAN_FALSE.equalsIgnoreCase(c.getColumnName())) {
                         columType = ColumnTypes.BOOLEAN;
                     } else {
                         Column column = table.getColumn(c.getColumnName());
@@ -290,15 +290,19 @@ public class SQLProjection implements Projection {
         this.columns = new Column[output.size()];
 
         this.fieldNames = new String[output.size()];
-        for (int i = 0;
-            i < output.size();
-            i++) {
+        final int size = output.size();
+        for (int i = 0; i < size; i++) {
             Column c = output.get(i).column;
             this.columns[i] = c;
             this.fieldNames[i] = c.name;
         }
 
         this.onlyCountFunctions = countSimpleFunctions == fieldNames.length;
+    }
+
+    @Override
+    public String[] getFieldNames() {
+        return fieldNames;
     }
 
     private static void addExpressionsForFunctionArguments(ColumnReferencesDiscovery discovery, List<OutputColumn> output, Table table) throws StatementExecutionException {
@@ -334,8 +338,7 @@ public class SQLProjection implements Projection {
         Map<String, Object> record = tuple.toMap();
         List<Object> values = new ArrayList<>(output.size());
         for (OutputColumn col : output) {
-            Object value;
-            value = col.compiledExpression.evaluate(record, context);
+            Object value = col.compiledExpression.evaluate(record, context);
             values.add(value);
         }
         return new Tuple(
@@ -349,7 +352,7 @@ public class SQLProjection implements Projection {
         if (onlyCountFunctions) {
             return new Tuple(fieldNames, new Object[fieldNames.length]);
         } else {
-            Tuple rawtuple = new Tuple(record.toBean(table), table.columns);
+            Tuple rawtuple = new Tuple(record.toBean(table), table.columnNames);
             return map(rawtuple, context);
         }
     }

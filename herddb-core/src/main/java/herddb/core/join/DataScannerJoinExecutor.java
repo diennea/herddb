@@ -45,16 +45,13 @@ public class DataScannerJoinExecutor {
         public void accept(Tuple tuple) throws StatementExecutionException;
     }
 
-    public DataScannerJoinExecutor(Column[] schema, List<DataScanner> scanners, TupleAcceptor consumer) {
+    public DataScannerJoinExecutor(String[] fieldNames, Column[] schema, List<DataScanner> scanners, TupleAcceptor consumer) {
         this.scanners = new DataScanner[scanners.size()];
         scanners.toArray(this.scanners);
         this.consumer = consumer;
         this.numScanners = this.scanners.length;
-        this.fieldNames = new String[schema.length];
-        for (int i = 0; i < schema.length; i++) {
-            fieldNames[i] = schema[i].name;
-        }
-        tmpTuple = new Object[fieldNames.length];
+        this.fieldNames = fieldNames;
+        this.tmpTuple = new Object[fieldNames.length];
     }
 
     public void executeJoin() throws DataScannerException, StatementExecutionException {

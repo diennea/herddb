@@ -56,8 +56,9 @@ public abstract class RecordSetSuite {
         Column[] columns = new Column[2];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
+        String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Integer> expected_n1 = new HashSet<>();
             for (int i = 0; i < 100; i++) {
@@ -67,7 +68,7 @@ public abstract class RecordSetSuite {
                 record.put("n1", i);
                 expected_s1.add(s1);
                 expected_n1.add(i);
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
             for (Tuple t : rs) {
@@ -92,9 +93,10 @@ public abstract class RecordSetSuite {
         columns[5] = Column.column("null1", ColumnTypes.STRING);
         columns[6] = Column.column("bo1", ColumnTypes.BOOLEAN);
         columns[7] = Column.column("d1", ColumnTypes.DOUBLE);
-        
+        String[] fieldNames = Column.buildFieldNamesList(columns);
+
         java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Long> expected_n1 = new HashSet<>();
             Set<Integer> expected_i1 = new HashSet<>();
@@ -112,7 +114,7 @@ public abstract class RecordSetSuite {
                 expected_s1.add(s1);
                 expected_n1.add(Long.valueOf(i));
                 expected_i1.add(i);
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
             for (Tuple t : rs) {
@@ -136,8 +138,9 @@ public abstract class RecordSetSuite {
         Column[] columns = new Column[2];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
+        String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Integer> expected_n1 = new HashSet<>();
             for (int i = 0; i < 100; i++) {
@@ -149,7 +152,7 @@ public abstract class RecordSetSuite {
                     expected_s1.add(s1);
                     expected_n1.add(i);
                 }
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
 
@@ -171,8 +174,9 @@ public abstract class RecordSetSuite {
         Column[] columns = new Column[2];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
+        String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
             Set<String> expected_s1 = new HashSet<>();
             Set<Integer> expected_n1 = new HashSet<>();
             for (int i = 0; i < 100; i++) {
@@ -184,7 +188,7 @@ public abstract class RecordSetSuite {
                     expected_s1.add(s1);
                     expected_n1.add(i);
                 }
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
 
@@ -206,14 +210,15 @@ public abstract class RecordSetSuite {
         Column[] columns = new Column[2];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
+        String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
                 String s1 = "test_" + i;
                 record.put("s1", s1);
                 record.put("n1", i);
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
 
@@ -233,15 +238,16 @@ public abstract class RecordSetSuite {
         Column[] columns = new Column[2];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
+        String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
                 String s1 = "test_" + i;
                 record.put("s1", s1);
                 record.put("n1", i);
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
 
@@ -270,15 +276,16 @@ public abstract class RecordSetSuite {
         Column[] columns = new Column[2];
         columns[0] = Column.column("s1", ColumnTypes.STRING);
         columns[1] = Column.column("n1", ColumnTypes.LONG);
+        String[] fieldNames = Column.buildFieldNamesList(columns);
 
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
                 String s1 = "test_" + i;
                 record.put("s1", s1);
                 record.put("n1", i);
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
 
@@ -309,7 +316,8 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         Set<String> expected_s2 = new HashSet<>();
         Set<Integer> expected_n2 = new HashSet<>();
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        String[] fieldNames = Column.buildFieldNamesList(columns);
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
@@ -318,7 +326,7 @@ public abstract class RecordSetSuite {
                 record.put("n1", i);
                 expected_s2.add(s1);
                 expected_n2.add(i);
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
 
@@ -331,6 +339,11 @@ public abstract class RecordSetSuite {
                 @Override
                 public Column[] getColumns() {
                     return columns_projected;
+                }
+
+                @Override
+                public String[] getFieldNames() {
+                    return fieldNames_projected;
                 }
 
                 @Override
@@ -362,7 +375,8 @@ public abstract class RecordSetSuite {
         columns[1] = Column.column("n1", ColumnTypes.LONG);
         Set<String> expected_s2 = new HashSet<>();
         Set<Integer> expected_n2 = new HashSet<>();
-        try (MaterializedRecordSet rs = factory.createRecordSet(columns);) {
+        String[] fieldNames = Column.buildFieldNamesList(columns);
+        try (MaterializedRecordSet rs = factory.createRecordSet(fieldNames, columns);) {
 
             for (int i = 0; i < 100; i++) {
                 Map<String, Object> record = new HashMap<>();
@@ -371,7 +385,7 @@ public abstract class RecordSetSuite {
                 record.put("n1", i);
                 expected_s2.add(s1);
                 expected_n2.add(i);
-                rs.add(new Tuple(record, columns));
+                rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
 
@@ -384,6 +398,11 @@ public abstract class RecordSetSuite {
                 @Override
                 public Column[] getColumns() {
                     return columns_projected;
+                }
+
+                @Override
+                public String[] getFieldNames() {
+                    return fieldNames_projected;
                 }
 
                 @Override

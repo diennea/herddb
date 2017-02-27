@@ -46,24 +46,16 @@ class FileRecordSet extends MaterializedRecordSet {
 
     private DiskArrayList<Tuple> buffer;
     private final Path tmpDirectory;
-    private String[] fieldNames;
+    
 
-    public FileRecordSet(int expectedSize, int swapThreshold, Column[] columns, FileRecordSetFactory factory) {
-        super(expectedSize, columns, factory);
-        this.tmpDirectory = factory.tmpDirectory;
-        buildFieldNames(columns);
+    public FileRecordSet(int expectedSize, int swapThreshold, Column[] columns, String[] fieldNames, FileRecordSetFactory factory) {
+        super(expectedSize, fieldNames, columns, factory);
+        this.tmpDirectory = factory.tmpDirectory;        
         this.buffer = new DiskArrayList<>(swapThreshold, factory.tmpDirectory, new TupleSerializer(columns, fieldNames));
         this.buffer.enableCompression();
 
     }
 
-    private void buildFieldNames(Column[] columnsList) {
-        List<String> _fieldNames = new ArrayList<>();
-        for (Column c : columnsList) {
-            _fieldNames.add(c.name);
-        }
-        this.fieldNames = _fieldNames.toArray(new String[_fieldNames.size()]);
-    }
 
     private static final class TupleSerializer implements DiskArrayList.Serializer<Tuple> {
 
@@ -144,7 +136,7 @@ class FileRecordSet extends MaterializedRecordSet {
     @Override
     public void applyProjection(Projection projection, StatementEvaluationContext context) throws StatementExecutionException {
         this.columns = projection.getColumns();
-        buildFieldNames(this.columns);
+        this.fieldNames = projection.getFieldNames();
         DiskArrayList<Tuple> projected = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
         projected.enableCompression();
         for (Tuple record : buffer) {

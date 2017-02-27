@@ -30,12 +30,19 @@ import java.util.function.Consumer;
  */
 public abstract class DataScanner implements AutoCloseable {
 
-    private Column[] schema;
+    private final Column[] schema;
+    private final String[] fieldNames;
     public final long transactionId;
 
-    public DataScanner(long transactionId, Column[] schema) {
+    public DataScanner(long transactionId, String[] fieldNames, Column[] schema) {
         this.schema = schema;
         this.transactionId = transactionId;
+        this.fieldNames = fieldNames != null ? fieldNames : Column.buildFieldNamesList(schema);
+
+    }
+
+    public String[] getFieldNames() {
+        return fieldNames;
     }
 
     public long getTransactionId() {

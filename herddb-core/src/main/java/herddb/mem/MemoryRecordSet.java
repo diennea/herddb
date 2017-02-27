@@ -40,12 +40,12 @@ public class MemoryRecordSet extends MaterializedRecordSet {
 
     private List<Tuple> buffer = new ArrayList<>();
 
-    MemoryRecordSet(Column[] columns, RecordSetFactory factory) {
-        super(-1, columns, factory);
+    MemoryRecordSet(String[] fieldNames, Column[] columns, RecordSetFactory factory) {
+        super(-1, fieldNames, columns, factory);
     }
 
-    MemoryRecordSet(int size, Column[] columns, RecordSetFactory factory) {
-        super(size, columns, factory);
+    MemoryRecordSet(int size, String[] fieldNames, Column[] columns, RecordSetFactory factory) {
+        super(size, fieldNames, columns, factory);
     }
 
     @Override
@@ -81,6 +81,8 @@ public class MemoryRecordSet extends MaterializedRecordSet {
             throw new IllegalStateException("RecordSet is still in write mode");
         }
         this.columns = projection.getColumns();
+        this.fieldNames = projection.getFieldNames();
+
         List<Tuple> projected = new ArrayList<>(size);
         for (Tuple record : buffer) {
             projected.add(projection.map(record, context));

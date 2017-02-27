@@ -26,7 +26,9 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * a Simple MaterializedRecordSet held in memory
@@ -36,15 +38,20 @@ import java.util.Iterator;
 public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<Tuple> {
 
     protected Column[] columns;
+    protected String[] fieldNames;
     protected boolean writeFinished;
     protected int size;
     protected int expectedSize;
     protected RecordSetFactory factory;
 
-    protected MaterializedRecordSet(int expectedSize, Column[] columns, RecordSetFactory factory) {
+    protected MaterializedRecordSet(int expectedSize, String[] fieldNames, Column[] columns, RecordSetFactory factory) {
+        this.fieldNames = fieldNames;
         this.expectedSize = expectedSize;
         this.columns = columns;
         this.factory = factory;
+        if (fieldNames == null) {
+            throw new NullPointerException();
+        }
     }
 
     @Override

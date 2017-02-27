@@ -26,6 +26,14 @@ package herddb.model;
  */
 public class Column {
 
+    public static String[] buildFieldNamesList(Column[] schema) {
+        String[] result = new String[schema.length];
+        for (int i = 0; i < schema.length; i++) {
+            result[i] = schema[i].name;
+        }
+        return result;
+    }
+
     public final int serialPosition;
 
     public final String name;

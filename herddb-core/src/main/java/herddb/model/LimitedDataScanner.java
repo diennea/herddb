@@ -30,7 +30,7 @@ public class LimitedDataScanner extends DataScanner {
     final DataScanner wrapped;
 
     public LimitedDataScanner(DataScanner wrapped, ScanLimits limits, StatementEvaluationContext context) throws DataScannerException, StatementExecutionException {
-        super(wrapped.transactionId, wrapped.getSchema());
+        super(wrapped.transactionId, wrapped.getFieldNames(), wrapped.getSchema());
         int maxRows = limits.computeMaxRows(context);
         this.remaining = maxRows > 0 ? maxRows : -1;
         this.offset = limits.getOffset();

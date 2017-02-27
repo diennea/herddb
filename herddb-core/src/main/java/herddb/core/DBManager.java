@@ -578,7 +578,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
         if (plan.comparator != null) {
             // SORT is to be applied before limits
-            MaterializedRecordSet sortedSet = recordSetFactory.createRecordSet(scanResult.dataScanner.getSchema());
+            MaterializedRecordSet sortedSet = recordSetFactory.createRecordSet(
+                scanResult.dataScanner.getFieldNames(),
+                scanResult.dataScanner.getSchema());
             try {
                 scanResult.dataScanner.forEach(sortedSet::add);
                 sortedSet.writeFinished();
@@ -610,34 +612,35 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             for (DataScanner ds : scanResults) {
                 composedSchema.addAll(Arrays.asList(ds.getSchema()));
             }
-            Column[] finalSchema = new Column[composedSchema.size()];
+            Column[] finalSchema = new Column[composedSchema.size()];            
             composedSchema.toArray(finalSchema);
-            MaterializedRecordSet finalResultSet = recordSetFactory.createRecordSet(finalSchema);
+            String[] finalSchemaFieldNames = Column.buildFieldNamesList(finalSchema);
+            MaterializedRecordSet finalResultSet = recordSetFactory.createRecordSet(finalSchemaFieldNames, finalSchema);
 
             DataScannerJoinExecutor joinExecutor;
             if (plan.joinProjection != null) {
                 if (plan.joinFilter != null) {
                     TuplePredicate joinFilter = plan.joinFilter;
-                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
                         if (joinFilter.matches(t, context)) {
                             finalResultSet.add(plan.joinProjection.map(t, context));
                         }
                     });
                 } else {
-                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
                         finalResultSet.add(plan.joinProjection.map(t, context));
                     });
                 }
             } else {
                 if (plan.joinFilter != null) {
                     TuplePredicate joinFilter = plan.joinFilter;
-                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
                         if (joinFilter.matches(t, context)) {
                             finalResultSet.add(t);
                         }
                     });
                 } else {
-                    joinExecutor = new DataScannerJoinExecutor(finalSchema, scanResults, t -> {
+                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
                         finalResultSet.add(t);
                     });
                 }

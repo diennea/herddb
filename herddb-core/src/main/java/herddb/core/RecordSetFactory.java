@@ -28,7 +28,7 @@ import herddb.model.Column;
  */
 public abstract class RecordSetFactory {
 
-    public abstract MaterializedRecordSet createRecordSet(Column[] columns);
+    public abstract MaterializedRecordSet createRecordSet(String[] fieldNames, Column[] columns);
 
-    public abstract MaterializedRecordSet createFixedSizeRecordSet(int size, Column[] columns);
+    public abstract MaterializedRecordSet createFixedSizeRecordSet(int size, String[] fieldNames, Column[] columns);
 }

@@ -1653,9 +1653,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         boolean applyProjectionDuringScan = !sorted && projection != null;
         MaterializedRecordSet recordSet;
         if (applyProjectionDuringScan) {
-            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(projection.getColumns());
+            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                .createRecordSet(projection.getFieldNames(), projection.getColumns());
         } else {
-            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory().createRecordSet(table.columns);
+            recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
+                .createRecordSet(table.columnNames, table.columns);
         }
         ScanLimits limits = statement.getLimits();
         int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
@@ -1670,7 +1672,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (applyProjectionDuringScan) {
                             tuple = projection.map(record, table, context);
                         } else {
-                            tuple = new Tuple(record.toBean(table), table.columns);
+                            tuple = new Tuple(record.toBean(table), table.columnNames);
                         }
                         sorter.collect(tuple);
                     }
@@ -1691,7 +1693,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (applyProjectionDuringScan) {
                             tuple = projection.map(record, table, context);
                         } else {
-                            tuple = new Tuple(record.toBean(table), table.columns);
+                            tuple = new Tuple(record.toBean(table), table.columnNames);
                         }
                         recordSet.add(tuple);
                         if (remaining.decrementAndGet() == 0) {
@@ -1708,7 +1710,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (applyProjectionDuringScan) {
                         tuple = projection.map(record, table, context);
                     } else {
-                        tuple = new Tuple(record.toBean(table), table.columns);
+                        tuple = new Tuple(record.toBean(table), table.columnNames);
                     }
                     recordSet.add(tuple);
                 }

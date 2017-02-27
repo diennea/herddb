@@ -1275,10 +1275,10 @@ public class SQLPlanner {
         }
 
         if (allColumns) {
-            mainTableProjection = Projection.IDENTITY(table.columns);
+            mainTableProjection = Projection.IDENTITY(table.columnNames, table.columns);
             for (Map.Entry<String, JoinSupport> join : joins.entrySet()) {
                 JoinSupport support = join.getValue();
-                support.projection = Projection.IDENTITY(support.table.columns);
+                support.projection = Projection.IDENTITY(support.table.columnNames, support.table.columns);
                 support.allColumns = true;
             }
         } else {
@@ -1287,7 +1287,7 @@ public class SQLPlanner {
             } else {
                 for (JoinSupport support : joins.values()) {
                     if (support.allColumns) {
-                        support.projection = Projection.IDENTITY(support.table.columns);
+                        support.projection = Projection.IDENTITY(support.table.columnNames, support.table.columns);
                     } else {
                         support.projection = new SQLProjection(support.table, support.tableRef.tableAlias, support.selectItems);
                     }

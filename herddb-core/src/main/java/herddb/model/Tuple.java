@@ -89,17 +89,12 @@ public final class Tuple {
         }
     }
 
-    public Tuple(Map<String, Object> record, Column[] columns) {
+    public Tuple(Map<String, Object> record, String[] fieldNames) {
         if (record == null) {
             throw new NullPointerException();
         }
-        int size = columns.length;
-        this.fieldNames = new String[size];
+        this.fieldNames = fieldNames;
         this.map = record;
-        int i = 0;
-        for (Column c : columns) {
-            fieldNames[i++] = c.name;
-        }
     }
 
     public int size() {
