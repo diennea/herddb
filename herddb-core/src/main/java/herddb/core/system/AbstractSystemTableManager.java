@@ -108,11 +108,6 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
             }
 
             @Override
-            public long getDirtyBookedMemory() {
-                return 0;
-            }
-
-            @Override
             public long getDirtyUsedMemory() {
                 return 0;
             }

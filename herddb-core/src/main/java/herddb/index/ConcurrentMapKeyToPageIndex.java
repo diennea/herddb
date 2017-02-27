@@ -43,8 +43,8 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     private final ConcurrentMap<Bytes, Long> map;
     private final AtomicLong usedMemory = new AtomicLong();
 
-    // assume that an entry holds 24 bytes (a Long pointer + long value + extra overhead
-    private final long ENTRY_OVERHEAD = 8 + 8 + 8;
+    // assume that an entry holds 24 bytes (a Long pointer + long value + extra overhead)
+    private final long ENTRY_OVERHEAD = 8 + 8 + 8 + 8 + 8;
 
     public ConcurrentMapKeyToPageIndex(ConcurrentMap<Bytes, Long> map) {
         this.map = map;

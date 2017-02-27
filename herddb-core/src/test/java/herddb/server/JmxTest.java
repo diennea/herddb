@@ -21,9 +21,7 @@ package herddb.server;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Rule;
@@ -35,8 +33,6 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
 import java.lang.management.ManagementFactory;
-import java.text.MessageFormat;
-import javax.management.MBeanServerFactory;
 import javax.management.ObjectName;
 
 /**
@@ -61,9 +57,16 @@ public class JmxTest {
                     "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
-                final ObjectName statusBeanName = new ObjectName("herddb.server:type=Table,Name=default.mytable");
-                Object attribute = ManagementFactory.getPlatformMBeanServer().getAttribute(statusBeanName, "Tablesize");
-                assertEquals(0L, attribute);
+                {
+                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=Table,Name=default.mytable");
+                    Object attribute = ManagementFactory.getPlatformMBeanServer().getAttribute(statusBeanName, "Tablesize");
+                    assertEquals(0L, attribute);
+                }
+                {
+                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=TableSpace,Name=default");
+                    Object attribute = ManagementFactory.getPlatformMBeanServer().getAttribute(statusBeanName, "Tablesize");
+                    assertEquals(0L, attribute);
+                }
 
             }
         }

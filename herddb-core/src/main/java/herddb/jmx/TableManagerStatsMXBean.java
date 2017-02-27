@@ -23,6 +23,7 @@ import javax.management.MXBean;
 
 /**
  * JMX Definition of the statistics exposed by every TableManager
+ *
  * @author enrico.olivelli
  */
 @MXBean
@@ -41,8 +42,6 @@ public interface TableManagerStatsMXBean {
     public int getDirtyrecords();
 
     public long getDirtyUsedMemory();
-
-    public long getDirtyBookedMemory();
 
     public long getMaxLogicalPageSize();
 

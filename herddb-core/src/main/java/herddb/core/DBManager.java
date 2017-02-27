@@ -50,6 +50,7 @@ import herddb.client.ClientConfiguration;
 import herddb.core.join.DataScannerJoinExecutor;
 import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileMetadataStorageManager;
+import herddb.jmx.JMXUtils;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
@@ -409,6 +410,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 manager.start();
                 LOGGER.log(Level.SEVERE, "Boot success tablespace {0} on {1}, uuid {2}, time {3} ms", new Object[]{tableSpaceName, nodeId, tableSpace.uuid, (System.currentTimeMillis() - _start) + ""});
                 tablesSpaces.put(tableSpaceName, manager);
+                if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
+                    JMXUtils.registerTableSpaceManagerStatsMXBean(tableSpaceName, manager.getStats());
+                }
             } catch (DataStorageManagerException | LogNotAvailableException | MetadataStorageManagerException | DDLException t) {
                 LOGGER.log(Level.SEVERE, "Error Booting tablespace {0} on {1}", new Object[]{tableSpaceName, nodeId});
                 LOGGER.log(Level.SEVERE, "Error", t);
@@ -612,7 +616,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             for (DataScanner ds : scanResults) {
                 composedSchema.addAll(Arrays.asList(ds.getSchema()));
             }
-            Column[] finalSchema = new Column[composedSchema.size()];            
+            Column[] finalSchema = new Column[composedSchema.size()];
             composedSchema.toArray(finalSchema);
             String[] finalSchemaFieldNames = Column.buildFieldNamesList(finalSchema);
             MaterializedRecordSet finalResultSet = recordSetFactory.createRecordSet(finalSchemaFieldNames, finalSchema);

@@ -50,6 +50,7 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
 import herddb.core.stats.TableManagerStats;
+import herddb.core.stats.TableSpaceManagerStats;
 import herddb.core.system.SysclientsTableManager;
 import herddb.core.system.SyscolumnsTableManager;
 import herddb.core.system.SysconfigTableManager;
@@ -1208,6 +1209,9 @@ public class TableSpaceManager {
                 generalLock.writeLock().unlock();
             }
         }
+        if (useJmx) {
+            JMXUtils.unregisterTableSpaceManagerStatsMXBean(tableSpaceName);
+        }
     }
 
     LogSequenceNumber checkpoint() throws DataStorageManagerException, LogNotAvailableException {
@@ -1363,6 +1367,105 @@ public class TableSpaceManager {
 
     public DBManager getDbmanager() {
         return dbmanager;
+    }
+
+    private final TableSpaceManagerStats stats = new TableSpaceManagerStats() {
+
+        @Override
+        public int getLoadedpages() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToInt(TableManagerStats::getLoadedpages)
+                .sum();
+
+        }
+
+        @Override
+        public long getLoadedPagesCount() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToLong(TableManagerStats::getLoadedPagesCount)
+                .sum();
+        }
+
+        @Override
+        public long getUnloadedPagesCount() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToLong(TableManagerStats::getUnloadedPagesCount)
+                .sum();
+        }
+
+        @Override
+        public long getTablesize() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToLong(TableManagerStats::getTablesize)
+                .sum();
+        }
+
+        @Override
+        public int getDirtypages() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToInt(TableManagerStats::getDirtypages)
+                .sum();
+        }
+
+        @Override
+        public int getDirtyrecords() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToInt(TableManagerStats::getDirtyrecords)
+                .sum();
+        }
+
+        @Override
+        public long getDirtyUsedMemory() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToLong(TableManagerStats::getDirtyUsedMemory)
+                .sum();
+        }
+
+        @Override
+        public long getMaxLogicalPageSize() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToLong(TableManagerStats::getMaxLogicalPageSize)
+                .findFirst()
+                .orElse(0);
+        }
+
+        @Override
+        public long getBuffersUsedMemory() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToLong(TableManagerStats::getBuffersUsedMemory)
+                .sum();
+        }
+
+        @Override
+        public long getKeysUsedMemory() {
+            return tables.values()
+                .stream()
+                .map(AbstractTableManager::getStats)
+                .mapToLong(TableManagerStats::getKeysUsedMemory)
+                .sum();
+        }
+    };
+
+    public TableSpaceManagerStats getStats() {
+        return stats;
     }
 
 }

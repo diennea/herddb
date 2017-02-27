@@ -20,7 +20,6 @@
 package herddb.jmx;
 
 import herddb.core.HerdDBInternalException;
-import herddb.jmx.TableManagerStatsMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,10 +28,8 @@ import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanRegistrationException;
 import javax.management.MBeanServer;
-import javax.management.MBeanServerFactory;
 import javax.management.MalformedObjectNameException;
 import javax.management.NotCompliantMBeanException;
-import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 
 /**
@@ -41,6 +38,7 @@ import javax.management.ObjectName;
  */
 public class JMXUtils {
 
+    private static final Logger LOG = Logger.getLogger(JMXUtils.class.getName());
     private static MBeanServer platformMBeanServer;
     private static Throwable mBeanServerLookupError;
 
@@ -83,7 +81,6 @@ public class JMXUtils {
             throw new HerdDBInternalException("Could not register MXBean " + e);
         }
     }
-    private static final Logger LOG = Logger.getLogger(JMXUtils.class.getName());
 
     public static void unregisterTableManagerStatsMXBean(String tableSpaceName, String tableName) {
         if (platformMBeanServer == null) {
@@ -94,6 +91,46 @@ public class JMXUtils {
 
         try {
             ObjectName name = new ObjectName("herddb.server:type=Table,Name=" + safeTableSpaceName + "." + safeTableName);
+            if (platformMBeanServer.isRegistered(name)) {
+                try {
+                    platformMBeanServer.unregisterMBean(name);
+                } catch (InstanceNotFoundException noProblem) {
+                }
+            }
+        } catch (MalformedObjectNameException | MBeanRegistrationException e) {
+            throw new HerdDBInternalException("Could not unregister MXBean " + e);
+        }
+    }
+
+    public static void registerTableSpaceManagerStatsMXBean(String tableSpaceName, TableSpaceManagerStatsMXBean bean) {
+        if (platformMBeanServer == null) {
+            throw new HerdDBInternalException("PlatformMBeanServer not available", mBeanServerLookupError);
+        }
+        String safeTableSpaceName = safeName(tableSpaceName);
+
+        try {
+            ObjectName name = new ObjectName("herddb.server:type=TableSpace,Name=" + safeTableSpaceName);
+            LOG.log(Level.FINE, "Publishing stats for table {0} at {1}", new Object[]{tableSpaceName, name});
+            if (platformMBeanServer.isRegistered(name)) {
+                try {
+                    platformMBeanServer.unregisterMBean(name);
+                } catch (InstanceNotFoundException noProblem) {
+                }
+            }
+            platformMBeanServer.registerMBean(bean, name);
+        } catch (MalformedObjectNameException | InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException e) {
+            throw new HerdDBInternalException("Could not register MXBean " + e);
+        }
+    }
+
+    public static void unregisterTableSpaceManagerStatsMXBean(String tableSpaceName) {
+        if (platformMBeanServer == null) {
+            return;
+        }
+        String safeTableSpaceName = safeName(tableSpaceName);
+
+        try {
+            ObjectName name = new ObjectName("herddb.server:type=TableSpace,Name=" + safeTableSpaceName);
             if (platformMBeanServer.isRegistered(name)) {
                 try {
                     platformMBeanServer.unregisterMBean(name);

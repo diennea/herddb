@@ -135,11 +135,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private final AtomicLong currentDirtyRecordsPage = new AtomicLong();
 
     /**
-     * Memory booked to be used for dirty records
-     */
-    private final AtomicLong bookedDirtyMemory = new AtomicLong(0);
-
-    /**
      * Counts how many pages had been unloaded
      */
     private final LongAdder loadedPagesCount = new LongAdder();
@@ -251,11 +246,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 used += newPage.getUsedMemory();
             }
             return used;
-        }
-
-        @Override
-        public long getDirtyBookedMemory() {
-            return bookedDirtyMemory.get();
         }
 
         @Override
@@ -474,7 +464,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         pages.put(pageId, dataPage);
 
         /* We mustn't update currentDirtyRecordsPage. This page isn't created to host live dirty data */
-
         final Page.Metadata unload = pageReplacementPolicy.add(dataPage);
         if (unload != null) {
             unload.owner.unload(unload.pageId);
@@ -525,7 +514,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 pageSet.pageCreated(newId);
 
                 /* From this moment on the page has been published */
-                /* The lock is needed to block other threads up to this point */
+ /* The lock is needed to block other threads up to this point */
                 currentDirtyRecordsPage.set(newId);
 
                 /*
@@ -539,7 +528,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 /* The page has been published for sure */
                 newId = currentDirtyRecordsPage.get();
             }
-
 
         } finally {
             nextPageLock.unlock();
@@ -557,8 +545,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Create a new page and set it as the target page for dirty records.
      * <p>
-     * Will not place any lock, this method should be invoked at startup time: <b>during
-     * "stop-the-world" procedures!</b>
+     * Will not place any lock, this method should be invoked at startup time: <b>during "stop-the-world"
+     * procedures!</b>
      * </p>
      */
     private void initNewPage() {
@@ -573,7 +561,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         pageSet.pageCreated(newId);
 
         /* From this moment on the page has been published */
-        /* The lock is needed to block other threads up to this point */
+ /* The lock is needed to block other threads up to this point */
         currentDirtyRecordsPage.set(newId);
     }
 
@@ -585,7 +573,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (!remove.readonly) {
                 flushNewPage(remove);
                 LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
-                        new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                    new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             } else {
                 LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             }
@@ -593,7 +581,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         });
     }
 
-    /** Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk */
+    /**
+     * Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk
+     */
     private void flushNewPage(DataPage page) {
         newPages.remove(page.pageId);
         /*

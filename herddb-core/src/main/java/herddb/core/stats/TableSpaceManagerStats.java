@@ -19,13 +19,13 @@
  */
 package herddb.core.stats;
 
-import herddb.jmx.TableManagerStatsMXBean;
+import herddb.jmx.TableSpaceManagerStatsMXBean;
 
 /**
- * Runtime Statistics for a TableManager
+ * Runtime Statistics for a TableSpaceManager
  *
  * @author enrico.olivelli
  */
-public interface TableManagerStats extends TableManagerStatsMXBean {
+public interface TableSpaceManagerStats extends TableSpaceManagerStatsMXBean {
 
 }

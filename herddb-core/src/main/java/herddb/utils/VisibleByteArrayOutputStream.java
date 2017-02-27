@@ -24,11 +24,9 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
-import net.jpountz.xxhash.XXHash64;
-import net.jpountz.xxhash.XXHashFactory;
 
 /**
- *
+ * Simple ByteArrayOutputStream which exposes the internal array
  * @author enrico.olivelli
  */
 public class VisibleByteArrayOutputStream extends OutputStream {

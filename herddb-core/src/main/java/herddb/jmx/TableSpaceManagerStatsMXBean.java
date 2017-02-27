@@ -17,15 +17,33 @@
  under the License.
 
  */
-package herddb.core.stats;
-
-import herddb.jmx.TableManagerStatsMXBean;
+package herddb.jmx;
 
 /**
- * Runtime Statistics for a TableManager
+ * Runtime Statistics for a TableSpaceManager
  *
  * @author enrico.olivelli
  */
-public interface TableManagerStats extends TableManagerStatsMXBean {
+public interface TableSpaceManagerStatsMXBean {
+
+    public int getLoadedpages();
+
+    public long getLoadedPagesCount();
+
+    public long getUnloadedPagesCount();
+
+    public long getTablesize();
+
+    public int getDirtypages();
+
+    public int getDirtyrecords();
+
+    public long getDirtyUsedMemory();
+
+    public long getMaxLogicalPageSize();
+
+    public long getBuffersUsedMemory();
+
+    public long getKeysUsedMemory();
 
 }
