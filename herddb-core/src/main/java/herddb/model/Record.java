@@ -25,17 +25,18 @@ import java.util.Objects;
 
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
+import herddb.utils.SizeAwareObject;
 
 /**
  * A generic record
  *
  * @author enrico.olivelli
  */
-public final class Record {
+public final class Record implements SizeAwareObject {
 
-    private static final int CONSTANT_BYTE_SIZE = 93;
+    private static final long CONSTANT_BYTE_SIZE = 93;
 
-    public static final int estimateSize(Bytes key, byte[] value) {
+    public static final long estimateSize(Bytes key, byte[] value) {
         return key.getEstimatedSize() + Bytes.estimateSize(value) + CONSTANT_BYTE_SIZE;
     }
 
@@ -55,7 +56,8 @@ public final class Record {
         this.cache = new WeakReference<>(cache);
     }
 
-    public int getEstimatedSize() {
+    @Override
+    public long getEstimatedSize() {
         return this.key.getEstimatedSize() + this.value.getEstimatedSize() + CONSTANT_BYTE_SIZE;
     }
 

@@ -47,7 +47,6 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
-import static org.junit.Assert.assertEquals;
 
 /**
  * Tests on index creation and recovery after restart

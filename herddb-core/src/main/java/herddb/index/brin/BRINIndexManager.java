@@ -40,6 +40,8 @@ import javax.xml.ws.Holder;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
+import herddb.core.MemoryManager;
+import herddb.core.PageReplacementPolicy;
 import herddb.core.PostCheckpointAction;
 import herddb.core.TableSpaceManager;
 import herddb.index.IndexOperation;
@@ -64,11 +66,11 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 
 /**
- * Block-range like index
+ * Block-range like index with pagination managed by a {@link PageReplacementPolicy}
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
-@Deprecated
 public class BRINIndexManager extends AbstractIndexManager {
 
     private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
@@ -79,9 +81,9 @@ public class BRINIndexManager extends AbstractIndexManager {
     private final BlockRangeIndex<Bytes, Bytes> data;
     private final IndexDataStorage<Bytes, Bytes> storageLayer = new IndexDataStorageImpl();
 
-    public BRINIndexManager(Index index, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
+    public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
-        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, MAX_LOADED_BLOCKS, storageLayer);
+        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, memoryManager.getPageReplacementPolicy(), storageLayer);
     }
 
     private static final class PageContents {
@@ -104,7 +106,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                             doo.writeArray(md.firstKey.data);
                             doo.writeArray(md.lastKey.data);
                             doo.writeVInt(md.blockId);
-                            doo.writeVInt(md.size);
+                            doo.writeVLong(md.size);
                             doo.writeVLong(md.pageId);
                         }
                         break;
@@ -135,7 +137,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                             Bytes firstKey = Bytes.from_array(ein.readArray());
                             Bytes lastKey = Bytes.from_array(ein.readArray());
                             int blockId = ein.readVInt();
-                            int size = ein.readVInt();
+                            long size = ein.readVLong();
                             long pageId = ein.readVLong();
                             BlockRangeIndexMetadata.BlockMetadata<Bytes> md
                                 = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, lastKey, blockId, size, pageId);
@@ -364,6 +366,12 @@ public class BRINIndexManager extends AbstractIndexManager {
     @Override
     public void truncate() throws DataStorageManagerException {
         this.data.clear();
+        dropIndexData();
+    }
+
+    @Override
+    public void close() {
+        data.clear();
     }
 
 }

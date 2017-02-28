@@ -64,7 +64,6 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
             if (count < pages.length) {
                 pages[count] = metadata;
                 positions.put(metadata,count);
-
                 return null;
             } else {
                 int position = random.nextInt(count);
@@ -74,7 +73,6 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
 
                 pages[position] = metadata;
                 positions.put(metadata, position);
-
                 return old;
             }
         } finally {
@@ -122,8 +120,6 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         }
     }
 
-
-
     @Override
     public boolean remove(Page<?> page) {
         lock.lock();
@@ -131,14 +127,20 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         final PlainMetadata metadata = (PlainMetadata) page.metadata;
 
         try {
-            Integer position = positions.get(metadata);
+            Integer position = positions.remove(metadata);
 
-            if (position == null) return false;
+            if (position == null) {
+                return false;
+            }
 
             int count = positions.size();
-            if (count > 0) {
-                PlainMetadata moving = pages[count -1];
+
+            if (position == count) {
+                pages[count] = null;
+            } else {
+                PlainMetadata moving = pages[count];
                 pages[position] = moving;
+                pages[count] = null;
                 positions.put(moving, position);
             }
 

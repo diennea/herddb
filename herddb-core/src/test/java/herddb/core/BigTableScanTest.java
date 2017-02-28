@@ -20,7 +20,6 @@
 package herddb.core;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,6 +54,8 @@ public class BigTableScanTest {
         int testSize = 5000;
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
+            manager.setMaxMemoryReference(128 * 1024);
+            manager.setMaxLogicalPageSize(32 * 1024);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -79,7 +80,7 @@ public class BigTableScanTest {
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
             assertEquals(testSize, stats.getTablesize());
-            assertEquals(1, stats.getLoadedpages());
+            assertEquals(3, stats.getLoadedpages());
 
             manager.checkpoint();
 
@@ -91,7 +92,7 @@ public class BigTableScanTest {
                 assertEquals(testSize, count.get());
             }
             assertEquals(testSize, stats.getTablesize());
-            
+
         }
     }
 }

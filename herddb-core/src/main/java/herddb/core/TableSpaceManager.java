@@ -61,7 +61,7 @@ import herddb.core.system.SystablespacesTableManager;
 import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
 import herddb.index.MemoryHashIndexManager;
-import herddb.index.brin.PagedBRINIndexManager;
+import herddb.index.brin.BRINIndexManager;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogListener;
 import herddb.log.FullRecoveryNeededException;
@@ -1153,7 +1153,7 @@ public class TableSpaceManager {
                 indexManager = new MemoryHashIndexManager(index, tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
                 break;
             case Index.TYPE_BRIN:
-                indexManager = new PagedBRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
+                indexManager = new BRINIndexManager(index, dbmanager.getMemoryManager(), tableManager, log, dataStorageManager, this, tableSpaceUUID, transaction);
                 break;
             default:
                 throw new DataStorageManagerException("invalid index type " + index.type);

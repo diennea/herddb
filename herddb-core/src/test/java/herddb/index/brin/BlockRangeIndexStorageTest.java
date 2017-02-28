@@ -29,6 +29,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.Test;
 
+import herddb.core.PageReplacementPolicy;
+import herddb.core.RandomPageReplacementPolicy;
+import herddb.utils.Sized;
+
 /**
  *
  * @author enrico.olivelli
@@ -38,19 +42,21 @@ public class BlockRangeIndexStorageTest {
     @Test
     public void testSimple() throws Exception {
 
-        IndexDataStorage<Integer, String> storage = new IndexDataStorage<Integer, String>() {
+        IndexDataStorage<Sized<Integer>, Sized<String>> storage =
+                new IndexDataStorage<Sized<Integer>, Sized<String>>() {
 
             AtomicLong newPageId = new AtomicLong();
 
-            private ConcurrentHashMap<Long, List<Map.Entry<Integer, String>>> pages = new ConcurrentHashMap<>();
+            private ConcurrentHashMap<Long, List<Map.Entry<Sized<Integer>, Sized<String>>>> pages =
+                    new ConcurrentHashMap<>();
 
             @Override
-            public List<Map.Entry<Integer, String>> loadDataPage(long pageId) throws IOException {
+            public List<Map.Entry<Sized<Integer>, Sized<String>>> loadDataPage(long pageId) throws IOException {
                 return pages.get(pageId);
             }
 
             @Override
-            public long createDataPage(List<Map.Entry<Integer, String>> values) throws IOException {
+            public long createDataPage(List<Map.Entry<Sized<Integer>, Sized<String>>> values) throws IOException {
                 long newid = newPageId.incrementAndGet();
                 pages.put(newid, values);
                 return newid;
@@ -58,26 +64,23 @@ public class BlockRangeIndexStorageTest {
 
         };
 
-        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(2, Integer.MAX_VALUE, storage);
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
+                new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10), storage);
 
-        index.put(1, "a");
-        index.put(2, "b");
-        index.put(3, "c");
-        BlockRangeIndexMetadata<Integer> metadata = index.checkpoint();
+        index.put(Sized.valueOf(1), Sized.valueOf("a"));
+        index.put(Sized.valueOf(2), Sized.valueOf("b"));
+        index.put(Sized.valueOf(3), Sized.valueOf("c"));
+
+        BlockRangeIndexMetadata<Sized<Integer>> metadata = index.checkpoint();
         assertEquals(index.getNumBlocks(), metadata.getBlocksMetadata().size());
 
-        index.unloadAllBlocks();
+        BlockRangeIndex<Sized<Integer>, Sized<String>> indexAfterBoot =
+                new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10), storage);
 
-        assertEquals("a", index.search(1).get(0));
-        assertEquals("b", index.search(2).get(0));
-        assertEquals("c", index.search(3).get(0));
-        assertEquals(2, index.getNumBlocks());
-
-        BlockRangeIndex<Integer, String> indexAfterBoot = new BlockRangeIndex<>(2, Integer.MAX_VALUE, storage);
         indexAfterBoot.boot(metadata);
-        assertEquals("a", indexAfterBoot.search(1).get(0));
-        assertEquals("b", indexAfterBoot.search(2).get(0));
-        assertEquals("c", indexAfterBoot.search(3).get(0));
+        assertEquals(Sized.valueOf("a"), index.search(Sized.valueOf(1)).get(0));
+        assertEquals(Sized.valueOf("b"), index.search(Sized.valueOf(2)).get(0));
+        assertEquals(Sized.valueOf("c"), index.search(Sized.valueOf(3)).get(0));
         assertEquals(2, indexAfterBoot.getNumBlocks());
 
     }
@@ -85,19 +88,19 @@ public class BlockRangeIndexStorageTest {
     @Test
     public void testUnload() throws Exception {
 
-        IndexDataStorage<Integer, String> storage = new IndexDataStorage<Integer, String>() {
+        IndexDataStorage<Sized<Integer>, Sized<String>> storage = new IndexDataStorage<Sized<Integer>, Sized<String>>() {
 
             AtomicLong newPageId = new AtomicLong();
 
-            private ConcurrentHashMap<Long, List<Map.Entry<Integer, String>>> pages = new ConcurrentHashMap<>();
+            private ConcurrentHashMap<Long, List<Map.Entry<Sized<Integer>, Sized<String>>>> pages = new ConcurrentHashMap<>();
 
             @Override
-            public List<Map.Entry<Integer, String>> loadDataPage(long pageId) throws IOException {
+            public List<Map.Entry<Sized<Integer>, Sized<String>>> loadDataPage(long pageId) throws IOException {
                 return pages.get(pageId);
             }
 
             @Override
-            public long createDataPage(List<Map.Entry<Integer, String>> values) throws IOException {
+            public long createDataPage(List<Map.Entry<Sized<Integer>, Sized<String>>> values) throws IOException {
                 long newid = newPageId.incrementAndGet();
                 pages.put(newid, values);
                 return newid;
@@ -105,31 +108,25 @@ public class BlockRangeIndexStorageTest {
 
         };
 
-        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(2, 10, storage);
+        PageReplacementPolicy policy = new RandomPageReplacementPolicy(10);
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
+                new BlockRangeIndex<>(1024, policy, storage);
         for (int i = 0; i < 100; i++) {
-            index.put(i, "a");
+            index.put(Sized.valueOf(i), Sized.valueOf("a"));
         }
-        BlockRangeIndexMetadata<Integer> metadata = index.checkpoint();
+        BlockRangeIndexMetadata<Sized<Integer>> metadata = index.checkpoint();
         assertEquals(index.getNumBlocks(), metadata.getBlocksMetadata().size());
-        assertEquals(10,index.getLoadedBlocksCount());
 
         for (int i = 0; i < 100; i++) {
-            assertEquals("a", index.search(i).get(0));
+            assertEquals(Sized.valueOf("a"), index.search(Sized.valueOf(i)).get(0));
         }
-        assertEquals(10,index.getLoadedBlocksCount());
-        index.unloadAllBlocks();
-        assertEquals(0,index.getLoadedBlocksCount());
 
-        BlockRangeIndex<Integer, String> indexAfterBoot = new BlockRangeIndex<>(2, 10, storage);
-        indexAfterBoot.boot(metadata);
-        assertEquals(metadata.getBlocksMetadata().size(), indexAfterBoot.getNumBlocks());
-        assertEquals(0,indexAfterBoot.getLoadedBlocksCount());
-        for (int i = 0; i < 100; i++) {
-            assertEquals("a", indexAfterBoot.search(i).get(0));
-        }
-        assertEquals(10,indexAfterBoot.getLoadedBlocksCount());
-        assertEquals(metadata.getBlocksMetadata().size(), indexAfterBoot.getNumBlocks());
-        
+        assertEquals(10,policy.size());
+
+        index.clear();
+
+        /* No pages should remain in memory after unload!! */
+        assertEquals(0,policy.size());
 
     }
 }

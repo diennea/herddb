@@ -21,6 +21,9 @@ package herddb.index.brin;
 
 import org.junit.Test;
 
+import herddb.core.RandomPageReplacementPolicy;
+import herddb.utils.Sized;
+
 /**
  *
  * @author enrico.olivelli
@@ -33,15 +36,16 @@ public class BlockRangeIndexBench {
         final int testSize = 1_000_000;
 
         long _start = System.currentTimeMillis();
-        BlockRangeIndex<Integer, String> index = new BlockRangeIndex<>(10000);
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
+                new BlockRangeIndex<>(10000, new RandomPageReplacementPolicy(10000));
         for (int i = 0; i < testSize; i++) {
-            index.put(i, "test_" + i);
+            index.put(Sized.valueOf(i), Sized.valueOf("test_" + i));
         }
         long _stop = System.currentTimeMillis();
         System.out.println("time w: " + (_stop - _start));
         System.out.println("num segments: " + index.getNumBlocks());
         for (int i = 0; i < testSize; i++) {
-            index.search(i);
+            index.search(Sized.valueOf(i));
 //            index.lookUpRange(i, i + 1000);
         }
         _start = _stop;

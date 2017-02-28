@@ -28,11 +28,11 @@ import java.util.Arrays;
  *
  * @author enrico.olivelli
  */
-public final class Bytes implements Comparable<Bytes> {
+public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     private static final int CONSTANT_BYTE_SIZE = 36;
 
-    public static final int estimateSize(byte[] value) {
+    public static final long estimateSize(byte[] value) {
         return value.length + CONSTANT_BYTE_SIZE;
     }
 
@@ -41,7 +41,8 @@ public final class Bytes implements Comparable<Bytes> {
 
     public Object deserialized;
 
-    public int getEstimatedSize() {
+    @Override
+    public long getEstimatedSize() {
         return data.length + CONSTANT_BYTE_SIZE;
     }
 

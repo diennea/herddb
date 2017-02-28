@@ -662,7 +662,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
         byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
 
-        final int size = Record.estimateSize(key, value);
+        final long size = Record.estimateSize(key, value);
         if (size > maxLogicalPageSize) {
             throw new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize);
         }
@@ -724,7 +724,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
 
-                final int size = Record.estimateSize(actual.key, newValue);
+                final long size = Record.estimateSize(actual.key, newValue);
                 if (size > maxLogicalPageSize) {
                     throw new RecordTooBigException("New version of record " + actual.key
                         + " is to big to be update: new size " + size + ", actual size " + actual.getEstimatedSize()
