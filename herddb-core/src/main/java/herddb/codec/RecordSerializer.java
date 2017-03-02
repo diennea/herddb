@@ -34,9 +34,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import herddb.model.ColumnsList;
+import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SingleEntryMap;
+import javax.imageio.IIOException;
 
 /**
  * Record conversion to byte[]
@@ -87,6 +89,37 @@ public final class RecordSerializer {
                 return dii.readBoolean();
             case ColumnTypes.DOUBLE:
                 return dii.readDouble();
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+        }
+    }
+
+    public static void skipTypeAndValue(ExtendedDataInputStream dii) throws IOException {
+        int type = dii.readVInt();
+        switch (type) {
+            case ColumnTypes.BYTEARRAY:
+                dii.skipArray();
+                break;
+            case ColumnTypes.INTEGER:
+                dii.skipInt();
+                break;
+            case ColumnTypes.LONG:
+                dii.skipLong();
+                break;
+            case ColumnTypes.STRING:
+                dii.skipArray();
+                break;
+            case ColumnTypes.TIMESTAMP:
+                dii.skipLong();
+                break;
+            case ColumnTypes.NULL:
+                break;
+            case ColumnTypes.BOOLEAN:
+                dii.skipBoolean();
+                break;
+            case ColumnTypes.DOUBLE:
+                dii.skipDouble();
+                break;
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -228,11 +261,80 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 if (value instanceof RawString) {
                     // TODO: apply a real conversion from MySQL dump format
-                    return ((RawString)value).data;
+                    return ((RawString) value).data;
                 }
                 return value;
             default:
                 return value;
+        }
+    }
+
+    public static DataAccessor buildRawDataAccessor(Record record, Table table) {
+        return new DataAccessorImpl(table, record);
+    }
+
+    public static DataAccessor buildRawDataAccessorForPrimaryKey(Bytes key, Table table) {
+        return new DataAccessor() {
+            @Override
+            public Object get(String property) {
+                try {
+                    if (table.isPrimaryKeyColumn(property)) {
+                        return accessRawDataFromPrimaryKey(property, key, table);
+                    } else {
+                        return null;
+                    }
+                } catch (IOException err) {
+                    throw new IllegalStateException("bad data:" + err, err);
+                }
+            }
+
+            @Override
+            public String[] getFieldNames() {
+                return table.primaryKey;
+            }
+
+            @Override
+            public Map<String, Object> toMap() {
+                return deserializePrimaryKeyAsMap(key, table);
+            }
+        };
+
+    }
+
+    private static Object accessRawDataFromValue(String property, Bytes value, Table table) throws IOException {
+        SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(value.data);
+        ExtendedDataInputStream din = new ExtendedDataInputStream(s);
+        while (!din.isEof()) {
+            int serialPosition;
+            serialPosition = din.readVIntNoEOFException();
+            if (din.isEof()) {
+                return null;
+            }
+            Column col = table.getColumnBySerialPosition(serialPosition);
+            if (col != null && col.name.equals(property)) {
+                return deserializeTypeAndValue(din);
+            } else {
+                // we have to deserialize always the value, even the column is no more present
+                skipTypeAndValue(din);
+            }
+        }
+        return null;
+    }
+
+    private static Object accessRawDataFromPrimaryKey(String property, Bytes key, Table table) throws IOException {
+        if (table.primaryKey.length == 1) {
+            return deserialize(key.data, table.getColumn(property).type);
+        } else {
+            try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
+                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                for (String primaryKeyColumn : table.primaryKey) {
+                    byte[] value = din.readArray();
+                    if (primaryKeyColumn.equals(property)) {
+                        return deserialize(value, table.getColumn(primaryKeyColumn).type);
+                    }
+                }
+            }
+            throw new IOException("property " + property + " not found in PK: " + Arrays.toString(table.primaryKey));
         }
     }
 
@@ -253,10 +355,6 @@ public final class RecordSerializer {
         return toRecord(record, table);
     }
 
-    public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table) {
-        return serializePrimaryKey(record, table, table.getPrimaryKey());
-    }
-
     public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {
         ByteArrayOutputStream key = new ByteArrayOutputStream();
         String[] primaryKey = table.getPrimaryKey();
@@ -274,6 +372,45 @@ public final class RecordSerializer {
             return new Bytes(fieldValue);
         } else {
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan            
+            try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
+                int i = 0;
+                for (String pkColumn : columns) {
+                    if (!pkColumn.equals(primaryKey[i])) {
+                        throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(primaryKey));
+                    }
+                    Column c = table.getColumn(pkColumn);
+                    Object v = record.get(c.name);
+                    if (v == null) {
+                        throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
+                    }
+                    byte[] fieldValue = serialize(v, c.type);
+                    doo_key.writeArray(fieldValue);
+                    i++;
+                }
+            } catch (IOException err) {
+                throw new RuntimeException(err);
+            }
+            return new Bytes(key.toByteArray());
+        }
+    }
+
+    public static Bytes serializePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {
+        ByteArrayOutputStream key = new ByteArrayOutputStream();
+        String[] primaryKey = table.getPrimaryKey();
+        if (primaryKey.length == 1) {
+            String pkColumn = primaryKey[0];
+            if (columns.length != 1 && !columns[0].equals(pkColumn)) {
+                throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(pkColumn));
+            }
+            Column c = table.getColumn(pkColumn);
+            Object v = record.get(c.name);
+            if (v == null) {
+                throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
+            }
+            byte[] fieldValue = serialize(v, c.type);
+            return new Bytes(fieldValue);
+        } else {
+            // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
             try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
                 int i = 0;
                 for (String pkColumn : columns) {
@@ -342,7 +479,8 @@ public final class RecordSerializer {
     }
 
     public static Record toRecord(Map<String, Object> record, Table table) {
-        return new Record(serializePrimaryKey(record, table), serializeValue(record, table), record);
+        return new Record(serializePrimaryKey(record, table, table.primaryKey),
+            serializeValue(record, table), record);
     }
 
     private static Object deserializeSingleColumnPrimaryKey(byte[] data, Table table) {
@@ -405,6 +543,40 @@ public final class RecordSerializer {
             }
         } catch (IOException err) {
             throw new IllegalArgumentException("malformed record", err);
+        }
+    }
+
+    private static class DataAccessorImpl implements DataAccessor {
+
+        private final Table table;
+        private final Record record;
+
+        public DataAccessorImpl(Table table, Record record) {
+            this.table = table;
+            this.record = record;
+        }
+
+        @Override
+        public Object get(String property) {
+            try {
+                if (table.isPrimaryKeyColumn(property)) {
+                    return accessRawDataFromPrimaryKey(property, record.key, table);
+                } else {
+                    return accessRawDataFromValue(property, record.value, table);
+                }
+            } catch (IOException err) {
+                throw new IllegalStateException("bad data:" + err, err);
+            }
+        }
+
+        @Override
+        public String[] getFieldNames() {
+            return table.columnNames;
+        }
+
+        @Override
+        public Map<String, Object> toMap() {
+            return record.toBean(table);
         }
     }
 }

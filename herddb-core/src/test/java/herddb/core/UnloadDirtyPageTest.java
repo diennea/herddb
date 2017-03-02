@@ -37,6 +37,7 @@ import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import java.util.List;
 
@@ -69,7 +70,7 @@ public class UnloadDirtyPageTest {
                 .getTableManager("tsql").getStats().getLoadedpages());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where k1 = 'mykey4'", Collections.emptyList());) {
-                List<Tuple> result = scan.consume();
+                List<DataAccessor> result = scan.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("b"), result.get(0).get("s1"));
             }

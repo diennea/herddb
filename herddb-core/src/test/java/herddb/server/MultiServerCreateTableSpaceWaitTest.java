@@ -36,6 +36,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
 
 /**
@@ -95,7 +96,7 @@ public class MultiServerCreateTableSpaceWaitTest {
                 TestUtils.execute(server_1.getManager(), "CREATE TABLESPACE 'ttt','leader:" + server_2.getNodeId() + "','wait:60000'", Collections.emptyList());
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
-                    List<Tuple> tuples = scan.consume();
+                    List<DataAccessor> tuples = scan.consume();
 //                    for (Tuple t : tuples) {
 //                        System.out.println("tuple:" + t);
 //                    }

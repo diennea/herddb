@@ -31,14 +31,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.expression.JdbcParameter;
-import net.sf.jsqlparser.expression.LongValue;
-import net.sf.jsqlparser.expression.StringValue;
-import net.sf.jsqlparser.expression.TimestampValue;
 import herddb.model.ColumnsList;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
-import herddb.utils.RawString;
+import herddb.utils.DataAccessor;
 import java.util.Collections;
 
 /**
@@ -102,7 +98,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
         for (int i = 0; i < expressions.size(); i++) {
             herddb.model.Column c = columns[i];
             CompiledSQLExpression expression = expressions.get(i);
-            Object value = expression.evaluate(Collections.EMPTY_MAP, context);
+            Object value = expression.evaluate(DataAccessor.NULL, context);
             value = RecordSerializer.convert(c.type, value);
             pk.put(c.name, value);
         }

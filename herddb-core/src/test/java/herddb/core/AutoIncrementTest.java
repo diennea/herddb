@@ -40,6 +40,7 @@ import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 
 /**
  * Tests on table creation. the full record is the PK
@@ -67,7 +68,7 @@ public class AutoIncrementTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
 
-            List<Tuple> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+            List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
             assertEquals(6, rows.size());
             for (int i = 1; i <= 6; i++) {
                 int _i = i;
@@ -98,7 +99,7 @@ public class AutoIncrementTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
 
-            List<Tuple> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+            List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
             assertEquals(6, rows.size());
             for (int i = 1; i <= 6; i++) {
                 int _i = i;
@@ -130,7 +131,7 @@ public class AutoIncrementTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(s1) values(?)", Arrays.asList("aa")).getUpdateCount());
 
-            List<Tuple> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+            List<DataAccessor> rows = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
             assertEquals(6, rows.size());
             for (int i = 1; i <= 6; i++) {
                 int _i = i;

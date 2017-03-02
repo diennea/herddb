@@ -42,7 +42,7 @@ public class ColumnValue implements AggregatedColumnCalculator {
     }
 
     @Override
-    public void consume(Tuple tuple) {
+    public void consume(herddb.utils.DataAccessor tuple) {
         Object _value = tuple.get(fieldName);
         if (value == null) {
             value = _value;

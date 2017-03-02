@@ -24,6 +24,7 @@ import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
+import herddb.utils.DataAccessor;
 import java.util.List;
 
 /**
@@ -76,7 +77,7 @@ public class DataScannerJoinExecutor {
         scanner.rewind();
         while (scanner.hasNext()) {
             int startPos = pos;
-            Tuple rightTuple = scanner.next();
+            DataAccessor rightTuple = scanner.next();
             for (Object o : rightTuple.getValues()) {
                 tmpTuple[startPos++] = o;
             }

@@ -20,6 +20,7 @@
 package herddb.model;
 
 import herddb.codec.RecordSerializer;
+import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.RawString;
@@ -37,14 +38,7 @@ import java.util.Map;
  *
  * @author enrico.olivelli
  */
-public final class Tuple {
-
-    public Object[] getValues() {
-        if (values == null) {
-            buildValues();
-        }
-        return values;
-    }
+public final class Tuple implements DataAccessor {
 
     public final String[] fieldNames;
 
@@ -101,6 +95,7 @@ public final class Tuple {
         return values.length;
     }
 
+    @Override
     public Object get(String column) {
         if (map != null) {
             return map.get(column);
@@ -108,6 +103,15 @@ public final class Tuple {
         return toMap().get(column);
     }
 
+    @Override
+    public Object[] getValues() {
+        if (values == null) {
+            buildValues();
+        }
+        return values;
+    }
+
+    @Override
     public Map<String, Object> toMap() {
         if (map != null) {
             return map;
@@ -121,25 +125,31 @@ public final class Tuple {
     }
 
     @Override
+    public String[] getFieldNames() {
+        return fieldNames;
+    }
+
+    @Override
     public String toString() {
         return "Tuple{" + "values=" + Arrays.toString(values) + ", fieldNames=" + Arrays.toString(fieldNames) + '}';
     }
 
+    @Override
     public Object get(int i) {
         buildValues();
         return values[i];
     }
 
-    public VisibleByteArrayOutputStream serialize(Column[] columns) throws IOException {
+    public static VisibleByteArrayOutputStream serialize(DataAccessor tuple, Column[] columns) throws IOException {
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
-        getValues();
         try (ExtendedDataOutputStream eoo = new ExtendedDataOutputStream(oo);) {
             int i = 0;
+            String[] fieldNames = tuple.getFieldNames();
             for (String fieldName : fieldNames) {
                 if (!columns[i].name.equals(fieldName)) {
                     throw new IOException("invalid schema for tuple " + Arrays.toString(fieldNames) + " <> " + Arrays.toString(columns));
                 }
-                Object value = values[i];
+                Object value = tuple.get(fieldName);
                 if (value == null) {
                     eoo.writeVInt(ColumnTypes.NULL);
                 } else {

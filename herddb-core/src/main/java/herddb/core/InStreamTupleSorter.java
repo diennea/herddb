@@ -23,62 +23,68 @@ import java.util.Arrays;
 import java.util.Comparator;
 
 import herddb.model.Tuple;
+import herddb.utils.DataAccessor;
 
 /**
  * Collect and sort a maximum number of {@link Tuple Tuples}.
  * <p>
- * A configurable maximum number of tuples will be kept; when reached such limit exceeding tuples will be
- * discarded keeping only the lower ones as stated from given comparator.
+ * A configurable maximum number of tuples will be kept; when reached such limit exceeding tuples will be discarded
+ * keeping only the lower ones as stated from given comparator.
  * </p>
- * 
+ *
  * @author diego.salvi
  */
 public final class InStreamTupleSorter {
 
     private final int size;
-    private final Comparator<Tuple> comparator;
-    
-    private final Tuple[] tuples;
+    private final Comparator<DataAccessor> comparator;
+
+    private final DataAccessor[] tuples;
     private int count;
-    private Tuple reference;
-    
-    public InStreamTupleSorter(int size, Comparator<Tuple> comparator) {
+    private DataAccessor reference;
+
+    public InStreamTupleSorter(int size, Comparator<DataAccessor> comparator) {
         super();
         this.size = size;
         this.comparator = comparator;
-        this.tuples = new Tuple[size];
+        this.tuples = new DataAccessor[size];
     }
-    
-    public void collect(Tuple tuple) {
+
+    public void collect(DataAccessor tuple) {
         boolean full = (count >= size);
-        
+
         if (full) {
             final int cmp = comparator.compare(reference, tuple);
             if (cmp < 0) {
                 return;
             }
         }
-        
+
         int idx = Arrays.binarySearch(tuples, 0, count, tuple, comparator);
         if (idx < 0) {
             idx = -idx - 1;
         }
-        
+
         if (!full) {
             ++count;
         }
-        
-        System.arraycopy(tuples, idx, tuples, idx + 1, count - (idx + 1));
-        
-        tuples[idx] = tuple;
 
-        reference = tuples[count -1];
+        System.arraycopy(tuples, idx, tuples, idx + 1, count - (idx + 1));
+
+        try {
+            tuples[idx] = tuple;
+        } catch (ArrayStoreException err) {
+            System.out.println("ERROR ON INSERT OF a "+tuple.getClass()+" into a "+tuples.getClass());
+            throw err;
+        }
+
+        reference = tuples[count - 1];
     }
-    
+
     public void flushToRecordSet(MaterializedRecordSet rs) {
-        for(int i = 0; i < count; ++i){
+        for (int i = 0; i < count; ++i) {
             rs.add(tuples[i]);
         }
     }
-    
+
 }

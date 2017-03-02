@@ -97,6 +97,7 @@ import herddb.sql.SQLStatementEvaluationContext;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ChangeThreadName;
+import herddb.utils.DataAccessor;
 import herddb.utils.DefaultJVMHalt;
 
 /**
@@ -520,55 +521,54 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        try (ChangeThreadName changeThreadName = new ChangeThreadName("executePlan " + plan)) {
-            if (plan.mainStatement instanceof ScanStatement) {
-                DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
-                // transction can be auto generated during the scan
-                transactionContext = new TransactionContext(result.transactionId);
-                return executeDataScannerPlan(plan, result, context, transactionContext);
-            } else if (plan.dataSource != null) {
-                try {
-                    ScanResult data = (ScanResult) executePlan(plan.dataSource, context, transactionContext);
-                    int insertCount = 0;
-                    try {
-                        // transction can be auto generated during the scan
-                        transactionContext = new TransactionContext(data.transactionId);
-                        while (data.dataScanner.hasNext()) {
-                            Tuple tuple = data.dataScanner.next();
-                            SQLStatementEvaluationContext tmp_context = new SQLStatementEvaluationContext("--", Arrays.asList(tuple.getValues()));
-                            DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(plan.mainStatement, tmp_context, transactionContext);
-                            insertCount += res.getUpdateCount();
-                        }
-                    } finally {
-                        data.dataScanner.close();
-                    }
-                    return new DMLStatementExecutionResult(transactionContext.transactionId, insertCount);
-                } catch (DataScannerException err) {
-                    throw new StatementExecutionException(err);
-                }
-            } else if (plan.joinStatements != null) {
-                List<DataScanner> scanResults = new ArrayList<>();
-                for (ScanStatement statement : plan.joinStatements) {
-                    DataScanner result = scan(statement, context, transactionContext);
-                    // transction can be auto generated during the scan
-                    transactionContext = new TransactionContext(result.transactionId);
-                    scanResults.add(result);
-                }
-                return executeJoinedScansPlan(scanResults, context, transactionContext,
-                    plan);
-
-            } else if (plan.insertStatements != null) {
+        if (plan.mainStatement instanceof ScanStatement) {
+            DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
+            // transction can be auto generated during the scan
+            transactionContext = new TransactionContext(result.transactionId);
+            return executeDataScannerPlan(plan, result, context, transactionContext);
+        } else if (plan.dataSource != null) {
+            // INSERT from SELECT
+            try {
+                ScanResult data = (ScanResult) executePlan(plan.dataSource, context, transactionContext);
                 int insertCount = 0;
-                for (InsertStatement insert : plan.insertStatements) {
-                    DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(insert, context, transactionContext);
-                    // transction can be auto generated during the loop
-                    transactionContext = new TransactionContext(res.transactionId);
-                    insertCount += res.getUpdateCount();
+                try {
+                    // transction can be auto generated during the scan
+                    transactionContext = new TransactionContext(data.transactionId);
+                    while (data.dataScanner.hasNext()) {
+                        DataAccessor tuple = data.dataScanner.next();
+                        SQLStatementEvaluationContext tmp_context = new SQLStatementEvaluationContext("--", Arrays.asList(tuple.getValues()));
+                        DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(plan.mainStatement, tmp_context, transactionContext);
+                        insertCount += res.getUpdateCount();
+                    }
+                } finally {
+                    data.dataScanner.close();
                 }
                 return new DMLStatementExecutionResult(transactionContext.transactionId, insertCount);
-            } else {
-                return executeStatement(plan.mainStatement, context, transactionContext);
+            } catch (DataScannerException err) {
+                throw new StatementExecutionException(err);
             }
+        } else if (plan.joinStatements != null) {
+            List<DataScanner> scanResults = new ArrayList<>();
+            for (ScanStatement statement : plan.joinStatements) {
+                DataScanner result = scan(statement, context, transactionContext);
+                // transction can be auto generated during the scan
+                transactionContext = new TransactionContext(result.transactionId);
+                scanResults.add(result);
+            }
+            return executeJoinedScansPlan(scanResults, context, transactionContext,
+                plan);
+
+        } else if (plan.insertStatements != null) {
+            int insertCount = 0;
+            for (InsertStatement insert : plan.insertStatements) {
+                DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(insert, context, transactionContext);
+                // transction can be auto generated during the loop
+                transactionContext = new TransactionContext(res.transactionId);
+                insertCount += res.getUpdateCount();
+            }
+            return new DMLStatementExecutionResult(transactionContext.transactionId, insertCount);
+        } else {
+            return executeStatement(plan.mainStatement, context, transactionContext);
         }
     }
 

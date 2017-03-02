@@ -35,6 +35,7 @@ import org.junit.rules.TemporaryFolder;
 import herddb.core.TestUtils;
 import herddb.model.DataScanner;
 import herddb.model.Tuple;
+import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -105,7 +106,7 @@ public class MaxLeaderInactivityTest {
                 TestUtils.execute(server_1.getManager(), "ALTER TABLESPACE 'ttt','maxLeaderInactivityTime:5000'", Collections.emptyList());
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
-                    List<Tuple> tuples = scan.consume();
+                    List<DataAccessor> tuples = scan.consume();
 //                    for (Tuple t : tuples) {
 //                        System.out.println("tuple:" + t);
 //                    }
@@ -116,7 +117,7 @@ public class MaxLeaderInactivityTest {
                 // wait for server_1 to announce as follower
                 for (int i = 0; i < 100; i++) {
                     try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt' and nodeId='" + server_1.getNodeId() + "'", Collections.emptyList());) {
-                        List<Tuple> tuples = scan.consume();
+                        List<DataAccessor> tuples = scan.consume();
 //                        for (Tuple t : tuples) {
 //                            System.out.println("tuple:" + t);
 //                        }
@@ -135,8 +136,8 @@ public class MaxLeaderInactivityTest {
             for (int i = 0; i < 100; i++) {
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE "
                     + "where tablespace_name='ttt' and nodeId='" + server_1.getNodeId() + "'", Collections.emptyList());) {
-                    List<Tuple> tuples = scan.consume();
-                    for (Tuple t : tuples) {
+                    List<DataAccessor> tuples = scan.consume();
+                    for (DataAccessor t : tuples) {
                         System.out.println("tuple2:" + t);
                     }
                     assertEquals(1, tuples.size());
@@ -191,7 +192,7 @@ public class MaxLeaderInactivityTest {
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where "
                     + "tablespace_name='ttt' and nodeId='" + server_2.getNodeId() + "'", Collections.emptyList());) {
-                    List<Tuple> tuples = scan.consume();
+                    List<DataAccessor> tuples = scan.consume();
 //                    for (Tuple t : tuples) {
 //                        System.out.println("tuple:" + t);
 //                    }
@@ -202,7 +203,7 @@ public class MaxLeaderInactivityTest {
                 // we want server 2 to be leader forever
                 for (int i = 0; i < 20; i++) {
                     try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM SYSTABLESPACEREPLICASTATE where tablespace_name='ttt'", Collections.emptyList());) {
-                        List<Tuple> tuples = scan.consume();
+                        List<DataAccessor> tuples = scan.consume();
 //                        for (Tuple t : tuples) {
 //                            System.out.println("tuple:" + t);
 //                        }

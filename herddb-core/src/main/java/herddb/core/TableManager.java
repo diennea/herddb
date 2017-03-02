@@ -92,6 +92,7 @@ import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.BatchOrderedExecutor;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
@@ -1013,7 +1014,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (indexes != null) {
 
             /* If there are indexes e have already forced a page load and previous record has been loaded */
-            Map<String, Object> values = previous.toBean(table);
+            DataAccessor values = previous.getDataAccessor(table);
             for (AbstractIndexManager index : indexes.values()) {
                 index.recordDeleted(key, values);
             }
@@ -1131,8 +1132,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (indexes != null) {
 
             /* If there are indexes e have already forced a page load and previous record has been loaded */
-            Map<String, Object> prevValues = previous.toBean(table);
-            Map<String, Object> newValues = record.toBean(table);
+            DataAccessor prevValues = previous.getDataAccessor(table);
+            DataAccessor newValues = record.getDataAccessor(table);
             for (AbstractIndexManager index : indexes.values()) {
                 index.recordUpdated(key, prevValues, newValues);
             }
@@ -1320,7 +1321,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (previous == null) {
 
                 /* Standard insert */
-                Map<String, Object> values = record.toBean(table);
+                DataAccessor values = record.getDataAccessor(table);
                 for (AbstractIndexManager index : indexes.values()) {
                     index.recordInserted(key, values);
                 }
@@ -1328,8 +1329,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 /* If there is a previous page this is a delete and insert, we really need to update indexes
                  * from old "deleted" values to the new ones. Previus record has already been loaded  */
-                Map<String, Object> prevValues = previous.toBean(table);
-                Map<String, Object> newValues = record.toBean(table);
+                DataAccessor prevValues = previous.getDataAccessor(table);
+                DataAccessor newValues = record.getDataAccessor(table);
                 for (AbstractIndexManager index : indexes.values()) {
                     index.recordUpdated(key, prevValues, newValues);
                 }
@@ -1658,13 +1659,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 accessTableData(statement, context, new ScanResultOperation() {
                     @Override
                     public void accept(Record record) throws StatementExecutionException {
-                        Tuple tuple;
                         if (applyProjectionDuringScan) {
-                            tuple = projection.map(record, table, context);
+                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                            sorter.collect(tuple);
                         } else {
-                            tuple = new Tuple(record.toBean(table), table.columnNames);
+                            sorter.collect(record.getDataAccessor(table));
                         }
-                        sorter.collect(tuple);
                     }
                 }, transaction, false, false);
                 sorter.flushToRecordSet(recordSet);
@@ -1679,13 +1679,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 accessTableData(statement, context, new ScanResultOperation() {
                     @Override
                     public void accept(Record record) throws StatementExecutionException {
-                        Tuple tuple;
                         if (applyProjectionDuringScan) {
-                            tuple = projection.map(record, table, context);
+                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                            recordSet.add(tuple);
                         } else {
-                            tuple = new Tuple(record.toBean(table), table.columnNames);
+                            recordSet.add(record.getDataAccessor(table));
                         }
-                        recordSet.add(tuple);
                         if (remaining.decrementAndGet() == 0) {
                             throw new ExitLoop();
                         }
@@ -1696,13 +1695,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             accessTableData(statement, context, new ScanResultOperation() {
                 @Override
                 public void accept(Record record) throws StatementExecutionException {
-                    Tuple tuple;
                     if (applyProjectionDuringScan) {
-                        tuple = projection.map(record, table, context);
+                        DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                        recordSet.add(tuple);
                     } else {
-                        tuple = new Tuple(record.toBean(table), table.columnNames);
+                        recordSet.add(record.getDataAccessor(table));
                     }
-                    recordSet.add(tuple);
+
                 }
             }, transaction, false, false);
         }

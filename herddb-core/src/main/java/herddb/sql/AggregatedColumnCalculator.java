@@ -32,6 +32,6 @@ public interface AggregatedColumnCalculator {
 
     public String getFieldName();
 
-    public void consume(Tuple tuple) throws StatementExecutionException;
+    public void consume(herddb.utils.DataAccessor tuple) throws StatementExecutionException;
     
 }

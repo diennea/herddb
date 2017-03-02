@@ -37,7 +37,7 @@ public class ColumnNotEqualsJdbcParameter implements CompiledSQLExpression {
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object left = bean.get(columnName);
         Object value = context.getJdbcParameters().get(index);
         boolean res = !SQLRecordPredicate.objectEquals(left, value);

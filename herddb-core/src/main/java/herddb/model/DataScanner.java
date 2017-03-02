@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -55,7 +56,7 @@ public abstract class DataScanner implements AutoCloseable {
 
     public abstract boolean hasNext() throws DataScannerException;
 
-    public abstract Tuple next() throws DataScannerException;
+    public abstract DataAccessor next() throws DataScannerException;
 
     /**
      * Consumers all the records in memory
@@ -63,7 +64,7 @@ public abstract class DataScanner implements AutoCloseable {
      * @param consumer
      * @throws herddb.model.DataScannerException
      */
-    public void forEach(Consumer<Tuple> consumer) throws DataScannerException {
+    public void forEach(Consumer<DataAccessor> consumer) throws DataScannerException {
         while (hasNext()) {
             consumer.accept(next());
         }
@@ -78,14 +79,14 @@ public abstract class DataScanner implements AutoCloseable {
      *
      * @return
      */
-    public List<Tuple> consume() throws DataScannerException {
-        List<Tuple> records = new ArrayList<>();
+    public List<DataAccessor> consume() throws DataScannerException {
+        List<DataAccessor> records = new ArrayList<>();
         forEach(records::add);
         return records;
     }
 
-    public List<Tuple> consume(int fetchSize) throws DataScannerException {
-        List<Tuple> records = new ArrayList<>();
+    public List<DataAccessor> consume(int fetchSize) throws DataScannerException {
+        List<DataAccessor> records = new ArrayList<>();
         while (fetchSize-- > 0 && hasNext()) {
             records.add(next());
         }

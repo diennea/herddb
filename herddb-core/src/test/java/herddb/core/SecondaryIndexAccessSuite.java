@@ -53,6 +53,7 @@ import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 
 /**
  * @author enrico.olivelli
@@ -407,7 +408,7 @@ public abstract class SecondaryIndexAccessSuite {
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> consume = scan1.consume();
+                    List<DataAccessor> consume = scan1.consume();
                     System.out.println("consume:" + consume);
                     assertEquals(1, consume.size());
                 }

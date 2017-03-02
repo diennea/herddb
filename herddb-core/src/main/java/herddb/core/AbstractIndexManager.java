@@ -31,6 +31,7 @@ import herddb.model.Transaction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
@@ -142,11 +143,11 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         }).filter(p -> p != null);
     }
 
-    public abstract void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues) throws DataStorageManagerException;
+    public abstract void recordUpdated(Bytes key, DataAccessor previousValues, DataAccessor newValues) throws DataStorageManagerException;
 
-    public abstract void recordInserted(Bytes key, Map<String, Object> values) throws DataStorageManagerException;
+    public abstract void recordInserted(Bytes key, DataAccessor values) throws DataStorageManagerException;
 
-    public abstract void recordDeleted(Bytes key, Map<String, Object> values) throws DataStorageManagerException;
+    public abstract void recordDeleted(Bytes key, DataAccessor values) throws DataStorageManagerException;
 
     /**
      * Drop the index from persist storage

@@ -26,6 +26,8 @@ import java.util.Objects;
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
 import herddb.utils.SizeAwareObject;
+import herddb.utils.DataAccessor;
+import herddb.utils.MapDataAccessor;
 
 /**
  * A generic record
@@ -43,7 +45,6 @@ public final class Record implements SizeAwareObject {
     public final Bytes key;
     public final Bytes value;
     private WeakReference<Map<String, Object>> cache;
-
 
     public Record(Bytes key, Bytes value) {
         this.key = key;
@@ -70,6 +71,16 @@ public final class Record implements SizeAwareObject {
         res = RecordSerializer.toBean(this, table);
         cache = new WeakReference<>(res);
         return res;
+    }
+
+    public DataAccessor getDataAccessor(Table table) {
+        WeakReference<Map<String, Object>> cachedRef = cache;
+        Map<String, Object> res = cachedRef != null ? cachedRef.get() : null;
+        if (res != null) {
+            return new MapDataAccessor(res, table.columnNames);
+        } else {
+            return RecordSerializer.buildRawDataAccessor(this, table);
+        }
     }
 
     @Override

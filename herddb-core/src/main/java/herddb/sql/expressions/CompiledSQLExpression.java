@@ -35,6 +35,6 @@ public interface CompiledSQLExpression {
         public CompiledSQLExpression build(boolean not, CompiledSQLExpression left, CompiledSQLExpression right);
     }
 
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException;
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException;
 
 }

@@ -43,6 +43,7 @@ import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
 
 /**
@@ -106,7 +107,7 @@ public class TablespaceReplicasStateTest {
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
                 try (DataScanner scan = scan(server_1.getManager(), "SELECT * FROM systablespacereplicastate", Collections.emptyList());) {
-                    List<Tuple> results = scan.consume();
+                    List<DataAccessor> results = scan.consume();
                     assertEquals(2, results.size());
                 }
 

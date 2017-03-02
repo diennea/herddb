@@ -73,7 +73,7 @@ public class CompiledCaseExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         if (whenExpressions != null) {
             for (Entry<CompiledSQLExpression,CompiledSQLExpression> entry : whenExpressions) {
                 Object whenValue = entry.getKey().evaluate(bean, context);

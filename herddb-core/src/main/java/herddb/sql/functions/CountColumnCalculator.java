@@ -41,7 +41,7 @@ public class CountColumnCalculator implements AggregatedColumnCalculator {
     }
 
     @Override
-    public void consume(Tuple tuple) {
+    public void consume(herddb.utils.DataAccessor tuple) {
         count++;
     }
 

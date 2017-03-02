@@ -24,6 +24,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import static herddb.sql.SQLRecordPredicate.objectEquals;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +41,7 @@ public class CompiledInExpression implements CompiledSQLExpression {
     private final PlainSelect inSubSelectPlain;
     private final boolean not;
 
-    public CompiledInExpression(Boolean not, CompiledSQLExpression left, 
+    public CompiledInExpression(Boolean not, CompiledSQLExpression left,
         List<CompiledSQLExpression> inExpressions, SubSelect inSubSelect) {
         this.left = left;
         this.not = not;
@@ -49,15 +50,15 @@ public class CompiledInExpression implements CompiledSQLExpression {
             if (inSubSelect.getSelectBody() instanceof PlainSelect) {
                 this.inSubSelectPlain = (PlainSelect) inSubSelect.getSelectBody();
             } else {
-                throw new StatementExecutionException("unsupported operand \"IN\"" + 
-                    " with subquery of type " + inSubSelect.getSelectBody().getClass() + 
-                    "(" + inSubSelect.getSelectBody() + ")");
+                throw new StatementExecutionException("unsupported operand \"IN\""
+                    + " with subquery of type " + inSubSelect.getSelectBody().getClass()
+                    + "(" + inSubSelect.getSelectBody() + ")");
             }
         } else {
             this.inSubSelectPlain = null;
         }
     }
-    
+
     public static CompiledInExpression create(InExpression in, String validatedTableAlias) {
         if (in.getLeftItemsList() != null) {
             throw new StatementExecutionException("Unsupported operand " + in.getClass() + " with a non-expression left argument (" + in + ")");
@@ -66,11 +67,11 @@ public class CompiledInExpression implements CompiledSQLExpression {
         if (left == null) {
             return null;
         }
-        
+
         if (in.getRightItemsList() instanceof ExpressionList) {
             List<CompiledSQLExpression> expList = new ArrayList<>();
             ExpressionList exps = (ExpressionList) in.getRightItemsList();
-            for (Expression exp: exps.getExpressions()) {
+            for (Expression exp : exps.getExpressions()) {
                 CompiledSQLExpression newExp = compileExpression(validatedTableAlias, exp);
                 if (newExp == null) {
                     return null;
@@ -79,26 +80,26 @@ public class CompiledInExpression implements CompiledSQLExpression {
             }
             return new CompiledInExpression(in.isNot(), left, expList, null);
         }
-        
+
         if (in.getRightItemsList() instanceof SubSelect) {
             SubSelect ss = (SubSelect) in.getRightItemsList();
-            if (! (ss.getSelectBody() instanceof PlainSelect)) {
-                throw new StatementExecutionException("unsupported operand " + in.getClass() + 
-                    " with subquery of type " + ss.getClass() + "(" + ss + ")");
+            if (!(ss.getSelectBody() instanceof PlainSelect)) {
+                throw new StatementExecutionException("unsupported operand " + in.getClass()
+                    + " with subquery of type " + ss.getClass() + "(" + ss + ")");
             }
             return new CompiledInExpression(in.isNot(), left, null, ss);
         }
-        
-        throw new StatementExecutionException("unsupported operand " + in.getClass() + 
-            " with argument of type " + in.getRightItemsList().getClass() + "(" + in + ")");
+
+        throw new StatementExecutionException("unsupported operand " + in.getClass()
+            + " with argument of type " + in.getRightItemsList().getClass() + "(" + in + ")");
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
-        
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
+
         Object leftValue = left.evaluate(bean, context);
         boolean res = false;
-        
+
         if (inExpressions != null) {
             for (CompiledSQLExpression exp : inExpressions) {
                 Object expValue = exp.evaluate(bean, context);
@@ -107,14 +108,15 @@ public class CompiledInExpression implements CompiledSQLExpression {
                     break;
                 }
             }
-            
+
         } else if (inSubSelectPlain != null) {
-            List<Tuple> subQueryResult = context.executeSubquery(inSubSelectPlain);
-            for (Tuple t : subQueryResult) {
-                if (t.fieldNames.length > 1) {
+            List<DataAccessor> subQueryResult = context.executeSubquery(inSubSelectPlain);
+            for (DataAccessor t : subQueryResult) {
+                String[] fieldNames = t.getFieldNames();
+                if (fieldNames.length > 1) {
                     throw new StatementExecutionException("subquery returned more than one column");
                 }
-                Object tuple_value = t.get(0);
+                Object tuple_value = t.get(fieldNames[0]);
                 if (objectEquals(leftValue, tuple_value)) {
                     res = true;
                     break;
@@ -123,13 +125,13 @@ public class CompiledInExpression implements CompiledSQLExpression {
         } else {
             throw new StatementExecutionException("Internal error");
         }
-        
+
         if (not) {
             return !res;
         } else {
             return res;
         }
-        
+
     }
 
 }

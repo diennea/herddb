@@ -38,6 +38,7 @@ import herddb.model.DataScanner;
 import herddb.model.TableSpace;
 import herddb.model.TableSpaceAlreadyExistsException;
 import herddb.model.Tuple;
+import herddb.utils.DataAccessor;
 
 /**
  *
@@ -73,9 +74,9 @@ public class AlterTablespaceSQLTest {
             assertTrue(ttt3.replicas.contains(nodeId));
 
             try (DataScanner scan = scan(manager, "SELECT * FROM SYSTABLESPACES", Collections.emptyList());) {
-                List<Tuple> tuples = scan.consume();
+                List<DataAccessor> tuples = scan.consume();
                 assertEquals(5, tuples.size());
-                for (Tuple t : tuples) {
+                for (DataAccessor t : tuples) {
                     System.out.println("tablespace: " + t.toMap());
                     assertNotNull(t.get("expectedreplicacount"));
                     assertNotNull(t.get("tablespace_name"));
@@ -84,9 +85,9 @@ public class AlterTablespaceSQLTest {
                 }
             }
             try (DataScanner scan = scan(manager, "SELECT expectedreplicacount FROM SYSTABLESPACES where tablespace_name='ttt3'", Collections.emptyList());) {
-                List<Tuple> tuples = scan.consume();
+                List<DataAccessor> tuples = scan.consume();
                 assertEquals(1, tuples.size());
-                for (Tuple t : tuples) {
+                for (DataAccessor t : tuples) {
                     System.out.println("tablespace: " + t.toMap());
                     assertEquals(12, t.get("expectedreplicacount"));
                 }

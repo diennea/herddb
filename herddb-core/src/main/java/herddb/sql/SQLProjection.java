@@ -30,6 +30,7 @@ import herddb.model.Tuple;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -334,27 +335,19 @@ public class SQLProjection implements Projection {
     }
 
     @Override
-    public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
-        Map<String, Object> record = tuple.toMap();
+    public Tuple map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
+        if (onlyCountFunctions) {
+            return new Tuple(fieldNames, new Object[fieldNames.length]);
+        }
         List<Object> values = new ArrayList<>(output.size());
         for (OutputColumn col : output) {
-            Object value = col.compiledExpression.evaluate(record, context);
+            Object value = col.compiledExpression.evaluate(tuple, context);
             values.add(value);
         }
         return new Tuple(
             fieldNames,
             values.toArray()
         );
-    }
-
-    @Override
-    public Tuple map(Record record, Table table, StatementEvaluationContext context) throws StatementExecutionException {
-        if (onlyCountFunctions) {
-            return new Tuple(fieldNames, new Object[fieldNames.length]);
-        } else {
-            Tuple rawtuple = new Tuple(record.toBean(table), table.columnNames);
-            return map(rawtuple, context);
-        }
     }
 
     @Override

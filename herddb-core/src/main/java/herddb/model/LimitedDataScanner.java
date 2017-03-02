@@ -19,6 +19,8 @@
  */
 package herddb.model;
 
+import herddb.utils.DataAccessor;
+
 /**
  *
  * @author enrico.olivelli
@@ -54,8 +56,8 @@ public class LimitedDataScanner extends DataScanner {
     }
 
     @Override
-    public Tuple next() throws DataScannerException {
-        Tuple result = wrapped.next();
+    public DataAccessor next() throws DataScannerException {
+        DataAccessor result = wrapped.next();
         remaining--;
         return result;
     }

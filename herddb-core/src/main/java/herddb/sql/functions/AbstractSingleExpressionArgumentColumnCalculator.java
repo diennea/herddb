@@ -26,6 +26,7 @@ import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
+import herddb.utils.DataAccessor;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
 import net.sf.jsqlparser.expression.LongValue;
@@ -46,7 +47,7 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
     @FunctionalInterface
     public static interface ValueComputer {
 
-        public Comparable apply(Tuple tuple) throws StatementExecutionException;
+        public Comparable apply(DataAccessor tuple) throws StatementExecutionException;
     }
 
     protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, Expression expression,
@@ -54,8 +55,8 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
     ) throws StatementExecutionException {
         this.fieldName = fieldName;
         this.expression = SQLExpressionCompiler.compileExpression(null, expression);
-        valueExtractor = (Tuple t) -> {
-            return (Comparable) this.expression.evaluate(t.toMap(), context);
+        valueExtractor = (DataAccessor t) -> {
+            return (Comparable) this.expression.evaluate(t, context);
         };
     }
 }

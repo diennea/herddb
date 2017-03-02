@@ -27,6 +27,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -38,7 +39,7 @@ import java.util.List;
  */
 public class MemoryRecordSet extends MaterializedRecordSet {
 
-    private List<Tuple> buffer = new ArrayList<>();
+    private List<DataAccessor> buffer = new ArrayList<>();
 
     MemoryRecordSet(String[] fieldNames, Column[] columns, RecordSetFactory factory) {
         super(-1, fieldNames, columns, factory);
@@ -49,7 +50,7 @@ public class MemoryRecordSet extends MaterializedRecordSet {
     }
 
     @Override
-    public Iterator<Tuple> iterator() {
+    public Iterator<DataAccessor> iterator() {
         if (!writeFinished) {
             throw new IllegalStateException("RecordSet is still in write mode");
         }
@@ -57,7 +58,7 @@ public class MemoryRecordSet extends MaterializedRecordSet {
     }
 
     @Override
-    public void add(Tuple record) {
+    public void add(DataAccessor record) {
         if (writeFinished) {
             throw new IllegalStateException("RecordSet in read mode");
         }
@@ -83,8 +84,8 @@ public class MemoryRecordSet extends MaterializedRecordSet {
         this.columns = projection.getColumns();
         this.fieldNames = projection.getFieldNames();
 
-        List<Tuple> projected = new ArrayList<>(size);
-        for (Tuple record : buffer) {
+        List<DataAccessor> projected = new ArrayList<>(size);
+        for (DataAccessor record : buffer) {
             projected.add(projection.map(record, context));
         }
         this.buffer = projected;

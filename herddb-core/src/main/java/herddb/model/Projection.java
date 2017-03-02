@@ -19,6 +19,8 @@
  */
 package herddb.model;
 
+import herddb.utils.DataAccessor;
+
 /**
  * Function which mapsthe result of a scan to a Tuple
  *
@@ -37,9 +39,9 @@ public interface Projection {
             public String[] getFieldNames() {
                 return fieldNames;
             }
-            
+
             @Override
-            public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
+            public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
                 return tuple;
             }
         };
@@ -64,7 +66,7 @@ public interface Projection {
             }
 
             @Override
-            public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
+            public Tuple map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
                 Object[] values = new Object[columns.length];
                 for (int i = 0; i < values.length; i++) {
                     Object v = tuple.get(columns[i].name);
@@ -79,9 +81,6 @@ public interface Projection {
 
     public String[] getFieldNames();
 
-    public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException;
+    public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException;
 
-    public default Tuple map(Record record, Table table, StatementEvaluationContext context) throws StatementExecutionException {
-        return map(new Tuple(record.toBean(table), table.columnNames), context);
-    }
 }

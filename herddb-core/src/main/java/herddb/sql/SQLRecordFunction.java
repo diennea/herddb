@@ -27,6 +27,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.utils.DataAccessor;
 
 import java.util.HashMap;
 import java.util.List;
@@ -54,8 +55,8 @@ public class SQLRecordFunction extends RecordFunction {
 
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
-        Map<String, Object> bean = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
-
+        Map<String, Object> res = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
+        DataAccessor bean = previous != null ? previous.getDataAccessor(table) : DataAccessor.NULL;
         for (int i = 0; i < columns.size(); i++) {
             CompiledSQLExpression e = expressions.get(i);
             String columnName = columns.get(i).getColumnName();
@@ -65,10 +66,9 @@ public class SQLRecordFunction extends RecordFunction {
             }
             columnName = column.name;
             Object value = RecordSerializer.convert(column.type, e.evaluate(bean, context));
-
-            bean.put(columnName, value);
+            res.put(columnName, value);
         }
-        return RecordSerializer.toRecord(bean, table).value.data;
+        return RecordSerializer.toRecord(res, table).value.data;
     }
 
     @Override

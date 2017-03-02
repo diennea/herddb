@@ -35,6 +35,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import java.util.Arrays;
 
@@ -55,17 +56,17 @@ public class SystemTablesJoinTest {
             manager.waitForTablespace("tblspace1", 10000);
 
             {
-                List<Tuple> tuples = scan(manager, "SELECT systablespaces.leader,"
+                List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
                     + "systablespaces.tablespace_name,"
                     + "sysnodes.address FROM"
                     + " systablespaces "
                     + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
                     + " ORDER BY tablespace_name", Collections.emptyList()).consume();
-                for (Tuple t : tuples) {
-                    assertEquals(3, t.fieldNames.length);
-                    assertEquals("leader", t.fieldNames[0]);
-                    assertEquals("tablespace_name", t.fieldNames[1]);
-                    assertEquals("address", t.fieldNames[2]);
+                for (DataAccessor t : tuples) {
+                    assertEquals(3, t.getFieldNames().length);
+                    assertEquals("leader", t.getFieldNames()[0]);
+                    assertEquals("tablespace_name", t.getFieldNames()[1]);
+                    assertEquals("address", t.getFieldNames()[2]);
                 }
                 assertEquals(2, tuples.size());
 
@@ -81,17 +82,17 @@ public class SystemTablesJoinTest {
             }
 
             {
-                List<Tuple> tuples = scan(manager, "SELECT systablespaces.leader,"
+                List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
                     + "systablespaces.tablespace_name,"
                     + "sysnodes.address FROM"
                     + " systablespaces "
                     + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid"
                     + " ORDER BY tablespace_name DESC", Collections.emptyList()).consume();
-                for (Tuple t : tuples) {
-                    assertEquals(3, t.fieldNames.length);
-                    assertEquals("leader", t.fieldNames[0]);
-                    assertEquals("tablespace_name", t.fieldNames[1]);
-                    assertEquals("address", t.fieldNames[2]);
+                for (DataAccessor t : tuples) {
+                    assertEquals(3, t.getFieldNames().length);
+                    assertEquals("leader", t.getFieldNames()[0]);
+                    assertEquals("tablespace_name", t.getFieldNames()[1]);
+                    assertEquals("address", t.getFieldNames()[2]);
                 }
                 assertEquals(2, tuples.size());
 
@@ -107,17 +108,17 @@ public class SystemTablesJoinTest {
             }
 
             {
-                List<Tuple> tuples = scan(manager, "SELECT systablespaces.leader,"
+                List<DataAccessor> tuples = scan(manager, "SELECT systablespaces.leader,"
                     + "systablespaces.tablespace_name,"
                     + "sysnodes.address FROM"
                     + " systablespaces "
                     + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid AND systablespaces.tablespace_name <> ?"
                     + " ORDER BY tablespace_name DESC", Arrays.asList("default")).consume();
-                for (Tuple t : tuples) {
-                    assertEquals(3, t.fieldNames.length);
-                    assertEquals("leader", t.fieldNames[0]);
-                    assertEquals("tablespace_name", t.fieldNames[1]);
-                    assertEquals("address", t.fieldNames[2]);
+                for (DataAccessor t : tuples) {
+                    assertEquals(3, t.getFieldNames().length);
+                    assertEquals("leader", t.getFieldNames()[0]);
+                    assertEquals("tablespace_name", t.getFieldNames()[1]);
+                    assertEquals("address", t.getFieldNames()[2]);
                 }
                 assertEquals(1, tuples.size());
 

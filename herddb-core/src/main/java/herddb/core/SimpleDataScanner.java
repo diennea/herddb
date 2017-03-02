@@ -22,6 +22,7 @@ package herddb.core;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.Tuple;
+import herddb.utils.DataAccessor;
 import java.util.Iterator;
 
 /**
@@ -32,8 +33,8 @@ import java.util.Iterator;
 public class SimpleDataScanner extends DataScanner {
 
     private final MaterializedRecordSet recordSet;
-    private Iterator<Tuple> iterator;
-    private Tuple next;
+    private Iterator<DataAccessor> iterator;
+    private DataAccessor next;
     private boolean finished;
 
     public SimpleDataScanner(long transactionId, MaterializedRecordSet recordSet) {
@@ -72,11 +73,11 @@ public class SimpleDataScanner extends DataScanner {
     }
 
     @Override
-    public Tuple next() throws DataScannerException {
+    public DataAccessor next() throws DataScannerException {
         if (finished) {
             throw new DataScannerException("Scanner is exhausted");
         }
-        Tuple _next = next;
+        DataAccessor _next = next;
         next = null;
         return _next;
     }

@@ -34,7 +34,7 @@ public class CompiledIsNullExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object leftValue = left.evaluate(bean, context);
         boolean result = leftValue == null;
         if (not) {

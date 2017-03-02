@@ -22,6 +22,7 @@ package herddb.sql;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import net.sf.jsqlparser.statement.select.OrderByElement;
@@ -61,7 +62,7 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
     }
 
     @Override
-    public int compare(Tuple o1, Tuple o2) {
+    public int compare(DataAccessor o1, DataAccessor o2) {
         Object value1 = o1.get(columnName);
         Object value2 = o2.get(columnName);
         int result = SQLRecordPredicate.compare(value1, value2);

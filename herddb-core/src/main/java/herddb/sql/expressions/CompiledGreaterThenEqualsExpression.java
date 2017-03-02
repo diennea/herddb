@@ -37,7 +37,7 @@ public class CompiledGreaterThenEqualsExpression implements CompiledSQLExpressio
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object leftValue = left.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);
         boolean res = SQLRecordPredicate.compare(leftValue, rightValue) >= 0;

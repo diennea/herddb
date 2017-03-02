@@ -59,7 +59,7 @@ public class CompiledBetweenExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         
         Object leftValue = left.evaluate(bean, context);
         Object startValue = start.evaluate(bean, context);

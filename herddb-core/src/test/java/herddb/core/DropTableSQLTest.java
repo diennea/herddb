@@ -40,6 +40,7 @@ import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.DataAccessor;
 
 /**
  * Tests on table creation
@@ -59,7 +60,7 @@ public class DropTableSQLTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
             execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList());
@@ -68,7 +69,7 @@ public class DropTableSQLTest {
             }
             execute(manager, "CREATE TABLE tsql2 (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             try (DataScanner scan = scan(manager, "SELECT * FROM systables where table_name='tsql2'", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
             execute(manager, "DROP TABLE tsql2", Collections.emptyList());
@@ -100,19 +101,19 @@ public class DropTableSQLTest {
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(0, all.size());
             }
 
             execute(manager, "EXECUTE committransaction 'tblspace1'," + tx, Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
 
@@ -121,18 +122,18 @@ public class DropTableSQLTest {
             execute(manager, "DROP TABLE tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx2));
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
             }
             execute(manager, "EXECUTE committransaction 'tblspace1'," + tx2, Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where table_name='tsql'", Collections.emptyList());) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(0, all.size());
             }
 

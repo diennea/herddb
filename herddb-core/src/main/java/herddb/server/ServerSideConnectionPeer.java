@@ -59,6 +59,7 @@ import herddb.network.ServerSideConnection;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -399,9 +400,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 for (Column c : dataScanner.getSchema()) {
                     columns.add(c.name);
                 }
-                List<Tuple> records = dataScanner.consume(fetchSize);
+                List<DataAccessor> records = dataScanner.consume(fetchSize);
                 List<Map<String, Object>> converted = new ArrayList<>();
-                for (Tuple r : records) {
+                for (DataAccessor r : records) {
                     converted.add(r.toMap());
                 }
                 boolean last = dataScanner.isFinished();
@@ -432,13 +433,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         if (scanner != null) {
             try {
                 DataScanner dataScanner = scanner.getScanner();
-                List<Tuple> records = dataScanner.consume(fetchSize);
+                List<DataAccessor> records = dataScanner.consume(fetchSize);
                 List<String> columns = new ArrayList<>();
                 for (Column c : dataScanner.getSchema()) {
                     columns.add(c.name);
                 }
                 List<Map<String, Object>> converted = new ArrayList<>();
-                for (Tuple r : records) {
+                for (DataAccessor r : records) {
                     converted.add(r.toMap());
                 }
                 boolean last = false;

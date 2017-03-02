@@ -21,6 +21,7 @@ package herddb.model;
 
 import herddb.core.DBManager;
 import herddb.sql.TranslatedQuery;
+import herddb.utils.DataAccessor;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -41,7 +42,7 @@ public class StatementEvaluationContext {
 
     private DBManager manager;
     private TransactionContext transactionContext;
-    private final Map<String, List<Tuple>> subqueryCache = new HashMap<>();
+    private final Map<String, List<DataAccessor>> subqueryCache = new HashMap<>();
     private String defaultTablespace = TableSpace.DEFAULT;
 
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
@@ -76,22 +77,22 @@ public class StatementEvaluationContext {
         return Collections.emptyList();
     }
 
-    public List<Tuple> executeSubquery(PlainSelect select) throws StatementExecutionException {
+    public List<DataAccessor> executeSubquery(PlainSelect select) throws StatementExecutionException {
         StringBuilder buffer = new StringBuilder();
         SelectDeParser deparser = new SelectDeParser();
         deparser.setBuffer(buffer);
         deparser.setExpressionVisitor(new ExpressionDeParser(deparser, buffer));
         deparser.visit(select);
         String subquery = deparser.getBuffer().toString();
-        List<Tuple> cached = subqueryCache.get(subquery);
+        List<DataAccessor> cached = subqueryCache.get(subquery);
         if (cached != null) {
             return cached;
         }
 //        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
-        TranslatedQuery translated = manager.getPlanner().translate(defaultTablespace, 
+        TranslatedQuery translated = manager.getPlanner().translate(defaultTablespace,
             subquery, Collections.emptyList(), true, true, false, -1);
         try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext);) {
-            List<Tuple> fullResult = result.dataScanner.consume();
+            List<DataAccessor> fullResult = result.dataScanner.consume();
 //            LOGGER.log(Level.SEVERE, "executing subquery " + subquery+" -> "+fullResult);
             subqueryCache.put(subquery, fullResult);
             return fullResult;

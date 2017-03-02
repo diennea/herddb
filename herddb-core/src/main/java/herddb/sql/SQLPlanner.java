@@ -808,7 +808,7 @@ public class SQLPlanner {
                 throw new StatementExecutionException("no such column " + c.getColumnName() + " in table " + tableName + " in tablespace " + tableSpace);
             }
             if (table.isPrimaryKeyColumn(c.getColumnName())) {
-                throw new StatementExecutionException("updates of fields on the PK (" + Arrays.toString(table.getPrimaryKey()) + ") are not supported. Please perform a DELETE and than an INSERT");
+                throw new StatementExecutionException("updates of fields on the PK (" + Arrays.toString(table.primaryKey) + ") are not supported. Please perform a DELETE and than an INSERT");
             }
         }
 

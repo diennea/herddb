@@ -197,7 +197,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
             .createRecordSet(table.columnNames, table.columns);
         for (Record record : buildVirtualRecordList()) {
             if (predicate == null || predicate.evaluate(record, context)) {
-                recordSet.add(new Tuple(record.toBean(table)));
+                recordSet.add(record.getDataAccessor(table));
             }
         }
         recordSet.writeFinished();

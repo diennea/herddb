@@ -40,6 +40,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
+import herddb.utils.DataAccessor;
 
 /**
  * Suite of tests on RecordSet
@@ -71,7 +72,7 @@ public abstract class RecordSetSuite {
                 rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 expected_s1.remove((String) t.get("s1"));
                 expected_n1.remove((Integer) t.get("n1"));
             }
@@ -117,7 +118,7 @@ public abstract class RecordSetSuite {
                 rs.add(new Tuple(record, fieldNames));
             }
             rs.writeFinished();
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
                 expected_n1.remove((Long) t.get("n1"));
                 expected_i1.remove((Integer) t.get("i1"));
@@ -158,7 +159,7 @@ public abstract class RecordSetSuite {
 
             rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
                 expected_n1.remove((Integer) t.get("n1"));
             }
@@ -194,7 +195,7 @@ public abstract class RecordSetSuite {
 
             rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
                 expected_n1.remove((Integer) t.get("n1"));
             }
@@ -224,7 +225,7 @@ public abstract class RecordSetSuite {
 
             rs.applyLimits(new ScanLimits(20, 100000), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 fail();
             }
 
@@ -254,13 +255,13 @@ public abstract class RecordSetSuite {
             // sort descending
             rs.sort(new TupleComparator() {
                 @Override
-                public int compare(Tuple o1, Tuple o2) {
-                    return ((Integer) o2.get((1))).compareTo((Integer) o1.get(1));
+                public int compare(DataAccessor o1, DataAccessor o2) {
+                    return ((Integer) o2.get(("n1"))).compareTo((Integer) o1.get("n1"));
                 }
             });
 
             int last = Integer.MAX_VALUE;
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 int n1 = (Integer) t.get("n1");
                 assertTrue(last > n1);
                 last = n1;
@@ -292,13 +293,13 @@ public abstract class RecordSetSuite {
             // sort descending
             rs.sort(new TupleComparator() {
                 @Override
-                public int compare(Tuple o1, Tuple o2) {
-                    return ((Integer) o2.get((1))).compareTo((Integer) o1.get(1));
+                public int compare(DataAccessor o1, DataAccessor o2) {
+                    return ((Integer) o2.get(("n1"))).compareTo((Integer) o1.get("n1"));
                 }
             });
 
             int last = Integer.MAX_VALUE;
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 int n1 = (Integer) t.get("n1");
                 assertTrue(last > n1);
                 last = n1;
@@ -347,14 +348,14 @@ public abstract class RecordSetSuite {
                 }
 
                 @Override
-                public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
+                public Tuple map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
                     Object[] projected_values = new Object[2];
                     projected_values[0] = tuple.get("n1");
                     projected_values[1] = tuple.get("s1");
                     return new Tuple(fieldNames_projected, projected_values);
                 }
             }, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 System.out.println("t:" + t.toMap());
                 expected_s2.remove(t.get("s2").toString());
                 expected_n2.remove((Integer) t.get("n2"));
@@ -406,14 +407,14 @@ public abstract class RecordSetSuite {
                 }
 
                 @Override
-                public Tuple map(Tuple tuple, StatementEvaluationContext context) throws StatementExecutionException {
+                public Tuple map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
                     Object[] projected_values = new Object[2];
                     projected_values[0] = tuple.get("n1");
                     projected_values[1] = tuple.get("s1");
                     return new Tuple(fieldNames_projected, projected_values);
                 }
             }, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
-            for (Tuple t : rs) {
+            for (DataAccessor t : rs) {
                 expected_s2.remove((String) t.get("s2"));
                 expected_n2.remove((Integer) t.get("n2"));
             }

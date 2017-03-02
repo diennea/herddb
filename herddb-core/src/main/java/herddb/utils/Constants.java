@@ -17,23 +17,14 @@
  under the License.
 
  */
-package herddb.sql.expressions;
+package herddb.utils;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import java.util.Map;
+/**
+ * Useful constants
+ *
+ * @author enrico.olivelli
+ */
+public class Constants {
 
-public class JdbcParameterExpression implements CompiledSQLExpression {
-
-    private final int index;
-
-    public JdbcParameterExpression(int index) {
-        this.index = index;
-    }
-
-    @Override
-    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return context.getJdbcParameters().get(index);
-    }
-
+    public static final String[] EMPTY_STRING_ARRAY = new String[0];
 }

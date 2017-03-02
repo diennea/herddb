@@ -32,6 +32,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.RawString;
 import herddb.utils.VisibleByteArrayOutputStream;
@@ -121,7 +122,7 @@ public class SQLAggregator implements Aggregator {
             this.context = context;
         }
 
-        private Bytes key(Tuple tuple) throws DataScannerException {
+        private Bytes key(DataAccessor tuple) throws DataScannerException {
             VisibleByteArrayOutputStream o = new VisibleByteArrayOutputStream(0);
             try (ExtendedDataOutputStream key = new ExtendedDataOutputStream(o);) {
                 for (Expression groupby : groupByColumnReferences) {
@@ -161,7 +162,7 @@ public class SQLAggregator implements Aggregator {
                 if (!groupByColumnReferences.isEmpty()) {
                     Map<Bytes, Group> groups = new HashMap<>();
                     while (wrapped.hasNext()) {
-                        Tuple tuple = wrapped.next();
+                        DataAccessor tuple = wrapped.next();
                         Bytes key = key(tuple);
                         Group group = groups.get(key);
                         if (group == null) {
@@ -174,7 +175,7 @@ public class SQLAggregator implements Aggregator {
                     }
                     MaterializedRecordSet results = recordSetFactory
                         .createFixedSizeRecordSet(groups.values().size(),
-                        getFieldNames(), getSchema());
+                            getFieldNames(), getSchema());
                     for (Group group : groups.values()) {
                         AggregatedColumnCalculator[] columns = group.columns;
                         String[] fieldNames = new String[columns.length];
@@ -194,7 +195,7 @@ public class SQLAggregator implements Aggregator {
                     Group group = createGroup(null);
                     AggregatedColumnCalculator[] columns = group.columns;
                     while (wrapped.hasNext()) {
-                        Tuple tuple = wrapped.next();
+                        DataAccessor tuple = wrapped.next();
                         for (AggregatedColumnCalculator cc : columns) {
                             cc.consume(tuple);
                         }
@@ -268,7 +269,7 @@ public class SQLAggregator implements Aggregator {
         }
 
         @Override
-        public Tuple next() throws DataScannerException {
+        public DataAccessor next() throws DataScannerException {
             if (aggregatedScanner == null) {
                 compute();
             }

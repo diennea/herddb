@@ -45,6 +45,7 @@ import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.DataAccessor;
 
 /**
  *
@@ -87,7 +88,7 @@ public class AutocheckPointTest {
 
             long lastCheckpont = manager.getLastCheckPointTs();
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList(), new TransactionContext(tx))) {
-                List<Tuple> data = scan.consume();              
+                List<DataAccessor> data = scan.consume();
                 assertEquals(4, data.size());
             }
             manager.setCheckpointPeriod(1000);

@@ -118,7 +118,7 @@ public class CompiledFunction implements CompiledSQLExpression {
     }
     
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         switch (name) {
             case BuiltinFunctions.COUNT:
             case BuiltinFunctions.SUM:

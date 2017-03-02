@@ -24,18 +24,16 @@ import herddb.model.Projection;
 import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 import herddb.model.TupleComparator;
-import java.util.ArrayList;
+import herddb.utils.DataAccessor;
 import java.util.Iterator;
-import java.util.List;
 
 /**
  * a Simple MaterializedRecordSet held in memory
  *
  * @author enrico.olivelli
  */
-public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<Tuple> {
+public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<DataAccessor> {
 
     protected Column[] columns;
     protected String[] fieldNames;
@@ -55,9 +53,9 @@ public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<T
     }
 
     @Override
-    public abstract Iterator<Tuple> iterator();
+    public abstract Iterator<DataAccessor> iterator();
 
-    public abstract void add(Tuple record);
+    public abstract void add(DataAccessor record);
 
     public void writeFinished() {
         writeFinished = true;

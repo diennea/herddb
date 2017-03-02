@@ -17,32 +17,38 @@
  under the License.
 
  */
-package herddb.sql.expressions;
+package herddb.utils;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import static herddb.sql.SQLRecordPredicate.toBoolean;
 import java.util.Map;
 
-public class CompiledParenthesisExpression implements CompiledSQLExpression {
+/**
+ * A simple implementation backed by a Map
+ *
+ * @author enrico.olivelli
+ */
+public class MapDataAccessor implements DataAccessor {
 
-    private final CompiledSQLExpression inner;
-    private final boolean not;
+    private final Map<String, Object> map;
+    private final String[] fieldNames;
 
-    public CompiledParenthesisExpression(Boolean not, CompiledSQLExpression inner) {
-        this.inner = inner;
-        this.not = not;
+    public MapDataAccessor(Map<String, Object> map, String[] fieldNames) {
+        this.map = map;
+        this.fieldNames = fieldNames;
     }
 
     @Override
-    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object innerValue = inner.evaluate(bean, context);
-        if (!not) {
-            return innerValue;
-        } else {
-            return !toBoolean(innerValue);
-        }
-        
+    public String[] getFieldNames() {
+        return fieldNames;
+    }
+
+    @Override
+    public Object get(String property) {
+        return map.get(property);
+    }
+
+    @Override
+    public Map<String, Object> toMap() {
+        return map;
     }
 
 }

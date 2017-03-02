@@ -35,7 +35,7 @@ public class CompiledSignedExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object innerValue = inner.evaluate(bean, context);
         switch (sign) {
                 case '-':

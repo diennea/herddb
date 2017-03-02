@@ -38,6 +38,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.DataAccessor;
 
 /**
  *
@@ -61,7 +62,7 @@ public class SQLMultiRowMutationTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
-                List<Tuple> rows = scan.consume();
+                List<DataAccessor> rows = scan.consume();
                 assertEquals(2, rows.size());
                 assertEquals(Integer.valueOf(1234), rows.get(0).get("n1"));
                 assertEquals(Integer.valueOf(1234), rows.get(1).get("n1"));
@@ -70,7 +71,7 @@ public class SQLMultiRowMutationTest {
             executeUpdate(manager, "UPDATE tblspace1.tsql SET n1 = 2 ", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
-                List<Tuple> rows = scan.consume();
+                List<DataAccessor> rows = scan.consume();
                 assertEquals(2, rows.size());
                 assertEquals(Integer.valueOf(2), rows.get(0).get("n1"));
                 assertEquals(Integer.valueOf(2), rows.get(1).get("n1"));
@@ -79,7 +80,7 @@ public class SQLMultiRowMutationTest {
             executeUpdate(manager, "UPDATE tblspace1.tsql SET n1 = 3 WHERE k1 <> 'aa' ", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
-                List<Tuple> rows = scan.consume();
+                List<DataAccessor> rows = scan.consume();
                 assertEquals(2, rows.size());
                 assertEquals(Integer.valueOf(3), rows.get(0).get("n1"));
                 assertEquals(Integer.valueOf(3), rows.get(1).get("n1"));
@@ -88,7 +89,7 @@ public class SQLMultiRowMutationTest {
             executeUpdate(manager, "DELETE FROM  tblspace1.tsql WHERE k1 <> 'aa' ", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList())) {
-                List<Tuple> rows = scan.consume();
+                List<DataAccessor> rows = scan.consume();
                 assertEquals(0, rows.size());
             }
 

@@ -38,6 +38,7 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.TableSpace;
 import herddb.model.Tuple;
+import herddb.utils.DataAccessor;
 
 /**
  *
@@ -54,9 +55,9 @@ public class SysnodesTest {
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 
             try (DataScanner scan = scan(manager, "SELECT * FROM SYSNODES", Collections.emptyList());) {
-                List<Tuple> tuples = scan.consume();
+                List<DataAccessor> tuples = scan.consume();
                 assertEquals(1, tuples.size());
-                for (Tuple t : tuples) {
+                for (DataAccessor t : tuples) {
                     System.out.println("node: " + t.toMap());
                     assertNotNull(t.get("nodeid"));
                     assertNotNull(t.get("address"));
@@ -77,9 +78,9 @@ public class SysnodesTest {
             assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
 
             try (DataScanner scan = scan(manager, "SELECT * FROM SYSNODES", Collections.emptyList());) {
-                List<Tuple> tuples = scan.consume();
+                List<DataAccessor> tuples = scan.consume();
                 assertEquals(1, tuples.size());
-                for (Tuple t : tuples) {
+                for (DataAccessor t : tuples) {
                     System.out.println("node: " + t.toMap());
                     assertNotNull(t.get("nodeid"));
                     assertNotNull(t.get("address"));

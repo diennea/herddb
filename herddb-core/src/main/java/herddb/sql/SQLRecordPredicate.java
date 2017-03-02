@@ -40,6 +40,7 @@ import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.utils.DataAccessor;
 
 /**
  * Predicate expressed using SQL syntax
@@ -74,7 +75,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (primaryKeyFilter == null) {
             return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
-        Map<String, Object> bean = RecordSerializer.deserializePrimaryKeyAsMap(key, table);
+        DataAccessor bean = RecordSerializer.buildRawDataAccessorForPrimaryKey(key, table);
 
         boolean result = toBoolean(primaryKeyFilter.evaluate(bean, context));
 
@@ -89,19 +90,13 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     @Override
     public boolean matches(Tuple a, StatementEvaluationContext context) throws StatementExecutionException {
-        Map<String, Object> bean = a.toMap();
-        return toBoolean(where.evaluate(bean, context));
+        return toBoolean(where.evaluate(a, context));
     }
 
     @Override
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-        Map<String, Object> bean = record.toBean(table);
+        DataAccessor bean = record.getDataAccessor(table);
         return toBoolean(where.evaluate(bean, context));
-    }
-
-    public static Object evaluateExpression(Expression expression, Map<String, Object> bean, StatementEvaluationContext context, String validatedTableAlias) throws StatementExecutionException {
-        return SQLExpressionCompiler.compileExpression(validatedTableAlias, expression).evaluate(bean, context);
-
     }
 
     public static boolean toBoolean(Object result) {

@@ -61,6 +61,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
@@ -214,8 +215,8 @@ public class BRINIndexManager extends AbstractIndexManager {
         data.clear();
         Table table = tableManager.getTable();
         tableManager.scanForIndexRebuild(r -> {
-            Map<String, Object> values = r.toBean(table);
-            Bytes key = RecordSerializer.serializePrimaryKey(values, table);
+            DataAccessor values = r.getDataAccessor(table);
+            Bytes key = RecordSerializer.serializePrimaryKey(values, table, table.primaryKey);
 //            LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
             recordInserted(key, values);
         });
@@ -293,8 +294,8 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordDeleted(Bytes key, Map<String, Object> values) {
-        Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index);
+    public void recordDeleted(Bytes key, DataAccessor values) {
+        Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
         if (indexKey == null) {
             // valore non indicizzabile, contiene dei null
             return;
@@ -303,8 +304,8 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordInserted(Bytes key, Map<String, Object> values) {
-        Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index);
+    public void recordInserted(Bytes key, DataAccessor values) {
+        Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
         if (indexKey == null) {
             // valore non indicizzabile, contiene dei null
             return;
@@ -313,9 +314,9 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordUpdated(Bytes key, Map<String, Object> previousValues, Map<String, Object> newValues) {
-        Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(previousValues, index);
-        Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, index);
+    public void recordUpdated(Bytes key, DataAccessor previousValues, DataAccessor newValues) {
+        Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(previousValues, index, index.columnNames);
+        Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, index, index.columnNames);
         if (indexKeyRemoved == null && indexKeyAdded == null) {
             return;
         }

@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import herddb.utils.DataAccessor;
 import java.util.Comparator;
 
 /**
@@ -26,6 +27,6 @@ import java.util.Comparator;
  *
  * @author enrico.olivelli
  */
-public interface TupleComparator extends Comparator<Tuple> {
+public interface TupleComparator extends Comparator<DataAccessor> {
 
 }

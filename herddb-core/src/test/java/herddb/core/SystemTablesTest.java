@@ -37,6 +37,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import static org.junit.Assert.assertFalse;
 
@@ -62,53 +63,53 @@ public class SystemTablesTest {
             execute(manager, "CREATE HASH INDEX index2 on tblspace1.tsql2 (b1)", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables", Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("systables")).findAny().isPresent());
             }
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable=false", Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertEquals(2, records.size());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
             }
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable='false'", Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertEquals(2, records.size());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
             }
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable=true", Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("systables")).findAny().isPresent());
             }
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systables where systemtable='true'", Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertFalse(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("systables")).findAny().isPresent());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systablestats", Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql")).findAny().isPresent());
                 assertTrue(records.stream().filter(t -> t.get("table_name").equals("tsql2")).findAny().isPresent());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes order by index_name",
                 Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertEquals(2, records.size());
-                Tuple index1 = records.get(0);
+                DataAccessor index1 = records.get(0);
                 assertEquals(RawString.of("tblspace1"), index1.get("tablespace"));
                 assertEquals(RawString.of("brin"), index1.get("index_type"));
                 assertEquals(RawString.of("index1"), index1.get("index_name"));
                 assertEquals(RawString.of("tsql2"), index1.get("table_name"));
 
-                Tuple index2 = records.get(1);
+                DataAccessor index2 = records.get(1);
                 assertEquals(RawString.of("tblspace1"), index2.get("tablespace"));
                 assertEquals(RawString.of("hash"), index2.get("index_type"));
                 assertEquals(RawString.of("index2"), index2.get("index_name"));
@@ -119,7 +120,7 @@ public class SystemTablesTest {
             long txid;
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systransactions order by txid",
                 Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertEquals(1, records.size());
                 System.out.println("records:" + records);
                 txid = (Long) records.get(0).get("txid");
@@ -127,12 +128,12 @@ public class SystemTablesTest {
             execute(manager, "COMMIT TRANSACTION 'tblspace1'," + txid, Collections.emptyList());
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systransactions order by txid",
                 Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 assertEquals(0, records.size());
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.syscolumns", Collections.emptyList());) {
-                List<Tuple> records = scan.consume();
+                List<DataAccessor> records = scan.consume();
                 records.forEach(r -> {
                     System.out.println("found " + r.toMap());
                 });

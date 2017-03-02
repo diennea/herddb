@@ -58,17 +58,13 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
 import java.sql.Timestamp;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/**
- *
- *
- * @author enrico.olivelli
- */
 public class RawSQLTest {
 
     @Test
@@ -181,8 +177,8 @@ public class RawSQLTest {
                 + "END as mycase "
                 + "FROM tblspace1.tsql "
                 + "ORDER BY k1", Collections.emptyList())) {
-                List<Tuple> res = scan.consume();
-                for (Tuple t : res) {
+                List<DataAccessor> res = scan.consume();
+                for (DataAccessor t : res) {
                     System.out.println("t:" + t);
                 }
                 assertEquals(3, res.size());
@@ -206,8 +202,8 @@ public class RawSQLTest {
                 + "END as mycase "
                 + "FROM tblspace1.tsql "
                 + "ORDER BY k1", Collections.emptyList())) {
-                List<Tuple> res = scan.consume();
-                for (Tuple t : res) {
+                List<DataAccessor> res = scan.consume();
+                for (DataAccessor t : res) {
                     System.out.println("t:" + t);
                 }
                 assertEquals(3, res.size());
@@ -233,8 +229,8 @@ public class RawSQLTest {
                 + "FROM tblspace1.tsql "
                 + "GROUP BY k1",
                 Collections.emptyList())) {
-                List<Tuple> res = scan.consume();
-                for (Tuple t : res) {
+                List<DataAccessor> res = scan.consume();
+                for (DataAccessor t : res) {
                     System.out.println("t2:" + t);
                 }
                 assertEquals(3, res.size());
@@ -260,8 +256,8 @@ public class RawSQLTest {
                 + "FROM tblspace1.tsql "
                 + "",
                 Collections.emptyList())) {
-                List<Tuple> res = scan.consume();
-                for (Tuple t : res) {
+                List<DataAccessor> res = scan.consume();
+                for (DataAccessor t : res) {
                     System.out.println("t:" + t);
                 }
                 assertEquals(1, res.size());
@@ -296,7 +292,7 @@ public class RawSQLTest {
                 + "(select k1,t1,n1 from tblspace1.tsql)", Collections.emptyList()).getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
-                List<Tuple> res = scan.consume();
+                List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k2"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k2"));
                 assertEquals(Integer.valueOf(1235), res.get(0).get("n2"));
@@ -335,7 +331,7 @@ public class RawSQLTest {
             try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 "
                 + "FROM tblspace1.tsql2 "
                 + "WHERE t2 = ?", Arrays.asList(tt3));) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertEquals(Integer.valueOf(1236), all.get(0).get("n2"));
                 assertEquals(tt3, all.get(0).get("t2"));
@@ -363,7 +359,7 @@ public class RawSQLTest {
                     "mykey2", Integer.valueOf(1235), tt2)).getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT k1,n1,t1 FROM tblspace1.tsql ORDER BY n1 desc", Collections.emptyList());) {
-                List<Tuple> res = scan.consume();
+                List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
                 assertEquals(Integer.valueOf(1235), res.get(0).get("n1"));
@@ -379,7 +375,7 @@ public class RawSQLTest {
                         "mykey2", Integer.valueOf(1235), tt2)).getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT a1,k1,n1,t1 FROM tblspace1.tsql2 ORDER BY n1 desc", Collections.emptyList());) {
-                List<Tuple> res = scan.consume();
+                List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
                 assertEquals(Integer.valueOf(1235), res.get(0).get("n1"));
@@ -401,7 +397,7 @@ public class RawSQLTest {
             assertTrue(resInsert.transactionId > 0);
             try (DataScanner scan = scan(manager, "SELECT a1,k1,n1,t1 FROM tblspace1.tsql3 ORDER BY n1 desc", Collections.emptyList(), 0,
                 new TransactionContext(resInsert.transactionId));) {
-                List<Tuple> res = scan.consume();
+                List<DataAccessor> res = scan.consume();
                 assertEquals(RawString.of("mykey2"), res.get(0).get("k1"));
                 assertEquals(RawString.of("mykey"), res.get(1).get("k1"));
                 assertEquals(Integer.valueOf(1235), res.get(0).get("n1"));
@@ -450,7 +446,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
 
             try (DataScanner scan = scan(manager, "SELECT ? as foo, k1, n1 FROM tblspace1.tsql", Arrays.asList("test"));) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertEquals(RawString.of("test"), all.get(0).get("foo"));
                 assertEquals(RawString.of("mykey"), all.get(0).get("k1"));
@@ -459,14 +455,14 @@ public class RawSQLTest {
 
             Timestamp timestamp = new java.sql.Timestamp(System.currentTimeMillis());
             try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertEquals(Long.valueOf(1), all.get(0).get("foo"));
                 assertEquals(timestamp, all.get(0).get("bar"));
             }
 
             try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertEquals(Long.valueOf(1), all.get(0).get("foo"));
                 assertEquals(timestamp, all.get(0).get("bar"));
@@ -475,12 +471,12 @@ public class RawSQLTest {
             executeUpdate(manager, "DELETE FROM tblspace1.tsql", Collections.emptyList());
 
             try (DataScanner scan = scan(manager, "SELECT ? as foo, ? as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(0, all.size());
             }
 
             try (DataScanner scan = scan(manager, "SELECT MAX(?) as foo, MIN(?) as bar  FROM tblspace1.tsql", Arrays.asList(Long.valueOf(1), timestamp));) {
-                List<Tuple> all = scan.consume();
+                List<DataAccessor> all = scan.consume();
                 assertEquals(1, all.size());
                 assertNull(all.get(0).get("foo"));
                 assertNull(all.get(0).get("bar"));
@@ -566,28 +562,28 @@ public class RawSQLTest {
 
             // scan performed at "scan time"
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT TOP 1 * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,1", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey2"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 1,2", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
                 assertEquals(RawString.of("mykey2"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey3"), result.get(1).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
@@ -595,47 +591,47 @@ public class RawSQLTest {
                 assertEquals(RawString.of("mykey4"), result.get(3).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 10,10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 4,10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql ORDER BY k1 LIMIT 3,10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 3", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(3), TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
                 + "WHERE k1 <> ? LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
                 + "WHERE k1 <> ? ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT k1, count(*) FROM tblspace1.tsql "
                 + "WHERE k1 <> ? GROUP BY k1 ORDER BY k1 LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(0), TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Collections.emptyList(), TransactionContext.NO_TRANSACTION);) {
@@ -645,12 +641,12 @@ public class RawSQLTest {
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
                 + "ORDER BY k1 LIMIT 3", Collections.emptyList(), 5, TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
                 + "ORDER BY k1 ", Collections.emptyList(), 2, TransactionContext.NO_TRANSACTION);) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
             }
         }
@@ -675,15 +671,15 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 1", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                 }
                 try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 2", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(2, result.size());
                 }
                 try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 10", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                 }
             }
@@ -706,7 +702,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
@@ -714,7 +710,7 @@ public class RawSQLTest {
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.N1 desc", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
@@ -740,7 +736,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
@@ -748,7 +744,7 @@ public class RawSQLTest {
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql as tt ORDER BY tt.n1 desc", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
                 assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
@@ -779,7 +775,7 @@ public class RawSQLTest {
                 + "FROM tblspace1.tsql "
                 + "GROUP BY k1 "
                 + "ORDER BY k1 DESC", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
@@ -792,14 +788,14 @@ public class RawSQLTest {
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as alias,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,2", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("alias"));
@@ -807,7 +803,7 @@ public class RawSQLTest {
                 assertEquals(Long.valueOf(1), result.get(1).get("alias"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
@@ -820,22 +816,22 @@ public class RawSQLTest {
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10,10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 4,10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 3,10", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
                 assertNull(result.get(0).get("n1"));
                 assertEquals(Long.valueOf(1), result.get(0).get("cc"));
@@ -848,7 +844,7 @@ public class RawSQLTest {
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql WHERE n1 is not null GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
-                List<Tuple> result = scan1.consume();
+                List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
 
                 assertEquals(Integer.valueOf(1), result.get(0).get("n1"));
@@ -879,7 +875,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
                     assertEquals(Long.valueOf(4), result.get(0).get("cc"));
@@ -887,7 +883,7 @@ public class RawSQLTest {
             }
             {
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*)  FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
                     assertEquals(Long.valueOf(4), result.get(0).get("count(*)"));
@@ -896,7 +892,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql WHERE k1='mykey3'", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(1), result.get(0).get(0));
                     assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
@@ -905,7 +901,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     Assert.fail();
                 } catch (StatementExecutionException error) {
                     assertEquals("field k1 MUST appear in GROUP BY clause", error.getMessage());
@@ -913,9 +909,9 @@ public class RawSQLTest {
             }
             {
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
-                    for (Tuple t : result) {
+                    for (DataAccessor t : result) {
                         assertEquals(Long.valueOf(1), t.get("count(*)"));
                         switch (t.get("k1") + "") {
                             case "mykey":
@@ -953,7 +949,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(8), result.get(0).get(0));
                     assertEquals(Long.valueOf(8), result.get(0).get("cc"));
@@ -963,7 +959,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT SUM(n1),s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
                     assertEquals(Long.valueOf(3), result.get(0).get("sum(n1)"));
@@ -985,7 +981,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
                     assertEquals(Long.valueOf(3), result.get(0).get("asum"));
@@ -1007,7 +1003,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as asum,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY asum", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
 
                     assertEquals(Long.valueOf(0), result.get(0).get(0));
@@ -1030,7 +1026,7 @@ public class RawSQLTest {
 
             {
                 try (DataScanner scan1 = scan(manager, "SELECT SUM(1) FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
                     assertEquals(Long.valueOf(4), result.get(0).get("sum(1)"));
@@ -1059,7 +1055,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Integer.valueOf(1), result.get(0).get(0));
                     assertEquals(Integer.valueOf(1), result.get(0).get("mi"));
@@ -1072,7 +1068,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='mykey4'", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertNull(result.get(0).get(0));
                     assertNull(result.get(0).get("mi"));
@@ -1085,7 +1081,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results'", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertNull(result.get(0).get(0));
                     assertNull(result.get(0).get("mi"));
@@ -1098,7 +1094,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT MIN(n1) as mi, MAX(n1) as ma FROM tblspace1.tsql WHERE k1='no_results' GROUP BY k1", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(0, result.size());
                 }
             }
@@ -1128,7 +1124,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT MIN(t1) as mi, MAX(t1) as ma FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(time1, result.get(0).get(0));
                     assertEquals(time1, result.get(0).get("mi"));
@@ -1198,7 +1194,7 @@ public class RawSQLTest {
             {
 
                 try (DataScanner scan1 = scan(manager, "SELECT lower(k1) as low, upper(k1) as up, k1 FROM tblspace1.tsql", Collections.emptyList());) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
                     assertEquals(RawString.of("MYKEY"), result.get(0).get(1));
@@ -1229,7 +1225,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
                     assertEquals(RawString.of("mykey2"), result.get(1).get(0));
@@ -1241,7 +1237,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                     assertEquals(RawString.of("mykey"), result.get(3).get(0));
                     assertEquals(RawString.of("mykey2"), result.get(2).get(0));
@@ -1254,7 +1250,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(5, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
                     assertEquals(RawString.of("mykey2"), result.get(1).get(0));
@@ -1267,7 +1263,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(5, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
                     assertEquals(RawString.of("mykey2"), result.get(1).get(0));
@@ -1281,7 +1277,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1, k1 desc limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(2, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
                     assertEquals(RawString.of("mykey2"), result.get(1).get(0));
@@ -1292,7 +1288,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 asc limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(2, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
                     assertEquals(RawString.of("mykey2"), result.get(1).get(0));
@@ -1303,7 +1299,7 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql order by n1 desc limit 3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> result = scan1.consume();
+                    List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(RawString.of("mykey4"), result.get(0).get(0));
                     assertEquals(RawString.of("mykey5"), result.get(1).get(0));
@@ -1333,16 +1329,16 @@ public class RawSQLTest {
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> records = scan1.consume();
+                    List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
-                    assertEquals(3, records.get(0).fieldNames.length);
-                    assertEquals(3, records.get(0).getValues().length);
-                    assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey"), records.get(0).getValues()[0]);
-                    assertEquals("theStringConstant", records.get(0).fieldNames[1]);
-                    assertEquals(RawString.of("one"), records.get(0).getValues()[1]);
-                    assertEquals("LongConstant", records.get(0).fieldNames[2]);
-                    assertEquals(Long.valueOf(3), records.get(0).getValues()[2]);
+                    assertEquals(3, records.get(0).getFieldNames().length);
+                    assertEquals(3, records.get(0).toMap().size());
+                    assertEquals("theKey", records.get(0).getFieldNames()[0]);
+                    assertEquals(RawString.of("mykey"), records.get(0).get("theKey"));
+                    assertEquals("theStringConstant", records.get(0).getFieldNames()[1]);
+                    assertEquals(RawString.of("one"), records.get(0).get("theStringConstant"));
+                    assertEquals("LongConstant", records.get(0).getFieldNames()[2]);
+                    assertEquals(Long.valueOf(3), records.get(0).get("LongConstant"));
                 }
             }
             {
@@ -1496,41 +1492,42 @@ public class RawSQLTest {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> records = scan1.consume();
+                    List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
                     System.out.println("records:" + records);
-                    assertEquals(1, records.get(0).fieldNames.length);
-                    assertEquals(1, records.get(0).getValues().length);
-                    assertEquals("k1", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey2"), records.get(0).getValues()[0]);
+                    assertEquals(1, records.get(0).getFieldNames().length);
+                    assertEquals(1, records.get(0).toMap().size());
+                    assertEquals("k1", records.get(0).getFieldNames()[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).get(0));
                 }
             }
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 theKey FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> records = scan1.consume();
+                    List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
-                    assertEquals(1, records.get(0).fieldNames.length);
-                    assertEquals(1, records.get(0).getValues().length);
-                    assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey2"), records.get(0).getValues()[0]);
+                    assertEquals(1, records.get(0).getFieldNames().length);
+                    assertEquals(1, records.get(0).toMap().size());
+                    assertEquals("theKey", records.get(0).getFieldNames()[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).get(0));
                 }
             }
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translate1.plan.mainStatement;
                 try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
-                    List<Tuple> records = scan1.consume();
+                    List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
-                    assertEquals(3, records.get(0).fieldNames.length);
-                    assertEquals(3, records.get(0).getValues().length);
-                    assertEquals("theKey", records.get(0).fieldNames[0]);
-                    assertEquals(RawString.of("mykey2"), records.get(0).getValues()[0]);
-                    assertEquals("theStringConstant", records.get(0).fieldNames[1]);
-                    assertEquals(RawString.of("one"), records.get(0).getValues()[1]);
-                    assertEquals("LongConstant", records.get(0).fieldNames[2]);
-                    assertEquals(Long.valueOf(3), records.get(0).getValues()[2]);
+                    assertEquals(3, records.get(0).getFieldNames().length);
+                    assertEquals(3, records.get(0).toMap().size());
+                    assertEquals("theKey", records.get(0).getFieldNames()[0]);
+                    assertEquals(RawString.of("mykey2"), records.get(0).get(0));
+                    assertEquals("theStringConstant", records.get(0).getFieldNames()[1]);
+                    assertEquals(RawString.of("one"), records.get(0).get(1));
+                    assertEquals("LongConstant", records.get(0).getFieldNames()[2]);
+                    assertEquals(Long.valueOf(3), records.get(0).get(2)
+                    );
                 }
             }
 
@@ -1609,7 +1606,7 @@ public class RawSQLTest {
             } catch (DuplicatePrimaryKeyException err) {
             }
             try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1", Collections.emptyList());) {
-                List<Tuple> rows = scan1.consume();
+                List<DataAccessor> rows = scan1.consume();
                 assertEquals(2, rows.size());
                 assertEquals(1234, rows.get(0).get("n1"));
                 assertEquals(1235, rows.get(1).get("n1"));
@@ -1621,7 +1618,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(n1,k1) values(?,?)", Arrays.asList(Integer.valueOf(1236), "mykey")).getUpdateCount());
 
             try (DataScanner scan1 = scan(manager, "SELECT k1,n1  FROM tblspace1.tsql where k1 ='mykey' order by n1 desc", Collections.emptyList());) {
-                List<Tuple> rows = scan1.consume();
+                List<DataAccessor> rows = scan1.consume();
                 assertEquals(3, rows.size());
                 assertEquals(1236, rows.get(0).get("n1"));
                 assertEquals(1235, rows.get(1).get("n1"));
@@ -1639,7 +1636,7 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set s1=? where k1 =? and n1=?", Arrays.asList("newvalue", "mykey", Integer.valueOf(1236))).getUpdateCount());
 
             try (DataScanner scan1 = scan(manager, "SELECT k1,n1,s1 FROM tblspace1.tsql where k1 ='mykey' and n1=1236", Collections.emptyList());) {
-                List<Tuple> rows = scan1.consume();
+                List<DataAccessor> rows = scan1.consume();
                 assertEquals(1, rows.size());
                 assertEquals(RawString.of("newvalue"), rows.get(0).get("s1"));
 
@@ -1668,8 +1665,8 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.q1_MESSAGE(msg_id,status, lastbouncecategory) values(?,?,?)", Arrays.asList(3, 1, null)).getUpdateCount());
 
             try (DataScanner resultSet = scan(manager, "SELECT * FROM tblspace1.q1_MESSAGE", Collections.emptyList());) {
-                List<Tuple> consume = resultSet.consume();
-                for (Tuple tuple : consume) {
+                List<DataAccessor> consume = resultSet.consume();
+                for (DataAccessor tuple : consume) {
                     System.out.println("tuple1:" + tuple.toMap());
                 }
             }
@@ -1677,8 +1674,8 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.q1_MESSAGE set status=?, lastbouncecategory=null where MSG_ID=? and (status = 1 or status=5)", Arrays.asList(4, 2)).getUpdateCount());
 
             try (DataScanner resultSet = scan(manager, "SELECT * FROM tblspace1.q1_MESSAGE", Collections.emptyList());) {
-                List<Tuple> consume = resultSet.consume();
-                for (Tuple tuple : consume) {
+                List<DataAccessor> consume = resultSet.consume();
+                for (DataAccessor tuple : consume) {
                     System.out.println("tuple2:" + tuple.toMap());
                 }
             }

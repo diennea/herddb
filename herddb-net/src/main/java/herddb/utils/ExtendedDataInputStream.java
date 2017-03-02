@@ -37,9 +37,8 @@ public class ExtendedDataInputStream extends DataInputStream {
     }
 
     /**
-     * Reads an int stored in variable-length format. Reads between one and five
-     * bytes. Smaller values take fewer bytes. Negative numbers are not
-     * supported.
+     * Reads an int stored in variable-length format. Reads between one and five bytes. Smaller values take fewer bytes.
+     * Negative numbers are not supported.
      * <p>
      * The format is described further in {@link DataOutput#writeVInt(int)}.
      *
@@ -66,9 +65,8 @@ public class ExtendedDataInputStream extends DataInputStream {
     }
 
     /**
-     * Same as {@link  #readVInt() } but does not throw EOFException. Since
-     * throwing exceptions is very expensive for the JVM this operation is
-     * preferred if you could hit and EOF
+     * Same as {@link  #readVInt() } but does not throw EOFException. Since throwing exceptions is very expensive for the
+     * JVM this operation is preferred if you could hit and EOF
      *
      * @return
      * @throws IOException
@@ -91,9 +89,8 @@ public class ExtendedDataInputStream extends DataInputStream {
     }
 
     /**
-     * Reads a long stored in variable-length format. Reads between one and nine
-     * bytes. Smaller values take fewer bytes. Negative numbers are not
-     * supported.
+     * Reads a long stored in variable-length format. Reads between one and nine bytes. Smaller values take fewer bytes.
+     * Negative numbers are not supported.
      * <p>
      * The format is described further in {@link DataOutput#writeVInt(int)}.
      *
@@ -182,6 +179,30 @@ public class ExtendedDataInputStream extends DataInputStream {
         byte[] res = new byte[len];
         readFully(res);
         return res;
+    }
+
+    public void skipArray() throws IOException {
+        int len = readVInt();
+        if (len == 0) {
+            return;
+        }
+        skip(len);
+    }
+
+    public void skipInt() throws IOException {
+        skip(4);
+    }
+
+    public void skipLong() throws IOException {
+        skip(8);
+    }
+
+    public void skipDouble() throws IOException {
+        skip(8);
+    }
+
+    public void skipBoolean() throws IOException {
+        skip(1);
     }
 
 }

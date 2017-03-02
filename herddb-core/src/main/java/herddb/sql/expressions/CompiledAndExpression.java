@@ -37,7 +37,7 @@ public class CompiledAndExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public Object evaluate(Map<String, Object> bean, StatementEvaluationContext context) throws StatementExecutionException {
+    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         boolean ok = SQLRecordPredicate.toBoolean(left.evaluate(bean, context));
         if (!ok) {
             return not;

@@ -32,6 +32,7 @@ import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.TransactionResult;
+import herddb.utils.DataAccessor;
 
 /**
  * Tests about statement rewriting for EXECUTE syntax
@@ -56,9 +57,10 @@ public class BetterExecuteSyntaxTest {
             execute(manager, "ROLLBACK TRANSACTION 'tblspace1'," + tx2, Collections.emptyList());
 
             execute(manager, "DROP TABLESPACE 'tblspace1'", Collections.emptyList());
-            
+
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM systablespaces WHERE tablespace_name=?", Arrays.asList("tblspace1"));) {
-                Number count = (Number) scan.consume().get(0).get(0);
+                DataAccessor first = scan.consume().get(0);
+                Number count = (Number) first.get(first.getFieldNames()[0]);
                 assertEquals(0, count.intValue());
             }
 
