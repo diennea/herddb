@@ -31,6 +31,7 @@ import java.util.Set;
 import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.utils.ByteBufUtils;
+import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import io.netty.buffer.ByteBuf;
 
@@ -260,6 +261,15 @@ public class MessageUtils {
                 writeEncodedSimpleValue(encoded, entry.getKey());
                 writeEncodedSimpleValue(encoded, entry.getValue());
             }
+        } else if (o instanceof DataAccessor) {
+            DataAccessor set = (DataAccessor) o;
+            encoded.writeByte(OPCODE_MAP_VALUE);
+            String[] fieldNames = set.getFieldNames();
+            ByteBufUtils.writeVInt(encoded, fieldNames.length);
+            set.forEach((key, value) -> {
+                writeEncodedSimpleValue(encoded, key);
+                writeEncodedSimpleValue(encoded, value);
+            });
         } else if (o instanceof byte[]) {
             byte[] set = (byte[]) o;
             encoded.writeByte(OPCODE_BYTEARRAY_VALUE);
@@ -296,7 +306,7 @@ public class MessageUtils {
 
             case OPCODE_DOUBLE_VALUE:
                 return ByteBufUtils.readDouble(encoded);
-                
+
             case OPCODE_MAP_VALUE: {
                 int len = ByteBufUtils.readVInt(encoded);
                 Map<Object, Object> ret = new HashMap<>();

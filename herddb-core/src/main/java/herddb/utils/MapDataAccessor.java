@@ -20,6 +20,7 @@
 package herddb.utils;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * A simple implementation backed by a Map
@@ -39,6 +40,11 @@ public class MapDataAccessor implements DataAccessor {
     @Override
     public String[] getFieldNames() {
         return fieldNames;
+    }
+
+    @Override
+    public void forEach(BiConsumer<String, Object> consumer) {
+        map.forEach(consumer);
     }
 
     @Override

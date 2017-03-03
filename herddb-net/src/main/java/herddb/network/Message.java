@@ -19,6 +19,7 @@
  */
 package herddb.network;
 
+import herddb.utils.DataAccessor;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
@@ -132,7 +133,7 @@ public final class Message {
         return new Message(clientId, TYPE_TABLESPACE_DUMP_DATA, data);
     }
 
-    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<String> columns, List<Map<String, Object>> records, boolean last, long tx) {
+    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<String> columns, List<DataAccessor> records, boolean last, long tx) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);

@@ -19,8 +19,10 @@
  */
 package herddb.utils;
 
+import herddb.utils.Constants;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 public interface DataAccessor {
 
@@ -29,6 +31,12 @@ public interface DataAccessor {
     public Map<String, Object> toMap();
 
     public String[] getFieldNames();
+
+    public default void forEach(BiConsumer<String, Object> consumer) {
+        for (String property : getFieldNames()) {
+            consumer.accept(property, get(property));
+        }
+    }
 
     public default Object get(int index) {
         return get(getFieldNames()[index]);
@@ -44,6 +52,20 @@ public interface DataAccessor {
     }
 
     public static DataAccessor NULL = new DataAccessor() {
+
+        @Override
+        public void forEach(BiConsumer<String, Object> consumer) {
+        }
+
+        @Override
+        public Object get(int index) {
+            return null;
+        }
+
+        @Override
+        public Object[] getValues() {
+            return Constants.EMPTY_OBJECT_ARRAY;
+        }
 
         @Override
         public Object get(String property) {

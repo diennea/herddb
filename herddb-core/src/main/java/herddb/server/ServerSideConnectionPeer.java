@@ -401,16 +401,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     columns.add(c.name);
                 }
                 List<DataAccessor> records = dataScanner.consume(fetchSize);
-                List<Map<String, Object>> converted = new ArrayList<>();
-                for (DataAccessor r : records) {
-                    converted.add(r.toMap());
-                }
                 boolean last = dataScanner.isFinished();
-                LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{converted.size(), scannerId, query});
+                LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{records.size(), scannerId, query});
                 if (!last) {
                     scanners.put(scannerId, scanner);
                 }
-                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
+                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, records, last, dataScanner.transactionId));
             } else {
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
             }
@@ -438,10 +434,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 for (Column c : dataScanner.getSchema()) {
                     columns.add(c.name);
                 }
-                List<Map<String, Object>> converted = new ArrayList<>();
-                for (DataAccessor r : records) {
-                    converted.add(r.toMap());
-                }
+
                 boolean last = false;
                 if (dataScanner.isFinished()) {
                     LOGGER.log(Level.FINEST, "unregistering scanner " + scannerId + ", resultset is finished");
@@ -449,7 +442,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     last = true;
                 }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
-                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, converted, last, dataScanner.transactionId));
+                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, records, last, dataScanner.transactionId));
             } catch (DataScannerException error) {
                 _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
             }

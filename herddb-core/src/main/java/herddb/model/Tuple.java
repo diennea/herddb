@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * A tuple of values
@@ -89,6 +90,17 @@ public final class Tuple implements DataAccessor {
         }
         this.fieldNames = fieldNames;
         this.map = record;
+    }
+
+    @Override
+    public void forEach(BiConsumer<String, Object> consumer) {
+        if (map != null) {
+            map.forEach(consumer);
+        } else {
+            for (int i = 0; i < fieldNames.length; i++) {
+                consumer.accept(fieldNames[i], values[i]);
+            }
+        }
     }
 
     public int size() {

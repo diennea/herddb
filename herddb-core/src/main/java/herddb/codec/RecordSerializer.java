@@ -38,6 +38,7 @@ import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SingleEntryMap;
+import java.util.function.BiConsumer;
 import javax.imageio.IIOException;
 
 /**
@@ -270,34 +271,11 @@ public final class RecordSerializer {
     }
 
     public static DataAccessor buildRawDataAccessor(Record record, Table table) {
-        return new DataAccessorImpl(table, record);
+        return new DataAccessorForFullRecord(table, record);
     }
 
     public static DataAccessor buildRawDataAccessorForPrimaryKey(Bytes key, Table table) {
-        return new DataAccessor() {
-            @Override
-            public Object get(String property) {
-                try {
-                    if (table.isPrimaryKeyColumn(property)) {
-                        return accessRawDataFromPrimaryKey(property, key, table);
-                    } else {
-                        return null;
-                    }
-                } catch (IOException err) {
-                    throw new IllegalStateException("bad data:" + err, err);
-                }
-            }
-
-            @Override
-            public String[] getFieldNames() {
-                return table.primaryKey;
-            }
-
-            @Override
-            public Map<String, Object> toMap() {
-                return deserializePrimaryKeyAsMap(key, table);
-            }
-        };
+        return new DataAccessorForPrimaryKey(table, key);
 
     }
 
@@ -546,12 +524,12 @@ public final class RecordSerializer {
         }
     }
 
-    private static class DataAccessorImpl implements DataAccessor {
+    private static class DataAccessorForFullRecord implements DataAccessor {
 
         private final Table table;
         private final Record record;
 
-        public DataAccessorImpl(Table table, Record record) {
+        public DataAccessorForFullRecord(Table table, Record record) {
             this.table = table;
             this.record = record;
         }
@@ -577,6 +555,104 @@ public final class RecordSerializer {
         @Override
         public Map<String, Object> toMap() {
             return record.toBean(table);
+        }
+
+        @Override
+        public void forEach(BiConsumer<String, Object> consumer) {
+            // no need to create a Map
+            if (table.primaryKey.length == 1) {
+                String pkField = table.primaryKey[0];
+                Object value = deserialize(record.key.data, table.getColumn(pkField).type);
+                consumer.accept(pkField, value);
+            } else {
+                try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data);
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                    for (String primaryKeyColumn : table.primaryKey) {
+                        byte[] value = din.readArray();
+                        Object theValue = deserialize(value, table.getColumn(primaryKeyColumn).type);
+                        consumer.accept(primaryKeyColumn, theValue);
+                    }
+                } catch (IOException err) {
+                    throw new IllegalStateException("bad data:" + err, err);
+                }
+            }
+
+            try {
+                SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(record.value.data);
+                ExtendedDataInputStream din = new ExtendedDataInputStream(s);
+                while (!din.isEof()) {
+                    int serialPosition;
+                    serialPosition = din.readVIntNoEOFException();
+                    if (din.isEof()) {
+                        return;
+                    }
+                    Column col = table.getColumnBySerialPosition(serialPosition);
+                    if (col != null) {
+                        Object value = deserializeTypeAndValue(din);
+                        consumer.accept(col.name, value);
+                    } else {
+                        // we have to deserialize always the value, even the column is no more present
+                        skipTypeAndValue(din);
+                    }
+                }
+            } catch (IOException err) {
+                throw new IllegalStateException("bad data:" + err, err);
+            }
+        }
+
+    }
+
+    private static class DataAccessorForPrimaryKey implements DataAccessor {
+
+        private final Table table;
+        private final Bytes key;
+
+        public DataAccessorForPrimaryKey(Table table, Bytes key) {
+            this.table = table;
+            this.key = key;
+        }
+
+        @Override
+        public Object get(String property) {
+            try {
+                if (table.isPrimaryKeyColumn(property)) {
+                    return accessRawDataFromPrimaryKey(property, key, table);
+                } else {
+                    return null;
+                }
+            } catch (IOException err) {
+                throw new IllegalStateException("bad data:" + err, err);
+            }
+        }
+
+        @Override
+        public void forEach(BiConsumer<String, Object> consumer) {
+            if (table.primaryKey.length == 1) {
+                String pkField = table.primaryKey[0];
+                Object value = deserialize(key.data, table.getColumn(pkField).type);
+                consumer.accept(pkField, value);
+            } else {
+                try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                    for (String primaryKeyColumn : table.primaryKey) {
+                        byte[] value = din.readArray();
+                        Object theValue = deserialize(value, table.getColumn(primaryKeyColumn).type);
+                        consumer.accept(primaryKeyColumn, theValue);
+                    }
+                } catch (IOException err) {
+                    throw new IllegalStateException("bad data:" + err, err);
+                }
+            }
+        }
+
+        @Override
+        public String[] getFieldNames() {
+            return table.primaryKey;
+        }
+
+        @Override
+        public Map<String, Object> toMap() {
+            return deserializePrimaryKeyAsMap(key, table);
         }
     }
 }
