@@ -105,7 +105,11 @@ public class SQLExpressionCompiler {
         } else if (exp instanceof StringValue) {
             return new ConstantExpression(RawString.of(((StringValue) exp).getValue()));
         } else if (exp instanceof LongValue) {
-            return new ConstantExpression(((LongValue) exp).getValue());
+            try {
+                return new ConstantExpression(((LongValue) exp).getValue());
+            } catch (NumberFormatException largeNumber) {
+                return new ConstantExpression(Double.parseDouble(((LongValue) exp).getStringValue()));
+            }
         } else if (exp instanceof DoubleValue) {
             return new ConstantExpression(((DoubleValue) exp).getValue());
         } else if (exp instanceof TimestampValue) {
@@ -120,7 +124,7 @@ public class SQLExpressionCompiler {
                 throw new StatementExecutionException("unhandled expression " + exp);
             }
         } else if (exp instanceof JdbcParameter) {
-            int index = ((JdbcParameter) exp).getIndex();
+            int index = ((JdbcParameter) exp).getIndex() - 1;
             return new JdbcParameterExpression(index);
         } else if (exp instanceof AndExpression) {
             return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledAndExpression(a, b, c));
@@ -228,7 +232,7 @@ public class SQLExpressionCompiler {
 
             if (be.getRightExpression() instanceof JdbcParameter) {
                 JdbcParameter jdbcParam = (JdbcParameter) be.getRightExpression();
-                int jdbcIndex = jdbcParam.getIndex();
+                int jdbcIndex = jdbcParam.getIndex() - 1;
                 if (be instanceof EqualsTo) {
                     return new ColumnEqualsJdbcParameter(be.isNot(), columnName, jdbcIndex);
                 } else if (be instanceof NotEqualsTo) {

@@ -67,7 +67,7 @@
         <libs.netty4>4.1.7.Final</libs.netty4>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
         <libs.zookeeper>3.4.8</libs.zookeeper>
-        <libs.jsqlparser>0.9.6</libs.jsqlparser>
+        <libs.jsqlparser>0.9.7</libs.jsqlparser>
         <libs.curator>2.8.0</libs.curator>
         <libs.guava>21.0</libs.guava>        
         <libs.slf4j>1.7.21</libs.slf4j>        

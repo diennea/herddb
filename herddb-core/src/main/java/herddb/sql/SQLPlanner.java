@@ -233,19 +233,19 @@ public class SQLPlanner {
         try {
             ExecutionPlan result;
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
-            int numJdbcParameters = assignJdbcParametersIndexes(stmt);
+            verifyJdbcParametersIndexes(stmt);
             if (stmt instanceof CreateTable) {
                 result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
             } else if (stmt instanceof CreateIndex) {
                 result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
             } else if (stmt instanceof Insert) {
-                result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues, numJdbcParameters);
+                result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
             } else if (stmt instanceof Delete) {
                 result = buildDeleteStatement(defaultTableSpace, (Delete) stmt, returnValues);
             } else if (stmt instanceof Update) {
                 result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
             } else if (stmt instanceof Select) {
-                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows, numJdbcParameters);
+                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows);
             } else if (stmt instanceof Execute) {
                 result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
                 allowCache = false;
@@ -483,7 +483,7 @@ public class SQLPlanner {
         return type;
     }
 
-    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s, boolean returnValues, int numJdbcParameters) throws StatementExecutionException {
+    private ExecutionPlan buildInsertStatement(String defaultTableSpace, Insert s, boolean returnValues) throws StatementExecutionException {
         String tableSpace = s.getTable().getSchemaName();
         String tableName = s.getTable().getName();
         if (tableSpace == null) {
@@ -634,11 +634,11 @@ public class SQLPlanner {
             List<net.sf.jsqlparser.schema.Column> valuesColumns = new ArrayList<>();
 
             Select select = s.getSelect();
-            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true, -1, numJdbcParameters);
+            ExecutionPlan datasource = buildSelectStatement(defaultTableSpace, select, true, -1);
             if (s.getColumns() == null) {
                 throw new StatementExecutionException("for INSERT ... SELECT you have to declare the columns to be filled in (use INSERT INTO TABLE(c,c,c,) SELECT .....)");
             }
-            IntHolder holder = new IntHolder(0);
+            IntHolder holder = new IntHolder(1);
             for (net.sf.jsqlparser.schema.Column c : s.getColumns()) {
                 Column column = table.getColumn(c.getColumnName());
                 if (column == null) {
@@ -1185,7 +1185,7 @@ public class SQLPlanner {
 
     }
 
-    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan, int maxRows, int numJdbcParameters) throws StatementExecutionException {
+    private ExecutionPlan buildSelectStatement(String defaultTableSpace, Select s, boolean scan, int maxRows) throws StatementExecutionException {
         PlainSelect selectBody = (PlainSelect) s.getSelectBody();
         net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) selectBody.getFromItem();
 
@@ -1401,21 +1401,22 @@ public class SQLPlanner {
                     throw new StatementExecutionException("LIMIT and TOP cannot be used on the same query");
                 }
                 if (limit != null) {
-                    if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter()) {
+                    if (limit.isLimitAll() || limit.isLimitNull() || limit.getOffset() instanceof JdbcParameter) {
                         throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ")");
                     }
-                    if (maxRows > 0 && limit.isRowCountJdbcParameter()) {
+                    if (maxRows > 0 && limit.getRowCount() instanceof JdbcParameter) {
                         throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ") and JDBC setMaxRows=" + maxRows);
                     }
                     int rowCount;
-                    int rowCountJdbcParameter = 0;
-                    if (limit.isRowCountJdbcParameter()) {
+                    int rowCountJdbcParameter = -1;
+                    if (limit.getRowCount() instanceof JdbcParameter) {
                         rowCount = -1;
-                        rowCountJdbcParameter = numJdbcParameters;
+                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex()-1;
                     } else {
-                        rowCount = (int) limit.getRowCount();
+                        rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
                     }
-                    scanLimits = new ScanLimits(rowCount, (int) limit.getOffset(), rowCountJdbcParameter);
+                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
+                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter+1);
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
                         throw new StatementExecutionException("Invalid TOP clause (top=" + limit + ")");
@@ -1459,21 +1460,23 @@ public class SQLPlanner {
                 }
                 ScanLimits scanLimits = null;
                 if (limit != null) {
-                    if (limit.isLimitAll() || limit.isLimitNull() || limit.isOffsetJdbcParameter()) {
+                    if (limit.isLimitAll() || limit.isLimitNull() || limit.getOffset() instanceof JdbcParameter) {
                         throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ")");
                     }
-                    if (maxRows > 0 && limit.isRowCountJdbcParameter()) {
+                    if (maxRows > 0 && limit.getRowCount() instanceof JdbcParameter) {
                         throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ") and JDBC setMaxRows=" + maxRows);
                     }
                     int rowCount;
-                    int rowCountJdbcParameter = 0;
-                    if (limit.isRowCountJdbcParameter()) {
+                    int rowCountJdbcParameter = -1;
+                    if (limit.getRowCount() instanceof JdbcParameter) {
                         rowCount = -1;
-                        rowCountJdbcParameter = numJdbcParameters;
+                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex()-1;
                     } else {
-                        rowCount = (int) limit.getRowCount();
+                        rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
                     }
-                    scanLimits = new ScanLimits(rowCount, (int) limit.getOffset(), rowCountJdbcParameter);
+                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
+                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter+1);
+
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
                         throw new StatementExecutionException("Invalid TOP clause");
@@ -1868,10 +1871,10 @@ public class SQLPlanner {
         throw new StatementExecutionException("unsupported function " + name);
     }
 
-    private int assignJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
+    private void verifyJdbcParametersIndexes(net.sf.jsqlparser.statement.Statement stmt) {
         JdbcQueryRewriter assigner = new JdbcQueryRewriter();
         stmt.accept(assigner);
-        return assigner.getParametersCount();
+
     }
 
 }

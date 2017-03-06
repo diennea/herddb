@@ -44,6 +44,7 @@ import net.sf.jsqlparser.expression.JsonExpression;
 import net.sf.jsqlparser.expression.KeepExpression;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.MySQLGroupConcat;
+import net.sf.jsqlparser.expression.NotExpression;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.NumericBind;
 import net.sf.jsqlparser.expression.OracleHierarchicalExpression;
@@ -78,6 +79,7 @@ import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.expression.operators.relational.ItemsListVisitor;
+import net.sf.jsqlparser.expression.operators.relational.JsonOperator;
 import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.Matches;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
@@ -118,7 +120,7 @@ public class ColumnReferencesDiscovery implements ExpressionVisitor, ItemsListVi
         return containsMixedAliases;
     }
 
-    private void accumulate(Column column) {        
+    private void accumulate(Column column) {
         String tableName;
         Table fromTable = column.getTable();
         if (fromTable == null || fromTable.getName() == null) {
@@ -511,6 +513,16 @@ public class ColumnReferencesDiscovery implements ExpressionVisitor, ItemsListVi
     public void visit(MultiExpressionList mel
     ) {
         mel.getExprList().forEach(e -> e.accept(this));
+    }
+
+    @Override
+    public void visit(JsonOperator jo) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void visit(NotExpression ne) {
+        ne.getExpression().accept(this);
     }
 
 }

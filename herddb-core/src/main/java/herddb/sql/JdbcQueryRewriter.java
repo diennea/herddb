@@ -41,6 +41,7 @@ import net.sf.jsqlparser.expression.JsonExpression;
 import net.sf.jsqlparser.expression.KeepExpression;
 import net.sf.jsqlparser.expression.LongValue;
 import net.sf.jsqlparser.expression.MySQLGroupConcat;
+import net.sf.jsqlparser.expression.NotExpression;
 import net.sf.jsqlparser.expression.NullValue;
 import net.sf.jsqlparser.expression.NumericBind;
 import net.sf.jsqlparser.expression.OracleHierarchicalExpression;
@@ -75,6 +76,7 @@ import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.expression.operators.relational.ItemsListVisitor;
+import net.sf.jsqlparser.expression.operators.relational.JsonOperator;
 import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.Matches;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
@@ -135,25 +137,22 @@ class JdbcQueryRewriter implements StatementVisitor,
     ItemsListVisitor,
     FromItemVisitor {
 
-    private final IntHolder currentPosition = new IntHolder(0);
-
     JdbcQueryRewriter() {
     }
 
     @Override
     public void visit(JdbcParameter jdbcParameter) {
         if (jdbcParameter.getIndex() == null) {
-            int pos = currentPosition.value++;
-            jdbcParameter.setIndex(pos);
+            throw new IllegalArgumentException("jdbcParameter.getIndex() == null");
         }
     }
 
     private void visitLimit(Limit limit) {
-        if (limit.isOffsetJdbcParameter()) {
-            currentPosition.value++;
+        if (limit.getOffset() != null) {
+            limit.getOffset().accept(this);
         }
-        if (limit.isRowCountJdbcParameter()) {
-            currentPosition.value++;
+        if (limit.getRowCount() != null) {
+            limit.getRowCount().accept(this);
         }
     }
 
@@ -769,8 +768,14 @@ class JdbcQueryRewriter implements StatementVisitor,
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
-    int getParametersCount() {
-        return this.currentPosition.value;
+    @Override
+    public void visit(JsonOperator jo) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void visit(NotExpression ne) {
+        ne.getExpression().accept(this);
     }
 
 }

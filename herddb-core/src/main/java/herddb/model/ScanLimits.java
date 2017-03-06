@@ -64,7 +64,7 @@ public class ScanLimits {
             return maxRows;
         } else {
             try {
-                Object limit = context.getJdbcParameters().get(maxRowsJdbcParameterIndex-1);
+                Object limit = context.getJdbcParameters().get(maxRowsJdbcParameterIndex - 1);
                 if (limit == null) {
                     throw new StatementExecutionException("Invalid LIMIT with NULL JDBC Parameter");
                 } else if (limit instanceof Number) {
