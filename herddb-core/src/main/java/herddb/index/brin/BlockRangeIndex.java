@@ -60,7 +60,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
     private final AtomicInteger blockIdGenerator = new AtomicInteger();
 
     private final BlockStartKey<K> HEAD_KEY = new BlockStartKey<>(null, -1);
-    private final IndexDataStorage<K,V> dataStorage;
+    private final IndexDataStorage<K, V> dataStorage;
 
     private final PageReplacementPolicy pageReplacementPolicy;
 
@@ -68,7 +68,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
         this(maxBlockSize, pageReplacementPolicy, new MemoryIndexDataStorage<>());
     }
 
-    public BlockRangeIndex(int maxBlockSize, PageReplacementPolicy pageReplacementPolicy, IndexDataStorage<K,V> dataStorage) {
+    public BlockRangeIndex(int maxBlockSize, PageReplacementPolicy pageReplacementPolicy, IndexDataStorage<K, V> dataStorage) {
         this.maxPageBlockSize = maxBlockSize - BLOCK_CONSTANT_BYTE_SIZE;
         if (maxBlockSize < 0) {
             throw new IllegalArgumentException("page size to small to store any index entry: " + maxBlockSize);
@@ -115,9 +115,9 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
         @Override
         public int hashCode() {
-            int hash = 7;
-            hash = 73 * hash + Objects.hashCode(this.minKey);
-            hash = 73 * hash + (this.blockId ^ (this.blockId >>> 32));
+            int hash = 3;
+            hash = 67 * hash + Objects.hashCode(this.minKey);
+            hash = 67 * hash + this.blockId;
             return hash;
         }
 
@@ -145,6 +145,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
     }
 
     private final class BRINPage extends Page<Block> {
+
         public BRINPage(Block owner, long blockId) {
             super(owner, blockId);
         }
@@ -160,7 +161,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
         final long size = key.getEstimatedSize() + value.getEstimatedSize() + ENTRY_CONSTANT_BYTE_SIZE;
         if (size > maxPageBlockSize) {
             throw new IllegalStateException(
-                    "entry too big to fit in any page " + size + " bytes");
+                "entry too big to fit in any page " + size + " bytes");
         }
         return size;
     }
@@ -202,7 +203,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             values = new TreeMap<>();
             values.put(firstKey, firstKeyValues);
             this.maxKey = firstKey;
-            this.size = evaluateEntrySize(firstKey,firstValue);
+            this.size = evaluateEntrySize(firstKey, firstValue);
             this.loaded = true;
             this.dirty = true;
             this.pageId = IndexDataStorage.NEW_PAGE;
@@ -258,7 +259,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 ensureBlockLoaded();
 
                 mergeAddValue(key, value, values);
-                size += evaluateEntrySize(key,value);
+                size += evaluateEntrySize(key, value);
 
                 dirty = true;
                 if (maxKey.compareTo(key) < 0) {
@@ -274,7 +275,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 lock.unlock();
             }
 
-            if (newblock != null){
+            if (newblock != null) {
                 pageReplacementPolicy.add(newblock.page);
             }
             return true;
@@ -292,7 +293,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                         if (valuesForKey.isEmpty()) {
                             values.remove(key);
                         }
-                        size -= evaluateEntrySize(key,value);
+                        size -= evaluateEntrySize(key, value);
                     }
                 }
                 if (next != null && !visitedBlocks.contains(next.key)) {
@@ -310,7 +311,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                     values = new TreeMap<>();
                     List<Map.Entry<K, V>> loadDataPage = dataStorage.loadDataPage(pageId);
 
-                    for (Map.Entry<K,V> entry : loadDataPage) {
+                    for (Map.Entry<K, V> entry : loadDataPage) {
                         mergeAddValue(entry.getKey(), entry.getValue(), values);
                     }
 
@@ -383,7 +384,9 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             }
         }
 
-        /** Return the newly generated block if any */
+        /**
+         * Return the newly generated block if any
+         */
         private Block split(ConcurrentNavigableMap<BlockStartKey<K>, Block> blocks) {
             if (size < maxPageBlockSize) {
                 throw new IllegalStateException("Split on a non overflowing block");
@@ -400,13 +403,13 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             for (Map.Entry<K, List<V>> entry : values.entrySet()) {
                 final K key = entry.getKey();
                 for (V v : entry.getValue()) {
-                    final long entrySize = evaluateEntrySize(key,v);
+                    final long entrySize = evaluateEntrySize(key, v);
                     if (mySize < splitSize) {
                         mergeAddValue(key, v, keep_values);
-                        mySize+=entrySize;
+                        mySize += entrySize;
                     } else {
                         mergeAddValue(key, v, other_values);
-                        otherSize+=entrySize;
+                        otherSize += entrySize;
                     }
                 }
             }
@@ -429,13 +432,11 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                  * blocks.put acts as memory barrier (contains at least a volatile access thus reordering is
                  * blocked [happen before])
                  */
-
                 // access to external field, this is the cause of most of the concurrency problems
                 blocks.put(newblock.key, newblock);
 
                 this.minKey = firstKey;
                 this.maxKey = lastKey;
-
 
                 return newblock;
             }
@@ -526,7 +527,8 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
     public void put(K key, V value) {
         BlockStartKey<K> lookUp = new BlockStartKey<>(key, Integer.MAX_VALUE);
-        while (!tryPut(key, value, lookUp)) {}
+        while (!tryPut(key, value, lookUp)) {
+        }
     }
 
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
@@ -648,7 +650,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
         for (Block block : blocks.values()) {
             /* Unload if loaded */
-            if ( block.forcedUnload() ) {
+            if (block.forcedUnload()) {
                 pageReplacementPolicy.remove(block.page);
             }
         }
