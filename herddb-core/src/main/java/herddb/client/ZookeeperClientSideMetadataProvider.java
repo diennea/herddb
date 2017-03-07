@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.NodeMetadata;
 import herddb.model.TableSpace;
 import herddb.network.ServerHostData;
@@ -63,6 +64,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                 CountDownLatch waitForConnection = new CountDownLatch(1);
                 ZooKeeper zk = new ZooKeeper(zkAddress, zkSessionTimeout, new Watcher() {
                     @Override
+                    @SuppressFBWarnings(value = "SF_SWITCH_NO_DEFAULT")
                     public void process(WatchedEvent event) {
                         LOG.log(Level.SEVERE, "zk client event " + event);
                         switch (event.getState()) {

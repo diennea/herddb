@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,13 +50,13 @@ import java.util.concurrent.locks.ReentrantLock;
 public class ClockProPolicy implements PageReplacementPolicy {
 
     /** Value for {@link CPMetadata#warm}: hot page */
-    private final byte HOT = 0x00;
+    private final static byte HOT = 0x00;
 
     /** Value for {@link CPMetadata#warm}: cold page still loaded */
-    private final byte COLD = 0x01;
+    private final static byte COLD = 0x01;
 
     /** Value for {@link CPMetadata#warm}: old cold page unloaded */
-    private final byte NON_RESIDENT_COLD = 0x10;
+    private final static byte NON_RESIDENT_COLD = 0x10;
 
 
     /** Capacity */
@@ -98,8 +99,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
         this.m = capacity;
 
         this.space = new HashMap<>(2 * capacity);
-
-        handHot = handCold = handTest;
+       
     }
 
     @Override
@@ -117,7 +117,6 @@ public class ClockProPolicy implements PageReplacementPolicy {
     public boolean remove(Page<?> page) {
         lock.lock();
         try {
-
             return unsafeRemove((CPMetadata) page.metadata);
         } finally {
             lock.unlock();
@@ -310,7 +309,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
         return unloaded;
 
     }
-
+    
     private boolean unsafeRemove(CPMetadata metadata) {
 
         /* Custom addition to CP algorithm, we need to drop pages too */
@@ -337,6 +336,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
                 --countNonResident;
 //                assertTrue(countNonResident >= 0);
                 break;
+
+            default:
+                throw new IllegalStateException(known.warm+"");
 
         }
 

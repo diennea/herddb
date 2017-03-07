@@ -15,6 +15,7 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -23,8 +24,10 @@ import java.util.Arrays;
  *
  * @author enrico.olivelli
  */
+
 public class RawString implements Comparable<RawString> {
 
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
     public final byte[] data;
     private String string;
     private final int hashcode;
@@ -48,6 +51,7 @@ public class RawString implements Comparable<RawString> {
         return hashcode;
     }
 
+    @SuppressFBWarnings(value = "EQ_CHECK_FOR_OPERAND_NOT_COMPATIBLE_WITH_THIS")
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {

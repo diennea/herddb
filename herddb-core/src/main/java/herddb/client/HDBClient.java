@@ -88,6 +88,8 @@ public class HDBClient implements AutoCloseable {
                     configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)
                 );
                 break;
+            default:
+                throw new IllegalStateException(mode);
         }
     }
 

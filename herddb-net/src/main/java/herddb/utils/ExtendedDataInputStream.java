@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.EOFException;
@@ -181,6 +182,7 @@ public class ExtendedDataInputStream extends DataInputStream {
         return res;
     }
 
+    @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipArray() throws IOException {
         int len = readVInt();
         if (len == 0) {
@@ -189,18 +191,22 @@ public class ExtendedDataInputStream extends DataInputStream {
         skip(len);
     }
 
+    @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipInt() throws IOException {
         skip(4);
     }
 
+    @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipLong() throws IOException {
         skip(8);
     }
 
+    @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipDouble() throws IOException {
         skip(8);
     }
 
+    @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipBoolean() throws IOException {
         skip(1);
     }

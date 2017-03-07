@@ -19,6 +19,7 @@
  */
 package herddb.cluster;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogListener;
 import herddb.log.FullRecoveryNeededException;
@@ -86,6 +87,7 @@ public class BookkeeperCommitLog extends CommitLog {
         private LedgerHandle out;
         private long ledgerId;
 
+        @SuppressFBWarnings("REC_CATCH_EXCEPTION")
         private CommitFileWriter() throws LogNotAvailableException {
             try {
                 this.out = bookKeeper.createLedger(ensemble, writeQuorumSize, ackQuorumSize, BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));

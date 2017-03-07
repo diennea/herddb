@@ -19,6 +19,7 @@
  */
 package herddb.backup;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.log.LogSequenceNumber;
 
 /**
@@ -29,6 +30,7 @@ import herddb.log.LogSequenceNumber;
 public final class DumpedLogEntry implements Comparable<DumpedLogEntry> {
 
     public final LogSequenceNumber logSequenceNumber;
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
     public final byte[] entryData;
 
     public DumpedLogEntry(LogSequenceNumber logSequenceNumber, byte[] entryData) {
@@ -37,6 +39,7 @@ public final class DumpedLogEntry implements Comparable<DumpedLogEntry> {
     }
 
     @Override
+    @SuppressFBWarnings(value = "EQ_COMPARETO_USE_OBJECT_EQUALS")
     public int compareTo(DumpedLogEntry o) {
         boolean after = this.logSequenceNumber.after(o.logSequenceNumber);
         if (after) {

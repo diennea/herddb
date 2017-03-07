@@ -21,7 +21,6 @@ package herddb.sql.functions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 import net.sf.jsqlparser.expression.Expression;
 
 /**

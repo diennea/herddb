@@ -19,6 +19,7 @@
  */
 package herddb.cluster;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.log.LogNotAvailableException;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
@@ -65,7 +66,9 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     private volatile boolean started;
     private final CountDownLatch firstConnectionLatch = new CountDownLatch(1);
     private final Watcher mainWatcher = new Watcher() {
+
         @Override
+        @SuppressFBWarnings("SF_SWITCH_NO_DEFAULT")
         public void process(WatchedEvent event) {
             switch (event.getState()) {
                 case SyncConnected:
@@ -87,6 +90,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     }
 
     @Override
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
     public void start() throws MetadataStorageManagerException {
         if (started) {
             return;

@@ -231,7 +231,7 @@ public class HDBConnection implements AutoCloseable {
             throw new HDBException("connection is closed");
         }
         if (tableSpace == null) {
-            throw new HDBException("no such tablespace " + tableSpace);
+            throw new HDBException("null tablespace");
         }
         String leaderId = client.getClientSideMetadataProvider().getTableSpaceLeader(tableSpace);
         if (leaderId == null) {
