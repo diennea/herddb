@@ -25,6 +25,7 @@ import herddb.client.HDBException;
 import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.model.TransactionContext;
 import static herddb.model.TransactionContext.AUTOTRANSACTION_ID;
+import static herddb.model.TransactionContext.NOTRANSACTION_ID;
 import herddb.utils.QueryUtils;
 import java.sql.Array;
 import java.sql.Blob;
@@ -69,7 +70,7 @@ public class HerdDBConnection implements java.sql.Connection {
     }
 
     long ensureTransaction() throws SQLException {
-        if (!autocommit && transactionId == 0) {
+        if (!autocommit && transactionId == NOTRANSACTION_ID) {
             // transaction will be started at first statement execution
             transactionId = TransactionContext.AUTOTRANSACTION_ID;
         }
@@ -93,7 +94,7 @@ public class HerdDBConnection implements java.sql.Connection {
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         return new HerdDBPreparedStatement(this, sql, false);
     }
-    
+
     private PreparedStatement prepareStatement(String sql, boolean returnValues) throws SQLException {
         return new HerdDBPreparedStatement(this, sql, returnValues);
     }
@@ -117,7 +118,7 @@ public class HerdDBConnection implements java.sql.Connection {
             this.autocommit = false;
             return;
         }
-        if (!this.autocommit && autoCommit) {            
+        if (!this.autocommit && autoCommit) {
             commit();
             this.autocommit = true;
         }
@@ -133,7 +134,7 @@ public class HerdDBConnection implements java.sql.Connection {
         if (autocommit) {
             throw new SQLException("connection is in autocommit mode");
         }
-        if (transactionId == 0 || transactionId == AUTOTRANSACTION_ID) {
+        if (transactionId == NOTRANSACTION_ID || transactionId == AUTOTRANSACTION_ID) {
             // no transaction actually started, nothing to commit
             return;
         }
@@ -142,7 +143,7 @@ public class HerdDBConnection implements java.sql.Connection {
         } catch (ClientSideMetadataProviderException | HDBException err) {
             throw SQLExceptionUtils.wrapException(err);
         } finally {
-            transactionId = 0;
+            transactionId = NOTRANSACTION_ID;
         }
     }
 
@@ -151,7 +152,7 @@ public class HerdDBConnection implements java.sql.Connection {
         if (autocommit) {
             throw new SQLException("connection is not in autocommit mode");
         }
-        if (transactionId <= 0) {
+        if (transactionId == NOTRANSACTION_ID || transactionId == AUTOTRANSACTION_ID) {
             // no transaction actually started, nothing to commit
             return;
         }
@@ -160,13 +161,14 @@ public class HerdDBConnection implements java.sql.Connection {
         } catch (ClientSideMetadataProviderException | HDBException err) {
             throw SQLExceptionUtils.wrapException(err);
         } finally {
-            transactionId = 0;
+            transactionId = NOTRANSACTION_ID;
         }
     }
 
     @Override
     public void close() throws SQLException {
-        if (transactionId > 0) {
+        if (transactionId != NOTRANSACTION_ID
+            && transactionId != AUTOTRANSACTION_ID) {
             rollback();
         }
         this.datasource.releaseConnection(connection);

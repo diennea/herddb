@@ -28,7 +28,6 @@ import herddb.client.HDBConnection;
 import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
 import herddb.model.TableSpace;
-import herddb.model.commands.InsertStatement;
 import herddb.utils.IntHolder;
 import herddb.utils.SimpleBufferedOutputStream;
 
@@ -51,13 +50,17 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipInputStream;
+import javax.script.ScriptException;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
@@ -72,7 +75,6 @@ import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
 import net.sf.jsqlparser.util.deparser.InsertDeParser;
-import net.sf.jsqlparser.util.deparser.SelectDeParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
@@ -91,7 +93,7 @@ import org.jline.terminal.TerminalBuilder;
  */
 public class HerdDBCLI {
 
-    public static void main(String... args) {
+    public static void main(String... args) throws IOException {
         DefaultParser parser = new DefaultParser();
         Options options = new Options();
         options.addOption("x", "url", true, "JDBC URL");
@@ -112,6 +114,7 @@ public class HerdDBCLI {
         options.addOption("r", "restore", true, "Restore tablespace");
         options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
         options.addOption("ns", "newschema", true, "Name for new restored tablespace");
+        options.addOption("tsm", "tablespacemapper", true, "Path to groovy script with a custom functin to map table names to tablespaces");
         options.addOption("dfs", "dumpfetchsize", true, "Fetch size for dump operations."
             + "Defaults to chunks of 100000 records");
         org.apache.commons.cli.CommandLine commandLine;
@@ -146,16 +149,18 @@ public class HerdDBCLI {
         String newschema = commandLine.getOptionValue("newschema", "");
         String leader = commandLine.getOptionValue("newleader", "");
         String script = commandLine.getOptionValue("script", "");
+        String tablespacemapperfile = commandLine.getOptionValue("tablespacemapper", "");
         int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
         final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
         boolean sqlconsole = commandLine.hasOption("sqlconsole");
         final boolean frommysqldump = commandLine.hasOption("frommysqldump");
-        final boolean rewritestatements = commandLine.hasOption("rewritestatements");
+        final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.isEmpty();
         boolean autotransaction = commandLine.hasOption("autotransaction") || frommysqldump;
         int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
         if (!autotransaction) {
             autotransactionbatchsize = 0;
         }
+        TableSpaceMapper tableSpaceMapper = buildTableSpaceMapper(tablespacemapperfile);
         try (HerdDBDataSource datasource = new HerdDBDataSource()) {
             datasource.setUrl(url);
             datasource.setUsername(username);
@@ -167,7 +172,7 @@ public class HerdDBCLI {
                 if (sqlconsole) {
                     runSqlConsole(connection, statement);
                 } else if (!query.isEmpty()) {
-                    executeStatement(verbose, ignoreerrors, false, false, query, statement);
+                    executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper);
                 } else if (!file.isEmpty()) {
                     if (autotransactionbatchsize > 0) {
                         connection.setAutoCommit(false);
@@ -185,7 +190,7 @@ public class HerdDBCLI {
                         int _autotransactionbatchsize = autotransactionbatchsize;
                         SQLFileParser.parseSQLFile(ii, (st) -> {
                             if (!st.comment) {
-                                int count = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement);;
+                                int count = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper);
                                 doneCount.value += count;
                                 totalDoneCount.value += count;
                                 if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
@@ -298,7 +303,8 @@ public class HerdDBCLI {
         }
     }
 
-    private static int executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement) throws SQLException {
+    private static int executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement,
+        final TableSpaceMapper tableSpaceMapper) throws SQLException, ScriptException {
         query = query.trim();
 
         if (query.isEmpty()
@@ -358,10 +364,16 @@ public class HerdDBCLI {
 
             QueryWithParameters rewritten = null;
             if (rewritestatements) {
-                rewritten = rewriteQuery(query);
+                rewritten = rewriteQuery(query, tableSpaceMapper);
 
             }
             if (rewritten != null) {
+                if (rewritten.schema != null) {
+                    HerdDBConnection connection = statement.getConnection().unwrap(HerdDBConnection.class);
+                    if (connection != null && !connection.getSchema().equalsIgnoreCase(rewritten.schema)) {
+                        changeSchemaAndCommit(connection, rewritten.schema);
+                    }
+                }
                 try (PreparedStatement ps = statement.getConnection().prepareStatement(rewritten.query);) {
                     int i = 1;
                     for (Object o : rewritten.jdbcParameters) {
@@ -422,7 +434,7 @@ public class HerdDBCLI {
         System.out.println(msg);
     }
 
-    private static void runSqlConsole(Connection connection, Statement statement) throws IOException, SQLException {
+    private static void runSqlConsole(Connection connection, Statement statement) throws IOException {
         Terminal terminal = TerminalBuilder.builder()
             .system(true)
             .build();
@@ -438,11 +450,11 @@ public class HerdDBCLI {
                 if (line == null) {
                     return;
                 }
-                executeStatement(true, true, false, false, line, statement);
-            } catch (UserInterruptException e) {
-                // Ignore
-            } catch (EndOfFileException e) {
+                executeStatement(true, true, false, false, line, statement, null);
+            } catch (UserInterruptException | EndOfFileException e) {
                 return;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
 
         }
@@ -459,7 +471,7 @@ public class HerdDBCLI {
 
     }
 
-    private static QueryWithParameters rewriteQuery(String query) {
+    private static QueryWithParameters rewriteQuery(String query, TableSpaceMapper mapper) throws ScriptException {
         try {
             net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
             if (stmt instanceof Insert) {
@@ -500,12 +512,62 @@ public class HerdDBCLI {
                     StringBuilder queryResult = new StringBuilder();
                     InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null, queryResult);
                     deparser.deParse(insert);
-                    return new QueryWithParameters(queryResult.toString(), parameters);
+                    String schema = mapper == null ? null : mapper.getTableSpace(stmt);
+                    return new QueryWithParameters(queryResult.toString(), parameters, schema);
+                } else {
+                    String schema = mapper == null ? null : mapper.getTableSpace(stmt);
+                    return new QueryWithParameters(query, Collections.emptyList(), schema);
                 }
+            } else {
+                String schema = mapper == null ? null : mapper.getTableSpace(stmt);
+                return new QueryWithParameters(query, Collections.emptyList(), schema);
             }
-            return null;
         } catch (JSQLParserException err) {
             return null;
         }
+    }
+
+    private static TableSpaceMapper buildTableSpaceMapper(String tablespacemapperfile) throws IOException {
+        if (tablespacemapperfile.isEmpty()) {
+            return null;
+        } else {
+            byte[] content = Files.readAllBytes(Paths.get(tablespacemapperfile));
+            return new TableSpaceMapper(new String(content, StandardCharsets.UTF_8));
+        }
+    }
+
+    private static Set<String> existingTableSpaces;
+
+    private static void changeSchemaAndCommit(HerdDBConnection connection, String schema) throws SQLException {
+        boolean autocommit = connection.getAutoCommit();
+        if (!autocommit) {
+            System.out.println("Forcing COMMIT in order to set schema to " + schema + " !");
+            connection.commit();
+        }
+        if (!autocommit) {
+            connection.setAutoCommit(true);
+        }
+
+        if (existingTableSpaces == null) {
+            existingTableSpaces = new HashSet<>();
+            try (ResultSet tableSpaces = connection.getMetaData().getSchemas()) {
+                while (tableSpaces.next()) {
+                    existingTableSpaces.add(tableSpaces.getString("TABLE_SCHEM").toLowerCase());
+                }
+            }
+
+        }
+
+        if (!existingTableSpaces.contains(schema.toLowerCase())) {
+            try (Statement statement = connection.createStatement()) {
+                statement.executeUpdate("CREATE TABLESPACE '" + schema + "','wait:60000'");
+                existingTableSpaces.add(schema.toLowerCase());
+            }
+        }
+        if (!autocommit) {
+            connection.setAutoCommit(false);
+        }
+
+        connection.setSchema(schema);
     }
 }

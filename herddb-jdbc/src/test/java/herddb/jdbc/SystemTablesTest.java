@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
@@ -56,8 +57,8 @@ public class SystemTablesTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                        Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                    Connection con = dataSource.getConnection();
+                    Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
                     statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string, ts timestamp)");
 
@@ -132,14 +133,49 @@ public class SystemTablesTest {
                         }
                         assertEquals(3, records.size());
                         assertTrue(records.stream().filter(s -> s.contains("n2")
-                                && s.contains("integer")
+                            && s.contains("integer")
                         ).findAny().isPresent());
                         assertTrue(records.stream().filter(s
-                                -> s.contains("name") && s.contains("string")
+                            -> s.contains("name") && s.contains("string")
                         ).findAny().isPresent());
                         assertTrue(records.stream().filter(s
-                                -> s.contains("ts") && s.contains("timestamp")
+                            -> s.contains("ts") && s.contains("timestamp")
                         ).findAny().isPresent());
+                    }
+
+                    try (ResultSet rs = metaData.getSchemas()) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertTrue(records.stream().filter(s -> s.contains("default")).findAny().isPresent());
+                        assertEquals(1, records.size());
+
+                    }
+
+                    try (ResultSet rs = metaData.getSchemas(null, "%ault")) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertTrue(records.stream().filter(s -> s.contains("default")).findAny().isPresent());
+                        assertEquals(1, records.size());
+
+                    }
+                    try (ResultSet rs = metaData.getSchemas(null, "no")) {
+                        List<List<String>> records = new ArrayList<>();
+                        assertFalse(rs.next());
+
                     }
                 }
             }

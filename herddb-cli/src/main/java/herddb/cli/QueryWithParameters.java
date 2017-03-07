@@ -30,10 +30,12 @@ public final class QueryWithParameters {
 
     public final String query;
     public final List<Object> jdbcParameters;
+    public final String schema;
 
-    public QueryWithParameters(String query, List<Object> jdbcParameters) {
+    public QueryWithParameters(String query, List<Object> jdbcParameters, String schema) {
         this.query = query;
         this.jdbcParameters = Collections.unmodifiableList(jdbcParameters);
+        this.schema = schema;
     }
 
 }

@@ -659,53 +659,38 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     /**
-     * Retrieves a description of the tables available in the given catalog.
-     * Only table descriptions matching the catalog, schema, table name and type
-     * criteria are returned. They are ordered by <code>TABLE_TYPE</code>,
-     * <code>TABLE_CAT</code>, <code>TABLE_SCHEM</code> and
-     * <code>TABLE_NAME</code>.
+     * Retrieves a description of the tables available in the given catalog. Only table descriptions matching the
+     * catalog, schema, table name and type criteria are returned. They are ordered by <code>TABLE_TYPE</code>,
+     * <code>TABLE_CAT</code>, <code>TABLE_SCHEM</code> and <code>TABLE_NAME</code>.
      * <P>
      * Each table description has the following columns:
      * <OL>
-     * <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be
-     * <code>null</code>)
-     * <LI><B>TABLE_SCHEM</B> String {@code =>} table schema (may be
-     * <code>null</code>)
+     * <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be <code>null</code>)
+     * <LI><B>TABLE_SCHEM</B> String {@code =>} table schema (may be <code>null</code>)
      * <LI><B>TABLE_NAME</B> String {@code =>} table name
-     * <LI><B>TABLE_TYPE</B> String {@code =>} table type. Typical types are
-     * "TABLE", "VIEW", "SYSTEM TABLE", "GLOBAL TEMPORARY", "LOCAL TEMPORARY",
-     * "ALIAS", "SYNONYM".
+     * <LI><B>TABLE_TYPE</B> String {@code =>} table type. Typical types are "TABLE", "VIEW", "SYSTEM TABLE", "GLOBAL
+     * TEMPORARY", "LOCAL TEMPORARY", "ALIAS", "SYNONYM".
      * <LI><B>REMARKS</B> String {@code =>} explanatory comment on the table
-     * <LI><B>TYPE_CAT</B> String {@code =>} the types catalog (may be
-     * <code>null</code>)
-     * <LI><B>TYPE_SCHEM</B> String {@code =>} the types schema (may be
-     * <code>null</code>)
-     * <LI><B>TYPE_NAME</B> String {@code =>} type name (may be
-     * <code>null</code>)
-     * <LI><B>SELF_REFERENCING_COL_NAME</B> String {@code =>} name of the
-     * designated "identifier" column of a typed table (may be
-     * <code>null</code>)
-     * <LI><B>REF_GENERATION</B> String {@code =>} specifies how values in
-     * SELF_REFERENCING_COL_NAME are created. Values are "SYSTEM", "USER",
-     * "DERIVED". (may be <code>null</code>)
+     * <LI><B>TYPE_CAT</B> String {@code =>} the types catalog (may be <code>null</code>)
+     * <LI><B>TYPE_SCHEM</B> String {@code =>} the types schema (may be <code>null</code>)
+     * <LI><B>TYPE_NAME</B> String {@code =>} type name (may be <code>null</code>)
+     * <LI><B>SELF_REFERENCING_COL_NAME</B> String {@code =>} name of the designated "identifier" column of a typed
+     * table (may be <code>null</code>)
+     * <LI><B>REF_GENERATION</B> String {@code =>} specifies how values in SELF_REFERENCING_COL_NAME are created. Values
+     * are "SYSTEM", "USER", "DERIVED". (may be <code>null</code>)
      * </OL>
      *
      * <P>
      * <B>Note:</B> Some databases may not return information for all tables.
      *
-     * @param catalog a catalog name; must match the catalog name as it is
-     * stored in the database; "" retrieves those without a catalog;
-     * <code>null</code> means that the catalog name should not be used to
-     * narrow the search
-     * @param schemaPattern a schema name pattern; must match the schema name as
-     * it is stored in the database; "" retrieves those without a schema;
-     * <code>null</code> means that the schema name should not be used to narrow
-     * the search
-     * @param tableNamePattern a table name pattern; must match the table name
-     * as it is stored in the database
-     * @param types a list of table types, which must be from the list of table
-     * types returned from {@link #getTableTypes},to include; <code>null</code>
-     * returns all types
+     * @param catalog a catalog name; must match the catalog name as it is stored in the database; "" retrieves those
+     * without a catalog; <code>null</code> means that the catalog name should not be used to narrow the search
+     * @param schemaPattern a schema name pattern; must match the schema name as it is stored in the database; ""
+     * retrieves those without a schema; <code>null</code> means that the schema name should not be used to narrow the
+     * search
+     * @param tableNamePattern a table name pattern; must match the table name as it is stored in the database
+     * @param types a list of table types, which must be from the list of table types returned from
+     * {@link #getTableTypes},to include; <code>null</code> returns all types
      * @return <code>ResultSet</code> - each row is a table description
      * @exception SQLException if a database access error occurs
      * @see #getSearchStringEscape
@@ -716,7 +701,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
         }
         try (Statement statement = con.createStatement();
-                ResultSet rs = statement.executeQuery(query)) {
+            ResultSet rs = statement.executeQuery(query)) {
 
             List<Map<String, Object>> results = new ArrayList<>();
             while (rs.next()) {
@@ -737,25 +722,56 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
             }
             ScanResultSetMetadata metadata = new ScanResultSetMetadata(
-                    Arrays.asList(
-                            "TABLE_CAT",
-                            "TABLE_SCHEM",
-                            "TABLE_NAME",
-                            "TABLE_TYPE",
-                            "REMARKS",
-                            "TYPE_CAT",
-                            "TYPE_SCHEM",
-                            "TYPE_NAME",
-                            "SELF_REFERENCING_COL_NAME",
-                            "REF_GENERATION"
-                    ));
-            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID,metadata, results.iterator()));
+                Arrays.asList(
+                    "TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "TABLE_TYPE",
+                    "REMARKS",
+                    "TYPE_CAT",
+                    "TYPE_SCHEM",
+                    "TYPE_NAME",
+                    "SELF_REFERENCING_COL_NAME",
+                    "REF_GENERATION"
+                ));
+            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
+        }
+    }
+
+    @Override
+    public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
+        String query = "SELECT tablespace_name FROM SYSTABLESPACES";
+        if (schemaPattern != null && !schemaPattern.isEmpty()) {
+            query = query + " WHERE tablespace_name LIKE '" + SQLUtils.escape(schemaPattern) + "'";
+        }
+
+        try (Statement statement = con.createStatement();
+            ResultSet rs = statement.executeQuery(query)) {
+
+            List<Map<String, Object>> results = new ArrayList<>();
+            while (rs.next()) {
+                String tablespace_name = rs.getString("tablespace_name");
+
+                Map<String, Object> data = new HashMap<>();
+
+                data.put("TABLE_SCHEM", tablespace_name);
+                data.put("TABLE_CATALOG", null);
+
+                results.add(data);
+
+            }
+            ScanResultSetMetadata metadata = new ScanResultSetMetadata(
+                Arrays.asList(
+                    "TABLE_SCHEM",
+                    "TABLE_CATALOG"
+                ));
+            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
         }
     }
 
     @Override
     public ResultSet getSchemas() throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
+        return getSchemas(null, null);
     }
 
     @Override
@@ -769,31 +785,27 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     }
 
     /**
-     * Retrieves a description of table columns available in the specified
-     * catalog.
+     * Retrieves a description of table columns available in the specified catalog.
      *
      * <P>
-     * Only column descriptions matching the catalog, schema, table and column
-     * name criteria are returned. They are ordered by
-     * <code>TABLE_CAT</code>,<code>TABLE_SCHEM</code>, <code>TABLE_NAME</code>,
-     * and <code>ORDINAL_POSITION</code>.
+     * Only column descriptions matching the catalog, schema, table and column name criteria are returned. They are
+     * ordered by <code>TABLE_CAT</code>,<code>TABLE_SCHEM</code>, <code>TABLE_NAME</code>, and
+     * <code>ORDINAL_POSITION</code>.
      *
      * <P>
      * Each column description has the following columns:
      * <OL>
-     * <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be
-     * <code>null</code>)
-     * <LI><B>TABLE_SCHEM</B> String {@code =>} table schema (may be
-     * <code>null</code>)
+     * <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be <code>null</code>)
+     * <LI><B>TABLE_SCHEM</B> String {@code =>} table schema (may be <code>null</code>)
      * <LI><B>TABLE_NAME</B> String {@code =>} table name
      * <LI><B>COLUMN_NAME</B> String {@code =>} column name
      * <LI><B>DATA_TYPE</B> int {@code =>} SQL type from java.sql.Types
-     * <LI><B>TYPE_NAME</B> String {@code =>} Data source dependent type name,
-     * for a UDT the type name is fully qualified
+     * <LI><B>TYPE_NAME</B> String {@code =>} Data source dependent type name, for a UDT the type name is fully
+     * qualified
      * <LI><B>COLUMN_SIZE</B> int {@code =>} column size.
      * <LI><B>BUFFER_LENGTH</B> is not used.
-     * <LI><B>DECIMAL_DIGITS</B> int {@code =>} the number of fractional digits.
-     * Null is returned for data types where DECIMAL_DIGITS is not applicable.
+     * <LI><B>DECIMAL_DIGITS</B> int {@code =>} the number of fractional digits. Null is returned for data types where
+     * DECIMAL_DIGITS is not applicable.
      * <LI><B>NUM_PREC_RADIX</B> int {@code =>} Radix (typically either 10 or 2)
      * <LI><B>NULLABLE</B> int {@code =>} is NULL allowed.
      * <UL>
@@ -801,73 +813,55 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * <LI> columnNullable - definitely allows <code>NULL</code> values
      * <LI> columnNullableUnknown - nullability unknown
      * </UL>
-     * <LI><B>REMARKS</B> String {@code =>} comment describing column (may be
-     * <code>null</code>)
-     * <LI><B>COLUMN_DEF</B> String {@code =>} default value for the column,
-     * which should be interpreted as a string when the value is enclosed in
-     * single quotes (may be <code>null</code>)
+     * <LI><B>REMARKS</B> String {@code =>} comment describing column (may be <code>null</code>)
+     * <LI><B>COLUMN_DEF</B> String {@code =>} default value for the column, which should be interpreted as a string
+     * when the value is enclosed in single quotes (may be <code>null</code>)
      * <LI><B>SQL_DATA_TYPE</B> int {@code =>} unused
      * <LI><B>SQL_DATETIME_SUB</B> int {@code =>} unused
-     * <LI><B>CHAR_OCTET_LENGTH</B> int {@code =>} for char types the maximum
-     * number of bytes in the column
-     * <LI><B>ORDINAL_POSITION</B> int {@code =>} index of column in table
-     * (starting at 1)
-     * <LI><B>IS_NULLABLE</B> String {@code =>} ISO rules are used to determine
-     * the nullability for a column.
+     * <LI><B>CHAR_OCTET_LENGTH</B> int {@code =>} for char types the maximum number of bytes in the column
+     * <LI><B>ORDINAL_POSITION</B> int {@code =>} index of column in table (starting at 1)
+     * <LI><B>IS_NULLABLE</B> String {@code =>} ISO rules are used to determine the nullability for a column.
      * <UL>
      * <LI> YES --- if the column can include NULLs
      * <LI> NO --- if the column cannot include NULLs
      * <LI> empty string --- if the nullability for the column is unknown
      * </UL>
-     * <LI><B>SCOPE_CATALOG</B> String {@code =>} catalog of table that is the
-     * scope of a reference attribute (<code>null</code> if DATA_TYPE isn't REF)
-     * <LI><B>SCOPE_SCHEMA</B> String {@code =>} schema of table that is the
-     * scope of a reference attribute (<code>null</code> if the DATA_TYPE isn't
-     * REF)
-     * <LI><B>SCOPE_TABLE</B> String {@code =>} table name that this the scope
-     * of a reference attribute (<code>null</code> if the DATA_TYPE isn't REF)
-     * <LI><B>SOURCE_DATA_TYPE</B> short {@code =>} source type of a distinct
-     * type or user-generated Ref type, SQL type from java.sql.Types
-     * (<code>null</code> if DATA_TYPE isn't DISTINCT or user-generated REF)
-     * <LI><B>IS_AUTOINCREMENT</B> String {@code =>} Indicates whether this
-     * column is auto incremented
+     * <LI><B>SCOPE_CATALOG</B> String {@code =>} catalog of table that is the scope of a reference attribute
+     * (<code>null</code> if DATA_TYPE isn't REF)
+     * <LI><B>SCOPE_SCHEMA</B> String {@code =>} schema of table that is the scope of a reference attribute
+     * (<code>null</code> if the DATA_TYPE isn't REF)
+     * <LI><B>SCOPE_TABLE</B> String {@code =>} table name that this the scope of a reference attribute
+     * (<code>null</code> if the DATA_TYPE isn't REF)
+     * <LI><B>SOURCE_DATA_TYPE</B> short {@code =>} source type of a distinct type or user-generated Ref type, SQL type
+     * from java.sql.Types (<code>null</code> if DATA_TYPE isn't DISTINCT or user-generated REF)
+     * <LI><B>IS_AUTOINCREMENT</B> String {@code =>} Indicates whether this column is auto incremented
      * <UL>
      * <LI> YES --- if the column is auto incremented
      * <LI> NO --- if the column is not auto incremented
-     * <LI> empty string --- if it cannot be determined whether the column is
-     * auto incremented
+     * <LI> empty string --- if it cannot be determined whether the column is auto incremented
      * </UL>
-     * <LI><B>IS_GENERATEDCOLUMN</B> String {@code =>} Indicates whether this is
-     * a generated column
+     * <LI><B>IS_GENERATEDCOLUMN</B> String {@code =>} Indicates whether this is a generated column
      * <UL>
      * <LI> YES --- if this a generated column
      * <LI> NO --- if this not a generated column
-     * <LI> empty string --- if it cannot be determined whether this is a
-     * generated column
+     * <LI> empty string --- if it cannot be determined whether this is a generated column
      * </UL>
      * </OL>
      *
      * <p>
-     * The COLUMN_SIZE column specifies the column size for the given column.
-     * For numeric data, this is the maximum precision. For character data, this
-     * is the length in characters. For datetime datatypes, this is the length
-     * in characters of the String representation (assuming the maximum allowed
-     * precision of the fractional seconds component). For binary data, this is
-     * the length in bytes. For the ROWID datatype, this is the length in bytes.
+     * The COLUMN_SIZE column specifies the column size for the given column. For numeric data, this is the maximum
+     * precision. For character data, this is the length in characters. For datetime datatypes, this is the length in
+     * characters of the String representation (assuming the maximum allowed precision of the fractional seconds
+     * component). For binary data, this is the length in bytes. For the ROWID datatype, this is the length in bytes.
      * Null is returned for data types where the column size is not applicable.
      *
-     * @param catalog a catalog name; must match the catalog name as it is
-     * stored in the database; "" retrieves those without a catalog;
-     * <code>null</code> means that the catalog name should not be used to
-     * narrow the search
-     * @param schemaPattern a schema name pattern; must match the schema name as
-     * it is stored in the database; "" retrieves those without a schema;
-     * <code>null</code> means that the schema name should not be used to narrow
-     * the search
-     * @param tableNamePattern a table name pattern; must match the table name
-     * as it is stored in the database
-     * @param columnNamePattern a column name pattern; must match the column
-     * name as it is stored in the database
+     * @param catalog a catalog name; must match the catalog name as it is stored in the database; "" retrieves those
+     * without a catalog; <code>null</code> means that the catalog name should not be used to narrow the search
+     * @param schemaPattern a schema name pattern; must match the schema name as it is stored in the database; ""
+     * retrieves those without a schema; <code>null</code> means that the schema name should not be used to narrow the
+     * search
+     * @param tableNamePattern a table name pattern; must match the table name as it is stored in the database
+     * @param columnNamePattern a column name pattern; must match the column name as it is stored in the database
      * @return <code>ResultSet</code> - each row is a column description
      * @exception SQLException if a database access error occurs
      * @see #getSearchStringEscape
@@ -883,7 +877,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
             query = query + " AND column_name LIKE '" + SQLUtils.escape(columnNamePattern) + "'";
         }
         try (Statement statement = con.createStatement();
-                ResultSet rs = statement.executeQuery(query)) {
+            ResultSet rs = statement.executeQuery(query)) {
 
             List<Map<String, Object>> results = new ArrayList<>();
             while (rs.next()) {
@@ -923,31 +917,31 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
             }
             ScanResultSetMetadata metadata = new ScanResultSetMetadata(
-                    Arrays.asList(
-                            "TABLE_CAT",
-                            "TABLE_SCHEM",
-                            "TABLE_NAME",
-                            "COLUMN_NAME",
-                            "DATA_TYPE",
-                            "COLUMN_SIZE",
-                            "BUFFER_LENGTH",
-                            "DECIMAL_DIGITS",
-                            "NUM_PREC_RADIX",
-                            "NULLABLE",
-                            "REMARKS",
-                            "COLUMN_DEF",
-                            "SQL_DATA_TYPE",
-                            "SQL_DATETIME_SUB",
-                            "CHAR_OCTET_LENGTH",
-                            "ORDINAL_POSITION",
-                            "IS_NULLABLE",
-                            "SCOPE_CATALOG",
-                            "SCOPE_SCHEMA",
-                            "SCOPE_TABLE",
-                            "SOURCE_DATA_TYPE",
-                            "IS_AUTOINCREMENT",
-                            "IS_GENERATEDCOLUMN"
-                    ));
+                Arrays.asList(
+                    "TABLE_CAT",
+                    "TABLE_SCHEM",
+                    "TABLE_NAME",
+                    "COLUMN_NAME",
+                    "DATA_TYPE",
+                    "COLUMN_SIZE",
+                    "BUFFER_LENGTH",
+                    "DECIMAL_DIGITS",
+                    "NUM_PREC_RADIX",
+                    "NULLABLE",
+                    "REMARKS",
+                    "COLUMN_DEF",
+                    "SQL_DATA_TYPE",
+                    "SQL_DATETIME_SUB",
+                    "CHAR_OCTET_LENGTH",
+                    "ORDINAL_POSITION",
+                    "IS_NULLABLE",
+                    "SCOPE_CATALOG",
+                    "SCOPE_SCHEMA",
+                    "SCOPE_TABLE",
+                    "SOURCE_DATA_TYPE",
+                    "IS_AUTOINCREMENT",
+                    "IS_GENERATEDCOLUMN"
+                ));
             return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
         }
     }
@@ -1155,11 +1149,6 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     @Override
     public RowIdLifetime getRowIdLifetime() throws SQLException {
         return RowIdLifetime.ROWID_UNSUPPORTED;
-    }
-
-    @Override
-    public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
     }
 
     @Override
