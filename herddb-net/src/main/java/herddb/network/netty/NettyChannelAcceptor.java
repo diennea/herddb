@@ -27,6 +27,8 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.local.LocalAddress;
 import io.netty.channel.local.LocalServerChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -73,6 +75,8 @@ public class NettyChannelAcceptor implements AutoCloseable {
     private ExecutorService callbackExecutor;
     private boolean enableRealNetwork = true;
     private boolean enableJVMNetwork = true;
+    private static final boolean ENABLE_EPOOL_NATIVE = System.getProperty("os.name").equalsIgnoreCase("linux")
+        && !Boolean.getBoolean("herddb.network.disablenativeepoll");
 
     public boolean isEnableRealNetwork() {
         return enableRealNetwork;
@@ -231,11 +235,19 @@ public class NettyChannelAcceptor implements AutoCloseable {
             }
         };
         if (enableRealNetwork) {
-            bossGroup = new NioEventLoopGroup(workerThreads);
-            workerGroup = new NioEventLoopGroup(workerThreads);
+            if (ENABLE_EPOOL_NATIVE) {
+                bossGroup = new EpollEventLoopGroup(workerThreads);
+                workerGroup = new EpollEventLoopGroup(workerThreads);
+                LOGGER.log(Level.INFO, "Using netty-native-epoll network type");
+            } else {
+                bossGroup = new NioEventLoopGroup(workerThreads);
+                workerGroup = new NioEventLoopGroup(workerThreads);
+                LOGGER.log(Level.INFO, "Using nio network type");
+            }
+
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
-                .channel(NioServerSocketChannel.class)
+                .channel(ENABLE_EPOOL_NATIVE ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                 .childHandler(channelInitialized)
                 .option(ChannelOption.SO_BACKLOG, 128);
 

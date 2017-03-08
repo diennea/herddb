@@ -37,6 +37,13 @@
             <version>${libs.netty4}</version>
             <scope>compile</scope>
         </dependency>
+         <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-transport-native-epoll</artifactId>
+            <version>${libs.netty4}</version>
+            <scope>compile</scope>
+            <classifier>linux-x86_64</classifier>
+        </dependency>
         <dependency>            
             <groupId>org.codehaus.jackson</groupId>
             <artifactId>jackson-mapper-asl</artifactId>
