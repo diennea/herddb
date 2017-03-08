@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -28,6 +29,7 @@ import java.util.Arrays;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     private static final int CONSTANT_BYTE_SIZE = 36;
@@ -182,7 +184,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public static void putBoolean(byte[] bytes, int offset, boolean val) {
         if (val) {
-            bytes[offset] = (byte) 0xFF;
+            bytes[offset] = 1;
         } else {
             bytes[offset] = (byte) 0x00;
         }
@@ -224,7 +226,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public static boolean toBoolean(byte[] bytes, int offset, final int length) {
         for (int i = offset; i < offset + length; i++) {
-            if (bytes[i] != 0xFF) {
+            if (bytes[i] != 1) {
                 return false;
             }
         }

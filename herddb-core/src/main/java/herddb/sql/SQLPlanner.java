@@ -1130,7 +1130,7 @@ public class SQLPlanner {
         if (conditionsOnJoinedResult.size() == 1) {
             return conditionsOnJoinedResult.get(0).getExpression();
         }
-        AndExpression result = result = new AndExpression(conditionsOnJoinedResult.get(0).getExpression(),
+        AndExpression result = new AndExpression(conditionsOnJoinedResult.get(0).getExpression(),
             conditionsOnJoinedResult.get(1).getExpression());
         for (int i = 2; i < conditionsOnJoinedResult.size(); i++) {
             result = new AndExpression(result, conditionsOnJoinedResult.get(i).getExpression());

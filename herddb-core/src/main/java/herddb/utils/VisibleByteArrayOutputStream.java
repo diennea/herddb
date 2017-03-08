@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -27,8 +28,10 @@ import java.util.Arrays;
 
 /**
  * Simple ByteArrayOutputStream which exposes the internal array
+ *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI_EXPOSE_REP")
 public class VisibleByteArrayOutputStream extends OutputStream {
 
     protected byte buf[];

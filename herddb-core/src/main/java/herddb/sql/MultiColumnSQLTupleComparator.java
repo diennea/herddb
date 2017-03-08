@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
@@ -64,6 +65,7 @@ public class MultiColumnSQLTupleComparator implements TupleComparator {
 
     }
 
+    @SuppressFBWarnings("RV_NEGATING_RESULT_OF_COMPARETO")
     @Override
     public int compare(DataAccessor o1, DataAccessor o2) {
         for (OrderElement element : orderByElements) {

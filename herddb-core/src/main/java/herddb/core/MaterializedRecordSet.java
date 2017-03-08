@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.Column;
 import herddb.model.Projection;
 import herddb.model.ScanLimits;
@@ -33,14 +34,15 @@ import java.util.Iterator;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI_EXPOSE_REP")
 public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<DataAccessor> {
 
     protected Column[] columns;
     protected String[] fieldNames;
     protected boolean writeFinished;
     protected int size;
-    protected int expectedSize;
-    protected RecordSetFactory factory;
+    protected final int expectedSize;
+    protected final RecordSetFactory factory;
 
     protected MaterializedRecordSet(int expectedSize, String[] fieldNames, Column[] columns, RecordSetFactory factory) {
         this.fieldNames = fieldNames;
@@ -67,6 +69,14 @@ public abstract class MaterializedRecordSet implements AutoCloseable, Iterable<D
 
     public int size() {
         return size;
+    }
+
+    public int getExpectedSize() {
+        return expectedSize;
+    }
+
+    public RecordSetFactory getFactory() {
+        return factory;
     }
 
     public abstract void sort(TupleComparator comparator);

@@ -38,32 +38,31 @@ import java.util.concurrent.locks.ReentrantLock;
 public class RandomPageReplacementPolicy implements PageReplacementPolicy {
 
     private final PlainMetadata[] pages;
-    private final Map<PlainMetadata,Integer> positions;
+    private final Map<PlainMetadata, Integer> positions;
 
     private final Random random = new Random();
 
-    /** Modification lock */
+    /**
+     * Modification lock
+     */
     private final Lock lock = new ReentrantLock();
 
-    public RandomPageReplacementPolicy (int size) {
+    public RandomPageReplacementPolicy(int size) {
         pages = new PlainMetadata[size];
 
         positions = new HashMap<>(size);
     }
 
-
     @Override
     public PlainMetadata add(Page<?> page) {
-        lock.lock();
-
         final PlainMetadata metadata = new PlainMetadata(page);
         page.metadata = metadata;
-
+        lock.lock();       
         try {
             int count = positions.size();
             if (count < pages.length) {
                 pages[count] = metadata;
-                positions.put(metadata,count);
+                positions.put(metadata, count);
                 return null;
             } else {
                 int position = random.nextInt(count);
@@ -80,7 +79,6 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         }
     }
 
-
     public PlainMetadata pop() {
         lock.lock();
         try {
@@ -91,7 +89,7 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
             positions.remove(old);
 
             if (count > 0) {
-                PlainMetadata moving = pages[count -1];
+                PlainMetadata moving = pages[count - 1];
                 pages[position] = moving;
                 positions.put(moving, position);
             }
@@ -112,20 +110,17 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         return pages.length;
     }
 
-
     @Override
     public <P extends Page<?>> void remove(Collection<P> pages) {
-        for(Page<?> page : pages) {
+        for (Page<?> page : pages) {
             remove(page);
         }
     }
 
     @Override
     public boolean remove(Page<?> page) {
-        lock.lock();
-
         final PlainMetadata metadata = (PlainMetadata) page.metadata;
-
+        lock.lock();
         try {
             Integer position = positions.remove(metadata);
 
@@ -156,7 +151,7 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         try {
             positions.clear();
 
-            for(int i = 0; i < pages.length; ++i) {
+            for (int i = 0; i < pages.length; ++i) {
                 pages[i] = null;
             }
         } finally {
@@ -183,9 +178,9 @@ public class RandomPageReplacementPolicy implements PageReplacementPolicy {
         }
 
         public PlainMetadata(Page.Owner owner, long pageId) {
-            super(owner,pageId);
+            super(owner, pageId);
 
-            hashcode = Objects.hash(owner,pageId);
+            hashcode = Objects.hash(owner, pageId);
         }
 
         @Override

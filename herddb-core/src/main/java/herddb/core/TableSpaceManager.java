@@ -1061,7 +1061,7 @@ public class TableSpaceManager {
             }
             if (transaction != null && transaction.isTableDropped(statement.getTable())) {
                 if (statement.isIfExists()) {
-                    return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
+                    return new DDLStatementExecutionResult(transaction.transactionId);
                 }
                 throw new TableDoesNotExistException("table does not exist " + statement.getTable() + " on tableSpace " + statement.getTableSpace());
             }
@@ -1098,7 +1098,7 @@ public class TableSpaceManager {
             }
             if (transaction != null && transaction.isIndexDropped(statement.getIndexName())) {
                 if (statement.isIfExists()) {
-                    return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
+                    return new DDLStatementExecutionResult(transaction.transactionId);
                 }
                 throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
             }
@@ -1350,8 +1350,6 @@ public class TableSpaceManager {
 
     private class ApplyEntryOnRecovery implements BiConsumer<LogSequenceNumber, LogEntry> {
 
-        int count;
-
         public ApplyEntryOnRecovery() {
         }
 
@@ -1359,7 +1357,7 @@ public class TableSpaceManager {
         public void accept(LogSequenceNumber t, LogEntry u) {
             try {
                 apply(t, u, true);
-            } catch (Exception err) {
+            } catch (DDLException | DataStorageManagerException err) {
                 throw new RuntimeException(err);
             }
         }

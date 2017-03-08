@@ -19,10 +19,10 @@
  */
 package herddb.model;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI_EXPOSE_REP")
 public class Index implements ColumnsList {
 
     public static final String TYPE_HASH = "hash";
@@ -180,7 +181,7 @@ public class Index implements ColumnsList {
                 throw new IllegalArgumentException("table is not defined");
             }
             if (!TYPE_HASH.equals(type) && !TYPE_BRIN.equals(type)) {
-                throw new IllegalArgumentException("only index type " + TYPE_HASH + ","+TYPE_BRIN+" are supported");
+                throw new IllegalArgumentException("only index type " + TYPE_HASH + "," + TYPE_BRIN + " are supported");
             }
             if (columns.isEmpty()) {
                 throw new IllegalArgumentException("specify at least one column to index");

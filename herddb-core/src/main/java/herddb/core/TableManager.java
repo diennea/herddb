@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -79,7 +80,6 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.model.Transaction;
-import herddb.model.Tuple;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -1492,6 +1492,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @Override
+    @SuppressFBWarnings("WMI_WRONG_MAP_ITERATOR")
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
@@ -1565,7 +1566,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              *
              * Any newpage remaining here is unflushed and is not set as dirty (if "dirty" were unloaded!).
              * Just write the pages as they are.
-             */
+             */            
             for (Long newPageId : newPages.keySet()) {
                 DataPage dataPage = newPages.get(newPageId);
                 flushNewPage(dataPage);

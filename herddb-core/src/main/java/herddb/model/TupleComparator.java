@@ -20,6 +20,7 @@
 package herddb.model;
 
 import herddb.utils.DataAccessor;
+import java.io.Serializable;
 import java.util.Comparator;
 
 /**
@@ -27,6 +28,6 @@ import java.util.Comparator;
  *
  * @author enrico.olivelli
  */
-public interface TupleComparator extends Comparator<DataAccessor> {
+public interface TupleComparator extends Comparator<DataAccessor>, Serializable {
 
 }

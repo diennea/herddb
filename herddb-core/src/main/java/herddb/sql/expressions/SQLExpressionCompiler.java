@@ -62,16 +62,6 @@ import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
  */
 public class SQLExpressionCompiler {
 
-    public static CompiledSQLExpression compileExpression(String validatedTableAlias,
-        Expression exp) {
-        CompiledSQLExpression compiled = tryCompileExpression(validatedTableAlias, exp);
-        if (compiled != null) {
-            return compiled;
-        }
-
-        throw new StatementExecutionException("unsupported operand " + exp.getClass() + ", expression is " + exp);
-    }
-
     private static CompiledSQLExpression tryCompileBinaryExpression(
         String validatedTableAlias,
         BinaryExpression binExp,
@@ -88,8 +78,8 @@ public class SQLExpressionCompiler {
         return compiledExpClass.build(binExp.isNot(), left, right);
     }
 
-    private static CompiledSQLExpression tryCompileExpression(
-        String validatedTableAlias,
+    // this method never returns NULL
+    public static CompiledSQLExpression compileExpression(String validatedTableAlias,
         Expression exp) {
         if (exp instanceof BinaryExpression) {
             CompiledSQLExpression compiled = compileSpecialBinaryExpression(validatedTableAlias, exp);
@@ -98,10 +88,7 @@ public class SQLExpressionCompiler {
             }
         }
         if (exp instanceof net.sf.jsqlparser.schema.Column) {
-            CompiledSQLExpression compiled = compileColumnExpression(validatedTableAlias, exp);
-            if (compiled != null) {
-                return compiled;
-            }
+            return compileColumnExpression(validatedTableAlias, exp);
         } else if (exp instanceof StringValue) {
             return new ConstantExpression(RawString.of(((StringValue) exp).getValue()));
         } else if (exp instanceof LongValue) {
@@ -143,9 +130,6 @@ public class SQLExpressionCompiler {
         } else if (exp instanceof Parenthesis) {
             Parenthesis p = (Parenthesis) exp;
             CompiledSQLExpression inner = compileExpression(validatedTableAlias, p.getExpression());
-            if (inner == null) {
-                return null;
-            }
             return new CompiledParenthesisExpression(p.isNot(), inner);
         } else if (exp instanceof EqualsTo) {
             return tryCompileBinaryExpression(validatedTableAlias, (BinaryExpression) exp, (a, b, c) -> new CompiledEqualsExpression(a, b, c));
@@ -166,9 +150,6 @@ public class SQLExpressionCompiler {
         } else if (exp instanceof SignedExpression) {
             SignedExpression s = (SignedExpression) exp;
             CompiledSQLExpression inner = compileExpression(validatedTableAlias, s.getExpression());
-            if (inner == null) {
-                return null;
-            }
             return new CompiledSignedExpression(s.getSign(), inner);
         } else if (exp instanceof InExpression) {
             InExpression in = (InExpression) exp;
@@ -176,14 +157,11 @@ public class SQLExpressionCompiler {
         } else if (exp instanceof IsNullExpression) {
             IsNullExpression i = (IsNullExpression) exp;
             CompiledSQLExpression left = compileExpression(validatedTableAlias, i.getLeftExpression());
-            if (left == null) {
-                return null;
-            }
             return new CompiledIsNullExpression(i.isNot(), left);
         } else if (exp instanceof CaseExpression) {
             return CompiledCaseExpression.create(validatedTableAlias, (CaseExpression) exp);
         }
-        return null;
+        throw new StatementExecutionException("unsupported operand " + exp.getClass() + ", expression is " + exp);
     }
 
     private static CompiledSQLExpression compileColumnExpression(String validatedTableAlias, Expression exp) {

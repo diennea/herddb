@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -470,7 +471,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         //LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
-            throw new StatementExecutionException("invalid tableSpace " + tableSpace);
+            throw new StatementExecutionException("invalid null tableSpace");
         }
         try {
             if (statement instanceof CreateTableSpaceStatement) {
@@ -670,7 +671,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         context.setTransactionContext(transactionContext);
         String tableSpace = statement.getTableSpace();
         if (tableSpace == null) {
-            throw new StatementExecutionException("invalid tableSpace " + tableSpace);
+            throw new StatementExecutionException("invalid null tableSpace");
         }
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
@@ -768,6 +769,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     public void triggerActivator(ActivatorRunRequest type) {
         activatorQueue.offer(type);
     }

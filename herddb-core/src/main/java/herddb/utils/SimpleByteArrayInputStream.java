@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.InputStream;
 
 /**
@@ -26,6 +27,7 @@ import java.io.InputStream;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI_EXPOSE_REP2")
 public final class SimpleByteArrayInputStream extends InputStream {
 
     private final byte[] buf;

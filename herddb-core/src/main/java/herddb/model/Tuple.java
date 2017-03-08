@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.codec.RecordSerializer;
 import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
@@ -39,6 +40,7 @@ import java.util.function.BiConsumer;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public final class Tuple implements DataAccessor {
 
     public final String[] fieldNames;

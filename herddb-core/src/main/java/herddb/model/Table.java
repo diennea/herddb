@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.commands.AlterTableStatement;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
@@ -41,6 +42,7 @@ import java.util.stream.Collectors;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class Table implements ColumnsList {
 
     public final String name;

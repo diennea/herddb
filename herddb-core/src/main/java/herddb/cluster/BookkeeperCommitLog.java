@@ -446,7 +446,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
             }
             LOGGER.severe("After recovery of " + tableSpaceUUID + " lastSequenceNumber " + getLastSequenceNumber());
-        } catch (Exception err) {
+        } catch (InterruptedException | RuntimeException | BKException err) {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery", err);
             signalBrokerFailed();
             throw new LogNotAvailableException(err);

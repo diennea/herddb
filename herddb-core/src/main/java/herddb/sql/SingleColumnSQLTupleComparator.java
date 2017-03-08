@@ -19,11 +19,10 @@
  */
 package herddb.sql;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
-import java.util.ArrayList;
 import java.util.List;
 import net.sf.jsqlparser.statement.select.OrderByElement;
 
@@ -34,6 +33,7 @@ import net.sf.jsqlparser.statement.select.OrderByElement;
  */
 public class SingleColumnSQLTupleComparator implements TupleComparator {
 
+    private static final long serialVersionUID = 007;
     private final String columnName;
     private final boolean asc;
 
@@ -62,6 +62,7 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
     }
 
     @Override
+    @SuppressFBWarnings("RV_NEGATING_RESULT_OF_COMPARETO")
     public int compare(DataAccessor o1, DataAccessor o2) {
         Object value1 = o1.get(columnName);
         Object value2 = o2.get(columnName);
