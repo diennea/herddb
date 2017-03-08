@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,7 @@ import java.util.function.Consumer;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI_EXPOSE_REP")
 public abstract class DataScanner implements AutoCloseable {
 
     private final Column[] schema;

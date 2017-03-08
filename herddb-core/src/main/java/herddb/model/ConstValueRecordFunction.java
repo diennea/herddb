@@ -19,11 +19,14 @@
  */
 package herddb.model;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * A Constant value for the record
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public class ConstValueRecordFunction extends RecordFunction {
 
     private final byte[] value;

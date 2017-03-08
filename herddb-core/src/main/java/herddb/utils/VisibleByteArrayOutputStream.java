@@ -38,6 +38,10 @@ public class VisibleByteArrayOutputStream extends OutputStream {
 
     protected int count;
 
+    public VisibleByteArrayOutputStream() {
+        this(32);
+    }
+
     public VisibleByteArrayOutputStream(int size) {
         if (size < 0) {
             throw new IllegalArgumentException("Negative initial size: " + size);

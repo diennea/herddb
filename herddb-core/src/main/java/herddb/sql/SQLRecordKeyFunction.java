@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.codec.RecordSerializer;
 import herddb.model.Column;
 import herddb.model.Record;
@@ -35,7 +36,6 @@ import herddb.model.ColumnsList;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.utils.DataAccessor;
-import java.util.Collections;
 
 /**
  * Record mutator using SQL
@@ -84,9 +84,9 @@ public class SQLRecordKeyFunction extends RecordFunction {
     }
 
     @Override
+    @SuppressFBWarnings("BC_UNCONFIRMED_CAST")
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         SQLStatementEvaluationContext statementEvaluationContext = (SQLStatementEvaluationContext) context;
-
         if (isConstant) {
             byte[] cachedResult = (byte[]) statementEvaluationContext.getConstant(this);
             if (cachedResult != null) {

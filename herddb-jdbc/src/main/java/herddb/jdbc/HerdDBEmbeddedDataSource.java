@@ -44,27 +44,27 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
     private String waitForTableSpace = "";
     private int waitForTableSpaceTimeout = 60000;
 
-    public int getWaitForTableSpaceTimeout() {
+    public synchronized int getWaitForTableSpaceTimeout() {
         return waitForTableSpaceTimeout;
     }
 
-    public void setWaitForTableSpaceTimeout(int waitForTableSpaceTimeout) {
+    public synchronized void setWaitForTableSpaceTimeout(int waitForTableSpaceTimeout) {
         this.waitForTableSpaceTimeout = waitForTableSpaceTimeout;
     }
 
-    public String getWaitForTableSpace() {
+    public synchronized String getWaitForTableSpace() {
         return waitForTableSpace;
     }
 
-    public void setWaitForTableSpace(String waitForTableSpace) {
+    public synchronized void setWaitForTableSpace(String waitForTableSpace) {
         this.waitForTableSpace = waitForTableSpace;
     }
 
-    public boolean isStartServer() {
+    public synchronized boolean isStartServer() {
         return startServer;
     }
 
-    public void setStartServer(boolean startServer) {
+    public synchronized void setStartServer(boolean startServer) {
         this.startServer = startServer;
     }
 
@@ -75,7 +75,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
         this.properties.putAll(properties);
     }
 
-    public Server getServer() {
+    public synchronized Server getServer() {
         return server;
     }
 
@@ -90,7 +90,7 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
             String mode = serverConfiguration.getString(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_LOCAL);
             if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)
                 || (ServerConfiguration.PROPERTY_MODE_STANDALONE.equals(mode) && startServer)) {
-                LOGGER.log(Level.SEVERE, "Booting Local Embedded HerdDB mode, url:" + url + ", properties:" + serverConfiguration);
+                LOGGER.log(Level.INFO, "Booting Local Embedded HerdDB mode, url:" + url + ", properties:" + serverConfiguration);
                 server = new Server(serverConfiguration);
                 try {
                     server.start();
@@ -106,8 +106,8 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
             }
             if (server != null && waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
                 try {
-                    LOGGER.log(Level.SEVERE, "Waiting for boot of tablespace " + waitForTableSpace + ". Waiting at max " + waitForTableSpaceTimeout + " ms");
-                    if (waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
+                    LOGGER.log(Level.INFO, "Waiting for boot of tablespace " + waitForTableSpace + ". Waiting at max " + waitForTableSpaceTimeout + " ms");
+                    if (!waitForTableSpace.isEmpty()) {
                         server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
                     }
                     server.waitForBootOfLocalTablespaces(waitForTableSpaceTimeout);

@@ -21,17 +21,17 @@ package herddb.server;
 
 import herddb.daemons.PidFileLocker;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 import org.apache.zookeeper.server.ServerConfig;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
-import org.apache.zookeeper.server.quorum.QuorumPeerMain;
 
 /**
  * Simple wrapper for standalone ZooKeeper server (for local demos/tests)
@@ -68,7 +68,8 @@ public class ZooKeeperMainWrapper implements AutoCloseable {
                 if (!arg.startsWith("-")) {
                     File configFile = new File(args[i]).getAbsoluteFile();
                     LOG.severe("Reading configuration from " + configFile);
-                    try (FileReader reader = new FileReader(configFile)) {
+                    try (InputStreamReader reader =
+                        new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
                     }
                     configFileFromParameter = true;
@@ -90,7 +91,7 @@ public class ZooKeeperMainWrapper implements AutoCloseable {
                 File configFile = new File("conf/zoo.cfg").getAbsoluteFile();
                 System.out.println("Reading configuration from " + configFile);
                 if (configFile.isFile()) {
-                    try (FileReader reader = new FileReader(configFile)) {
+                    try (InputStreamReader reader = new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
                     }
                 }
@@ -113,7 +114,10 @@ public class ZooKeeperMainWrapper implements AutoCloseable {
                 File file = new File(datadir);
                 if (!file.isDirectory()) {
                     LOG.severe("Creating directory " + file.getAbsolutePath());
-                    file.mkdirs();
+                    boolean result = file.mkdirs();
+                    if (!result) {
+                        LOG.severe("Failed to create directory " + file.getAbsolutePath());
+                    }
                 } else {
                     LOG.severe("Using directory " + file.getAbsolutePath());
                 }

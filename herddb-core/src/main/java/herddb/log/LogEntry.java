@@ -19,11 +19,11 @@
  */
 package herddb.log;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
@@ -32,6 +32,7 @@ import java.io.IOException;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI_EXPOSE_REP2")
 public class LogEntry {
 
     public final short type;
@@ -179,7 +180,7 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" + type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key != null ? Bytes.from_array(key) : null) + ", value=" + value + ", timestamp=" + timestamp + '}';
+        return "LogEntry{" + "type=" + type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key != null ? Bytes.from_array(key) : null) + ", value=" + Bytes.from_array(value) + ", timestamp=" + timestamp + '}';
     }
 
 }

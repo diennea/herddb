@@ -383,7 +383,8 @@ public class FileCommitLog extends CommitLog {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
             List<Path> names = new ArrayList<>();
             for (Path path : stream) {
-                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(LOGFILEEXTENSION)) {
+                if (Files.isRegularFile(path)
+                    && (path.getFileName() + "").endsWith(LOGFILEEXTENSION)) {
                     names.add(path);
                 }
             }
@@ -398,7 +399,7 @@ public class FileCommitLog extends CommitLog {
 
                 LOGGER.log(Level.SEVERE, "logfile is {0}, lastFile {1}", new Object[]{p.toAbsolutePath(), lastFile});
 
-                String name = p.getFileName().toString().replace(LOGFILEEXTENSION, "");
+                String name = (p.getFileName() + "").replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
 
                 currentLedgerId = Math.max(currentLedgerId, ledgerId);
@@ -422,7 +423,7 @@ public class FileCommitLog extends CommitLog {
             recoveredLogSequence = new LogSequenceNumber(currentLedgerId, offset);
 
             LOGGER.log(Level.SEVERE, "Max ledgerId is {0}", new Object[]{currentLedgerId});
-        } catch (Exception err) {
+        } catch (IOException | RuntimeException err) {
             throw new LogNotAvailableException(err);
         }
 
@@ -436,7 +437,8 @@ public class FileCommitLog extends CommitLog {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
             List<Path> names = new ArrayList<>();
             for (Path path : stream) {
-                if (Files.isRegularFile(path) && path.getFileName().toString().endsWith(LOGFILEEXTENSION)) {
+                if (Files.isRegularFile(path)
+                    && (path.getFileName() + "").endsWith(LOGFILEEXTENSION)) {
                     names.add(path);
                 }
             }
@@ -452,18 +454,26 @@ public class FileCommitLog extends CommitLog {
             for (Path path : names) {
                 boolean lastFile = path.equals(last);
 
-                String name = path.getFileName().toString().replace(LOGFILEEXTENSION, "");
-                long ledgerId = Long.parseLong(name, 16);
+                String name = (path.getFileName() + "").replace(LOGFILEEXTENSION, "");
+                try {
+                    long ledgerId = Long.parseLong(name, 16);
 
-                if (!lastFile && ledgerId < ledgerLimit) {
-                    LOGGER.log(Level.SEVERE, "deleting logfile {0} for ledger {1}", new Object[]{path.toAbsolutePath(), ledgerId});
-                    Files.delete(path);
-                    ++count;
+                    if (!lastFile && ledgerId < ledgerLimit) {
+                        LOGGER.log(Level.SEVERE, "deleting logfile {0} for ledger {1}", new Object[]{path.toAbsolutePath(), ledgerId});
+                        try {
+                            Files.delete(path);
+                        } catch (IOException errorDelete) {
+                            LOGGER.log(Level.SEVERE, "fatal error while deleting file " + path, errorDelete);
+                            throw new LogNotAvailableException(errorDelete);
+                        }
+                        ++count;
+                    }
+                } catch (NumberFormatException notValid) {
                 }
             }
 
             LOGGER.log(Level.SEVERE, "Deleted logfiles: {0}", count);
-        } catch (Exception err) {
+        } catch (IOException err) {
             throw new LogNotAvailableException(err);
         }
     }

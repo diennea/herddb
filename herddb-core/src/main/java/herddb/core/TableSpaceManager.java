@@ -457,6 +457,9 @@ public class TableSpaceManager {
                 writeTablesOnDataStorageManager(position);
             }
             break;
+            default:
+                // other entry types are not important for the tablespacemanager
+                break;
         }
 
         if (entry.tableName != null

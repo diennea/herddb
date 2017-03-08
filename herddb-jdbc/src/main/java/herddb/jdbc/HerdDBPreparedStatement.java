@@ -19,6 +19,7 @@
  */
 package herddb.jdbc;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.DMLResult;
 import herddb.client.HDBException;
@@ -197,6 +198,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     }
 
     @Override
+    @SuppressFBWarnings("OBL_UNSATISFIED_OBLIGATION")
     public boolean execute() throws SQLException {
         if (sql.toLowerCase().contains("select")) {
             executeQuery();

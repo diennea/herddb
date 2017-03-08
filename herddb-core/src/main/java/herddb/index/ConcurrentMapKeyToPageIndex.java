@@ -26,10 +26,8 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import java.util.AbstractMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -44,7 +42,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     private final AtomicLong usedMemory = new AtomicLong();
 
     // assume that an entry holds 24 bytes (a Long pointer + long value + extra overhead)
-    private final long ENTRY_OVERHEAD = 8 + 8 + 8 + 8 + 8;
+    private final static long ENTRY_OVERHEAD = 8 + 8 + 8 + 8 + 8;
 
     public ConcurrentMapKeyToPageIndex(ConcurrentMap<Bytes, Long> map) {
         this.map = map;

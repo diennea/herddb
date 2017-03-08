@@ -239,7 +239,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 .build();
             server.getManager()
                 .getTableSpaceManager(tableSpace)
-                .beginRestoreTable(table, new LogSequenceNumber(dumpLedgerId, dumpOffset));
+                .beginRestoreTable(tableSchema.serialize(), new LogSequenceNumber(dumpLedgerId, dumpOffset));
 
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (StatementExecutionException err) {

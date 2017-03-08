@@ -19,6 +19,7 @@
  */
 package herddb.index;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.sql.SQLRecordKeyFunction;
 
 /**
@@ -26,6 +27,7 @@ import herddb.sql.SQLRecordKeyFunction;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI_EXPOSE_REP2")
 public class SecondaryIndexRangeScan implements IndexOperation {
 
     public final String indexName;

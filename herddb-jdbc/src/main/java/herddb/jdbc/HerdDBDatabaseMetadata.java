@@ -19,6 +19,7 @@
  */
 package herddb.jdbc;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ScanResultSetMetadata;
 import herddb.client.impl.EmptyScanResultSet;
 import herddb.client.impl.IteratorScanResultSet;
@@ -695,6 +696,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * @exception SQLException if a database access error occurs
      * @see #getSearchStringEscape
      */
+    @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
         String query = "SELECT table_name FROM SYSTABLES";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
@@ -739,6 +741,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
     }
 
     @Override
+    @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
         String query = "SELECT tablespace_name FROM SYSTABLESPACES";
         if (schemaPattern != null && !schemaPattern.isEmpty()) {
@@ -867,6 +870,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * @see #getSearchStringEscape
      */
     @Override
+    @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
 
         String query = "SELECT table_name,column_name,data_type,auto_increment,is_nullable,ordinal_position FROM SYSCOLUMNS WHERE 1=1 ";

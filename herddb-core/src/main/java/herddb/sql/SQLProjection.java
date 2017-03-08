@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Projection;
@@ -58,6 +59,7 @@ import net.sf.jsqlparser.statement.select.SelectItem;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP","EI_EXPOSE_REP2"})
 public class SQLProjection implements Projection {
 
     private final Column[] columns;
@@ -353,11 +355,6 @@ public class SQLProjection implements Projection {
     @Override
     public Column[] getColumns() {
         return columns;
-    }
-
-    @Override
-    public String toString() {
-        return "SQLProjection{" + "columns=" + columns + ", output=" + output + ", fieldNames=" + fieldNames + ", onlyCountFunctions=" + onlyCountFunctions + '}';
     }
 
 }

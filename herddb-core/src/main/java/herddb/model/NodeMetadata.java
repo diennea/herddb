@@ -20,6 +20,7 @@
 package herddb.model;
 
 import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -62,7 +63,7 @@ public class NodeMetadata {
 
     public static NodeMetadata deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
         String nodeId = in.readUTF();
-        int flags = in.readInt(); // for future implementations
+        in.readInt(); // for future implementations
         String host = in.readUTF();
         int port = in.readInt();
         boolean ssl = in.readInt() == 1;
@@ -70,7 +71,7 @@ public class NodeMetadata {
     }
 
     public byte[] serialize() throws IOException {
-        ByteArrayOutputStream oo = new ByteArrayOutputStream();
+        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream();
         try (DataOutputStream doo = new DataOutputStream(oo)) {
             serialize(doo);
         }

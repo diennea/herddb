@@ -19,6 +19,7 @@
  */
 package herddb.cli;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
 import herddb.backup.BackupUtils;
@@ -93,213 +94,219 @@ import org.jline.terminal.TerminalBuilder;
  */
 public class HerdDBCLI {
 
+    static volatile int exitCode = 0;
+
     public static void main(String... args) throws IOException {
-        DefaultParser parser = new DefaultParser();
-        Options options = new Options();
-        options.addOption("x", "url", true, "JDBC URL");
-        options.addOption("u", "username", true, "JDBC Username");
-        options.addOption("pwd", "password", true, "JDBC Password");
-        options.addOption("q", "query", true, "Execute inline query");
-        options.addOption("v", "verbose", false, "Verbose output");
-        options.addOption("s", "schema", true, "Default tablespace (SQL schema)");
-        options.addOption("f", "file", true, "SQL Script to execute (statement separated by 'GO' lines)");
-        options.addOption("at", "autotransaction", false, "Execute scripts in autocommit=false mode and commit automatically");
-        options.addOption("atbs", "autotransactionbatchsize", true, "Batch size for 'autotransaction' mode");
-        options.addOption("g", "script", true, "Groovy Script to execute");
-        options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
-        options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
-        options.addOption("fmd", "frommysqldump", false, "Intruct the parser that the script is coming from a MySQL Dump");
-        options.addOption("rwst", "rewritestatements", false, "Rewrite all statements to use JDBC parameters");
-        options.addOption("d", "dump", true, "Dump tablespace");
-        options.addOption("r", "restore", true, "Restore tablespace");
-        options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
-        options.addOption("ns", "newschema", true, "Name for new restored tablespace");
-        options.addOption("tsm", "tablespacemapper", true, "Path to groovy script with a custom functin to map table names to tablespaces");
-        options.addOption("dfs", "dumpfetchsize", true, "Fetch size for dump operations."
-            + "Defaults to chunks of 100000 records");
-        org.apache.commons.cli.CommandLine commandLine;
         try {
-            commandLine = parser.parse(options, args);
-        } catch (ParseException error) {
-            println("Syntax error: " + error);
-            HelpFormatter formatter = new HelpFormatter();
-            formatter.printHelp("herddb", options, true);
-            System.exit(1);
-            return;
-        }
-        if (args.length == 0) {
-            HelpFormatter formatter = new HelpFormatter();
-            formatter.printHelp("herddb", options, true);
-            System.exit(1);
-            return;
-        }
+            DefaultParser parser = new DefaultParser();
+            Options options = new Options();
+            options.addOption("x", "url", true, "JDBC URL");
+            options.addOption("u", "username", true, "JDBC Username");
+            options.addOption("pwd", "password", true, "JDBC Password");
+            options.addOption("q", "query", true, "Execute inline query");
+            options.addOption("v", "verbose", false, "Verbose output");
+            options.addOption("s", "schema", true, "Default tablespace (SQL schema)");
+            options.addOption("f", "file", true, "SQL Script to execute (statement separated by 'GO' lines)");
+            options.addOption("at", "autotransaction", false, "Execute scripts in autocommit=false mode and commit automatically");
+            options.addOption("atbs", "autotransactionbatchsize", true, "Batch size for 'autotransaction' mode");
+            options.addOption("g", "script", true, "Groovy Script to execute");
+            options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
+            options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
+            options.addOption("fmd", "frommysqldump", false, "Intruct the parser that the script is coming from a MySQL Dump");
+            options.addOption("rwst", "rewritestatements", false, "Rewrite all statements to use JDBC parameters");
+            options.addOption("d", "dump", true, "Dump tablespace");
+            options.addOption("r", "restore", true, "Restore tablespace");
+            options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
+            options.addOption("ns", "newschema", true, "Name for new restored tablespace");
+            options.addOption("tsm", "tablespacemapper", true, "Path to groovy script with a custom functin to map table names to tablespaces");
+            options.addOption("dfs", "dumpfetchsize", true, "Fetch size for dump operations."
+                + "Defaults to chunks of 100000 records");
+            org.apache.commons.cli.CommandLine commandLine;
+            try {
+                commandLine = parser.parse(options, args);
+            } catch (ParseException error) {
+                println("Syntax error: " + error);
+                HelpFormatter formatter = new HelpFormatter();
+                formatter.printHelp("herddb", options, true);
+                exitCode = 1;
+                return;
+            }
+            if (args.length == 0) {
+                HelpFormatter formatter = new HelpFormatter();
+                formatter.printHelp("herddb", options, true);
+                exitCode = 1;
+                return;
+            }
 
-        final boolean verbose = commandLine.hasOption("verbose");
-        if (!verbose) {
-            LogManager.getLogManager().reset();
-        }
-        String url = commandLine.getOptionValue("url", "jdbc:herddb:server:localhost:7000");
-        String username = commandLine.getOptionValue("username", ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
-        String password = commandLine.getOptionValue("password", ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
-        String schema = commandLine.getOptionValue("schema", TableSpace.DEFAULT);
-        String query = commandLine.getOptionValue("query", "");
-        String file = commandLine.getOptionValue("file", "");
-        String dump = commandLine.getOptionValue("dump", "");
-        String restore = commandLine.getOptionValue("restore", "");
-        String newschema = commandLine.getOptionValue("newschema", "");
-        String leader = commandLine.getOptionValue("newleader", "");
-        String script = commandLine.getOptionValue("script", "");
-        String tablespacemapperfile = commandLine.getOptionValue("tablespacemapper", "");
-        int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
-        final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
-        boolean sqlconsole = commandLine.hasOption("sqlconsole");
-        final boolean frommysqldump = commandLine.hasOption("frommysqldump");
-        final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.isEmpty();
-        boolean autotransaction = commandLine.hasOption("autotransaction") || frommysqldump;
-        int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
-        if (!autotransaction) {
-            autotransactionbatchsize = 0;
-        }
-        TableSpaceMapper tableSpaceMapper = buildTableSpaceMapper(tablespacemapperfile);
-        try (HerdDBDataSource datasource = new HerdDBDataSource()) {
-            datasource.setUrl(url);
-            datasource.setUsername(username);
-            datasource.setPassword(password);
+            final boolean verbose = commandLine.hasOption("verbose");
+            if (!verbose) {
+                LogManager.getLogManager().reset();
+            }
+            String url = commandLine.getOptionValue("url", "jdbc:herddb:server:localhost:7000");
+            String username = commandLine.getOptionValue("username", ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
+            String password = commandLine.getOptionValue("password", ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
+            String schema = commandLine.getOptionValue("schema", TableSpace.DEFAULT);
+            String query = commandLine.getOptionValue("query", "");
+            String file = commandLine.getOptionValue("file", "");
+            String dump = commandLine.getOptionValue("dump", "");
+            String restore = commandLine.getOptionValue("restore", "");
+            String newschema = commandLine.getOptionValue("newschema", "");
+            String leader = commandLine.getOptionValue("newleader", "");
+            String script = commandLine.getOptionValue("script", "");
+            String tablespacemapperfile = commandLine.getOptionValue("tablespacemapper", "");
+            int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
+            final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
+            boolean sqlconsole = commandLine.hasOption("sqlconsole");
+            final boolean frommysqldump = commandLine.hasOption("frommysqldump");
+            final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.isEmpty();
+            boolean autotransaction = commandLine.hasOption("autotransaction") || frommysqldump;
+            int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
+            if (!autotransaction) {
+                autotransactionbatchsize = 0;
+            }
+            TableSpaceMapper tableSpaceMapper = buildTableSpaceMapper(tablespacemapperfile);
+            try (HerdDBDataSource datasource = new HerdDBDataSource()) {
+                datasource.setUrl(url);
+                datasource.setUsername(username);
+                datasource.setPassword(password);
 
-            try (Connection connection = datasource.getConnection();
-                Statement statement = connection.createStatement()) {
-                connection.setSchema(schema);
-                if (sqlconsole) {
-                    runSqlConsole(connection, statement);
-                } else if (!query.isEmpty()) {
-                    executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper);
-                } else if (!file.isEmpty()) {
-                    if (autotransactionbatchsize > 0) {
-                        connection.setAutoCommit(false);
-                    }
-                    long _start = System.currentTimeMillis();
-                    final IntHolder doneCount = new IntHolder();
-                    final IntHolder totalDoneCount = new IntHolder();
-                    File f = new File(file);
-                    long fileSize = f.length();
-                    try (FileInputStream rawStream = new FileInputStream(file);
-                        CounterInputStream counter = new CounterInputStream(rawStream);
-                        InputStream fIn = wrapStream(f, rawStream);
-                        CounterInputStream counterUnzipped = new CounterInputStream(fIn);
-                        InputStreamReader ii = new InputStreamReader(counterUnzipped, "utf-8");) {
-                        int _autotransactionbatchsize = autotransactionbatchsize;
-                        SQLFileParser.parseSQLFile(ii, (st) -> {
-                            if (!st.comment) {
-                                int count = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper);
-                                doneCount.value += count;
-                                totalDoneCount.value += count;
-                                if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
-                                    long _now = System.currentTimeMillis();
-                                    int percent = (int) (counter.count * 100.0 / fileSize);
-                                    long speed = (long) ((counter.count * 1000.0 / (1024 * 1024.0 * (_now - _start))));
-                                    long countUnzipped = counterUnzipped.count;
-                                    if (countUnzipped != counter.count) {
-                                        System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                            + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB (" + (countUnzipped / (1024 * 1024)) + " MB unzipped) over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
-                                    } else {
-                                        System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                            + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
-                                    }
-                                    connection.commit();
-                                    doneCount.value = 0;
-                                }
-                            }
-                        });
-                    }
-                    if (!connection.getAutoCommit()) {
-                        System.out.println("final COMMIT after " + totalDoneCount.value + " records");
-                        connection.commit();
-                    }
-                } else if (!script.isEmpty()) {
-                    Map<String, Object> variables = new HashMap<>();
-                    variables.put("connection", connection);
-                    variables.put("datasource", datasource);
-                    variables.put("statement", statement);
-                    GroovyShell shell = new GroovyShell(new Binding(variables));
-                    shell.evaluate(new File(script));
-                } else if (!dump.isEmpty()) {
-                    List<String> tablesToDump = new ArrayList<>();
-                    try (ResultSet rs = statement.executeQuery("SELECT table_name FROM " + schema + ".systables WHERE systemtable='false'")) {
-                        while (rs.next()) {
-                            String tablename = rs.getString(1).toLowerCase();
-                            tablesToDump.add(tablename);
+                try (Connection connection = datasource.getConnection();
+                    Statement statement = connection.createStatement()) {
+                    connection.setSchema(schema);
+                    if (sqlconsole) {
+                        runSqlConsole(connection, statement);
+                    } else if (!query.isEmpty()) {
+                        executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper);
+                    } else if (!file.isEmpty()) {
+                        if (autotransactionbatchsize > 0) {
+                            connection.setAutoCommit(false);
                         }
-                    }
-                    Path outputfile = Paths.get(dump).toAbsolutePath();
-                    println("Dumping tables " + tablesToDump + " from tablespace " + schema + " to " + outputfile);
-
-                    try (OutputStream fout = Files.newOutputStream(outputfile, StandardOpenOption.CREATE_NEW);
-                        SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout, 16 * 1024 * 1024);) {
-                        HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
-                        HDBConnection hdbconnection = hcon.getConnection();
-                        BackupUtils.dumpTableSpace(schema, dumpfetchsize, hdbconnection, oo, new ProgressListener() {
-                            @Override
-                            public void log(String actionType, String message, Map<String, Object> context) {
-                                println(message);
+                        long _start = System.currentTimeMillis();
+                        final IntHolder doneCount = new IntHolder();
+                        final IntHolder totalDoneCount = new IntHolder();
+                        File f = new File(file);
+                        long fileSize = f.length();
+                        try (FileInputStream rawStream = new FileInputStream(file);
+                            CounterInputStream counter = new CounterInputStream(rawStream);
+                            InputStream fIn = wrapStream(f, rawStream);
+                            CounterInputStream counterUnzipped = new CounterInputStream(fIn);
+                            InputStreamReader ii = new InputStreamReader(counterUnzipped, "utf-8");) {
+                            int _autotransactionbatchsize = autotransactionbatchsize;
+                            SQLFileParser.parseSQLFile(ii, (st) -> {
+                                if (!st.comment) {
+                                    int count = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper);
+                                    doneCount.value += count;
+                                    totalDoneCount.value += count;
+                                    if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
+                                        long _now = System.currentTimeMillis();
+                                        int percent = (int) (counter.count * 100.0 / fileSize);
+                                        long speed = (long) ((counter.count * 1000.0 / (1024 * 1024.0 * (_now - _start))));
+                                        long countUnzipped = counterUnzipped.count;
+                                        if (countUnzipped != counter.count) {
+                                            System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
+                                                + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB (" + (countUnzipped / (1024 * 1024)) + " MB unzipped) over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
+                                        } else {
+                                            System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
+                                                + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
+                                        }
+                                        connection.commit();
+                                        doneCount.value = 0;
+                                    }
+                                }
+                            });
+                        }
+                        if (!connection.getAutoCommit()) {
+                            System.out.println("final COMMIT after " + totalDoneCount.value + " records");
+                            connection.commit();
+                        }
+                    } else if (!script.isEmpty()) {
+                        Map<String, Object> variables = new HashMap<>();
+                        variables.put("connection", connection);
+                        variables.put("datasource", datasource);
+                        variables.put("statement", statement);
+                        GroovyShell shell = new GroovyShell(new Binding(variables));
+                        shell.evaluate(new File(script));
+                    } else if (!dump.isEmpty()) {
+                        List<String> tablesToDump = new ArrayList<>();
+                        try (ResultSet rs = statement.executeQuery("SELECT table_name FROM " + schema + ".systables WHERE systemtable='false'")) {
+                            while (rs.next()) {
+                                String tablename = rs.getString(1).toLowerCase();
+                                tablesToDump.add(tablename);
                             }
+                        }
+                        Path outputfile = Paths.get(dump).toAbsolutePath();
+                        println("Dumping tables " + tablesToDump + " from tablespace " + schema + " to " + outputfile);
 
-                        });
-                    }
-                    println("Dumping finished");
-                } else if (!restore.isEmpty()) {
-                    Path inputfile = Paths.get(restore).toAbsolutePath();
-                    if (leader.isEmpty() || newschema.isEmpty()) {
-                        println("options 'newleader' and 'newschema' are required");
+                        try (OutputStream fout = Files.newOutputStream(outputfile, StandardOpenOption.CREATE_NEW);
+                            SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout, 16 * 1024 * 1024);) {
+                            HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
+                            HDBConnection hdbconnection = hcon.getConnection();
+                            BackupUtils.dumpTableSpace(schema, dumpfetchsize, hdbconnection, oo, new ProgressListener() {
+                                @Override
+                                public void log(String actionType, String message, Map<String, Object> context) {
+                                    println(message);
+                                }
+
+                            });
+                        }
+                        println("Dumping finished");
+                    } else if (!restore.isEmpty()) {
+                        Path inputfile = Paths.get(restore).toAbsolutePath();
+                        if (leader.isEmpty() || newschema.isEmpty()) {
+                            println("options 'newleader' and 'newschema' are required");
+                            HelpFormatter formatter = new HelpFormatter();
+                            formatter.printHelp("herddb", options, true);
+                            exitCode = 1;
+                            return;
+                        }
+                        List<String> nodes = new ArrayList<>();
+                        try (ResultSet rs = statement.executeQuery("SELECT nodeid FROM sysnodes")) {
+                            while (rs.next()) {
+                                String nodeid = rs.getString(1);
+                                nodes.add(nodeid);
+                            }
+                        }
+
+                        println("Restoring tablespace " + newschema + " with leader " + leader + " from file " + inputfile);
+                        if (!nodes.contains(leader)) {
+                            println("There is no node with node id '" + leader + "'");
+                            println("Valid nodes:");
+                            for (String nodeid : nodes) {
+                                println("* " + nodeid);
+                            }
+                            return;
+                        }
+                        try (InputStream fin = Files.newInputStream(inputfile);
+                            InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
+                            HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
+                            HDBConnection hdbconnection = hcon.getConnection();
+                            BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, bin, new ProgressListener() {
+                                @Override
+                                public void log(String actionType, String message, Map<String, Object> context) {
+                                    println(message);
+                                }
+
+                            });
+                        }
+                        println("Restore finished");
+                    } else {
                         HelpFormatter formatter = new HelpFormatter();
                         formatter.printHelp("herddb", options, true);
-                        System.exit(1);
+                        exitCode = 1;
                         return;
                     }
-                    List<String> nodes = new ArrayList<>();
-                    try (ResultSet rs = statement.executeQuery("SELECT nodeid FROM sysnodes")) {
-                        while (rs.next()) {
-                            String nodeid = rs.getString(1);
-                            nodes.add(nodeid);
-                        }
-                    }
-
-                    println("Restoring tablespace " + newschema + " with leader " + leader + " from file " + inputfile);
-                    if (!nodes.contains(leader)) {
-                        println("There is no node with node id '" + leader + "'");
-                        println("Valid nodes:");
-                        for (String nodeid : nodes) {
-                            println("* " + nodeid);
-                        }
-                        return;
-                    }
-                    try (InputStream fin = Files.newInputStream(inputfile);
-                        InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
-                        HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
-                        HDBConnection hdbconnection = hcon.getConnection();
-                        BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, bin, new ProgressListener() {
-                            @Override
-                            public void log(String actionType, String message, Map<String, Object> context) {
-                                println(message);
-                            }
-
-                        });
-                    }
-                    println("Restore finished");
-                } else {
-                    HelpFormatter formatter = new HelpFormatter();
-                    formatter.printHelp("herddb", options, true);
-                    System.exit(1);
-                    return;
                 }
+                exitCode = 0;
+            } catch (Exception error) {
+                if (verbose) {
+                    error.printStackTrace();
+                } else {
+                    println("error:" + error);
+                }
+                exitCode = 1;
             }
-            System.exit(0);
-        } catch (Exception error) {
-            if (verbose) {
-                error.printStackTrace();
-            } else {
-                println("error:" + error);
-            }
-            System.exit(1);
+        } finally {
+            System.exit(exitCode);
         }
     }
 
@@ -536,8 +543,9 @@ public class HerdDBCLI {
         }
     }
 
-    private static Set<String> existingTableSpaces;
+    private static final Set<String> existingTableSpaces = new HashSet<>();
 
+    @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     private static void changeSchemaAndCommit(HerdDBConnection connection, String schema) throws SQLException {
         boolean autocommit = connection.getAutoCommit();
         if (!autocommit) {
@@ -548,8 +556,7 @@ public class HerdDBCLI {
             connection.setAutoCommit(true);
         }
 
-        if (existingTableSpaces == null) {
-            existingTableSpaces = new HashSet<>();
+        if (existingTableSpaces.isEmpty()) {
             try (ResultSet tableSpaces = connection.getMetaData().getSchemas()) {
                 while (tableSpaces.next()) {
                     existingTableSpaces.add(tableSpaces.getString("TABLE_SCHEM").toLowerCase());

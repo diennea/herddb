@@ -250,10 +250,6 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     @Override
     public void recordDeleted(Bytes key, DataAccessor values) {
         Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
-        if (indexKey == null) {
-            // valore non indicizzabile, contiene dei null
-            return;
-        }
         removeValueFromIndex(indexKey, key);
     }
 
@@ -271,10 +267,6 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     @Override
     public void recordInserted(Bytes key, DataAccessor values) {
         Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
-        if (indexKey == null) {
-            // valore non indicizzabile, contiene dei null
-            return;
-        }
         addValueToIndex(indexKey, key);
     }
 
@@ -291,9 +283,6 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     public void recordUpdated(Bytes key, DataAccessor previousValues, DataAccessor newValues) {
         Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(previousValues, index, index.columnNames);
         Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, index, index.columnNames);
-        if (indexKeyRemoved == null && indexKeyAdded == null) {
-            return;
-        }
         if (Objects.equals(indexKeyRemoved, indexKeyAdded)) {
             return;
         }

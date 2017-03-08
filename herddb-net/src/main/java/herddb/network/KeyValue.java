@@ -19,11 +19,14 @@
  */
 package herddb.network;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * Key + Value
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("EI2")
 public class KeyValue {
 
     public final byte[] key;

@@ -88,6 +88,7 @@ public class Table implements ColumnsList {
         return new Builder();
     }
 
+    @SuppressFBWarnings("OS_OPEN_STREAM")
     public static Table deserialize(byte[] data) {
         try {
             SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(data);
@@ -101,7 +102,7 @@ public class Table implements ColumnsList {
             for (int i = 0; i < pkcols; i++) {
                 primaryKey[i] = dii.readUTF();
             }
-            int tableFlags = dii.readVInt(); // for future implementations
+            dii.readVInt(); // for future implementations
             int ncols = dii.readVInt();
             Column[] columns = new Column[ncols];
             for (int i = 0; i < ncols; i++) {
@@ -173,7 +174,7 @@ public class Table implements ColumnsList {
             }
         }
         for (Column c : this.columns) {
-            if (dropColumns == null || !dropColumns.contains(c.name.toLowerCase())) {
+            if (!dropColumns.contains(c.name.toLowerCase())) {
                 builder.column(c.name, c.type, c.serialPosition);
             }
             new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);
@@ -203,7 +204,7 @@ public class Table implements ColumnsList {
 
         private final List<Column> columns = new ArrayList<>();
         private String name;
-        private List<String> primaryKey = new ArrayList<>();
+        private final List<String> primaryKey = new ArrayList<>();
         private String tablespace = TableSpace.DEFAULT;
         private boolean auto_increment;
         private int maxSerialPosition = 0;

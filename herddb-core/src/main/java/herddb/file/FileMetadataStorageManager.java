@@ -173,11 +173,15 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         tableSpaces.clear();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(baseDirectory)) {
             for (Path p : stream) {
-                String filename = p.getFileName().toString();
+                Path filename = p.getFileName();
+                if (filename == null) {
+                    continue;
+                }
+                String _filename = filename.toString();
                 LOGGER.log(Level.SEVERE, "reading metadata file {0}", p.toAbsolutePath().toString());
-                if (filename.endsWith(".metadata")) {
+                if (_filename.endsWith(".metadata")) {
                     TableSpace ts = readTableSpaceMetadataFile(p);
-                    if (filename.equals(ts.name + ".metadata")) {
+                    if (_filename.equals(ts.name + ".metadata")) {
                         tableSpaces.put(ts.name, ts);
                     }
                 }

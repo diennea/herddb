@@ -55,6 +55,8 @@ public class SaslNettyServer {
     private static final Logger LOG = Logger
         .getLogger(SaslNettyServer.class.getName());
 
+    private static final String JASS_SERVER_SECTION = "HerdDBServer";
+
     private SaslServer saslServer;
     private Server server;
 
@@ -105,7 +107,7 @@ public class SaslNettyServer {
 
                     final String _mech = "GSSAPI";   // TODO: should depend on zoo.cfg specified mechs, but if subject is non-null, it can be assumed to be GSSAPI.
 
-                    LOG.log(Level.INFO,"serviceHostname is ''{0}'', servicePrincipalName is ''{1}'', SASL mechanism(mech) is ''" + _mech + "'', Subject is ''{2}''", new Object[]{serviceHostname, servicePrincipalName, subject});
+                    LOG.log(Level.INFO, "serviceHostname is ''{0}'', servicePrincipalName is ''{1}'', SASL mechanism(mech) is ''" + _mech + "'', Subject is ''{2}''", new Object[]{serviceHostname, servicePrincipalName, subject});
 
                     try {
                         return Subject.doAs(subject, new PrivilegedExceptionAction<SaslServer>() {
@@ -143,12 +145,11 @@ public class SaslNettyServer {
     }
 
     private Subject loginServer() throws SaslException, PrivilegedActionException, LoginException {
-        AppConfigurationEntry[] entries = Configuration.getConfiguration().getAppConfigurationEntry("HerdDBServer");
+        AppConfigurationEntry[] entries = Configuration.getConfiguration().getAppConfigurationEntry(JASS_SERVER_SECTION);
         if (entries == null) {
             return null;
         }
-        String clientSection = "HerdDBServer";
-        LoginContext loginContext = new LoginContext(clientSection, new ClientCallbackHandler(null));
+        LoginContext loginContext = new LoginContext(JASS_SERVER_SECTION, new ClientCallbackHandler(null));
         loginContext.login();
         return loginContext.getSubject();
 
@@ -288,17 +289,16 @@ public class SaslNettyServer {
     private static class SaslServerCallbackHandler implements CallbackHandler {
 
         private static final String USER_PREFIX = "user_";
-        final String serverSection = "HerdDBServer";
 
         private String userName;
-        private final Map<String, String> credentials = new HashMap<String, String>();
+        private final Map<String, String> credentials = new HashMap<>();
 
         public SaslServerCallbackHandler(Configuration configuration) throws IOException {
 
-            AppConfigurationEntry configurationEntries[] = configuration.getAppConfigurationEntry(serverSection);
+            AppConfigurationEntry configurationEntries[] = configuration.getAppConfigurationEntry(JASS_SERVER_SECTION);
 
             if (configurationEntries == null) {
-                String errorMessage = "Could not find a '" + serverSection + "' entry in this configuration: Server cannot start.";
+                String errorMessage = "Could not find a '" + JASS_SERVER_SECTION + "' entry in this configuration: Server cannot start.";
 
                 throw new IOException(errorMessage);
             }

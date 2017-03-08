@@ -265,6 +265,9 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     @Override
     public String toString() {
+        if (data == null) {
+            return "null";
+        }
         // ONLY FOR TESTS
         return arraytohexstring(data);
     }

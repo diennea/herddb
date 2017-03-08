@@ -87,7 +87,7 @@ public class TableSpace {
     public static TableSpace deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
         String uuid = in.readUTF();
         String name = in.readUTF();
-        int flags = in.readInt(); // for future implementations        
+        in.readInt(); // for future implementations        
         String leaderId = in.readUTF();
         int expectedReplicaCount = in.readInt();
         int numreplicas = in.readInt();

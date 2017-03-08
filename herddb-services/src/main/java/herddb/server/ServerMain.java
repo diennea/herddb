@@ -27,7 +27,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import herddb.daemons.PidFileLocker;
-import java.io.InputStream;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.logging.LogManager;
 
 /**
@@ -74,7 +76,7 @@ public class ServerMain implements AutoCloseable {
                 if (!arg.startsWith("-")) {
                     File configFile = new File(args[i]).getAbsoluteFile();
                     LOG.severe("Reading configuration from " + configFile);
-                    try (FileReader reader = new FileReader(configFile)) {
+                    try (InputStreamReader reader = new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
                     }
                     configFileFromParameter = true;
@@ -96,7 +98,7 @@ public class ServerMain implements AutoCloseable {
                 File configFile = new File("conf/server.properties").getAbsoluteFile();
                 System.out.println("Reading configuration from " + configFile);
                 if (configFile.isFile()) {
-                    try (FileReader reader = new FileReader(configFile)) {
+                    try (InputStreamReader reader = new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
                     }
                 }

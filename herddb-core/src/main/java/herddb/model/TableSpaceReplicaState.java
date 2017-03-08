@@ -54,7 +54,7 @@ public class TableSpaceReplicaState {
     }
 
     public static TableSpaceReplicaState deserialize(DataInputStream in) throws IOException {
-        int flags = in.readInt(); // for future implementations        
+        in.readInt(); // for future implementations        
         String uuid = in.readUTF();
         String nodeId = in.readUTF();
         long timestamp = in.readLong();

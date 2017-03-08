@@ -768,7 +768,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         try {
             long estimatedSize = keyToPage.size();
-            LogEntry entry = LogEntryFactory.truncate(table, transaction);
+            LogEntry entry = LogEntryFactory.truncate(table, null);
             LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
             return new DMLStatementExecutionResult(0, estimatedSize > Integer.MAX_VALUE
@@ -1566,7 +1566,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              *
              * Any newpage remaining here is unflushed and is not set as dirty (if "dirty" were unloaded!).
              * Just write the pages as they are.
-             */            
+             */
             for (Long newPageId : newPages.keySet()) {
                 DataPage dataPage = newPages.get(newPageId);
                 flushNewPage(dataPage);

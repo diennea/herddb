@@ -135,7 +135,7 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
         try {
             TableSpace prev = tableSpaces.get(tableSpace.name);
             if (prev == null) {
-                throw new TableSpaceDoesNotExistException(prev.name);
+                throw new TableSpaceDoesNotExistException(tableSpace.name);
             }
             tableSpaces.put(tableSpace.name, tableSpace);
             return false;

@@ -19,6 +19,7 @@
  */
 package herddb.jdbc;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -26,7 +27,6 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.HashMap;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -35,6 +35,7 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("NM_SAME_SIMPLE_NAME_AS_INTERFACE")
 public class Driver implements java.sql.Driver, AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(Driver.class.getName());
@@ -92,7 +93,7 @@ public class Driver implements java.sql.Driver, AutoCloseable {
         return LOG;
     }
 
-    private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {        
+    private synchronized HerdDBEmbeddedDataSource ensureDatasource(String url, Properties info) {
         String key = url + "_" + info;
         HerdDBEmbeddedDataSource ds = datasources.get(key);
         if (ds != null) {

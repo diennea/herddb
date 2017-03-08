@@ -24,6 +24,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import net.sf.jsqlparser.statement.select.OrderByElement;
@@ -35,7 +36,9 @@ import net.sf.jsqlparser.statement.select.OrderByElement;
  */
 public class MultiColumnSQLTupleComparator implements TupleComparator {
 
-    private static final class OrderElement {
+    private static final class OrderElement implements Serializable {
+
+        private static final long serialVersionUID = 007;
 
         private final String name;
         private final boolean asc;

@@ -181,16 +181,19 @@ public class BRINIndexManager extends AbstractIndexManager {
                 if (newPageId.get() <= pageId) {
                     newPageId.set(pageId + 1);
                 }
-                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length + " bytes");
+                LOGGER.log(Level.FINEST, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length + " bytes");
                 try {
                     PageContents pg = PageContents.deserialize(pagedata);
                     switch (pg.type) {
                         case PageContents.TYPE_METADATA:
                             metadataBlock.value = pg;
-                            LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", metatadata page " + pageId + " contains " + pg.metadata.size() + " blocks metadata");
+                            LOGGER.log(Level.INFO, "recovery index " + index.name + ", metatadata page " + pageId + " contains " + pg.metadata.size() + " blocks metadata");
                             break;
                         case PageContents.TYPE_BLOCKDATA:
-                            LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", data page " + pageId + " contains " + pg.pageData.size() + " entries");
+                            LOGGER.log(Level.INFO, "recovery index " + index.name + ", data page " + pageId + " contains " + pg.pageData.size() + " entries");
+                            break;
+                        default:
+                            LOGGER.log(Level.SEVERE, "recovery index {0}, ignore page type {1}", new Object[]{index.name, pg.type});
                             break;
                     }
                 } catch (IOException err) {
@@ -296,20 +299,12 @@ public class BRINIndexManager extends AbstractIndexManager {
     @Override
     public void recordDeleted(Bytes key, DataAccessor values) {
         Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
-        if (indexKey == null) {
-            // valore non indicizzabile, contiene dei null
-            return;
-        }
         data.delete(indexKey, key);
     }
 
     @Override
     public void recordInserted(Bytes key, DataAccessor values) {
         Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
-        if (indexKey == null) {
-            // valore non indicizzabile, contiene dei null
-            return;
-        }
         data.put(indexKey, key);
     }
 
@@ -317,9 +312,6 @@ public class BRINIndexManager extends AbstractIndexManager {
     public void recordUpdated(Bytes key, DataAccessor previousValues, DataAccessor newValues) {
         Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(previousValues, index, index.columnNames);
         Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, index, index.columnNames);
-        if (indexKeyRemoved == null && indexKeyAdded == null) {
-            return;
-        }
         if (Objects.equals(indexKeyRemoved, indexKeyAdded)) {
             return;
         }

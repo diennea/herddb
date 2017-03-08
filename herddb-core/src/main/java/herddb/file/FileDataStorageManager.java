@@ -19,7 +19,6 @@
  */
 package herddb.file;
 
-
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -154,7 +153,8 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private boolean isCheckpointsFile(Path path) {
-        return path.getFileName().toString().endsWith(".checkpoint");
+        Path filename = path.getFileName();
+        return filename != null && filename.toString().endsWith(".checkpoint");
     }
 
     @Override
@@ -350,7 +350,11 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path checkpointFileTemp = checkpointFile.getParent().resolve(checkpointFile.getFileName() + ".tmp");
+        Path parent = checkpointFile.getParent();
+        if (parent == null) {
+            throw new DataStorageManagerException("Invalid path " + checkpointFile);
+        }
+        Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
         LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
 
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
@@ -376,7 +380,7 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
-                && !tableStatus.activePages.contains(pageId)                
+                && !tableStatus.activePages.contains(pageId)
                 && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath()) {
@@ -423,7 +427,11 @@ public class FileDataStorageManager extends DataStorageManager {
         Path dir = getIndexDirectory(tableSpace, indexName);
         LogSequenceNumber logPosition = indexStatus.sequenceNumber;
         Path checkpointFile = getCheckPointsFile(dir, logPosition);
-        Path checkpointFileTemp = checkpointFile.getParent().resolve(checkpointFile.getFileName() + ".tmp");
+        Path parent = checkpointFile.getParent();
+        if (parent == null) {
+            throw new DataStorageManagerException("Invalid path " + checkpointFile);
+        }
+        Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
         try {
             Files.createDirectories(dir);
             if (Files.isRegularFile(checkpointFile)) {
@@ -483,7 +491,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private static long getPageId(Path p) {
-        String filename = p.getFileName().toString();
+        String filename = p.getFileName() + "";
         if (filename.endsWith(".page")) {
             try {
                 return Long.parseLong(filename.substring(0, filename.length() - ".page".length()));
@@ -720,7 +728,10 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(tableSpaceDirectory);
             Path file_tables = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
             Path file_indexes = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
-            Files.createDirectories(file_tables.getParent());
+            Path parent = file_tables.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(file_tables, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
@@ -760,7 +771,10 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path checkPointFile = getTablespaceCheckPointInfoFile(tableSpace);
-            Files.createDirectories(checkPointFile.getParent());
+            Path parent = checkPointFile.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             LOGGER.log(Level.SEVERE, "checkpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(checkPointFile, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 DataOutputStream dout = new DataOutputStream(out)) {
@@ -911,8 +925,11 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
-            Files.createDirectories(file.getParent());
-            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file.toAbsolutePath().toString() + ", active transactions " + transactions.size());
+            Path parent = file.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, file.toAbsolutePath().toString(), transactions.size()});
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeUTF(tableSpace);

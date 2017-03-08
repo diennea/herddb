@@ -83,6 +83,7 @@ public class Index implements ColumnsList {
         return new Builder();
     }
 
+    @SuppressFBWarnings("OS_OPEN_STREAM")
     public static Index deserialize(byte[] data) {
         try {
             SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(data);
@@ -90,7 +91,7 @@ public class Index implements ColumnsList {
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
             String table = dii.readUTF();
-            int flags = dii.readVInt(); // for future implementations
+            dii.readVInt(); // for future implementations
             String type = dii.readUTF();
             int ncols = dii.readVInt();
             Column[] columns = new Column[ncols];

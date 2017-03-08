@@ -54,19 +54,18 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected String defaultSchema = TableSpace.DEFAULT;
     private GenericObjectPool<HDBConnection> pool;
 
-
     protected BasicHerdDBDataSource() {
     }
 
     public BasicHerdDBDataSource(HDBClient client) {
         this.client = client;
     }
-    
-    public int getMaxActive() {
+
+    public synchronized int getMaxActive() {
         return maxActive;
     }
 
-    public void setMaxActive(int maxActive) {
+    public synchronized void setMaxActive(int maxActive) {
         this.maxActive = maxActive;
     }
 
@@ -78,7 +77,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         this.defaultSchema = defaultSchema;
     }
 
-    public String getUsername() {
+    public synchronized String getUsername() {
         if (client != null) {
             return client.getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT);
         } else {
@@ -86,14 +85,14 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         }
     }
 
-    public void setUsername(String username) {
+    public synchronized void setUsername(String username) {
         properties.put(ClientConfiguration.PROPERTY_CLIENT_USERNAME, username);
         if (client != null) {
             client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_USERNAME, username);
         }
     }
 
-    public String getPassword() {
+    public synchronized String getPassword() {
         if (client != null) {
             return client.getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT);
         } else {
@@ -101,18 +100,18 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         }
     }
 
-    public void setPassword(String password) {
+    public synchronized void setPassword(String password) {
         properties.put(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, password);
         if (client != null) {
             client.getConfiguration().set(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, password);
         }
     }
 
-    public String getUrl() {
+    public synchronized String getUrl() {
         return url;
     }
 
-    public void setUrl(String url) {
+    public synchronized void setUrl(String url) {
         this.url = url;
     }
 
@@ -128,7 +127,8 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
         @Override
         public PooledObject<HDBConnection> makeObject() throws Exception {
-            HDBConnection connection = client.openConnection();
+            HDBClient _client = getClient();
+            HDBConnection connection = _client.openConnection();
             connection.setDiscoverTablespaceFromSql(false);
             return new DefaultPooledObject<>(connection);
         }
@@ -187,11 +187,11 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         ensureClient();
     }
 
-    public HDBClient getClient() {
+    public synchronized HDBClient getClient() {
         return client;
     }
 
-    public void setClient(HDBClient client) {
+    public synchronized void setClient(HDBClient client) {
         this.client = client;
     }
 

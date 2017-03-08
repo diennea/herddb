@@ -110,13 +110,13 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     }
 
     public static int compare(Object a, Object b) {
-        if (a == null && b == null) {
-            return 0;
-        }
-        if (a == null && b != null) {
-            return 1;
-        }
-        if (b == null && a != null) {
+        if (a == null) {
+            if (b == null) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else if (b == null) {
             return -1;
         }
         if (a instanceof RawString && b instanceof RawString) {

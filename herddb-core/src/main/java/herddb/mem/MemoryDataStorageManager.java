@@ -49,6 +49,7 @@ import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataOutputStream;
+import java.util.function.BiFunction;
 
 /**
  * In memory StorageManager, for tests
@@ -125,7 +126,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         Page page = new Page(new ArrayList<>(newPage));
-        Page prev = pages.put(tableName + "_" + pageId, page);
+        pages.put(tableName + "_" + pageId, page);
         //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
     }
 
@@ -201,20 +202,35 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
 
-        List<Table> tablesOnTableSpaces = tablesByTablespace.get(tableSpace);
-        if (tablesOnTableSpaces == null) {
-            this.tablesByTablespace.put(tableSpace, new ArrayList<>(tables));
-        } else {
-            tablesOnTableSpaces.addAll(tables);
+        tablesByTablespace.merge(tableSpace, tables, new BiFunction<List<Table>, List<Table>, List<Table>>() {
+            @Override
+            public List<Table> apply(List<Table> before, List<Table> after) {
+                if (before == null) {
+                    return after;
+                } else {
+                    List<Table> result = new ArrayList<>();
+                    result.addAll(before);
+                    result.addAll(after);
+                    return result;
+                }
+            }
         }
+        );
 
-        List<Index> indexesOnTableSpaces = indexesByTablespace.get(tableSpace);
-        if (indexesOnTableSpaces == null) {
-            this.indexesByTablespace.put(tableSpace, new ArrayList<>(indexlist));
-        } else {
-            indexesOnTableSpaces.addAll(indexlist);
+        indexesByTablespace.merge(tableSpace, indexlist, new BiFunction<List<Index>, List<Index>, List<Index>>() {
+            @Override
+            public List<Index> apply(List<Index> before, List<Index> after) {
+                if (before == null) {
+                    return after;
+                } else {
+                    List<Index> result = new ArrayList<>();
+                    result.addAll(before);
+                    result.addAll(after);
+                    return result;
+                }
+            }
         }
-
+        );
     }
 
     @Override

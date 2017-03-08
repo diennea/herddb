@@ -19,6 +19,7 @@
  */
 package herddb.log;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -75,6 +76,7 @@ public abstract class CommitLog implements AutoCloseable {
 
     public abstract void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException;
 
+    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
     protected CommitLogListener[] listeners = null;
 
     public synchronized void attachCommitLogListener(CommitLogListener l) {

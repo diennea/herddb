@@ -1142,7 +1142,7 @@ public class SQLPlanner {
         if (expressions.size() == 1) {
             return expressions.get(0);
         }
-        AndExpression result = result = new AndExpression(expressions.get(0),
+        AndExpression result = new AndExpression(expressions.get(0),
             expressions.get(1));
         for (int i = 2; i < expressions.size(); i++) {
             result = new AndExpression(result, expressions.get(i));
@@ -1419,7 +1419,7 @@ public class SQLPlanner {
                     scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter+1);
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
-                        throw new StatementExecutionException("Invalid TOP clause (top=" + limit + ")");
+                        throw new StatementExecutionException("Invalid TOP clause (top=" + top + ")");
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");

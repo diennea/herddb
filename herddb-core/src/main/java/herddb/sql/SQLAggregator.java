@@ -100,11 +100,9 @@ public class SQLAggregator implements Aggregator {
     private static final class Group {
 
         AggregatedColumnCalculator[] columns;
-        Bytes key;
 
-        public Group(Bytes key, AggregatedColumnCalculator[] columns) {
+        public Group(AggregatedColumnCalculator[] columns) {
             this.columns = columns;
-            this.key = key;
         }
 
     }
@@ -257,7 +255,7 @@ public class SQLAggregator implements Aggregator {
                     throw new DataScannerException("unhandled aggregate function " + item);
                 }
             }
-            return new Group(key, columns);
+            return new Group(columns);
         }
 
         @Override
