@@ -19,6 +19,9 @@
  */
 package herddb.utils;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Useful constants
  *
@@ -28,4 +31,19 @@ public class Constants {
 
     public static final String[] EMPTY_STRING_ARRAY = new String[0];
     public static final Object[] EMPTY_OBJECT_ARRAY = new Object[0];
+
+    private static final Map<Integer, Object[]> constantEmptyArrays;
+
+    static {
+        Map<Integer, Object[]> _constantEmptyArrays = new HashMap<>();
+        for (int i = 0; i < 100; i++) {
+            _constantEmptyArrays.put(i, new Object[i]);
+        }
+        constantEmptyArrays = _constantEmptyArrays;
+    }
+
+    public static final Object[] getConstantEmptyArray(int size) {
+        Object[] res = constantEmptyArrays.get(size);
+        return res != null ? res : new Object[size];
+    }
 }

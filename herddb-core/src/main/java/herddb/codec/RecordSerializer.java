@@ -279,7 +279,7 @@ public final class RecordSerializer {
 
     }
 
-    private static Object accessRawDataFromValue(String property, Bytes value, Table table) throws IOException {
+    static Object accessRawDataFromValue(String property, Bytes value, Table table) throws IOException {
         SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(value.data);
         ExtendedDataInputStream din = new ExtendedDataInputStream(s);
         while (!din.isEof()) {
@@ -299,7 +299,7 @@ public final class RecordSerializer {
         return null;
     }
 
-    private static Object accessRawDataFromPrimaryKey(String property, Bytes key, Table table) throws IOException {
+    static Object accessRawDataFromPrimaryKey(String property, Bytes key, Table table) throws IOException {
         if (table.primaryKey.length == 1) {
             return deserialize(key.data, table.getColumn(property).type);
         } else {
@@ -524,83 +524,6 @@ public final class RecordSerializer {
         }
     }
 
-    private static class DataAccessorForFullRecord implements DataAccessor {
-
-        private final Table table;
-        private final Record record;
-
-        public DataAccessorForFullRecord(Table table, Record record) {
-            this.table = table;
-            this.record = record;
-        }
-
-        @Override
-        public Object get(String property) {
-            try {
-                if (table.isPrimaryKeyColumn(property)) {
-                    return accessRawDataFromPrimaryKey(property, record.key, table);
-                } else {
-                    return accessRawDataFromValue(property, record.value, table);
-                }
-            } catch (IOException err) {
-                throw new IllegalStateException("bad data:" + err, err);
-            }
-        }
-
-        @Override
-        public String[] getFieldNames() {
-            return table.columnNames;
-        }
-
-        @Override
-        public Map<String, Object> toMap() {
-            return record.toBean(table);
-        }
-
-        @Override
-        public void forEach(BiConsumer<String, Object> consumer) {
-            // no need to create a Map
-            if (table.primaryKey.length == 1) {
-                String pkField = table.primaryKey[0];
-                Object value = deserialize(record.key.data, table.getColumn(pkField).type);
-                consumer.accept(pkField, value);
-            } else {
-                try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
-                    for (String primaryKeyColumn : table.primaryKey) {
-                        byte[] value = din.readArray();
-                        Object theValue = deserialize(value, table.getColumn(primaryKeyColumn).type);
-                        consumer.accept(primaryKeyColumn, theValue);
-                    }
-                } catch (IOException err) {
-                    throw new IllegalStateException("bad data:" + err, err);
-                }
-            }
-
-            try {
-                SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(record.value.data);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(s);
-                while (!din.isEof()) {
-                    int serialPosition;
-                    serialPosition = din.readVIntNoEOFException();
-                    if (din.isEof()) {
-                        return;
-                    }
-                    Column col = table.getColumnBySerialPosition(serialPosition);
-                    if (col != null) {
-                        Object value = deserializeTypeAndValue(din);
-                        consumer.accept(col.name, value);
-                    } else {
-                        // we have to deserialize always the value, even the column is no more present
-                        skipTypeAndValue(din);
-                    }
-                }
-            } catch (IOException err) {
-                throw new IllegalStateException("bad data:" + err, err);
-            }
-        }
-
-    }
 
     private static class DataAccessorForPrimaryKey implements DataAccessor {
 

@@ -1510,6 +1510,7 @@ public class RawSQLTest {
                     assertEquals(1, records.get(0).getFieldNames().length);
                     assertEquals(1, records.get(0).toMap().size());
                     assertEquals("theKey", records.get(0).getFieldNames()[0]);
+                    System.out.println("type: "+records.get(0).getClass());
                     assertEquals(RawString.of("mykey2"), records.get(0).get(0));
                 }
             }

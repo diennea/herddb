@@ -19,8 +19,8 @@
  */
 package herddb.utils;
 
-import herddb.utils.Constants;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -28,7 +28,11 @@ public interface DataAccessor {
 
     public Object get(String property);
 
-    public Map<String, Object> toMap();
+    public default Map<String, Object> toMap() {
+        HashMap<String, Object> res = new HashMap<>();
+        forEach(res::put);
+        return res;
+    }
 
     public String[] getFieldNames();
 

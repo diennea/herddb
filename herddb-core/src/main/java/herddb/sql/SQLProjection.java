@@ -23,15 +23,18 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Projection;
-import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
+import herddb.sql.expressions.ColumnExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.AllNullsDataAccessor;
 import herddb.utils.DataAccessor;
+import herddb.utils.ProjectedDataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -59,14 +62,16 @@ import net.sf.jsqlparser.statement.select.SelectItem;
  *
  * @author enrico.olivelli
  */
-@SuppressFBWarnings({"EI_EXPOSE_REP","EI_EXPOSE_REP2"})
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class SQLProjection implements Projection {
 
     private final Column[] columns;
     private final List<OutputColumn> output;
     private final String[] fieldNames;
     private final boolean onlyCountFunctions;
+    private final boolean onlyColumnFunctions;
     private final String tableAlias;
+    private final AllNullsDataAccessor allNulls;
 
     private static final class OutputColumn {
 
@@ -174,16 +179,40 @@ public class SQLProjection implements Projection {
         this.output = complete_output;
         this.columns = new Column[output.size()];
         this.fieldNames = new String[output.size()];
-        for (int i = 0; i < output.size(); i++) {
-            Column c = output.get(i).column;
+
+        int i = 0;
+        boolean _onlyColumnFunctions = true;
+        for (OutputColumn col : complete_output) {
+            Column c = col.column;
             this.columns[i] = c;
             this.fieldNames[i] = c.name;
+            if (col.expression instanceof net.sf.jsqlparser.schema.Column) {
+                net.sf.jsqlparser.schema.Column exp = (net.sf.jsqlparser.schema.Column) col.expression;
+                String columnName = exp.getColumnName();
+                if (!exp.getColumnName().equals(c.name)) {
+                    // aliased column name
+                    _onlyColumnFunctions = false;
+                } else if (BuiltinFunctions.BOOLEAN_TRUE.equalsIgnoreCase(columnName)) {
+                    _onlyColumnFunctions = false;
+                } else if (BuiltinFunctions.BOOLEAN_FALSE.equalsIgnoreCase(columnName)) {
+                    _onlyColumnFunctions = false;
+                } else if (BuiltinFunctions.CURRENT_TIMESTAMP.equalsIgnoreCase(columnName)) {
+                    _onlyColumnFunctions = false;
+                }
+            } else {
+                _onlyColumnFunctions = false;
+            }
+
+            i++;
         }
+        this.onlyColumnFunctions = _onlyColumnFunctions;
         this.onlyCountFunctions = countSimpleFunctions == fieldNames.length;
+        this.allNulls = onlyCountFunctions ? new AllNullsDataAccessor(fieldNames) : null;
     }
 
     public SQLProjection(String defaultTableSpace, Map<String, Table> tables, List<SelectItem> selectItems) throws StatementExecutionException {
         this.tableAlias = null;
+        this.onlyColumnFunctions = false;
         List<OutputColumn> raw_output = new ArrayList<>();
         int pos = 0;
         int countSimpleFunctions = 0;
@@ -301,6 +330,7 @@ public class SQLProjection implements Projection {
         }
 
         this.onlyCountFunctions = countSimpleFunctions == fieldNames.length;
+        this.allNulls = onlyCountFunctions ? new AllNullsDataAccessor(fieldNames) : null;
     }
 
     @Override
@@ -337,9 +367,12 @@ public class SQLProjection implements Projection {
     }
 
     @Override
-    public Tuple map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
+    public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
         if (onlyCountFunctions) {
-            return new Tuple(fieldNames, new Object[fieldNames.length]);
+            return allNulls;
+        }
+        if (onlyColumnFunctions) {
+            return new ProjectedDataAccessor(fieldNames, tuple);
         }
         List<Object> values = new ArrayList<>(output.size());
         for (OutputColumn col : output) {
