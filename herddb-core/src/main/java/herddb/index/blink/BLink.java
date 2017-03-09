@@ -1,29 +1,17 @@
 package herddb.index.blink;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import herddb.index.blink.BLinkLeaf.BLinkLeafPtr;
 import herddb.index.bp.mine.Sized;
 
 public class BLink<K extends Comparable<K>> {
@@ -173,141 +161,6 @@ public class BLink<K extends Comparable<K>> {
 //
 //
 //    }
-
-    public static void main(String[] args) {
-
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-
-        PrintStream original = System.out;
-
-
-        boolean deadlock = false;
-
-        int count = 0;
-
-        try {
-            while(!deadlock) {
-
-                os = new ByteArrayOutputStream();
-                PrintStream ps = new PrintStream(os);
-                System.setOut(ps);
-
-
-                BLink<Sized<Long>> tree = new BLink<>(3,3);
-
-    //            int threads = 5;
-    //            long maxID = 8;
-
-    //            int threads = 6;
-    //            long maxID = 10;
-
-                int threads = 16;
-//                long maxID = 10000;
-                long maxID = 20;
-
-                long minID = 1;
-                ExecutorService ex = Executors.newFixedThreadPool(threads);
-
-                CyclicBarrier barrier = new CyclicBarrier(threads);
-
-                AtomicLong gen = new AtomicLong(minID);
-
-                List<Future<?>> futures = new ArrayList<>();
-                for (int i = 0; i < threads; ++i) {
-                    Future<?> f = ex.submit(() -> {
-
-                        try {
-                            barrier.await();
-                        } catch (InterruptedException | BrokenBarrierException e) {
-                            e.printStackTrace(System.out);
-                        }
-
-                        while(true) {
-
-                            long id = gen.getAndIncrement();
-
-                            if (id > maxID)
-                                 break;
-
-                            tree.insert(Sized.valueOf(id), id);
-                        }
-                    } );
-
-                    futures.add(f);
-                }
-
-                ex.shutdown();
-
-                try {
-                    ex.awaitTermination(Long.MAX_VALUE,TimeUnit.MILLISECONDS);
-                } catch (InterruptedException e) {
-                    e.printStackTrace(System.out);
-                }
-
-
-
-                tree.booh(tree.root);
-
-
-                for(Future<?> f : futures) {
-                    try {
-                        f.get();
-                    } catch (InterruptedException | ExecutionException e) {
-                        e.printStackTrace(System.out);
-                        deadlock = true;
-                    }
-                }
-
-                if (!deadlock) {
-
-                    for (long i = minID; i < maxID; ++i) {
-                        // System.out.println(i);
-                        long r = tree.search(Sized.valueOf(i));
-
-                        if (i % 100 == 0)
-                            System.out.println(i);
-
-                        if (r != i) {
-                            System.out.println(i);
-
-                            r = tree.search(Sized.valueOf(i));
-
-                            System.err.println("errore nella ricerca! 2 " + i);
-                            if (r != i) {
-                                System.out.println(i);
-
-                                throw new RuntimeException("errore nella ricerca! 2 " + i);
-                            }
-
-                            throw new RuntimeException("errore nella ricerca! 1 " + i);
-                        }
-                    }
-                }
-
-              System.out.println(tree);
-
-              original.println(++count);
-              original.flush();
-
-              System.err.println( "OS S " + os.size() );
-
-            }
-
-        } finally {
-            System.out.flush();
-            System.setOut(original);
-
-            try {
-                System.out.println( "OS S " + os.size() );
-                String s = os.toString("UTF-8");
-                System.out.println( s );
-            } catch (UnsupportedEncodingException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-        }
-
-    }
 
     private static void insert(long element, BLink<Sized<Long>> tree) {
         final Sized<Long> sized = Sized.valueOf(element);
@@ -485,15 +338,18 @@ public class BLink<K extends Comparable<K>> {
         /* if v is in A then stop “v already exists in tree”... And t points to its record */
         if (!t.isEmpty()) {
 
-            @SuppressWarnings("unchecked")
-            BLinkLeafPtr<K> ptr = (BLinkLeafPtr<K>) t;
             // LOTHRUIN.... SPORCARE LE PAGINE E VERIFICARE SE L'UPDATE È NECESSARIO!!
-            /* stop */
 
-            long result = ptr.update(z);
+            long result = t.value;
+
+            /* Insert even is unsafe! This is really an update! */
+            a.insert(v, z);
+
+//            System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit update " + z );
 
             unlock(current);
 
+            /* stop */
             return result;
         }
 
@@ -546,14 +402,14 @@ public class BLink<K extends Comparable<K>> {
                         /* We are exiting from root! */
                         long r = createNewPage();
 
-                        System.out.println(Thread.currentThread().getId() + " ROOT CREATION page " + r + " cr " + currentRoot + " or " + oldRoot);
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION page " + r + " cr " + currentRoot + " or " + oldRoot);
 
-                        System.out.println(Thread.currentThread().getId() + " ROOT CREATION A " + aprime );
-                        System.out.println(Thread.currentThread().getId() + " ROOT CREATION B " + bprime );
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION A " + aprime );
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION B " + bprime );
 
                         BLinkNode<K> newRoot = new BLinkInner<>(r, nodeSize, v, aprime.getPage(), bprime.getPage());
 
-                        System.out.println(Thread.currentThread().getId() + " ROOT CREATION root " + newRoot);
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION root " + newRoot);
 
                         publish(newRoot, BlinkPtr.page(r));
                         root = r;
@@ -568,10 +424,10 @@ public class BLink<K extends Comparable<K>> {
 
                         /* La root è cambiaaataaa!!!! */
 
-                        System.out.println(Thread.currentThread().getId() + " ROOT CHANGE cr " + currentRoot + " or " + oldRoot);
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE cr " + currentRoot + " or " + oldRoot);
 
-                        System.out.println(Thread.currentThread().getId() + " ROOT CHANGE A " + aprime );
-                        System.out.println(Thread.currentThread().getId() + " ROOT CHANGE B " + bprime );
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE A " + aprime );
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE B " + bprime );
 
 
                         /* Get ptr to root node */
@@ -592,6 +448,8 @@ public class BLink<K extends Comparable<K>> {
                         K searchKey = aprime.getLowKey();
 
 
+                        //LOTHRUIN
+                        try {
                         /* Scan down tree */
                         while(!a.isLeaf()) {
                             t = current;
@@ -601,17 +459,20 @@ public class BLink<K extends Comparable<K>> {
                                 /* Remember node at that level */
                                 stack.push(t);
                             }
-                            System.out.println(Thread.currentThread().getId() + " Searching roots: a " + a + " current " + current + " key " + searchKey);
+//                            System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Searching roots: a " + a + " current " + current + " key " + searchKey);
 
                             if (current.value == aprime.getPage())
                                 break;
 
                             a = get(current);
                         }
+                        } catch (NullPointerException e) {
+//                            System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Searching roots nullpointer: a " + a + " current " + current + " key " + searchKey);
+                        }
 
                         /* Ora dovrei avere nuovamente il path nello stack */
 
-                        System.out.println(Thread.currentThread().getId() + " stack " + stack );
+//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " stack " + stack );
 
 
                     }
@@ -650,6 +511,7 @@ public class BLink<K extends Comparable<K>> {
         /* Success-done backtracking */
         unlock(current);
 
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit insert " + z );
 
         return NO_RESULT;
 
@@ -756,9 +618,19 @@ public class BLink<K extends Comparable<K>> {
 
     private void lock(BlinkPtr pointer) {
 
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
+
         try {
             if (!locks.get(pointer.value).tryLock(3, TimeUnit.SECONDS)) {
-                System.out.println(Thread.currentThread().getId() + " --------------> Deadlock " + pointer);
+//                System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> Deadlock " + pointer);
+
+                Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+
+                for( Thread thread : threadSet )
+                    for (StackTraceElement ste : thread.getStackTrace()) {
+//                        System.out.println(Thread.currentThread().getId() + "[" + thread.getId() + "] -> " + ste);
+                }
+
                 throw new InternalError("Deadlock " + pointer);
             }
         } catch (InterruptedException e) {
@@ -767,11 +639,11 @@ public class BLink<K extends Comparable<K>> {
 
 
 //        locks.get(pointer.value).lock();
-        System.out.println(Thread.currentThread().getId() + " Lock " + pointer);
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock " + pointer);
     }
 
     private void unlock(BlinkPtr pointer) {
-        System.out.println(Thread.currentThread().getId() + " Unlock " + pointer);
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Unlock " + pointer);
         locks.get(pointer.value).unlock();
     }
 
@@ -815,13 +687,19 @@ public class BLink<K extends Comparable<K>> {
         return "BLink [" + root + "]";
     }
 
-    public void booh(long root) {
+    public void deepPrint(int maxstack) {
 
         Set<Long> seen = new HashSet<>();
         Deque<Object[]> stack = new LinkedList<>();
         stack.push(new Object[] {0, root});
 
+        int count = 0;
         while (!stack.isEmpty())  {
+
+            if (++count == maxstack) {
+                System.out.println("Max Stack " + count + " loops?");
+                return;
+            }
 
             Object[] o = stack.pop();
 
@@ -854,9 +732,16 @@ public class BLink<K extends Comparable<K>> {
 
                 BLinkInner.Element<K> e = inner.root;
 
+                Deque<Object[]> ministack = new LinkedList<>();
+
                 while(e != null) {
-                    stack.push(new Object[] {indents + 1, e.page});
+                    ministack.push(new Object[] {indents + 1, e.page});
                     e = e.next;
+                }
+
+                /* Reverse to match child ordering! */
+                while(!ministack.isEmpty()) {
+                    stack.push(ministack.pop());
                 }
             }
 

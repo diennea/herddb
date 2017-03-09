@@ -1,6 +1,33 @@
 package herddb.index.blink;
 
+import java.util.Arrays;
+
 public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
+
+
+    public static final void main(String[] args) {
+
+        BLinkLeaf<Integer> node = new BLinkLeaf<>(99, 3, 1, 1);
+
+        System.out.println(node);
+
+        node.insert(2, 2);
+
+        System.out.println(node);
+
+        node.insert(1, 11);
+
+        System.out.println(node);
+
+        node.insert(4, 4);
+
+        System.out.println(node);
+
+        BLinkNode<?>[] split = node.split(3, 3, 98);
+
+        System.out.println(Arrays.toString(split));
+
+    }
 
     private final long page;
 
@@ -72,7 +99,7 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
             int cmp = key.compareTo(current.key);
 
             if (cmp == 0) {
-                return new BLinkLeafPtr<>(current);
+                return BlinkPtr.page(current.page);
             }
         } while ((current = current.next) != null);
 
@@ -85,11 +112,12 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
     }
 
     @Override
-    public BLinkLeaf<K> insert(K key, long page) {
+    public BLinkLeaf<K> insert(K key, long pointer) {
 
-        if (!isSafe()) {
-            throw new IllegalStateException("Invoking insert on a unsafe node");
-        }
+        try {
+
+
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " INSERT page " + this.page + " orig " + this + " K " + key + " ptr " + pointer );
 
         /* Lock already held for modifications */
 
@@ -103,7 +131,17 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
                 previous = current;
             } else if ( cmp == 0 ) {
 
-                throw new InternalError("Update Key NOT expected!");
+                /* Update! */
+                final Element<K> replacement = new Element<>(key, pointer, current.next);
+
+                if (previous == null) {
+                    /* Updating root */
+                    root = replacement;
+                } else {
+                    previous.next = replacement;
+                }
+
+                return this;
 
             } else {
 
@@ -114,48 +152,43 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
         } while ((current = current.next) != null);
 
 
-        /* Proceed to insertion */
-        final Element<K> inserted = new Element<>(key, page, current);
-
-        /* Link to previous chain, the element already point to "current" node! */
-        if (previous != null) {
-            inserted.next = current;
-            previous.next = inserted;
-        } else {
-
-            /* Linking before root */
-
-            inserted.next = root;
-            root = inserted;
+        if (!isSafe()) {
+            throw new IllegalStateException("Invoking a real insert (no update) on a unsafe node");
         }
 
-//        if (current == null) {
-//            highKey = key;
-//        }
+
+        /* Proceed to insertion */
+        final Element<K> inserted = new Element<>(key, pointer, current);
+
+        /* Link to previous chain, the element already point to "current" node! */
+        if (previous == null) {
+            /* Linking before root */
+            root = inserted;
+        } else {
+            previous.next = inserted;
+        }
 
         ++elements;
 
-//        System.out.println("INSERT: " + this.page + " count " + elements + " high " + highKey);
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " INSERTED page " + this.page + " modified " + this + " K " + key + " ptr " + pointer );
 
         return this;
+
+        } catch (Throwable t  ) {
+//            System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " THROW page " + this.page + " modified " + this + " K " + key + " ptr " + pointer + " t " + t);
+            t.printStackTrace();
+            throw t;
+        }
     }
 
     @Override
-    public BLinkNode<K>[] split(K key, long page, long newPage) {
+    public BLinkNode<K>[] split(K key, long pointer, long newPage) {
+
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " orig " + this + " K " + key + " ptr " + pointer );
 
         if (isSafe()) {
             throw new IllegalStateException("Invoking rearrange on a safe node");
         }
-
-        /*
-         * TODO: actually adhere strictly to Lehman algorithm and insert and rearrange with a full copy. Being
-         * linked elements it could proceed in two step: a) rearrange without insert tacking lock for b node
-         * too and pusing split nodes to all known memory; b) before releasing locks: detect to which node
-         * will host the new key and release the other; c) standard insert into node and release lock.
-         *
-         * Be aware that a such precedure could generate too small nodes at least temporary (what happen if
-         * node is split into k+1 and k keys and the new inserted key goes to the first block?)
-         */
 
         /* Lock already held for modifications */
 
@@ -180,7 +213,7 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
                 if (cmp > 0) {
 
                     /* Insert here! */
-                    Element<K> next = new Element<>(key, page);
+                    Element<K> next = new Element<>(key, pointer);
 
                     /* Check and force count increment */
                     if (count++ < splitpoint) {
@@ -249,7 +282,7 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
         if (insert) {
 
             /* Insert here! */
-            Element<K> next = new Element<>(key, page);
+            Element<K> next = new Element<>(key, pointer);
             if (count++ < splitpoint) {
 
                 if (acurrent == null) {
@@ -289,6 +322,9 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
 //        System.out.println("SPLIT: " + this.page + " count " + splitpoint + " high " + acurrent.key);
 //        System.out.println("NEW SPLIT: " + newPage + " count " + (count - splitpoint) + " high " + highKey);
 
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " A " + aprime );
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " B " + bprime );
+
         return result;
     }
 
@@ -327,7 +363,7 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
 
     private static final class Element<K> {
         private final K key;
-        private long page;
+        private final long page;
 
         private Element<K> next;
 
@@ -347,23 +383,6 @@ public class BLinkLeaf<K extends Comparable<K>>implements BLinkNode<K> {
             return "Element [key=" + key + ", page=" + page + "]";
         }
 
-    }
-
-    public static final class BLinkLeafPtr<K> extends BlinkPtr {
-
-        private final Element<K> element;
-
-        BLinkLeafPtr(Element<K> element) {
-            super(element.page, BlinkPtr.PAGE);
-
-            this.element = element;
-        }
-
-        public long update(long page) {
-            long old = element.page;
-            element.page = page;
-            return old;
-        }
     }
 
 }

@@ -2,6 +2,119 @@ package herddb.index.blink;
 
 public class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
+
+
+//  public static final void main(String[] args) {
+//
+//
+////      BLinkInner<Integer> binner = new BLinkInner<>(1, 4, 10, 0, 10);
+////
+////      int i = 2;
+////      while (binner.isSafe()) {
+////          binner.insert(i * 10, i * 10);
+////          ++i;
+////
+////          System.out.println(binner);
+////      }
+////
+////      System.out.println(Arrays.toString(binner.split(i * 10, i * 10, 999)));
+//
+////      BLinkInner<Integer> binner = new BLinkInner<>(99, 3, 6, 1, 2);
+////
+////      Element<Integer> last = binner.root.next;
+////      Element<Integer> e;
+////
+////      e = new Element<>(8, 12);
+////      binner.root.next = e;
+////      e.next = last;
+////
+////      binner.elements = 3;
+////
+////      binner.split(3, 13, 98);
+//
+//      BLinkInner<Integer> binner = new BLinkInner<>(99, 3, 6, 1, 2);
+//
+//      Element<Integer> last = binner.root.next;
+//      Element<Integer> e;
+//
+//      e = new Element<>(8, 12);
+//      binner.root.next = e;
+//
+//      e = new Element<>(15, 25);
+//      binner.root.next.next = e;
+//      e.next = last;
+//
+//      binner.elements = 3;
+//
+//      binner.split(3, 13, 98);
+//
+//      /*
+//1 <- 6, 12 <- 8 -> 2   k3 ptr13
+//1 <- 3 -> 13
+//12 <- 8 -> 2
+//p6!!! high? 6
+//       */
+//
+//  }
+
+
+
+//    public static final void main(String[] args) {
+//
+//        // [size: 1, page: 9, high: null, right: -1, data: 3 <- 14 -> 8] K 9 ptr 12
+//
+//        BLinkInner<Integer> binner = new BLinkInner<>(9, 3, 14, 3, 8);
+//
+//        System.out.println(binner);
+//
+//        binner.insert(9, 12);
+//
+//        System.out.println(binner);
+//
+//        /*
+//         * 1 <- 6, 12 <- 8 -> 2 k3 ptr13 1 <- 3 -> 13 12 <- 8 -> 2 p6!!! high? 6
+//         */
+//
+////        BLinkInner [size: 1, page: 9, high: null, right: -1, data: 3 <- 14 -> 8]
+////        1 INSERT page 9 orig BLinkInner [size: 1, page: 9, high: null, right: -1, data: 3 <- 14 -> 8] K 9 ptr 12
+////        1 INSERTED page 9 modified BLinkInner [size: 2, page: 9, high: null, right: -1, data: 3 <- 9, 12 <- 14 -> 8] K 9 ptr 12
+////        BLinkInner [size: 2, page: 9, high: null, right: -1, data: 3 <- 9, 12 <- 14 -> 8]
+//
+//    }
+
+    public static final void main(String[] args) {
+
+//        Sequenza errata!
+//        10 SPLIT page 3 orig BLinkInner [size: 3, page: 3, high: null, right: -1, data: 1 <- 3, 2 <- 5, 4 <- 7 -> 5] K 9 ptr 6
+//        10 SPLIT page 3 push 7
+//        10 SPLIT page 3 A BLinkInner [size: 2, page: 3, high: 7, right: -1, data: 1 <- 3, 2 <- 5 -> 6]
+//        10 SPLIT page 3 B BLinkInner [size: 1, page: 7, high: null, right: -1, data: 5 <- 9 -> 6]
+
+        BLinkInner<Integer> node = new BLinkInner<>(3, 3, 3, 1, 5);
+
+        Element<Integer> current = node.root;
+        Element<Integer> last = current.next;
+
+        Element<Integer> next;
+
+        next = new Element<>(5, 2);
+        current.next = next;
+        current = next;
+
+        next = new Element<>(7, 4);
+        current.next = next;
+        current = next;
+
+        current.next = last;
+
+        node.elements = 3;
+
+        System.out.println(node);
+
+        node.split(9, 6, 7);
+
+    }
+
     private final long page;
 
 //    private Element<K> root;
@@ -107,6 +220,20 @@ public class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         return BlinkPtr.empty();
     }
 
+    private void LOTHRUIN_CHECK(K key) {
+
+        Element<K> element = root;
+
+        do {
+
+            if (element.key != null && element.key.equals(key)) {
+                throw new InternalError("Checked a key already in the node!!!");
+            }
+
+        } while ((element = element.next) != null);
+
+    }
+
     /**
      * The method is invoked only on a split of a child node.
      *
@@ -147,7 +274,9 @@ public class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     @Override
     public BLinkInner<K> insert(K key, long pointer) {
 
-        System.out.println(Thread.currentThread().getId() + " INSERT page " + page + " orig " + this + " K " + key + " ptr " + pointer );
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " INSERT page " + this.page + " orig " + this + " K " + key + " ptr " + pointer );
+
+//        LOTHRUIN_CHECK(key);
 
         if (!isSafe()) {
             throw new IllegalStateException("Invoking insert on a unsafe node");
@@ -193,73 +322,10 @@ public class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
         ++elements;
 
-        System.out.println(Thread.currentThread().getId() + " INSERTED page " + page + " modified " + this + " K " + key + " ptr " + pointer );
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " INSERTED page " + this.page + " modified " + this + " K " + key + " ptr " + pointer );
 
         return this;
     }
-
-
-    public static final void main(String[] args) {
-
-
-//        BLinkInner<Integer> binner = new BLinkInner<>(1, 4, 10, 0, 10);
-//
-//        int i = 2;
-//        while (binner.isSafe()) {
-//            binner.insert(i * 10, i * 10);
-//            ++i;
-//
-//            System.out.println(binner);
-//        }
-//
-//        System.out.println(Arrays.toString(binner.split(i * 10, i * 10, 999)));
-
-//        BLinkInner<Integer> binner = new BLinkInner<>(99, 3, 6, 1, 2);
-//
-//        Element<Integer> last = binner.root.next;
-//        Element<Integer> e;
-//
-//        e = new Element<>(8, 12);
-//        binner.root.next = e;
-//        e.next = last;
-//
-//        binner.elements = 3;
-//
-//        binner.split(3, 13, 98);
-
-        BLinkInner<Integer> binner = new BLinkInner<>(99, 3, 6, 1, 2);
-
-        Element<Integer> last = binner.root.next;
-        Element<Integer> e;
-
-        e = new Element<>(8, 12);
-        binner.root.next = e;
-
-        e = new Element<>(15, 25);
-        binner.root.next.next = e;
-        e.next = last;
-
-        binner.elements = 3;
-
-        binner.split(3, 13, 98);
-
-        /*
-1 <- 6, 12 <- 8 -> 2   k3 ptr13
-1 <- 3 -> 13
-12 <- 8 -> 2
-p6!!! high? 6
-         */
-
-    }
-
-
-
-
-
-
-
-
-
 
     /**
      * The method is invoked only on a split of a child node when current node too need to split.
@@ -276,45 +342,36 @@ p6!!! high? 6
      * Given a key X, a pointer X', a new page u and a node as
      *
      * <pre>
-     *     A -> B -> C -> n -> r
-     *    /    /    /    /
-     *   A'   B'   C'   D'
+     * p -> A -> B -> C -> D -> n -> r
+     *     /    /    /    /    /
+     *    A'   B'   C'   D'   N'
      * </pre>
      *
-     * the nodes will became (split isn't done on new key by necessity):
+     * the nodes will became
+     *
      * <pre>
-     *     A -> X -> u    B -> C -> r
-     *    /    /         /    /
-     *   A'   B'        X'   C'
+     * p -> A -> X -> B -> C -> D -> n -> r
+     *     /    /    /    /    /    /
+     *    A'   B'   X'   C'   D'   N'
      * </pre>
      *
-     *
-     *
-     * <pre>
-     *     A -> B -> C -> D -> n -> r
-     *    /    /    /    /    /
-     *   A'   B'   C'   D'   N'
-     * </pre>
+     * and finally
      *
      * <pre>
-     *     A -> X -> B -> C -> D -> n -> r
-     *    /    /    /    /    /    /
-     *   A'   B'   X'   C'   D'   N'
-     * </pre>
+     * p -> A -> X -> n -> u   u -> C -> D -> n -> r
+     *     /    /    /             /    /    /
+     *    A'   B'   X'            C'   D'   N'
      *
-     * <pre>
-     *     A -> X -> nn -> u    C -> D -> n -> r
-     *    /    /    /          /    /    /
-     *   A'   B'   X'         C'   D'   N'
-     *
-     * push B
+     * push B up
      * </pre>
      * </p>
      */
     @Override
-    public BLinkNode<K>[] split(K key, long value, long newPage) {
+    public BLinkNode<K>[] split(K key, long pointer, long newPage) {
 
-        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " orig " + this + " K " + key + " ptr " + value );
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " orig " + this + " K " + key + " ptr " + pointer );
+
+//        LOTHRUIN_CHECK(key);
 
         if (isSafe()) {
             throw new IllegalStateException("Invoking rearrange on a safe node");
@@ -324,25 +381,15 @@ p6!!! high? 6
 
         final long splitpoint = (elements + 1) / 2;
 
-
-
-        int count = 0;
-        boolean insert = true;
-
-        /*
-         * First create a complete chain with inserted element (for simplicity it will be done in a two step
-         * process, it could be collapsed to one for performance)
-         */
-
         Element<K> chainroot = null;
         Element<K> chaincurrent = null;
         Element<K> current = null;
 
-        /*
-         * Splitting node: his key will become null and pushed up, his next will become null breaking the chain
-         * in two segments. Just avoid to scan the whole sequence twice
-         */
-        Element<K> split = null;
+        Element<K> aroot = null;
+        K push = null;
+
+        int count = 0;
+        boolean insert = true;
 
         /*
          * TODO: scanning the whole sequence isn't really needed just scan till split point has been reached
@@ -365,25 +412,66 @@ p6!!! high? 6
 
                     /* Need to interleave the key/value */
 
-                    next = new Element<>(key, current.page);
+                    if (count++ == splitpoint) {
 
-                    if (chainroot == null) {
-                        chainroot = next;
-                    } else {
+                        /* Save the key as the "push" key */
+                        push = key;
+
+                        /* Attach the last element to current root */
+                        next = new Element<>(null, current.page);
+
+                        /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
                         chaincurrent.next = next;
+
+                        /* Save old chain root as the new a root */
+                        aroot = chainroot;
+
+                        /* Reset the chain root */
+                        chainroot = null;
+
+                    } else {
+
+                        /* Otherwise just append the element to the current chain  */
+                        next = new Element<>(key, current.page);
+
+                        if (chainroot == null) {
+                            chainroot = next;
+                        } else {
+                            chaincurrent.next = next;
+                        }
+
+                        chaincurrent = next;
                     }
-                    chaincurrent = next;
 
                     if (count++ == splitpoint) {
-                        split = chaincurrent;
-                    }
 
-                    next = new Element<>(current.key, value);
-                    chaincurrent.next = next;
-                    chaincurrent = next;
+                        /* Save the key as the "push" key */
+                        push = current.key;
 
-                    if (count++ == splitpoint) {
-                        split = chaincurrent;
+                        /* Attach the last element to current root */
+                        next = new Element<>(null, pointer);
+
+                        /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
+                        chaincurrent.next = next;
+
+                        /* Save old chain root as the new a root */
+                        aroot = chainroot;
+
+                        /* Reset the chain root */
+                        chainroot = null;
+
+                    } else {
+
+                        /* Otherwise just append the element to the current chain  */
+                        next = new Element<>(current.key, pointer);
+
+                        if (chainroot == null) {
+                            chainroot = next;
+                        } else {
+                            chaincurrent.next = next;
+                        }
+
+                        chaincurrent = next;
                     }
 
                     /* Signal that the element has been inserted */
@@ -398,53 +486,61 @@ p6!!! high? 6
 
             }
 
-            next = new Element<>(current.key, current.page);
-            if (chainroot == null) {
-                chainroot = next;
-            } else {
-                chaincurrent.next = next;
-            }
-            chaincurrent = next;
-
             if (count++ == splitpoint) {
-                split = chaincurrent;
+
+                /* Save the key as the "push" key */
+                push = current.key;
+
+                /* Attach the last element to current root */
+                next = new Element<>(null, current.page);
+
+                /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
+                chaincurrent.next = next;
+
+                /* Save old chain root as the new a root */
+                aroot = chainroot;
+
+                /* Reset the chain root */
+                chainroot = null;
+
+            } else {
+
+                /* Otherwise just append the element to the current chain  */
+                next = new Element<>(current.key, current.page);
+
+                if (chainroot == null) {
+                    chainroot = next;
+                } else {
+                    chaincurrent.next = next;
+                }
+
+                chaincurrent = next;
             }
 
         } while((current = current.next) != null);
 
 
-
-        /* Now we need to split the whole chain */
-
-        Element<K> aroot = chainroot;
-        Element<K> broot = split.next;
-
-
-        /* Get the key to push (is the new high key for this node too) */
-        K push = split.key;
-
-        /* Break the chain in two segments */
-        split.next = null;
-
-        /* Cleanup the key on the last element */
-        split.key = null;
-
         if (insert) {
             throw new InternalError(
-                    "We should already have inserted the node");
+                    "We should have inserted the node");
         }
 
+        if (aroot == null) {
+            throw new InternalError(
+                    "We should have split the node");
+        }
+
+        /* Sets the root of chain b, chain a has already been set */
+        Element<K> broot = chainroot;
 
 //      make high key of A' equal y;
-        BLinkInner<K> aprime = new BLinkInner<>(this.page,    maxElements, splitpoint,    aroot, push);
-//        BLinkInner<K> aprime = new BLinkInner<>(this.page,    maxElements, splitpoint,    aroot, push);
+        BLinkInner<K> aprime = new BLinkInner<>(this.page, maxElements, splitpoint,            aroot, push);
 //      make high key of B' equal old high key of A';
-//        BLinkInner<K> bprime = new BLinkInner<>(newPage, maxElements, count - splitpoint, broot, bcurrent.key);
-        BLinkInner<K> bprime = new BLinkInner<>(newPage, maxElements, elements - splitpoint, broot, highKey);
+        BLinkInner<K> bprime = new BLinkInner<>(newPage,   maxElements, elements - splitpoint, broot, highKey);
 
-        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " push " + push );
-        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " A " + aprime );
-        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " B " + bprime );
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " push " + push );
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " A " + aprime );
+//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " B " + bprime );
 
 //      make right-link of B' equal old right-link of A';
         bprime.right = right;
@@ -456,234 +552,6 @@ p6!!! high? 6
 
         return result;
     }
-//    public BLinkNode<K>[] split(K key, long value, long newPage) {
-//
-//        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " orig " + this + " K " + key + " ptr " + value );
-//
-//        if (isSafe()) {
-//            throw new IllegalStateException("Invoking rearrange on a safe node");
-//        }
-//
-//        /*
-//         * TODO: actually adhere strictly to Lehman algorithm and insert and rearrange with a full copy. Being
-//         * linked elements it could proceed in two step: a) rearrange without insert tacking lock for b node
-//         * too and pusing split nodes to all known memory; b) before releasing locks: detect to which node
-//         * will host the new key and release the other; c) standard insert into node and release lock.
-//         *
-//         * Be aware that a such precedure could generate too small nodes at least temporary (what happen if
-//         * node is split into k+1 and k keys and the new inserted key goes to the first block?)
-//         */
-//
-//        /* Lock already held for modifications */
-//
-//        final long splitpoint = (elements + 1) / 2;
-//
-//
-//
-//        int count = 0;
-//        boolean insert = true;
-//
-//
-//        /*
-//         * First create a complete chain with inserted element (for simplicity it will be done in a two step
-//         * process, it could be collapsed to one for performance)
-//         */
-//
-//        Element<K> aroot = null;
-//        Element<K> broot = null;
-//
-//        Element<K> acurrent = null;
-//        Element<K> bcurrent = null;
-//
-//        K push = null;
-//
-//        Element<K> current = root;
-////        Element<K> pointerElement = current;
-//
-//
-//        do {
-//
-//            /* If still needs to insert */
-//            if (insert) {
-//
-//                /* First of all check if it needs to interleave the new key/value */
-//
-//                /* Force insertion if is the last element */
-//                final int cmp = current.key == null ? /* Insert after last */ 1 : current.key.compareTo(key);
-//
-//                if (cmp > 0) {
-//
-//                    /* Need to interleave the key/value */
-//
-//
-//                    if (count == splitpoint) {
-//
-//                        final Element<K> next = new Element<>(null, current.page);
-//                        push = key;
-//
-//                        if (aroot == null) {
-//                            throw new InternalError(
-//                                    "Left root should have at least one value!");
-//                        } else {
-//                            acurrent.next = next;
-//                            acurrent = next;
-//                        }
-//
-//                    } else {
-//
-//                        final Element<K> next = new Element<>(key, current.page);
-//
-//                        if (count < splitpoint) {
-//
-//                            if (aroot == null) {
-//                                aroot = next;
-//                                acurrent = aroot;
-//                            } else {
-//                                acurrent.next = next;
-//                                acurrent = next;
-//                            }
-//                        } else {
-//
-//
-//                            if (broot == null) {
-//                                broot = next;
-//                                bcurrent = broot;
-//                            } else {
-//                                bcurrent.next = next;
-//                                bcurrent = next;
-//                            }
-//                        }
-//                    }
-//                    ++count;
-//
-//                    if (count == splitpoint) {
-//
-//                        final Element<K> next = new Element<>(null, value);
-//                        push = key;
-//
-//                        if (aroot == null) {
-//                            throw new InternalError(
-//                                    "Left root should have at least one value!");
-//                        } else {
-//                            acurrent.next = next;
-//                            acurrent = next;
-//                        }
-//
-//                    } else {
-//
-//                        final Element<K> next = new Element<>(current.key, value);
-//
-//                        if (count < splitpoint) {
-//
-//                            if (aroot == null) {
-//                                aroot = next;
-//                                acurrent = aroot;
-//                            } else {
-//                                acurrent.next = next;
-//                                acurrent = next;
-//                            }
-//                        } else {
-//
-//
-//                            if (broot == null) {
-//                                broot = next;
-//                                bcurrent = broot;
-//                            } else {
-//                                bcurrent.next = next;
-//                                bcurrent = next;
-//                            }
-//                        }
-//                    }
-//                    ++count;
-//
-//                    /* Signal that the element has been inserted */
-//                    insert = false;
-//
-//                    /* Need to advance because we have handled current element too */
-//                    if ((current = current.next) == null) {
-//                        break;
-//                    }
-//
-//                }
-//
-//            }
-//
-//
-//            if (count == splitpoint) {
-//
-//                final Element<K> next = new Element<>(null, current.page);
-//                push = current.key;
-//
-//                if (aroot == null) {
-//                    throw new InternalError(
-//                            "Left root should have at least one value!");
-//                } else {
-//                    acurrent.next = next;
-//                    acurrent = next;
-//                }
-//
-//            } else {
-//
-//                final Element<K> next = new Element<>(current.key, current.page);
-//
-//                if (count < splitpoint) {
-//
-//                    if (aroot == null) {
-//                        aroot = next;
-//                        acurrent = aroot;
-//                    } else {
-//                        acurrent.next = next;
-//                        acurrent = next;
-//                    }
-//                } else {
-//
-//
-//                    if (broot == null) {
-//                        broot = next;
-//                        bcurrent = broot;
-//                    } else {
-//                        bcurrent.next = next;
-//                        bcurrent = next;
-//                    }
-//                }
-//            }
-//            ++count;
-//
-//        } while((current = current.next) != null);
-//
-//
-//        if (insert) {
-//            throw new InternalError(
-//                    "We should already have inserted the node");
-//        }
-//
-//        if (push == null) {
-//            throw new InternalError(
-//                    "No real split happened!");
-//        }
-//
-//
-////      make high key of A' equal y;
-//        BLinkInner<K> aprime = new BLinkInner<>(this.page,    maxElements, splitpoint,    aroot, push);
-////        BLinkInner<K> aprime = new BLinkInner<>(this.page,    maxElements, splitpoint,    aroot, push);
-////      make high key of B' equal old high key of A';
-////        BLinkInner<K> bprime = new BLinkInner<>(newPage, maxElements, count - splitpoint, broot, bcurrent.key);
-//        BLinkInner<K> bprime = new BLinkInner<>(newPage, maxElements, elements - splitpoint, broot, highKey);
-//
-//        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " push " + push );
-//        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " A " + aprime );
-//        System.out.println(Thread.currentThread().getId() + " SPLIT page " + page + " B " + bprime );
-//
-////      make right-link of B' equal old right-link of A';
-//        bprime.right = right;
-////      make right-link of A' point to B';
-//        aprime.right = bprime.page;
-//
-//        @SuppressWarnings("unchecked")
-//        final BLinkNode<K>[] result = new BLinkNode[] { aprime, bprime };
-//
-//        return result;
-//    }
 
     @Override
     public String toString() {
@@ -730,8 +598,8 @@ p6!!! high? 6
 //        private K key;
 //        private long page;
 
-        K key;
-        long page;
+        final K key;
+        final long page;
 //        private Element<K> next;
         Element<K> next;
 
