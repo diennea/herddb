@@ -75,8 +75,6 @@ public class NettyChannelAcceptor implements AutoCloseable {
     private ExecutorService callbackExecutor;
     private boolean enableRealNetwork = true;
     private boolean enableJVMNetwork = true;
-    private static final boolean ENABLE_EPOOL_NATIVE = System.getProperty("os.name").equalsIgnoreCase("linux")
-        && !Boolean.getBoolean("herddb.network.disablenativeepoll");
 
     public boolean isEnableRealNetwork() {
         return enableRealNetwork;
@@ -235,7 +233,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
             }
         };
         if (enableRealNetwork) {
-            if (ENABLE_EPOOL_NATIVE) {
+            if (NetworkUtils.isEnableEpoolNative()) {
                 bossGroup = new EpollEventLoopGroup(workerThreads);
                 workerGroup = new EpollEventLoopGroup(workerThreads);
                 LOGGER.log(Level.INFO, "Using netty-native-epoll network type");
@@ -247,7 +245,7 @@ public class NettyChannelAcceptor implements AutoCloseable {
 
             ServerBootstrap b = new ServerBootstrap();
             b.group(bossGroup, workerGroup)
-                .channel(ENABLE_EPOOL_NATIVE ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
+                .channel(NetworkUtils.isEnableEpoolNative() ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                 .childHandler(channelInitialized)
                 .option(ChannelOption.SO_BACKLOG, 128);
 

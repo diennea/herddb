@@ -27,6 +27,8 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.MultithreadEventLoopGroup;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.local.LocalAddress;
 import io.netty.channel.local.LocalChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -55,7 +57,7 @@ public class NettyConnector {
     private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
 
     public static NettyChannel connect(String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
-        ChannelEventListener receiver, final ExecutorService callbackExecutor, final NioEventLoopGroup networkGroup, final DefaultEventLoopGroup localEventsGroup) throws IOException {
+        ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup, final DefaultEventLoopGroup localEventsGroup) throws IOException {
         try {
             final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
@@ -71,11 +73,10 @@ public class NettyConnector {
                 address = new LocalAddress(hostAddress + ":" + port + ":" + ssl);
                 group = localEventsGroup;
             } else {
-                channelType = NioSocketChannel.class;
+                channelType = networkGroup instanceof EpollEventLoopGroup ? EpollSocketChannel.class : NioSocketChannel.class;
                 address = inet;
                 group = networkGroup;
             }
-
             Bootstrap b = new Bootstrap();
             Holder<NettyChannel> result = new Holder<>();
 

@@ -32,6 +32,13 @@ import java.net.UnknownHostException;
  */
 public class NetworkUtils {
 
+    private static final boolean ENABLE_EPOOL_NATIVE = System.getProperty("os.name").equalsIgnoreCase("linux")
+        && !Boolean.getBoolean("herddb.network.disablenativeepoll");
+
+    public static boolean isEnableEpoolNative() {
+        return ENABLE_EPOOL_NATIVE;
+    }
+
     public static String getAddress(InetSocketAddress address) {
         if (address.getAddress() != null) {
             return address.getAddress().getHostAddress();

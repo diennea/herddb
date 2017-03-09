@@ -23,8 +23,11 @@ import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.ServerHostData;
 import herddb.network.netty.NettyConnector;
+import herddb.network.netty.NetworkUtils;
 import herddb.server.StaticClientSideMetadataProvider;
 import io.netty.channel.DefaultEventLoopGroup;
+import io.netty.channel.MultithreadEventLoopGroup;
+import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,7 +53,7 @@ public class HDBClient implements AutoCloseable {
     private final Map<Long, HDBConnection> connections = new ConcurrentHashMap<>();
     private ClientSideMetadataProvider clientSideMetadataProvider;
     private ExecutorService thredpool;
-    private NioEventLoopGroup networkGroup;
+    private MultithreadEventLoopGroup networkGroup;
     private DefaultEventLoopGroup localEventsGroup;
 
     public HDBClient(ClientConfiguration configuration) {
@@ -68,7 +71,7 @@ public class HDBClient implements AutoCloseable {
                 return t;
             }
         });
-        this.networkGroup = new NioEventLoopGroup(0, thredpool);
+        this.networkGroup = NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup(0, thredpool) : new NioEventLoopGroup(0, thredpool);
         this.localEventsGroup = new DefaultEventLoopGroup();
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {
