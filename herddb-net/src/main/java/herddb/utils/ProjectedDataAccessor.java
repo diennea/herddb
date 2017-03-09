@@ -15,7 +15,7 @@
  */
 package herddb.utils;
 
-import java.util.Map;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.function.BiConsumer;
 
 /**
@@ -23,6 +23,7 @@ import java.util.function.BiConsumer;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class ProjectedDataAccessor implements DataAccessor {
 
     private final String[] fieldNames;
