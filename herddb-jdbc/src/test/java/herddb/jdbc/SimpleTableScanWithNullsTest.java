@@ -25,9 +25,10 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
@@ -71,6 +72,17 @@ public class SimpleTableScanWithNullsTest {
                         + "('10.168.10.109',33,38,10,NULL,3),"
                         + "('10.168.10.110',33,38,10,NULL,4);");
                     statement.executeQuery("SELECT * FROM sm_machine").close();
+
+                    try (ResultSet rs = statement.executeQuery("SELECT bad_field FROM sm_machine")) {
+                        fail();
+                    } catch (SQLException ok) {
+                    }
+
+                    try (PreparedStatement statement2 = con.prepareStatement("SELECT bad_field FROM sm_machine");
+                        ResultSet rs = statement2.executeQuery()) {
+                        fail();
+                    } catch (SQLException ok) {
+                    }
 
                 }
             }
