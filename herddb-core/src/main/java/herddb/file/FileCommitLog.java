@@ -41,6 +41,7 @@ import java.util.logging.Logger;
 
 import herddb.log.CommitLog;
 import herddb.log.CommitLogListener;
+import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
@@ -49,6 +50,7 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
+import java.util.concurrent.Future;
 
 /**
  * Commit log on file
@@ -330,7 +332,10 @@ public class FileCommitLog extends CommitLog {
     }
 
     @Override
-    public LogSequenceNumber log(LogEntry edit, boolean synch) throws LogNotAvailableException {
+    public CommitLogResult log(LogEntry edit, boolean synch) throws LogNotAvailableException {
+        if (listeners != null) {
+            synch = true;
+        }
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "log {0}", edit);
         }
@@ -343,7 +348,7 @@ public class FileCommitLog extends CommitLog {
                     l.logEntry(logPos, edit);
                 }
             }
-            return logPos;
+            return new CommitLogResult(logPos, !synch);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
@@ -351,24 +356,6 @@ public class FileCommitLog extends CommitLog {
             throw new LogNotAvailableException(err.getCause());
         }
 
-    }
-
-    @Override
-    public List<LogSequenceNumber> log(List<LogEntry> entries, boolean synch) throws LogNotAvailableException {
-        List<LogSequenceNumber> res = new ArrayList<>();
-        int size = entries.size();
-        for (int i = 0; i < size; i++) {
-            boolean synchLast = i == size - 1;
-            LogEntry entry = entries.get(i);
-            LogSequenceNumber logpos = log(entry, synchLast);
-            if (listeners != null) {
-                for (CommitLogListener l : listeners) {
-                    l.logEntry(logpos, entry);
-                }
-            }
-            res.add(logpos);
-        }
-        return res;
     }
 
     @Override

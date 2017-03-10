@@ -112,6 +112,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
 import herddb.jmx.JMXUtils;
+import herddb.log.CommitLogResult;
 
 /**
  * Manages a TableSet in memory
@@ -269,8 +270,10 @@ public class TableSpaceManager {
         log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), true);
     }
 
-    void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
-        this.actualLogSequenceNumber = position;
+    void apply(CommitLogResult position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
+        if (!position.deferred) {
+            this.actualLogSequenceNumber = position.getLogSequenceNumber();
+        }
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
         }
@@ -314,6 +317,7 @@ public class TableSpaceManager {
                 if (transaction == null) {
                     throw new DataStorageManagerException("invalid transaction id " + id);
                 }
+                transaction.synch();
                 List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
                     manager.onTransactionCommit(transaction, recovery);
@@ -473,7 +477,9 @@ public class TableSpaceManager {
 
     }
 
-    private void writeTablesOnDataStorageManager(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
+    private void writeTablesOnDataStorageManager(CommitLogResult writeLog) throws DataStorageManagerException,
+        LogNotAvailableException {
+        LogSequenceNumber logSequenceNumber = writeLog.getLogSequenceNumber();
         List<Table> tablelist = new ArrayList<>();
         List<Index> indexlist = new ArrayList<>();
         for (AbstractTableManager tableManager : tables.values()) {
@@ -596,7 +602,7 @@ public class TableSpaceManager {
         }
         LogEntry entry = LogEntryFactory.alterTable(newTable, null);
         try {
-            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -694,7 +700,8 @@ public class TableSpaceManager {
         generalLock.readLock().lock();
         try {
             for (DumpedLogEntry ld : entries) {
-                apply(ld.logSequenceNumber, LogEntry.deserialize(ld.entryData), true);
+                apply(new CommitLogResult(ld.logSequenceNumber, false),
+                    LogEntry.deserialize(ld.entryData), true);
             }
         } finally {
             generalLock.readLock().unlock();
@@ -875,7 +882,7 @@ public class TableSpaceManager {
                         public void accept(LogSequenceNumber num, LogEntry u
                         ) {
                             try {
-                                apply(num, u, false);
+                                apply(new CommitLogResult(num, false), u, false);
                             } catch (Throwable t) {
                                 throw new RuntimeException(t);
                             }
@@ -918,7 +925,7 @@ public class TableSpaceManager {
                 LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
                 LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
                 // let followers see the rollback on the log
-                LogSequenceNumber pos = log.log(rollback, true);
+                CommitLogResult pos = log.log(rollback, true);
                 apply(pos, rollback, false);
             }
         }
@@ -1012,12 +1019,12 @@ public class TableSpaceManager {
             }
 
             LogEntry entry = LogEntryFactory.createTable(statement.getTableDefinition(), transaction);
-            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
 
             for (Index additionalIndex : statement.getAdditionalIndexes()) {
                 LogEntry index_entry = LogEntryFactory.createIndex(additionalIndex, transaction);
-                LogSequenceNumber index_pos = log.log(index_entry, index_entry.transactionId <= 0);
+                CommitLogResult index_pos = log.log(index_entry, index_entry.transactionId <= 0);
                 apply(index_pos, index_entry, false);
             }
 
@@ -1036,7 +1043,7 @@ public class TableSpaceManager {
                 throw new IndexAlreadyExistsException(statement.getIndexefinition().name);
             }
             LogEntry entry = LogEntryFactory.createIndex(statement.getIndexefinition(), transaction);
-            LogSequenceNumber pos;
+            CommitLogResult pos;
             try {
                 pos = log.log(entry, entry.transactionId <= 0);
             } catch (LogNotAvailableException ex) {
@@ -1073,13 +1080,13 @@ public class TableSpaceManager {
             if (indexesOnTable != null) {
                 for (String index : indexesOnTable.keySet()) {
                     LogEntry entry = LogEntryFactory.dropIndex(statement.getTableSpace(), index, transaction);
-                    LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+                    CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                     apply(pos, entry, false);
                 }
             }
 
             LogEntry entry = LogEntryFactory.dropTable(statement.getTableSpace(), statement.getTable(), transaction);
-            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
 
             return new DDLStatementExecutionResult(entry.transactionId);
@@ -1106,7 +1113,7 @@ public class TableSpaceManager {
                 throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
             }
             LogEntry entry = LogEntryFactory.dropIndex(statement.getTableSpace(), statement.getIndexName(), transaction);
-            LogSequenceNumber pos;
+            CommitLogResult pos;
             try {
                 pos = log.log(entry, entry.transactionId <= 0);
             } catch (LogNotAvailableException ex) {
@@ -1240,7 +1247,7 @@ public class TableSpaceManager {
 
             // TODO: transactions checkpoint is not atomic
             dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values()));
-            writeTablesOnDataStorageManager(logSequenceNumber);
+            writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false));
             // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
 
@@ -1287,7 +1294,7 @@ public class TableSpaceManager {
         long id = newTransactionId.incrementAndGet();
 
         LogEntry entry = LogEntryFactory.beginTransaction(tableSpaceName, id);
-        LogSequenceNumber pos;
+        CommitLogResult pos;
         try {
             pos = log.log(entry, false);
             apply(pos, entry, false);
@@ -1305,7 +1312,7 @@ public class TableSpaceManager {
         }
         LogEntry entry = LogEntryFactory.rollbackTransaction(tableSpaceName, tx.transactionId);
         try {
-            LogSequenceNumber pos = log.log(entry, true);
+            CommitLogResult pos = log.log(entry, true);
             apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -1322,7 +1329,7 @@ public class TableSpaceManager {
         LogEntry entry = LogEntryFactory.commitTransaction(tableSpaceName, tx.transactionId);
 
         try {
-            LogSequenceNumber pos = log.log(entry, true);
+            CommitLogResult pos = log.log(entry, true);
             apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
@@ -1359,7 +1366,7 @@ public class TableSpaceManager {
         @Override
         public void accept(LogSequenceNumber t, LogEntry u) {
             try {
-                apply(t, u, true);
+                apply(new CommitLogResult(t, false), u, true);
             } catch (DDLException | DataStorageManagerException err) {
                 throw new RuntimeException(err);
             }

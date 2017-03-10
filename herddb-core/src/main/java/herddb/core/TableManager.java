@@ -54,6 +54,7 @@ import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
 import herddb.index.PrimaryIndexSeek;
 import herddb.log.CommitLog;
+import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogEntryType;
@@ -673,7 +674,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
             }
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
-            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
             return new DMLStatementExecutionResult(entry.transactionId, 1, key, insert.isReturnValues() ? Bytes.from_array(value) : null);
         } catch (LogNotAvailableException err) {
@@ -723,7 +724,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
 
                 LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
-                LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 apply(pos, entry, false);
                 lastKey.value = actual.key;
                 lastValue.value = newValue;
@@ -750,7 +751,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             @Override
             public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
-                LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 apply(pos, entry, false);
                 lastKey.value = actual.key;
                 lastValue.value = actual.value.data;
@@ -769,7 +770,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         try {
             long estimatedSize = keyToPage.size();
             LogEntry entry = LogEntryFactory.truncate(table, null);
-            LogSequenceNumber pos = log.log(entry, entry.transactionId <= 0);
+            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
             return new DMLStatementExecutionResult(0, estimatedSize > Integer.MAX_VALUE
                 ? Integer.MAX_VALUE : (int) estimatedSize, null, null);
@@ -870,8 +871,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @Override
-    public void apply(LogSequenceNumber position, LogEntry entry, boolean recovery) throws DataStorageManagerException {
-        if (recovery) {
+    public void apply(CommitLogResult writeResult, LogEntry entry, boolean recovery) throws DataStorageManagerException,
+        LogNotAvailableException {
+        if (recovery && !writeResult.deferred) {
+            LogSequenceNumber position = writeResult.getLogSequenceNumber();
             if (dumpLogSequenceNumber != null && !position.after(dumpLogSequenceNumber)) {
                 // in "restore mode" the 'position" parameter is from the 'old' transaction log
                 Transaction transaction = null;
@@ -907,7 +910,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (transaction == null) {
                         throw new DataStorageManagerException("no such transaction " + entry.transactionId);
                     }
-                    transaction.registerDeleteOnTable(this.table.name, key, position);
+                    transaction.registerDeleteOnTable(this.table.name, key, writeResult);
                 } else {
                     applyDelete(key);
                 }
@@ -921,7 +924,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (transaction == null) {
                         throw new DataStorageManagerException("no such transaction " + entry.transactionId);
                     }
-                    transaction.registerRecordUpdate(this.table.name, key, value, position);
+                    transaction.registerRecordUpdate(this.table.name, key, value, writeResult);
                 } else {
                     applyUpdate(key, value);
                 }
@@ -935,7 +938,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     if (transaction == null) {
                         throw new DataStorageManagerException("no such transaction " + entry.transactionId);
                     }
-                    transaction.registerInsertOnTable(table.name, key, value, position);
+                    transaction.registerInsertOnTable(table.name, key, value, writeResult);
                 } else {
                     applyInsert(key, value, false);
                 }

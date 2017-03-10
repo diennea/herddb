@@ -20,6 +20,8 @@
 package herddb.model;
 
 import herddb.core.HerdDBInternalException;
+import herddb.log.CommitLogResult;
+import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
@@ -29,12 +31,15 @@ import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.commons.collections.map.HashedMap;
 
 /**
@@ -57,15 +62,16 @@ public class Transaction {
     public Set<String> droppedIndexes;
     public LogSequenceNumber lastSequenceNumber;
     public final long localCreationTimestamp;
+    private final List<CommitLogResult> deferredWrites = new ArrayList<>();
 
-    public Transaction(long transactionId, String tableSpace, LogSequenceNumber lastSequenceNumber) {
+    public Transaction(long transactionId, String tableSpace, CommitLogResult lastSequenceNumber) {
         this.transactionId = transactionId;
         this.tableSpace = tableSpace;
         this.locks = new HashMap<>();
         this.changedRecords = new HashMap<>();
         this.newRecords = new HashMap<>();
         this.deletedRecords = new HashMap<>();
-        this.lastSequenceNumber = lastSequenceNumber;
+        this.lastSequenceNumber = lastSequenceNumber.deferred ? null : lastSequenceNumber.getLogSequenceNumber();
         this.localCreationTimestamp = System.currentTimeMillis();
     }
 
@@ -86,26 +92,41 @@ public class Transaction {
         ll.put(handle.key, handle);
     }
 
-    public synchronized void registerNewTable(Table table, LogSequenceNumber sequenceNumber) {
-        if (lastSequenceNumber.after(sequenceNumber)) {
+    public synchronized void registerNewTable(Table table, CommitLogResult writeResult) {
+        if (updateLastSequenceNumber(writeResult)) {
             return;
         }
-        this.lastSequenceNumber = sequenceNumber;
-        if (newTables == null) {
+        if (newTables
+            == null) {
             newTables = new HashMap<>();
         }
+
         newTables.put(table.name, table);
-        if (droppedTables == null) {
+        if (droppedTables
+            == null) {
             droppedTables = new HashSet<>();
         }
+
         droppedTables.remove(table.name);
     }
 
-    public synchronized void registerNewIndex(Index index, LogSequenceNumber sequenceNumber) {
-        if (lastSequenceNumber.after(sequenceNumber)) {
-            return;
+    private boolean updateLastSequenceNumber(CommitLogResult writeResult) throws LogNotAvailableException {
+        if (writeResult.deferred) {
+            return false;
+        }
+        LogSequenceNumber sequenceNumber = writeResult.getLogSequenceNumber();
+        if (lastSequenceNumber != null && lastSequenceNumber.after(sequenceNumber)) {
+            return true;
         }
         this.lastSequenceNumber = sequenceNumber;
+        deferredWrites.add(writeResult);
+        return false;
+    }
+
+    public synchronized void registerNewIndex(Index index, CommitLogResult writeResult) {
+        if (updateLastSequenceNumber(writeResult)) {
+            return;
+        }
         if (newIndexes == null) {
             newIndexes = new HashMap<>();
         }
@@ -116,11 +137,10 @@ public class Transaction {
         droppedIndexes.remove(index.name);
     }
 
-    public synchronized void registerInsertOnTable(String tableName, Bytes key, Bytes value, LogSequenceNumber sequenceNumber) {
-        if (lastSequenceNumber.after(sequenceNumber)) {
+    public synchronized void registerInsertOnTable(String tableName, Bytes key, Bytes value, CommitLogResult writeResult) {
+        if (updateLastSequenceNumber(writeResult)) {
             return;
         }
-        this.lastSequenceNumber = sequenceNumber;
         Map<Bytes, Record> ll = newRecords.get(tableName);
         if (ll == null) {
             ll = new HashMap<>();
@@ -163,11 +183,10 @@ public class Transaction {
      * @param key
      * @param value if null this is a DELETE
      */
-    public synchronized void registerRecordUpdate(String tableName, Bytes key, Bytes value, LogSequenceNumber sequenceNumber) {
-        if (lastSequenceNumber.after(sequenceNumber)) {
+    public synchronized void registerRecordUpdate(String tableName, Bytes key, Bytes value, CommitLogResult writeResult) {
+        if (updateLastSequenceNumber(writeResult)) {
             return;
         }
-        this.lastSequenceNumber = sequenceNumber;
         Map<Bytes, Record> ll = changedRecords.get(tableName);
         if (ll == null) {
             ll = new HashMap<>();
@@ -180,11 +199,12 @@ public class Transaction {
         }
     }
 
-    public synchronized void registerDeleteOnTable(String tableName, Bytes key, LogSequenceNumber sequenceNumber) {
-        if (lastSequenceNumber.after(sequenceNumber)) {
+    public synchronized void registerDeleteOnTable(String tableName, Bytes key, CommitLogResult writeResult) {
+        if (!writeResult.deferred
+            && lastSequenceNumber != null && lastSequenceNumber.after(writeResult.getLogSequenceNumber())) {
             return;
         }
-        registerRecordUpdate(tableName, key, null, sequenceNumber);
+        registerRecordUpdate(tableName, key, null, writeResult);
 
         Set<Bytes> ll = deletedRecords.get(tableName);
         if (ll == null) {
@@ -232,11 +252,10 @@ public class Transaction {
         return "Transaction{" + "transactionId=" + transactionId + ", tableSpace=" + tableSpace + ", locks=" + locks + ", changedRecords=" + changedRecords + ", newRecords=" + newRecords + ", deletedRecords=" + deletedRecords + ", newTables=" + newTables + ", newIndexes=" + newIndexes + '}';
     }
 
-    public synchronized void registerDropTable(String tableName, LogSequenceNumber sequenceNumber) {
-        if (lastSequenceNumber.after(sequenceNumber)) {
+    public synchronized void registerDropTable(String tableName, CommitLogResult writeResult) {
+        if (updateLastSequenceNumber(writeResult)) {
             return;
         }
-        this.lastSequenceNumber = sequenceNumber;
         if (newTables == null) {
             newTables = new HashMap<>();
         }
@@ -247,11 +266,10 @@ public class Transaction {
         droppedTables.add(tableName);
     }
 
-    public synchronized void registerDropIndex(String indexName, LogSequenceNumber sequenceNumber) {
-        if (lastSequenceNumber.after(sequenceNumber)) {
+    public synchronized void registerDropIndex(String indexName, CommitLogResult writeResult) {
+        if (updateLastSequenceNumber(writeResult)) {
             return;
         }
-        this.lastSequenceNumber = sequenceNumber;
         if (newIndexes == null) {
             newIndexes = new HashMap<>();
         }
@@ -283,8 +301,13 @@ public class Transaction {
     public synchronized void serialize(ExtendedDataOutputStream out) throws IOException {
         out.writeInt(0); // flags        
         out.writeLong(transactionId);
-        out.writeLong(lastSequenceNumber.ledgerId);
-        out.writeLong(lastSequenceNumber.offset);
+        if (lastSequenceNumber != null) {
+            out.writeLong(lastSequenceNumber.ledgerId);
+            out.writeLong(lastSequenceNumber.offset);
+        } else {
+            out.writeLong(0);
+            out.writeLong(0);
+        }
         out.writeVInt(changedRecords.size());
         for (Map.Entry<String, Map<Bytes, Record>> table : changedRecords.entrySet()) {
             out.writeUTF(table.getKey());
@@ -360,7 +383,7 @@ public class Transaction {
         long ledgerId = in.readLong();
         long offset = in.readLong();
         LogSequenceNumber lastSequenceNumber = new LogSequenceNumber(ledgerId, offset);
-        Transaction t = new Transaction(id, tableSpace, lastSequenceNumber);
+        Transaction t = new Transaction(id, tableSpace, new CommitLogResult(lastSequenceNumber, false));
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();
@@ -461,6 +484,16 @@ public class Transaction {
             || deletedRecords.containsKey(name)
             || (droppedTables != null && droppedTables.contains(name))
             || (newTables != null && newTables.containsKey(name));
+    }
+
+    public void synch() throws LogNotAvailableException {
+        // wait for all writes to be synch to log
+        for (CommitLogResult result : deferredWrites) {
+            LogSequenceNumber number = result.getLogSequenceNumber();
+            if (lastSequenceNumber == null || number.after(lastSequenceNumber)) {
+                lastSequenceNumber = number;
+            }
+        }
     }
 
 }

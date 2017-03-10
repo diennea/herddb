@@ -16,6 +16,12 @@
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-jdbc</artifactId>
             <version>${project.version}</version>
+        </dependency>   
+        <dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>curator-test</artifactId>
+            <version>3.2.1</version>
+            <scope>test</scope>
         </dependency>       
     </dependencies>
 </project>

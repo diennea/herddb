@@ -29,6 +29,7 @@ import herddb.core.PostCheckpointAction;
 import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
+import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogSequenceNumber;
 import herddb.model.DDLException;
@@ -152,7 +153,7 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void apply(LogSequenceNumber pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
+    public void apply(CommitLogResult pos, LogEntry entry, boolean recovery) throws DataStorageManagerException {
     }
 
     @Override

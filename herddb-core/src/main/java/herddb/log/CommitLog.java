@@ -20,8 +20,7 @@
 package herddb.log;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 
 /**
@@ -40,24 +39,7 @@ public abstract class CommitLog implements AutoCloseable {
      * @return
      * @throws LogNotAvailableException
      */
-    public abstract LogSequenceNumber log(LogEntry entry, boolean synch) throws LogNotAvailableException;
-
-    /**
-     * Log a batch of entries and returns only when the batch has been safely written to the log. In case of
-     * LogNotAvailableException it is not possible to know which entries have been written.
-     *
-     * @param entries
-     * @param synch
-     * @return
-     * @throws LogNotAvailableException
-     */
-    public List<LogSequenceNumber> log(List<LogEntry> entries, boolean synch) throws LogNotAvailableException {
-        List<LogSequenceNumber> res = new ArrayList<>();
-        for (LogEntry entry : entries) {
-            res.add(log(entry, false));
-        }
-        return res;
-    }
+    public abstract CommitLogResult log(LogEntry entry, boolean synch) throws LogNotAvailableException;
 
     public abstract void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException;
 
