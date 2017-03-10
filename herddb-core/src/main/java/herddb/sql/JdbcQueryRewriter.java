@@ -19,7 +19,8 @@
  */
 package herddb.sql;
 
-import herddb.utils.IntHolder;
+import java.util.List;
+import java.util.stream.Collectors;
 import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.AllComparisonExpression;
 import net.sf.jsqlparser.expression.AnalyticExpression;
@@ -93,7 +94,9 @@ import net.sf.jsqlparser.statement.Statements;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.create.index.CreateIndex;
+import net.sf.jsqlparser.statement.create.table.ColumnDefinition;
 import net.sf.jsqlparser.statement.create.table.CreateTable;
+import net.sf.jsqlparser.statement.create.table.Index;
 import net.sf.jsqlparser.statement.create.view.AlterView;
 import net.sf.jsqlparser.statement.create.view.CreateView;
 import net.sf.jsqlparser.statement.delete.Delete;
@@ -258,11 +261,27 @@ class JdbcQueryRewriter implements StatementVisitor,
     @Override
     public void visit(CreateIndex createIndex) {
         visit(createIndex.getTable());
+        Index index = createIndex.getIndex();
+        visit(index);
+
+    }
+
+    private void visit(Index index) {
+        List<String> columnNames = index.getColumnsNames().stream().map(CompatibilityUtils::fixMySqlName).collect(Collectors.toList());
+        index.setColumnsNames(columnNames);
     }
 
     @Override
     public void visit(CreateTable s) {
         visit(s.getTable());
+        for (ColumnDefinition def : s.getColumnDefinitions()) {
+            def.setColumnName(CompatibilityUtils.fixMySqlName(def.getColumnName()));
+        }
+        if (s.getIndexes() != null) {
+            for (Index index : s.getIndexes()) {
+                visit(index);
+            }
+        }
     }
 
     @Override

@@ -27,15 +27,14 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
-import herddb.sql.expressions.ColumnExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.AllNullsDataAccessor;
 import herddb.utils.DataAccessor;
 import herddb.utils.ProjectedDataAccessor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.Alias;
@@ -118,7 +117,8 @@ public class SQLProjection implements Projection {
                     } else {
                         Column column = table.getColumn(c.getColumnName());
                         if (column == null) {
-                            throw new StatementExecutionException("invalid column name " + c.getColumnName() + " in table " + table.name);
+                            throw new StatementExecutionException("invalid column name " + c.getColumnName() + " in table " + table.name + ","
+                                + "only " + Arrays.toString(table.getColumns()));
                         }
                         if (c.getTable() != null && c.getTable().getName() != null && !c.getTable().getName().equals(tableAlias)) {
                             throw new StatementExecutionException("invalid column name " + c.getColumnName() + " invalid table name " + c.getTable().getName() + ", expecting " + tableAlias);

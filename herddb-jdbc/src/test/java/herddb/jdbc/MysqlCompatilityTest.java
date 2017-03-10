@@ -62,10 +62,19 @@ public class MysqlCompatilityTest {
                         + "  `chrome_version` int(50) DEFAULT NULL,\n"
                         + "  `ie_version` int(50) DEFAULT NULL,\n"
                         + "  `log` varchar(2000) DEFAULT NULL,\n"
+                        + "  `offset` int(50) DEFAULT NULL,\n"
                         + "  PRIMARY KEY (`ip`)\n"
                         + ") ENGINE=InnoDB DEFAULT CHARSET=utf8;");
-                    statement.executeQuery("SELECT COUNT(*) FROM sm_machine").close();
-                    statement.executeUpdate("INSERT INTO `sm_machine` VALUES ('10.168.10.106',26,36,9,NULL),('10.168.10.107',26,31,10,NULL),('10.168.10.108',26,36,11,NULL),('10.168.10.109',33,38,10,NULL),('10.168.10.110',33,38,10,NULL);");
+                    
+                    statement.executeUpdate("INSERT INTO `sm_machine` VALUES"
+                        + "('10.168.10.106',26,36,9,NULL,1),"
+                        + "('10.168.10.107',26,31,10,NULL,1),"
+                        + "('10.168.10.108',26,36,11,NULL,2),"
+                        + "('10.168.10.109',33,38,10,NULL,3),"
+                        + "('10.168.10.110',33,38,10,NULL,4);");
+
+                    statement.executeQuery("SELECT ip, `offset` FROM sm_machine WHERE `offset` = 1").close();
+
                     statement.execute("DROP TABLE sm_machine;");
                     try {
                         statement.executeQuery("SELECT COUNT(*) FROM sm_machine").close();
