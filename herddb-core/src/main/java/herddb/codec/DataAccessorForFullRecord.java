@@ -26,6 +26,8 @@ import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -64,22 +66,26 @@ public class DataAccessorForFullRecord implements DataAccessor {
 
     @Override
     public void forEach(BiConsumer<String, Object> consumer) {
+        List<String> nonNullFields = new ArrayList<>(table.columnNames.length - table.primaryKey.length);
         // no need to create a Map
         if (table.primaryKey.length == 1) {
             String pkField = table.primaryKey[0];
             Object value = RecordSerializer.deserialize(record.key.data, table.getColumn(pkField).type);
             consumer.accept(pkField, value);
+            nonNullFields.add(pkField);
         } else {
             try (final SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data); final ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     byte[] value = din.readArray();
                     Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
                     consumer.accept(primaryKeyColumn, theValue);
+                    nonNullFields.add(primaryKeyColumn);
                 }
             } catch (IOException err) {
                 throw new IllegalStateException("bad data:" + err, err);
             }
         }
+
         try {
             SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(record.value.data);
             ExtendedDataInputStream din = new ExtendedDataInputStream(s);
@@ -87,11 +93,12 @@ public class DataAccessorForFullRecord implements DataAccessor {
                 int serialPosition;
                 serialPosition = din.readVIntNoEOFException();
                 if (din.isEof()) {
-                    return;
+                    break;
                 }
                 Column col = table.getColumnBySerialPosition(serialPosition);
                 if (col != null) {
                     Object value = RecordSerializer.deserializeTypeAndValue(din);
+                    nonNullFields.add(col.name);
                     consumer.accept(col.name, value);
                 } else {
                     // we have to deserialize always the value, even the column is no more present
@@ -100,6 +107,11 @@ public class DataAccessorForFullRecord implements DataAccessor {
             }
         } catch (IOException err) {
             throw new IllegalStateException("bad data:" + err, err);
+        }
+        for (String field : table.columnNames) {
+            if (!nonNullFields.contains(field)) {
+                consumer.accept(field, null);
+            }
         }
     }
 

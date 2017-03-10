@@ -57,4 +57,9 @@ public class Column {
         return new Column(name, type, serialPosition);
     }
 
+    @Override
+    public String toString() {
+        return "{" + "name=" + name + ", type=" + type + '}';
+    }
+
 }

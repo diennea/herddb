@@ -34,6 +34,8 @@ import herddb.utils.ByteBufUtils;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import io.netty.buffer.ByteBuf;
+import java.util.Arrays;
+import jdk.nashorn.internal.runtime.regexp.joni.encoding.IntHolder;
 
 /**
  *
@@ -264,12 +266,18 @@ public class MessageUtils {
         } else if (o instanceof DataAccessor) {
             DataAccessor set = (DataAccessor) o;
             encoded.writeByte(OPCODE_MAP_VALUE);
-            String[] fieldNames = set.getFieldNames();
+            final String[] fieldNames = set.getFieldNames();
             ByteBufUtils.writeVInt(encoded, fieldNames.length);
+            IntHolder checkIndex = new IntHolder();
             set.forEach((key, value) -> {
+                checkIndex.value++;
                 writeEncodedSimpleValue(encoded, key);
                 writeEncodedSimpleValue(encoded, value);
             });
+            if (checkIndex.value != fieldNames.length) {
+                throw new RuntimeException("error while serializing "
+                    + o + ": fieldNames.length:" + fieldNames.length + " <> " + checkIndex.value);
+            }
         } else if (o instanceof byte[]) {
             byte[] set = (byte[]) o;
             encoded.writeByte(OPCODE_BYTEARRAY_VALUE);
