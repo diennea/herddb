@@ -66,20 +66,17 @@ public class DataAccessorForFullRecord implements DataAccessor {
 
     @Override
     public void forEach(BiConsumer<String, Object> consumer) {
-        List<String> nonNullFields = new ArrayList<>(table.columnNames.length - table.primaryKey.length);
         // no need to create a Map
         if (table.primaryKey.length == 1) {
             String pkField = table.primaryKey[0];
             Object value = RecordSerializer.deserialize(record.key.data, table.getColumn(pkField).type);
             consumer.accept(pkField, value);
-            nonNullFields.add(pkField);
         } else {
             try (final SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(record.key.data); final ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     byte[] value = din.readArray();
                     Object theValue = RecordSerializer.deserialize(value, table.getColumn(primaryKeyColumn).type);
                     consumer.accept(primaryKeyColumn, theValue);
-                    nonNullFields.add(primaryKeyColumn);
                 }
             } catch (IOException err) {
                 throw new IllegalStateException("bad data:" + err, err);
@@ -98,7 +95,6 @@ public class DataAccessorForFullRecord implements DataAccessor {
                 Column col = table.getColumnBySerialPosition(serialPosition);
                 if (col != null) {
                     Object value = RecordSerializer.deserializeTypeAndValue(din);
-                    nonNullFields.add(col.name);
                     consumer.accept(col.name, value);
                 } else {
                     // we have to deserialize always the value, even the column is no more present
@@ -107,11 +103,6 @@ public class DataAccessorForFullRecord implements DataAccessor {
             }
         } catch (IOException err) {
             throw new IllegalStateException("bad data:" + err, err);
-        }
-        for (String field : table.columnNames) {
-            if (!nonNullFields.contains(field)) {
-                consumer.accept(field, null);
-            }
         }
     }
 

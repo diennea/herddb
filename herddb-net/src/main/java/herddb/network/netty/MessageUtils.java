@@ -67,6 +67,8 @@ public class MessageUtils {
     private static final byte OPCODE_KEYVALUE_VALUE = 20;
     private static final byte OPCODE_BOOLEAN_VALUE = 21;
     private static final byte OPCODE_DOUBLE_VALUE = 22;
+    private static final byte OPCODE_MAP2_VALUE = 23;
+    private static final byte OPCODE_MAP2_VALUE_END = 24;
 
     /**
      * When writing int <b>greater than this</b> value are better written directly as int because in vint encoding will
@@ -265,19 +267,13 @@ public class MessageUtils {
             }
         } else if (o instanceof DataAccessor) {
             DataAccessor set = (DataAccessor) o;
-            encoded.writeByte(OPCODE_MAP_VALUE);
-            final String[] fieldNames = set.getFieldNames();
-            ByteBufUtils.writeVInt(encoded, fieldNames.length);
-            IntHolder checkIndex = new IntHolder();
+            encoded.writeByte(OPCODE_MAP2_VALUE);
+            // number of entries is not known
             set.forEach((key, value) -> {
-                checkIndex.value++;
                 writeEncodedSimpleValue(encoded, key);
                 writeEncodedSimpleValue(encoded, value);
             });
-            if (checkIndex.value != fieldNames.length) {
-                throw new RuntimeException("error while serializing "
-                    + o + ": fieldNames.length:" + fieldNames.length + " <> " + checkIndex.value);
-            }
+            encoded.writeByte(OPCODE_MAP2_VALUE_END);
         } else if (o instanceof byte[]) {
             byte[] set = (byte[]) o;
             encoded.writeByte(OPCODE_BYTEARRAY_VALUE);
@@ -289,6 +285,10 @@ public class MessageUtils {
 
     private static Object readEncodedSimpleValue(ByteBuf encoded) {
         byte _opcode = encoded.readByte();
+        return readEncodedSimpleValue(_opcode, encoded);
+    }
+
+    private static Object readEncodedSimpleValue(byte _opcode, ByteBuf encoded) {
         switch (_opcode) {
             case OPCODE_NULL_VALUE:
                 return null;
@@ -308,13 +308,10 @@ public class MessageUtils {
                 return ByteBufUtils.readVLong(encoded);
             case OPCODE_Z_LONG_VALUE:
                 return ByteBufUtils.readZLong(encoded);
-
             case OPCODE_BOOLEAN_VALUE:
-                return encoded.readByte() == 1 ? true : false;
-
+                return encoded.readByte() == 1;
             case OPCODE_DOUBLE_VALUE:
                 return ByteBufUtils.readDouble(encoded);
-
             case OPCODE_MAP_VALUE: {
                 int len = ByteBufUtils.readVInt(encoded);
                 Map<Object, Object> ret = new HashMap<>();
@@ -324,6 +321,18 @@ public class MessageUtils {
                     ret.put(mapkey, value);
                 }
                 return ret;
+            }
+            case OPCODE_MAP2_VALUE: {
+                Map<Object, Object> ret = new HashMap<>();
+                while (true) {
+                    byte sniff_opcode = encoded.readByte();
+                    if (sniff_opcode == OPCODE_MAP2_VALUE_END) {
+                        return ret;
+                    }
+                    Object mapkey = readEncodedSimpleValue(sniff_opcode, encoded);
+                    Object value = readEncodedSimpleValue(encoded);
+                    ret.put(mapkey, value);
+                }
             }
             case OPCODE_SET_VALUE: {
                 int len = ByteBufUtils.readVInt(encoded);
