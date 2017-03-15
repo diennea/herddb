@@ -176,14 +176,12 @@ public class BookkeeperCommitLog extends CommitLog {
         if (isHasListeners()) {
             synch = true;
         }
-        if (closed) {
-            throw new LogNotAvailableException(new Exception("closed"));
+        CommitFileWriter _writer = writer;
+        if (closed || _writer == null) {
+            throw new LogNotAvailableException(new Exception("this commitlog has been closed"));
         }
         try {
-            if (writer == null) {
-                throw new LogNotAvailableException(new Exception("no ledger opened for writing"));
-            }
-            CompletableFuture<LogSequenceNumber> res = writer.writeEntry(edit);
+            CompletableFuture<LogSequenceNumber> res = _writer.writeEntry(edit);
             res.handleAsync((pos, error) -> {
                 if (error != null) {
                     handleBookKeeperAsyncFailure(error);
