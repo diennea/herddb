@@ -184,7 +184,7 @@ public class BookkeeperCommitLog extends CommitLog {
         CompletableFuture<LogSequenceNumber> res = _writer.writeEntry(edit);
         res.handleAsync((pos, error) -> {
             if (error != null) {
-                handleBookKeeperAsyncFailure(error);
+                handleBookKeeperAsyncFailure(error, edit);
             } else if (pos != null) {
                 if (lastLedgerId == pos.ledgerId) {
                     lastSequenceNumber.accumulateAndGet(pos.offset,
@@ -214,9 +214,9 @@ public class BookkeeperCommitLog extends CommitLog {
         return new CommitLogResult(res, !synch);
     }
 
-    private void handleBookKeeperAsyncFailure(Throwable cause) {
+    private void handleBookKeeperAsyncFailure(Throwable cause, LogEntry edit) {
 
-        LOGGER.log(Level.SEVERE, "bookkeeper async failure on tablespace " + this.tableSpaceUUID, cause);
+        LOGGER.log(Level.SEVERE, "bookkeeper async failure on tablespace " + this.tableSpaceUUID + " while writing entry " + edit, cause);
         if (cause instanceof BKException.BKLedgerClosedException) {
             LOGGER.log(Level.SEVERE, "ledger has been closed, need to open a new ledger", closed);
         } else if (cause instanceof BKException.BKLedgerFencedException) {
