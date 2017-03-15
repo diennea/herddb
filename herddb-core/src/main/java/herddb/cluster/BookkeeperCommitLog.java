@@ -180,33 +180,38 @@ public class BookkeeperCommitLog extends CommitLog {
         if (closed || _writer == null) {
             throw new LogNotAvailableException(new Exception("this commitlog has been closed"));
         }
-        try {
-            CompletableFuture<LogSequenceNumber> res = _writer.writeEntry(edit);
-            res.handleAsync((pos, error) -> {
-                if (error != null) {
-                    handleBookKeeperAsyncFailure(error);
-                } else if (pos != null) {
+
+        CompletableFuture<LogSequenceNumber> res = _writer.writeEntry(edit);
+        res.handleAsync((pos, error) -> {
+            if (error != null) {
+                handleBookKeeperAsyncFailure(error);
+            } else if (pos != null) {
+                if (lastLedgerId == pos.ledgerId) {
                     lastSequenceNumber.accumulateAndGet(pos.offset,
                         EnsureLongIncrementAccumulator.INSTANCE);
                 }
-                return null;
             }
-            );
-            if (synch) {
-                LogSequenceNumber logPos = res.get();
-                lastSequenceNumber.accumulateAndGet(logPos.offset,
-                    EnsureLongIncrementAccumulator.INSTANCE);
-                notifyListeners(logPos, edit);
-            }
-            return new CommitLogResult(res, !synch);
-        } catch (ExecutionException errorOnSynch) {
-            Throwable cause = errorOnSynch.getCause();
-            throw new LogNotAvailableException(cause);
-        } catch (InterruptedException cause) {
-            LOGGER.log(Level.SEVERE, "bookkeeper client interrupted", cause);
-            throw new LogNotAvailableException(cause);
+            return null;
         }
+        );
 
+        if (synch) {
+            try {
+                LogSequenceNumber logPos = res.get();
+                if (lastLedgerId == logPos.ledgerId) {
+                    lastSequenceNumber.accumulateAndGet(logPos.offset,
+                        EnsureLongIncrementAccumulator.INSTANCE);
+                }
+                notifyListeners(logPos, edit);
+            } catch (ExecutionException errorOnSynch) {
+                Throwable cause = errorOnSynch.getCause();
+                throw new LogNotAvailableException(cause);
+            } catch (InterruptedException cause) {
+                LOGGER.log(Level.SEVERE, "bookkeeper client interrupted", cause);
+                throw new LogNotAvailableException(cause);
+            }
+        }
+        return new CommitLogResult(res, !synch);
     }
 
     private void handleBookKeeperAsyncFailure(Throwable cause) {
