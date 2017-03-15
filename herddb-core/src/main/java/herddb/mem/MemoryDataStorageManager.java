@@ -29,9 +29,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
+import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.index.ConcurrentMapKeyToPageIndex;
@@ -49,7 +51,6 @@ import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataOutputStream;
-import java.util.function.BiFunction;
 
 /**
  * In memory StorageManager, for tests
@@ -131,9 +132,17 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeIndexPage(String tableSpace, String tableName, long pageId, byte[] page) throws DataStorageManagerException {
+    public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException {
         Bytes page_wrapper = Bytes.from_array(page);
-        indexpages.put(tableName + "_" + pageId, page_wrapper);
+        indexpages.put(indexName + "_" + pageId, page_wrapper);
+    }
+
+    @Override
+    public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page, int offset, int len) throws DataStorageManagerException {
+        byte[] data = new byte[len];
+        System.arraycopy(page, offset, data, 0, len);
+        Bytes page_wrapper = Bytes.from_array(data);
+        indexpages.put(indexName + "_" + pageId, page_wrapper);
     }
 
     @Override
@@ -270,7 +279,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public KeyToPageIndex createKeyToPageMap(String tablespace, String name) {
+    public KeyToPageIndex createKeyToPageMap(String tablespace, String name, MemoryManager memoryManager) {
         return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
     }
 

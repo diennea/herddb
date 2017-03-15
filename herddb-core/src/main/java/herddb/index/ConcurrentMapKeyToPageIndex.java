@@ -19,17 +19,22 @@
  */
 package herddb.index;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.TableContext;
-import herddb.storage.DataStorageManagerException;
-import herddb.utils.Bytes;
 import java.util.AbstractMap;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
+import herddb.core.PostCheckpointAction;
+import herddb.log.LogSequenceNumber;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
+import herddb.model.TableContext;
+import herddb.storage.DataStorageManagerException;
+import herddb.utils.Bytes;
 
 /**
  * Implementation of KeyToPageIndex which uses any ConcurrentMap
@@ -74,7 +79,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     private void keyRemoved(Bytes key) {
         usedMemory.addAndGet(-key.data.length - ENTRY_OVERHEAD);
     }
-    
+
     @Override
     public boolean containsKey(Bytes key) {
         return map.containsKey(key);
@@ -116,7 +121,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
         }
 
         // Remember that the IndexOperation can return more records
-        // every predicate (WHEREs...) will always be evaluated anyway on every record, in order to guarantee correctness        
+        // every predicate (WHEREs...) will always be evaluated anyway on every record, in order to guarantee correctness
         if (index != null) {
             try {
                 return index.recordSetScanner(operation, context, tableContext, this);
@@ -161,6 +166,23 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     @Override
     public long getUsedMemory() {
         return usedMemory.get();
+    }
+
+    @Override
+    public boolean requireLoadAtStartup() {
+        /* Require a full table scan at startup */
+        return true;
+    }
+
+    @Override
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        /* No checkpoint, isn't persisted */
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void start() throws DataStorageManagerException {
+        /* No work needed, this implementation require a full table scan at startup instead */
     }
 
 }

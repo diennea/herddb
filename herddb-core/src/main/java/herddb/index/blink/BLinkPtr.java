@@ -1,31 +1,31 @@
 package herddb.index.blink;
 
-public class BlinkPtr {
+public class BLinkPtr {
 
     public static final byte LINK  = -1;
     public static final byte PAGE  =  1;
     public static final byte EMPTY  = 0;
 
-    private static final BlinkPtr EMPTY_INSTANCE = new BlinkPtr(Long.MIN_VALUE, EMPTY);
+    private static final BLinkPtr EMPTY_INSTANCE = new BLinkPtr(BLink.NO_PAGE, EMPTY);
 
     long value;
     byte type;
 
-    BlinkPtr(long value, byte type) {
+    BLinkPtr(long value, byte type) {
         super();
         this.value = value;
         this.type = type;
     }
 
-    public static final BlinkPtr link(long value) {
-        return new BlinkPtr(value, LINK);
+    public static final BLinkPtr link(long value) {
+        return  (value == BLink.NO_PAGE) ? EMPTY_INSTANCE : new BLinkPtr(value, LINK);
     }
 
-    public static final BlinkPtr page(long value) {
-        return new BlinkPtr(value, PAGE);
+    public static final BLinkPtr page(long value) {
+        return  (value == BLink.NO_PAGE) ? EMPTY_INSTANCE : new BLinkPtr(value, PAGE);
     }
 
-    public static final BlinkPtr empty() {
+    public static final BLinkPtr empty() {
         return EMPTY_INSTANCE;
     }
 

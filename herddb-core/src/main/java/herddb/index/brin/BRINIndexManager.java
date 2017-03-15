@@ -84,7 +84,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
-        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, memoryManager.getPageReplacementPolicy(), storageLayer);
+        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, memoryManager.getDataPageReplacementPolicy(), storageLayer);
     }
 
     private static final class PageContents {
@@ -164,7 +164,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public void start() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "string index {0}", new Object[]{index.name});
+        LOGGER.log(Level.SEVERE, " start index {0}", new Object[]{index.name});
         bootSequenceNumber = log.getLastSequenceNumber();
         Holder<PageContents> metadataBlock = new Holder<>();
         dataStorageManager.fullIndexScan(tableSpaceUUID, index.name,

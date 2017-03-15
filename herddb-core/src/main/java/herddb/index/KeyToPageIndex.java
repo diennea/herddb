@@ -19,14 +19,16 @@
  */
 package herddb.index;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+import herddb.core.PostCheckpointAction;
+import herddb.log.LogSequenceNumber;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 /**
  * Index which maps every key of a table to the page which contains the key. Keys assigned to new pages are assigned to
@@ -39,7 +41,7 @@ public interface KeyToPageIndex extends AutoCloseable {
     public long size();
 
     public Long put(Bytes key, Long currentPage);
-    
+
     public boolean containsKey(Bytes key);
 
     public Long get(Bytes key);
@@ -54,4 +56,13 @@ public interface KeyToPageIndex extends AutoCloseable {
     public void truncate();
 
     public long getUsedMemory();
+
+    public boolean requireLoadAtStartup();
+
+    /**
+     * Ensures that all data is persisted from disk
+     */
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+
+    void start() throws DataStorageManagerException;
 }

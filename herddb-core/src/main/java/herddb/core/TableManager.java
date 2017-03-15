@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -49,6 +48,7 @@ import java.util.stream.Stream;
 
 import javax.xml.ws.Holder;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
@@ -286,9 +286,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         this.tableSpaceUUID = tableSpaceUUID;
         this.tableContext = buildTableContext();
         this.maxLogicalPageSize = memoryManager.getMaxLogicalPageSize();
-        this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.name);
+        this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.name, memoryManager);
 
-        this.pageReplacementPolicy = memoryManager.getPageReplacementPolicy();
+        this.pageReplacementPolicy = memoryManager.getDataPageReplacementPolicy();
         this.pages = new ConcurrentHashMap<>();
         this.newPages = new ConcurrentHashMap<>();
     }
@@ -361,6 +361,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Set<Long> activePagesAtBoot = new HashSet<>();
         bootSequenceNumber = log.getLastSequenceNumber();
 
+
         dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
             new FullTableScanConsumer() {
 
@@ -384,7 +385,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 if (currentPage < 0) {
                     throw new IllegalStateException();
                 }
-                keyToPage.put(record.key, currentPage);
+                /*
+                 * TODO: rewrite the procedure to avoid full table scan if not needed to populate
+                 * keyToPage, be aware that we need activePagesAtBoot too
+                 */
+                if (keyToPage.requireLoadAtStartup()) {
+                    keyToPage.put(record.key, currentPage);
+                }
                 activePagesAtBoot.add(currentPage);
             }
 
@@ -398,6 +405,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
         });
+
+        keyToPage.start();
+
         dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.name, activePagesAtBoot);
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
 
@@ -516,7 +526,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 pageSet.pageCreated(newId);
 
                 /* From this moment on the page has been published */
- /* The lock is needed to block other threads up to this point */
+                /* The lock is needed to block other threads up to this point */
                 currentDirtyRecordsPage.set(newId);
 
                 /*
@@ -1510,6 +1520,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         long toKeepFlush;
         long dirtyFlush;
         long tablecheckpoint;
+        long keytopagecheckpoint;
         List<PostCheckpointAction> result = new ArrayList<>();
         checkpointLock.writeLock().lock();
         try {
@@ -1601,8 +1612,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
                 Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId, pageSet.getActivePages());
             List<PostCheckpointAction> actions = dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus);
-            tablecheckpoint = System.currentTimeMillis();
             result.addAll(actions);
+            tablecheckpoint = System.currentTimeMillis();
 
             LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, flushed {4} records",
                 new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(), pageSet.getDirtyPagesCount(), flushedRecords});
@@ -1611,6 +1622,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
                     new Object[]{table.name, sequenceNumber, pageSet.toString()});
             }
+
+            /* Checkpoint the key to page too */
+            actions = keyToPage.checkpoint(sequenceNumber);
+            result.addAll(actions);
+            keytopagecheckpoint = System.currentTimeMillis();
 
             /*
              * Can happen when at checkpoint start all pages are set as dirty and immutable (readonly or
@@ -1624,6 +1640,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } finally {
             checkpointLock.writeLock().unlock();
         }
+
         long end = System.currentTimeMillis();
         long delta = end - start;
         if (delta > 5000) {
@@ -1632,13 +1649,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long delta_toKeepFlush = toKeepFlush - getlock;
             long delta_dirtyFlush = dirtyFlush - toKeepFlush;
             long delta_tablecheckpoint = tablecheckpoint - dirtyFlush;
-            long delta_unload = end - tablecheckpoint;
+            long delta_keytopagecheckpoint = keytopagecheckpoint - tablecheckpoint;
+            long delta_unload = end - keytopagecheckpoint;
 
             LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1}", new Object[]{table.name,
                 delta + " ms (" + delta_lock
                 + "+" + delta_toKeepFlush
                 + "+" + delta_dirtyFlush
                 + "+" + delta_tablecheckpoint
+                + "+" + delta_keytopagecheckpoint
                 + "+" + delta_unload + ")"});
         }
         return result;

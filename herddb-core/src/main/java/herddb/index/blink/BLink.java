@@ -1,195 +1,310 @@
 package herddb.index.blink;
 
-import java.util.Arrays;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.Set;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.NoSuchElementException;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
-import herddb.index.bp.mine.Sized;
+import herddb.core.Page;
+import herddb.core.Page.Metadata;
+import herddb.core.PageReplacementPolicy;
+import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
 public class BLink<K extends Comparable<K>> {
 
+    private static final class LeafValueIterator<K extends Comparable<K>> implements Iterator<Entry<K, Long>> {
 
-//    public static void main(String[] args) {
-//        BLink<Sized<Long>> tree = new BLink<>(3,5);
-//
-////        insert(10,tree);
-////        insert(20,tree);
-////        insert(30,tree);
-////        insert(40,tree);
-////        insert(50,tree);
-////        insert(60,tree);
-////
-////
-////        for(long i = 0; i < 100; ++i) {
-////            System.out.println(i);
-////            tree.insert(Sized.valueOf(i),i);
-////        }
-//
-//
-//        insert(5,tree);
-//
-//
-//        long[] values = new long[1000];
-//        for(int i = 0; i < 1000; ++i) {
-//            values[i] = i;
-//        }
-//
-//        Collections.shuffle(Arrays.asList(values));
-//
-//        for( long l : values ) {
-//            tree.insert(Sized.valueOf(l),l);
-//        }
-//
-//        for(long i = 0; i < 1000; ++i) {
-////          System.out.println(i);
-//          long r = tree.search(Sized.valueOf(i));
-//
-//          if (r != i) {
-//              System.out.println(i);
-//              throw new RuntimeException("errore nella ricerca!");
-//          }
-//      }
-////
-////        for(long i = 0; i < 100; ++i) {
-//////            System.out.println(i);
-////            tree.insert(Sized.valueOf(i),i);
-////        }
-////
-////
-////        for(long i = 0; i < 100; ++i) {
-//////            System.out.println(i);
-////            long r = tree.search(Sized.valueOf(i));
-////
-////            if (r != i) {
-////                System.out.println(i);
-////                throw new RuntimeException("errore nella ricerca!");
-////            }
-////        }
-//
-//        System.out.println(tree);
-//
-//
-//
-//    }
+        private final BLink<K> tree;
+        private final K end;
 
-//    public static void main(String[] args) {
-//
-//        ByteArrayOutputStream os = new ByteArrayOutputStream();
-//        PrintStream ps = new PrintStream(new ByteArrayOutputStream());
-//
-//
-//
-//        System.setOut(out);
-//
-//        BLink<Sized<Long>> tree = new BLink<>(3,3);
-//
-//        int threads = 25;
-////        int threads = 1;
-//        long maxID = 1000;
-//        long minID = 1;
-//        ExecutorService ex = Executors.newFixedThreadPool(threads);
-//
-//        CyclicBarrier barrier = new CyclicBarrier(threads);
-//
-//        AtomicLong gen = new AtomicLong(minID);
-//
-//        for (int i = 0; i < threads; ++i) {
-//            ex.submit(() -> {
-//
-//                try {
-//                    barrier.await();
-//                } catch (InterruptedException | BrokenBarrierException e) {
-//                    e.printStackTrace();
-//                }
-//
-//                while(true) {
-//
-//                    long id = gen.getAndIncrement();
-//
-//                    if (id > maxID)
-//                         break;
-//
-//                    tree.insert(Sized.valueOf(id), id);
-//                }
-//            } );
-//        }
-//
-//        ex.shutdown();
-//
-//        try {
-//            ex.awaitTermination(Long.MAX_VALUE,TimeUnit.MILLISECONDS);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//
-//
-//        tree.booh(tree.root, 0);
-//
-//        for(long i = minID; i < maxID; ++i) {
-////          System.out.println(i);
-//          long r = tree.search(Sized.valueOf(i));
-//
-//          if (i % 100 == 0)
-//              System.out.println(i);
-//
-//          if (r != i) {
-//              System.out.println(i);
-//
-//
-//              r = tree.search(Sized.valueOf(i));
-//              if (r != i) {
-//                  System.out.println(i);
-//                  throw new RuntimeException("errore nella ricerca! 2 " + i);
-//              }
-//
-//              throw new RuntimeException("errore nella ricerca! 1 " + i);
-//          }
-//      }
-//
-//      System.out.println(tree);
-//
-//
-//
-//
-//
-//    }
+        private BlinkPtr right;
+        private K highKey;
 
-    private static void insert(long element, BLink<Sized<Long>> tree) {
-        final Sized<Long> sized = Sized.valueOf(element);
-        tree.insert(sized,element);
-        System.out.println("insert " + element + ":" + tree);
+        private Iterator<Entry<K, Long>> current;
+
+        public LeafValueIterator(BLink<K> tree, BLinkLeaf<K> leaf, K start, K end) {
+            super();
+
+            this.tree = tree;
+            this.right = leaf.getRight();
+
+            this.current = leaf.getValues(start, end).iterator();
+            this.highKey = leaf.getHighKey();
+
+            this.end = end;
+        }
+
+
+        @Override
+        public boolean hasNext() {
+
+            while (current != null) {
+
+                /* If remains data in currently checked node use it */
+                if (current.hasNext()) {
+
+                    return true;
+
+                } else {
+
+                    /* Otherwise try to move right */
+                    if (!right.isEmpty()) {
+
+                        /* If current highkey is greater than end we can move right */
+                        if (end == null || highKey.compareTo(end) > 0) {
+
+                            /* Move right */
+                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
+                            current = leaf.getValues(null, end).iterator();
+                            highKey = leaf.getHighKey();
+                            right   = leaf.getRight();
+
+                        } else {
+
+                            /* Oterwise there is no interesting data at right */
+                            current = null;
+                            return false;
+                        }
+
+                    } else {
+
+                        /* Oterwise there is no data at right */
+                        current = null;
+                        return false;
+
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        @Override
+        public Entry<K, Long> next() {
+            while (current != null) {
+
+                /* If remains data in currently checked node use it */
+                if (current.hasNext()) {
+
+                    return current.next();
+
+                } else {
+
+                    /* Otherwise try to move right */
+                    if (!right.isEmpty()) {
+
+                        /* If current highkey is greater than end we can move right */
+                        if (end == null || highKey.compareTo(end) > 0) {
+
+                            /* Move right */
+                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
+                            current = leaf.getValues(null, end).iterator();
+                            highKey = leaf.getHighKey();
+                            right   = leaf.getRight();
+
+                        } else {
+
+                            /* Oterwise there is no interesting data at right */
+                            current = null;
+                            throw new NoSuchElementException();
+                        }
+
+                    } else {
+
+                        /* Oterwise there is no data at right */
+                        current = null;
+                        throw new NoSuchElementException();
+
+                    }
+                }
+            }
+
+            throw new NoSuchElementException();
+        }
+
     }
+
+
+
+
+    private static final Logger LOGGER = Logger.getLogger(BLink.class.getName());
 
     public static final long NO_RESULT = -1;
     public static final long NO_PAGE = -1;
 
+    private final long nodeSize;
+    private final long leafSize;
 
-    public BLink(long nodeSize, long leafSize) {
+    private final BLinkIndexDataStorage<K> storage;
+    private final PageReplacementPolicy policy;
+
+    private final AtomicLong idGenerator = new AtomicLong();
+
+    public final ConcurrentMap<Long,BLinkNode<K>> nodes = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long,Lock> locks = new ConcurrentHashMap<>();
+
+    private final LongAdder size;
+
+    private volatile BlinkPtr root;
+
+    public BLink(BLinkMetadata<K> metadata, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+        this.nodeSize = metadata.nodeSize;
+        this.leafSize = metadata.leafSize;
+
+        this.storage = storage;
+        this.policy  = policy;
+
+        this.size = new LongAdder();
+
+        for( BLinkNodeMetadata<K> nodeMetadata : metadata.nodeMetadatas ) {
+            BLinkNode<K> node;
+            switch(nodeMetadata.type) {
+                case BLinkNodeMetadata.NODE_TYPE:
+                    node = new BLinkInner<>(nodeMetadata, storage, policy);
+                    break;
+                case BLinkNodeMetadata.LEAF_TYPE:
+                    node = new BLinkLeaf<>(nodeMetadata, storage, policy);
+                    size.add(node.keys());
+                    break;
+                default:
+                    LOGGER.log(Level.SEVERE, "ignoring unknown node type {0} during startup", new Object[]{nodeMetadata.type});
+                    continue;
+            }
+
+            publish(node, BlinkPtr.page(node.getPageId()), false);
+        }
+
+        if (!nodes.containsKey(metadata.root)) {
+            throw new IllegalArgumentException("Malformed metadata, unknown root " + metadata.root);
+        }
+
+        this.root = BlinkPtr.page(metadata.root);
+    }
+
+
+
+    public BLink(long nodeSize, long leafSize, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
 
         this.nodeSize = nodeSize;
         this.leafSize = leafSize;
 
-        this.root = NO_PAGE;
+        this.storage = storage;
+        this.policy  = policy;
+
+        this.size = new LongAdder();
+
+        initEmptyRoot();
+
     }
 
-    private final long nodeSize;
-    private final long leafSize;
+    private void initEmptyRoot() {
+        final long id = idGenerator.incrementAndGet();
+        this.root = BlinkPtr.page(id);
+
+        /* Root vuota */
+        final BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, id, leafSize, storage, policy);
+
+        publish(node,root,false);
+
+        final Page.Metadata unload = policy.add(node.getPage());
+        if (unload != null) {
+            unload.owner.unload(unload.pageId);
+        }
+    }
+
+//    public BLink(long nodeSize, long leafSize, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+//
+//        this.nodeSize = nodeSize;
+//        this.leafSize = leafSize;
+//
+//        this.storage = storage;
+//        this.policy  = policy;
+//
+//        this.size = new LongAdder();
+//        this.root = BlinkPtr.empty();
+//    }
 
 
-    volatile long root;
+    public long size() {
+        return size.sum();
+    }
+
+    /**
+     * Executes a complete tree checkpoint.
+     * <p>
+     * Invoking method must ensure that there isn't any concurrent update, read operations could be executed
+     * concurrently with checkpoint.
+     * </p>
+     *
+     * @return tree checkpoint metadata
+     * @throws IOException
+     */
+    public BLinkMetadata<K> checkpoint() throws IOException {
+        final List<BLinkMetadata.BLinkNodeMetadata<K>> metadatas = new LinkedList<>();
+        for( BLinkNode<K> node : nodes.values() ) {
+            BLinkNodeMetadata<K> metadata = node.checkpoint();
+
+            metadatas.add(metadata);
+        }
+
+        return new BLinkMetadata<>(nodeSize, leafSize, root.value, metadatas);
+    }
+
+    /** Non threadsafe */
+    public void close() {
+        root = null;
+
+        /*
+         * Each page has a reference to the node so it will fully removed when both page and node have no
+         * other references. A node without data doesn't require much memory so it's imperative to "unload"
+         * data when removed from page replacement policy.
+         */
+
+        List<BLinkPage> pages = new ArrayList<>(nodes.size());
+        for(BLinkNode<K> node : nodes.values()) {
+            pages.add(node.getPage());
+
+            /* Unload live data (avoid checkpoint) */
+            node.unload(false);
+        }
+
+        /* Remove from the policy */
+        policy.remove(pages);
+
+        nodes.clear();
+        locks.clear();
+    }
+
+    /** Non threadsafe */
+    public void truncate() {
+
+        /* Like close: need to remove live data but can keep stored data untill next checkpoint. */
+        close();
+
+        /* ... but we must accept data again */
+        initEmptyRoot();
+
+    }
 
     public BLinkLeaf<K> scannode(K v) {
 
         /* Get ptr to root node */
-        BlinkPtr current = BlinkPtr.page(root);
+        BlinkPtr current = root;
 
         /* Read node into memory */
         BLinkNode<K> a = get(current);
@@ -226,7 +341,7 @@ public class BLink<K extends Comparable<K>> {
     public long search(K v) {
 
         /* Get ptr to root node */
-        BlinkPtr current = BlinkPtr.page(root);
+        BlinkPtr current = root;
 
         /* Read node into memory */
         BLinkNode<K> a = get(current);
@@ -265,7 +380,77 @@ public class BLink<K extends Comparable<K>> {
         }
     }
 
+    public Stream<Entry<K, Long>> fullScan() {
 
+        /* Get ptr to root node */
+        BlinkPtr current = root;
+
+        /* Read node into memory */
+        BLinkNode<K> a = get(current);
+
+        /* Missing root, no data in current index */
+        if (a == null) {
+            return Stream.empty();
+        }
+
+        /* Scan through tree */
+        while( !a.isLeaf() ) {
+            /* Find correct (maybe link) ptr */
+            current = a.getFirstChild();
+            /* Read node into memory */
+            a = get(current);
+        }
+
+        /* Now we have reached leaves. */
+
+        final BLinkLeaf<K> leaf = (BLinkLeaf<K>) a;
+
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(
+                        new LeafValueIterator<>(this, leaf, null, null),
+                        /* No characteristics */ 0),
+                /* No parallel */ false);
+    }
+
+    public Stream<Entry<K, Long>> scan(K start, K end) {
+
+        /* Get ptr to root node */
+        BlinkPtr current = root;
+
+        /* Read node into memory */
+        BLinkNode<K> a = get(current);
+
+        /* Missing root, no data in current index */
+        if (a == null) {
+            return Stream.empty();
+        }
+
+        /* Scan through tree */
+        while( !a.isLeaf() ) {
+            /* Find correct (maybe link) ptr */
+            current = a.scanNode(start);
+            /* Read node into memory */
+            a = get(current);
+        }
+
+        /* Now we have reached leaves. */
+
+        /* Keep moving right if necessary */
+        BlinkPtr t;
+        while( ((t = a.scanNode(start)).isLink()) ) {
+            current = t;
+            /* Get node */
+            a = get(t);
+        }
+
+        final BLinkLeaf<K> leaf = (BLinkLeaf<K>) a;
+
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(
+                        new LeafValueIterator<>(this, leaf, start, end),
+                        /* No characteristics */ 0),
+                /* No parallel */ false);
+    }
 
     public long insert(K v, long z) {
 
@@ -273,9 +458,7 @@ public class BLink<K extends Comparable<K>> {
         Deque<BlinkPtr> stack = new LinkedList<>();
 
         /* Get ptr to root node */
-        BlinkPtr current = BlinkPtr.page(root);
-
-
+        BlinkPtr current = root;
 
         BLinkNode<K> a = get(current);
 
@@ -286,15 +469,23 @@ public class BLink<K extends Comparable<K>> {
                 /* Root initialization */
 
                 /* Check if already created */
-                if ( root == NO_PAGE ) {
+                if ( root.isEmpty() ) {
 
                     final long root = createNewPage();
+                    final BlinkPtr ptr = BlinkPtr.page(root);
 
-                    BLinkNode<K> node = new BLinkLeaf<>(root, leafSize, v, z);
+                    BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, root, leafSize, v, z, storage, policy);
 
-                    publish(node, BlinkPtr.page(root));
+                    publish(node, ptr, false);
 
-                    this.root = root;
+                    final Page.Metadata unload = policy.add(node.getPage());
+                    if (unload != null) {
+                        unload.owner.unload(unload.pageId);
+                    }
+
+                    this.root = ptr;
+
+                    size.increment();
 
                     return NO_RESULT;
                 }
@@ -302,7 +493,7 @@ public class BLink<K extends Comparable<K>> {
             }
 
             /* Get ptr to root node (now should exist!) */
-            current = BlinkPtr.page(root);
+            current = root;
 
             a = get(current);
         }
@@ -338,16 +529,18 @@ public class BLink<K extends Comparable<K>> {
         /* if v is in A then stop “v already exists in tree”... And t points to its record */
         if (!t.isEmpty()) {
 
-            // LOTHRUIN.... SPORCARE LE PAGINE E VERIFICARE SE L'UPDATE È NECESSARIO!!
-
             long result = t.value;
 
             /* Insert even is unsafe! This is really an update! */
             a.insert(v, z);
 
-//            System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit update " + z );
+//            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit update " + z );
 
             unlock(current);
+
+            if ( result != NO_RESULT ) {
+                size.increment();
+            }
 
             /* stop */
             return result;
@@ -375,7 +568,6 @@ public class BLink<K extends Comparable<K>> {
             BLinkNode<K> aprime = nodes[0];
             BLinkNode<K> bprime = nodes[1];
 
-
             /* For insertion into parent */
             K y = aprime.getHighKey();
 
@@ -396,27 +588,35 @@ public class BLink<K extends Comparable<K>> {
 
                 synchronized (this) {
 
-                    BlinkPtr currentRoot = BlinkPtr.page(root);
+                    BlinkPtr currentRoot = root;
                     if (oldRoot.value == currentRoot.value) {
 
                         /* We are exiting from root! */
                         long r = createNewPage();
 
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION page " + r + " cr " + currentRoot + " or " + oldRoot);
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION page " + r + " cr " + currentRoot + " or " + oldRoot);
 
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION A " + aprime );
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION B " + bprime );
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION A " + aprime );
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION B " + bprime );
 
-                        BLinkNode<K> newRoot = new BLinkInner<>(r, nodeSize, v, aprime.getPage(), bprime.getPage());
+                        BLinkNode<K> newRoot = new BLinkInner<>(BLinkIndexDataStorage.NEW_PAGE, r, nodeSize, v, aprime.getPageId(), bprime.getPageId(), storage, policy);
 
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION root " + newRoot);
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION root " + newRoot);
 
-                        publish(newRoot, BlinkPtr.page(r));
-                        root = r;
+                        final BlinkPtr ptr = BlinkPtr.page(r);
+                        publish(newRoot, ptr, false);
+                        root = ptr;
 
                         /* Success-done backtracking */
                         unlock(oldnode);
                         unlock(bptr);
+
+                        final Metadata unload = policy.add(newRoot.getPage());
+                        if (unload != null) {
+                            unload.owner.unload(unload.pageId);
+                        }
+
+                        size.increment();
 
                         return NO_RESULT;
 
@@ -424,14 +624,14 @@ public class BLink<K extends Comparable<K>> {
 
                         /* La root è cambiaaataaa!!!! */
 
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE cr " + currentRoot + " or " + oldRoot);
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE cr " + currentRoot + " or " + oldRoot);
 
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE A " + aprime );
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE B " + bprime );
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE A " + aprime );
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE B " + bprime );
 
 
                         /* Get ptr to root node */
-                        current = BlinkPtr.page(root);
+                        current = root;
 
                         /* Save it as the new "old root"*/
                         oldRoot = current;
@@ -443,13 +643,9 @@ public class BLink<K extends Comparable<K>> {
                          * il nodo che è diventato il padre della vecchia root per inserire i dati
                          * In linea teorica potrebbe anche interessarci un solo nodo e rifare il giro se
                          * è cambiato di nuovo! */
-
-//                        K searchKey = v;
-                        K searchKey = aprime.getLowKey();
+                        K searchKey = aprime.getHighKey();
 
 
-                        //LOTHRUIN
-                        try {
                         /* Scan down tree */
                         while(!a.isLeaf()) {
                             t = current;
@@ -459,29 +655,24 @@ public class BLink<K extends Comparable<K>> {
                                 /* Remember node at that level */
                                 stack.push(t);
                             }
-//                            System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Searching roots: a " + a + " current " + current + " key " + searchKey);
+//                            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Searching roots: a " + a + " current " + current + " key " + searchKey);
 
-                            if (current.value == aprime.getPage())
+                            if (current.value == aprime.getPageId())
                                 break;
 
                             a = get(current);
                         }
-                        } catch (NullPointerException e) {
-//                            System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Searching roots nullpointer: a " + a + " current " + current + " key " + searchKey);
-                        }
 
-                        /* Ora dovrei avere nuovamente il path nello stack */
+                        /* Now we have the node path again into stack */
 
-//                        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " stack " + stack );
-
-
+//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " stack " + stack );
                     }
                 }
 
             }
 
             /* Backtrack */
-            current = stack.poll();
+            current = stack.pop();
 
             /* Well ordered */
             lock(current);
@@ -511,71 +702,83 @@ public class BLink<K extends Comparable<K>> {
         /* Success-done backtracking */
         unlock(current);
 
-//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit insert " + z );
+//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit insert " + z );
+
+        size.increment();
 
         return NO_RESULT;
 
-//        if (a.isSafe()) {
-//            /* Exact manner depends if current is a leaf */
-//            a = nodeInsert(a,w,v);
-//            put(a,current);
-//
-//            /* Success-done backtracking */
-//            unlock(current);
-//        } else {
-//            /* Must split node */
-//
-//            long u = "allocate 1 new page for B";
-//
-//
-//            /*
-//             * A, B <- rearrange old A, adding v and w, to make 2 nodes,
-//             * where (link ptr of A, link ptr of B) <- (u, link ptr of old A);
-//             */
-//            BLinkNode<K,V> b;
-//
-//            /* For insertion into parent */
-//            K y = "max value stored in new A";
-//
-//            /* Insert B before A */
-//            put(b,u);
-//
-//            /* Instantaneous change of 2 nodes */
-//            put(a,current);
-//
-//            /* Now insert pointer in parent */
-//            BlinkPtr oldnode = current;
-//
-//            v = y;
-//            w = u;
-//
-//            /* Backtrack */
-//            current = stack.pop();
-//
-//            /* Well ordered */
-//            lock(current);
-//
-//            a = get(current);
-//
-//            /* If necessary */
-//            moveRight(a, v, current);
-//
-//            t = moveRight.t;
-//            current = moveRight.current;
-//            a = moveRight.a;
-//
-//            unlock(oldnode);
-//
-//            /* And repeat procedure for parent */
-//            break ins;
-//        }
-
-
     }
 
-    private final AtomicLong idGenerator = new AtomicLong();
-    private final ConcurrentMap<Long,BLinkNode<K>> nodes = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Long,Lock> locks = new ConcurrentHashMap<>();
+    public long delete(K v) {
+
+        /* Get ptr to root node */
+        BlinkPtr current = root;
+
+        BLinkNode<K> a = get(current);
+
+        /* Missing root, no data in current index */
+        if (a == null) {
+
+            synchronized (this) {
+
+                /* Check if created by another thread */
+                if ( root.isEmpty() ) {
+                    return NO_RESULT;
+                }
+
+            }
+
+            /* Get ptr to root node (now should exist!) */
+            current = root;
+
+            a = get(current);
+        }
+
+        /* Scan down tree */
+        BlinkPtr t;
+        while(!a.isLeaf()) {
+            t = current;
+            current = a.scanNode(v);
+            a = get(current);
+        }
+
+        /* We have a candidate leaf */
+        lock(current);
+
+        a = get(current);
+
+        /* If necessary */
+        MoveRightResult<K> moveRight = moveRight(a, v, current);
+        t = moveRight.t;
+        current = moveRight.current;
+        a = moveRight.a;
+
+
+        /* if v is in not A then stop “v dowsn't exist in tree” */
+        if (t.isEmpty()) {
+            unlock(current);
+            return NO_RESULT;
+        }
+
+        /* result <- pointer to page allocated for stored record */
+        long result = t.value;
+
+        /* Just delete on leaf, the tree will be rebalanced by a batch procedure */
+
+        a = a.delete(v);
+        republish(a,current);
+
+        /* Success-done backtracking */
+        unlock(current);
+
+//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit delete " + v );
+
+        size.decrement();
+
+        return result;
+
+    }
 
     private BLinkNode<K> get(BlinkPtr pointer) {
         return nodes.get(pointer.value);
@@ -590,21 +793,13 @@ public class BLink<K extends Comparable<K>> {
         nodes.put(pointer.value,node);
     }
 
-//    private void put(BLinkNode<K> node, BlinkPtr pointer) {
-//        /* Crea il lock se non creato... questo perché attualmente il lock è creato a parte, meglio
-//         * sarebbe crearlo sulla pagina (fouri dai dati "scaricabili") e shararlo tra le versioni */
-//        locks.putIfAbsent(pointer.value, new ReentrantLock());
-////        locks.put(pointer.value, new ReentrantLock());
-//        nodes.put(pointer.value,node);
-//    }
-
-    private void publish(BLinkNode<K> node, BlinkPtr pointer) {
-        publish(node, pointer, false);
-    }
-
     private void publish(BLinkNode<K> node, BlinkPtr pointer, boolean locked) {
         Lock lock = new ReentrantLock();
-        if (locked) lock.lock();
+        if (locked) {
+//            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
+            lock.lock();
+//            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock " + pointer);
+        }
 
         locks.put(pointer.value, lock);
         nodes.put(pointer.value,node);
@@ -617,34 +812,41 @@ public class BLink<K extends Comparable<K>> {
     }
 
     private void lock(BlinkPtr pointer) {
+//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
 
-//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
+//        try {
+//            if (!locks.get(pointer.value).tryLock(3, TimeUnit.SECONDS)) {
+//                System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> Deadlock " + pointer);
+//
+//                Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+//
+//                for( Thread thread : threadSet )
+//                    for (StackTraceElement ste : thread.getStackTrace()) {
+//                        System.out.println("T" + Thread.currentThread().getId() + " TD" + thread.getId() + " -> " + ste);
+//                }
+//
+//                throw new InternalError("Deadlock " + pointer);
+//            }
+//        } catch (InterruptedException e) {
+//            throw new InternalError("interrupt " + pointer);
+//        }
 
-        try {
-            if (!locks.get(pointer.value).tryLock(3, TimeUnit.SECONDS)) {
-//                System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> Deadlock " + pointer);
-
-                Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-
-                for( Thread thread : threadSet )
-                    for (StackTraceElement ste : thread.getStackTrace()) {
-//                        System.out.println(Thread.currentThread().getId() + "[" + thread.getId() + "] -> " + ste);
-                }
-
-                throw new InternalError("Deadlock " + pointer);
-            }
-        } catch (InterruptedException e) {
-            throw new InternalError("interrupt " + pointer);
-        }
-
-
-//        locks.get(pointer.value).lock();
-//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock " + pointer);
+        locks.get(pointer.value).lock();
+//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock " + pointer);
     }
 
     private void unlock(BlinkPtr pointer) {
-//        System.out.println(Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Unlock " + pointer);
+//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Unlock " + pointer);
+
+        try {
         locks.get(pointer.value).unlock();
+        } catch (Exception e) {
+            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> UNLOCK FAIL " + pointer);
+
+            for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+                System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + ste);
+            }
+        }
     }
 
     private MoveRightResult<K> moveRight(BLinkNode<K> a, K key, BlinkPtr current) {
@@ -677,97 +879,67 @@ public class BLink<K extends Comparable<K>> {
 
     @Override
     public String toString() {
-
-        /* Get ptr to root node */
-        BlinkPtr current = BlinkPtr.page(root);
-
-        /* Read node into memory */
-        BLinkNode<K> root = get(current);
-
-        return "BLink [" + root + "]";
+        return "BLink [nodeSize=" + nodeSize + ", leafSize=" + leafSize + ", size=" + size + ", nextNodeId=" + idGenerator + "]";
     }
 
-    public void deepPrint(int maxstack) {
-
-        Set<Long> seen = new HashSet<>();
-        Deque<Object[]> stack = new LinkedList<>();
-        stack.push(new Object[] {0, root});
-
-        int count = 0;
-        while (!stack.isEmpty())  {
-
-            if (++count == maxstack) {
-                System.out.println("Max Stack " + count + " loops?");
-                return;
-            }
-
-            Object[] o = stack.pop();
-
-            int indents = (int) o[0];
-            long page = (long) o[1];
-
-
-
-            BlinkPtr current = BlinkPtr.page(page);
-
-            /* Read node into memory */
-            BLinkNode<K> node = get(current);
-
-            StringBuilder builder = new StringBuilder();
-            for(int i = 0; i < indents; ++i) {
-                builder.append("-");
-            }
-            builder.append(node);
-            System.out.println(builder);
-
-
-            if (!seen.add(page)) {
-                System.out.println("Page " + page + " already seen");
-                return;
-            }
-
-            if (!node.isLeaf()) {
-
-                BLinkInner<K> inner = (BLinkInner<K>) node;
-
-                BLinkInner.Element<K> e = inner.root;
-
-                Deque<Object[]> ministack = new LinkedList<>();
-
-                while(e != null) {
-                    ministack.push(new Object[] {indents + 1, e.page});
-                    e = e.next;
-                }
-
-                /* Reverse to match child ordering! */
-                while(!ministack.isEmpty()) {
-                    stack.push(ministack.pop());
-                }
-            }
-
-        }
-
-    }
-
-    public static final <X> int le(X search, X[] array, int size) {
-        int idx = Arrays.binarySearch(array, 0, size, search);
-
-        if (idx > -1) {
-            /* key found */
-            return idx;
-        } else {
-            return -(idx + 1) - 1 /* less than */;
-        }
-    }
-
-    public static final <X> int lt(X search, X[] array, int size) {
-        int idx = Arrays.binarySearch(array, 0, size, search);
-
-        if (idx > -1) {
-            /* key found */
-            return idx - 1 /* less than */;
-        } else {
-            return -(idx + 1) - 1 /* less than */;
-        }
-    }
+//    public void deepPrint(int maxstack) {
+//
+//        System.out.println(this);
+//
+//        Set<Long> seen = new HashSet<>();
+//        Deque<Object[]> stack = new LinkedList<>();
+//        stack.push(new Object[] {1, root});
+//
+//        int count = 0;
+//        while (!stack.isEmpty())  {
+//
+//            if (++count == maxstack) {
+//                System.out.println("Max Stack " + count + " loops?");
+//                return;
+//            }
+//
+//            Object[] o = stack.pop();
+//
+//            int indents = (int) o[0];
+//
+//            BlinkPtr current = (BlinkPtr) o[1];
+//
+//            /* Read node into memory */
+//            BLinkNode<K> node = get(current);
+//
+//            StringBuilder builder = new StringBuilder();
+//            for(int i = 0; i < indents; ++i) {
+//                builder.append("-");
+//            }
+//            builder.append(node);
+//            System.out.println(builder);
+//
+//
+//            if (!seen.add(node.getPageId())) {
+//                System.out.println("Page " + node.getPageId() + " already seen");
+//                return;
+//            }
+//
+//            if (!node.isLeaf()) {
+//
+//                BLinkInner<K> inner = (BLinkInner<K>) node;
+//
+//                Element<K> e = inner.root;
+//
+//                Deque<Object[]> ministack = new LinkedList<>();
+//
+//                while(e != null) {
+//                    ministack.push(new Object[] {indents + 1, BlinkPtr.page(e.page)});
+//                    e = e.next;
+//                }
+//
+//                /* Reverse to match child ordering! */
+//                while(!ministack.isEmpty()) {
+//                    stack.push(ministack.pop());
+//                }
+//            }
+//
+//        }
+//
+//    }
 }

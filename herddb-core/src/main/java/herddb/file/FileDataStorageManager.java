@@ -41,16 +41,16 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.core.HerdDBInternalException;
+import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
-import herddb.index.ConcurrentMapKeyToPageIndex;
 import herddb.index.KeyToPageIndex;
+import herddb.index.blink.BLinkKeyToPageIndex;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.Record;
@@ -587,6 +587,12 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void writeIndexPage(String tableSpace, String indexName,
         long pageId, byte[] page) throws DataStorageManagerException {
+        writeIndexPage(tableSpace, indexName, pageId, page, 0, page.length);
+    }
+
+    @Override
+    public void writeIndexPage(String tableSpace, String indexName,
+        long pageId, byte[] page, int offset, int len) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long _start = System.currentTimeMillis();
         long _endhash;
@@ -601,7 +607,7 @@ public class FileDataStorageManager extends DataStorageManager {
         try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(10 * 1024 * 1024);) {
             try (ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
                 dataOutput.writeVInt(0); // flags for future implementations
-                dataOutput.writeArray(page);
+                dataOutput.writeArray(page, offset, len);
             }
             byte[] digest = oo.xxhash64();
             _endhash = System.currentTimeMillis();
@@ -863,8 +869,12 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public KeyToPageIndex createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException {
-        return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
+    public KeyToPageIndex createKeyToPageMap(String tablespace, String name, MemoryManager memoryManager) throws DataStorageManagerException {
+
+        return new BLinkKeyToPageIndex(tablespace, name, memoryManager, this);
+
+//        return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
+
 //        try {
 //              return new MapDBKeyToPageIndex(tmpDirectory, tablespace + "." + name);
 //        } catch (IOException err) {

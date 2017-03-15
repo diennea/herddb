@@ -19,12 +19,12 @@
  */
 package herddb.utils;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.DataInputStream;
 import java.io.DataOutput;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * Extended version of DataInputStream
@@ -168,6 +168,16 @@ public class ExtendedDataInputStream extends DataInputStream {
         } else {
             throw new IOException("Invalid vLong detected (negative values disallowed)");
         }
+    }
+
+    public int readZInt() throws IOException {
+        int i = readVInt();
+        return (i >>> 1) ^ -(i & 1);
+    }
+
+    public long readZLong() throws IOException {
+        long l = readVLong();
+        return (l >>> 1) ^ -(l & 1);
     }
 
     private static final byte[] EMPTY_ARRAY = new byte[0];

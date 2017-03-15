@@ -51,7 +51,7 @@ public class ScanHugeTableTest {
     @Test
     public void testBatch() throws Exception {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
-            server.getManager().setMaxPagesUsedMemory(750 * 1024 * 1024);
+            server.getManager().setMaxDataUsedMemory(750 * 1024 * 1024);
             server.start();
             server.waitForStandaloneBoot();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {

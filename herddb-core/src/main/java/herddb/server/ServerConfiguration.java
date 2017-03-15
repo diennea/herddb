@@ -127,10 +127,16 @@ public final class ServerConfiguration {
     public static final long PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT = 50 * 1024 * 1024L;
 
     /**
-     * Maximum amount of memory used for pages
+     * Maximum amount of memory used for data pages
      */
-    public static final String PROPERTY_MAX_PAGES_MEMORY = "server.memstore.page.limit";
-    public static final long PROPERTY_MAX_PAGES_MEMORY_DEFAULT = 0L;
+    public static final String PROPERTY_MAX_DATA_MEMORY = "server.memstore.data.limit";
+    public static final long PROPERTY_MAX_DATA_MEMORY_DEFAULT = 0L;
+
+    /**
+     * Maximum amount of memory used for primary index pages
+     */
+    public static final String PROPERTY_MAX_INDEX_MEMORY = "server.memstore.index.limit";
+    public static final long PROPERTY_MAX_INDEX_MEMORY_DEFAULT = 0L;
 
 
     public static final String PROPERTY_JMX_ENABLE = "server.jmx.enable";

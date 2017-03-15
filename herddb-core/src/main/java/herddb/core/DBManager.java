@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -46,6 +45,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
 import herddb.core.join.DataScannerJoinExecutor;
 import herddb.core.stats.ConnectionsInfoProvider;
@@ -131,7 +131,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     private long maxMemoryReference = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
-    private long maxPagesUsedMemory = ServerConfiguration.PROPERTY_MAX_PAGES_MEMORY_DEFAULT;
+    private long maxDataUsedMemory = ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_DEFAULT;
+    private long maxIndexUsedMemory = ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY_DEFAULT;
 
     private boolean clearAtBoot = false;
     private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT;
@@ -253,12 +254,20 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxLogicalPageSize = maxLogicalPageSize;
     }
 
-    public long getMaxPagesUsedMemory() {
-        return maxPagesUsedMemory;
+    public long getMaxDataUsedMemory() {
+        return maxDataUsedMemory;
     }
 
-    public void setMaxPagesUsedMemory(long maxPagesUsedMemory) {
-        this.maxPagesUsedMemory = maxPagesUsedMemory;
+    public void setMaxDataUsedMemory(long maxDataUsedMemory) {
+        this.maxDataUsedMemory = maxDataUsedMemory;
+    }
+
+    public long getMaxIndexUsedMemory() {
+        return maxIndexUsedMemory;
+    }
+
+    public void setMaxIndexUsedMemory(long maxIndexUsedMemory) {
+        this.maxIndexUsedMemory = maxIndexUsedMemory;
     }
 
     /**
@@ -277,13 +286,30 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             maxMemoryReference = maxHeap;
         }
 
-        /* If max memory for pages isn't configured or is too high default it to 0.5 maxMemoryReference */
-        if (maxPagesUsedMemory == 0 || maxPagesUsedMemory > maxMemoryReference) {
-            maxPagesUsedMemory = (long) (0.5F * maxMemoryReference);
+        /* If max data memory for pages isn't configured or is too high default it to 0.5 maxMemoryReference */
+        if (maxDataUsedMemory == 0 || maxDataUsedMemory > maxMemoryReference) {
+            maxDataUsedMemory = (long) (0.5F * maxMemoryReference);
         }
 
-        memoryManager = new MemoryManager(
-            maxPagesUsedMemory, maxLogicalPageSize);
+        /* If max index memory for pages isn't configured or is too high default it to 0.3 maxMemoryReference */
+        if (maxIndexUsedMemory == 0 || maxIndexUsedMemory > maxMemoryReference) {
+            maxIndexUsedMemory = (long) (0.3F * maxMemoryReference);
+        }
+
+        /* If max used memory is too high lower index and data accordingly */
+        if (maxDataUsedMemory + maxIndexUsedMemory > maxMemoryReference) {
+
+            long data  = (int) ((double) maxDataUsedMemory  /
+                    ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
+            long index = (int) ((double) maxIndexUsedMemory /
+                    ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
+
+            maxDataUsedMemory = data;
+            maxIndexUsedMemory = index;
+        }
+
+
+        memoryManager = new MemoryManager(maxDataUsedMemory, maxIndexUsedMemory, maxLogicalPageSize);
 
         metadataStorageManager.start();
 

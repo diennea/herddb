@@ -33,11 +33,13 @@ import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import herddb.core.Page;
+import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.utils.EnsureIntegerIncrementAccumulator;
 import herddb.utils.SizeAwareObject;
@@ -276,13 +278,18 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             }
 
             if (newblock != null) {
-                pageReplacementPolicy.add(newblock.page);
+                final Metadata unload = pageReplacementPolicy.add(newblock.page);
+                if (unload != null) {
+                    unload.owner.unload(unload.pageId);
+                }
             }
             return true;
         }
 
         boolean delete(K key, V value, Set<BlockStartKey<K>> visitedBlocks) {
             visitedBlocks.add(this.key);
+
+            Block next = null;
             lock.lock();
             try {
                 ensureBlockLoaded();
@@ -296,13 +303,23 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                         size -= evaluateEntrySize(key, value);
                     }
                 }
-                if (next != null && !visitedBlocks.contains(next.key)) {
-                    next.delete(key, value, visitedBlocks);
-                }
-                return false;
+
+                /*
+                 * Copy current next reference before unlock this node.
+                 *
+                 * Invoking delete from next outside locking permit to unlock current node faster for data
+                 * unloads and avoid deadlocks.
+                 */
+                next = this.next;
+
             } finally {
                 lock.unlock();
             }
+
+            if (next != null && !visitedBlocks.contains(next.key)) {
+                next.delete(key, value, visitedBlocks);
+            }
+            return false;
         }
 
         private void ensureBlockLoaded() {
@@ -317,7 +334,11 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
                     loaded = true;
 
-                    pageReplacementPolicy.add(page);
+                    /* Dereferenced page unload */
+                    final Page.Metadata unload = pageReplacementPolicy.add(page);
+                    if (unload != null) {
+                        unload.owner.unload(unload.pageId);
+                    }
 
                 } catch (IOException err) {
                     throw new RuntimeException(err);
@@ -392,7 +413,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 throw new IllegalStateException("Split on a non overflowing block");
             }
 
-            System.out.println("Split: FK " + key);
+            LOG.log(Level.INFO, "Split: FK {0}", new Object[] {key});
             NavigableMap<K, List<V>> keep_values = new TreeMap<>();
             NavigableMap<K, List<V>> other_values = new TreeMap<>();
 
@@ -557,7 +578,10 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
                 /* Set the block as "loaded" only if has been really added */
                 if (added) {
-                    pageReplacementPolicy.add(headBlock.page);
+                    final Metadata unload = pageReplacementPolicy.add(headBlock.page);
+                    if (unload != null) {
+                        unload.owner.unload(unload.pageId);
+                    }
                 }
 
                 return added;

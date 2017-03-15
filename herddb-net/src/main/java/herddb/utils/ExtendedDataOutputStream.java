@@ -19,6 +19,8 @@
  */
 package herddb.utils;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -67,7 +69,15 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
         }
         writeByte((byte) i);
     }
-    
+
+    public final void writeZInt(int i) throws IOException {
+        writeVInt((i >> 31) ^ (i << 1));
+    }
+
+    public final void writeZLong(long l) throws IOException {
+        writeSignedVLong((l >> 63) ^ (l << 1));
+    }
+
     public void writeArray(byte[] data) throws IOException {
         writeVInt(data.length);
         write(data);
@@ -77,5 +87,5 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
         writeVInt(len);
         write(data, offset ,len);
     }
-    
+
 }

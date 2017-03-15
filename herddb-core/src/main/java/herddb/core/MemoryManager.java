@@ -35,51 +35,71 @@ public class MemoryManager {
     private static final Logger LOGGER = Logger.getLogger(MemoryManager.class.getName());
 
     private static final String PAGE_REPLACEMENT_POLICY = SystemProperties.getStringSystemProperty(
-            MemoryManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
+            MemoryManager.class.getName() + ".pageReplacementPolicy", "car").toLowerCase(Locale.US);
 
-    private final long maxPagesUsedMemory;
+    private final long maxDataUsedMemory;
+    private final long maxIndexUsedMemory;
     private final long maxLogicalPageSize;
 
-    private final PageReplacementPolicy pageReplacementPolicy;
+    private final PageReplacementPolicy dataPageReplacementPolicy;
+    private final PageReplacementPolicy indexPageReplacementPolicy;
 
-    public MemoryManager(long maxPagesUsedMemory, long maxLogicalPageSize) {
+    public MemoryManager(long maxDataUsedMemory, long maxIndexUsedMemory,  long maxLogicalPageSize) {
 
-        this.maxPagesUsedMemory = maxPagesUsedMemory;
+        this.maxDataUsedMemory = maxDataUsedMemory;
+        this.maxIndexUsedMemory = maxIndexUsedMemory;
         this.maxLogicalPageSize = maxLogicalPageSize;
 
-        if (maxPagesUsedMemory < maxLogicalPageSize) {
-            throw new IllegalArgumentException("Max memory for pages (" + maxPagesUsedMemory
+        if (maxDataUsedMemory < maxLogicalPageSize) {
+            throw new IllegalArgumentException("Max memory for data pages (" + maxDataUsedMemory
                     + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
         }
 
-        final int pages = (int) (maxPagesUsedMemory / maxLogicalPageSize);
-        LOGGER.log(Level.INFO, "Maximum number of loaded pages {0}", pages);
+        if (maxIndexUsedMemory < maxLogicalPageSize) {
+            throw new IllegalArgumentException("Max memory for index pages (" + maxIndexUsedMemory
+                    + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
+        }
+
+        final int dataPages = (int) (maxDataUsedMemory / maxLogicalPageSize);
+        final int indexPages = (int) (maxIndexUsedMemory / maxLogicalPageSize);
+        LOGGER.log(Level.INFO, "Maximum number of loaded pages {0}", dataPages);
         switch (PAGE_REPLACEMENT_POLICY) {
             case "random":
-                pageReplacementPolicy = new RandomPageReplacementPolicy(pages);
+                dataPageReplacementPolicy = new RandomPageReplacementPolicy(dataPages);
+                indexPageReplacementPolicy = new RandomPageReplacementPolicy(indexPages);
                 break;
 
             case "cp":
-                pageReplacementPolicy = new ClockProPolicy(pages);
+                dataPageReplacementPolicy = new ClockProPolicy(dataPages);
+                indexPageReplacementPolicy = new ClockProPolicy(indexPages);
                 break;
 
             case "car":
             default:
-                pageReplacementPolicy = new ClockAdaptiveReplacement(pages);
+                dataPageReplacementPolicy = new ClockAdaptiveReplacement(dataPages);
+                indexPageReplacementPolicy = new ClockAdaptiveReplacement(indexPages);
         }
 
     }
 
-    public long getMaxPagesUsedMemory() {
-        return maxPagesUsedMemory;
+    public long getMaxDataUsedMemory() {
+        return maxDataUsedMemory;
+    }
+
+    public long getMaxIndexUsedMemory() {
+        return maxIndexUsedMemory;
     }
 
     public long getMaxLogicalPageSize() {
         return maxLogicalPageSize;
     }
 
-    public PageReplacementPolicy getPageReplacementPolicy() {
-        return pageReplacementPolicy;
+    public PageReplacementPolicy getDataPageReplacementPolicy() {
+        return dataPageReplacementPolicy;
+    }
+
+    public PageReplacementPolicy getIndexPageReplacementPolicy() {
+        return indexPageReplacementPolicy;
     }
 
 }

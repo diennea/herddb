@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.index.KeyToPageIndex;
@@ -75,6 +76,8 @@ public abstract class DataStorageManager implements AutoCloseable {
     public abstract void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException;
 
     public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException;
+
+    public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page, int offset, int len) throws DataStorageManagerException;
 
     /**
      * Write current table status. This operations mark the actual set of pages at a given log sequence number and
@@ -155,7 +158,7 @@ public abstract class DataStorageManager implements AutoCloseable {
 
     public abstract void dropTable(String tablespace, String name) throws DataStorageManagerException;
 
-    public abstract KeyToPageIndex createKeyToPageMap(String tablespace, String name) throws DataStorageManagerException;
+    public abstract KeyToPageIndex createKeyToPageMap(String tablespace, String name, MemoryManager memoryManager) throws DataStorageManagerException;
 
     public abstract void releaseKeyToPageMap(String tablespace, String name, KeyToPageIndex index);
 
