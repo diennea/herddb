@@ -292,7 +292,18 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
                 bkmanager.setEnsemble(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT));
                 bkmanager.setWriteQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT));
-                bkmanager.setLedgersRetentionPeriod(configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD, ServerConfiguration.PROPERTY_LOG_RETENTION_PERIOD_DEFAULT));
+                long ledgersRetentionPeriod = configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD, ServerConfiguration.PROPERTY_LOG_RETENTION_PERIOD_DEFAULT);
+                bkmanager.setLedgersRetentionPeriod(ledgersRetentionPeriod);
+                long checkPointperiod = configuration.getLong(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD_DEFAULT);
+
+                if (checkPointperiod > 0 && ledgersRetentionPeriod > 0) {
+                    long limit = ledgersRetentionPeriod / 2;
+                    if (checkPointperiod > limit) {
+                        throw new RuntimeException(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD + "=" + checkPointperiod
+                            + " must be less then " + ServerConfiguration.PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD + "/2=" + limit);
+                    }
+                }
+
                 return bkmanager;
             default:
                 throw new RuntimeException();

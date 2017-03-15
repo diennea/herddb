@@ -203,6 +203,7 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD, 1);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
             .copy()
