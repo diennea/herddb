@@ -25,8 +25,10 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Rule;
@@ -65,7 +67,7 @@ public class MysqlCompatilityTest {
                         + "  `offset` int(50) DEFAULT NULL,\n"
                         + "  PRIMARY KEY (`ip`)\n"
                         + ") ENGINE=InnoDB DEFAULT CHARSET=utf8;");
-                    
+
                     statement.executeUpdate("INSERT INTO `sm_machine` VALUES"
                         + "('10.168.10.106',26,36,9,NULL,1),"
                         + "('10.168.10.107',26,31,10,NULL,1),"
@@ -81,6 +83,20 @@ public class MysqlCompatilityTest {
                         fail();
                     } catch (SQLException err) {
                         assertTrue(err.getMessage().contains(herddb.model.TableDoesNotExistException.class.getName()));
+                    }
+
+                    statement.execute("CREATE TABLE test_odd_names (\n"
+                        + "  value varchar(20) NOT NULL DEFAULT '',\n"
+                        + "  PRIMARY KEY (`value`)\n"
+                        + ")");
+
+                    statement.executeUpdate("INSERT INTO test_odd_names VALUES"
+                        + "('10.168.10.106')");
+
+                    try (ResultSet rs = statement.executeQuery("SELECT value FROM test_odd_names WHERE `value` = '10.168.10.106'")) {
+                        assertTrue(rs.next());
+                        assertEquals("10.168.10.106", rs.getString(1));
+                        assertEquals("10.168.10.106", rs.getString("value"));
                     }
 
                 }
