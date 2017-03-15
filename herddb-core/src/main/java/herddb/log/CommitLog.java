@@ -54,12 +54,25 @@ public abstract class CommitLog implements AutoCloseable {
     @Override
     public abstract void close() throws LogNotAvailableException;
 
+    public abstract boolean isFailed();
+
     public abstract boolean isClosed();
 
     public abstract void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException;
 
-    @SuppressFBWarnings("IS2_INCONSISTENT_SYNC")
     protected CommitLogListener[] listeners = null;
+
+    protected synchronized boolean isHasListeners() {
+        return listeners != null;
+    }
+
+    protected synchronized void notifyListeners(LogSequenceNumber logPos, LogEntry edit) {
+        if (listeners != null) {
+            for (CommitLogListener l : listeners) {
+                l.logEntry(logPos, edit);
+            }
+        }
+    }
 
     public synchronized void attachCommitLogListener(CommitLogListener l) {
         if (listeners == null) {

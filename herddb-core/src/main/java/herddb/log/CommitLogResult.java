@@ -46,13 +46,11 @@ public final class CommitLogResult {
     public LogSequenceNumber getLogSequenceNumber() throws LogNotAvailableException {
         try {
             return logSequenceNumber.get();
-        } catch (ExecutionException | InterruptedException err) {
+        } catch (ExecutionException err) {
+            throw new LogNotAvailableException(err.getCause());
+        } catch (InterruptedException err) {
             throw new LogNotAvailableException(err);
         }
-    }
-
-    public void synch() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
 }

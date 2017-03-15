@@ -20,6 +20,7 @@
 package herddb.cluster;
 
 import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,10 +60,10 @@ public class LedgersInfo {
         this.zkVersion = zkVersion;
     }
 
-    public byte[] serialize() {
+    public synchronized byte[] serialize() {
         try {
             ObjectMapper mapper = new ObjectMapper();
-            ByteArrayOutputStream oo = new ByteArrayOutputStream();
+            VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream();
             mapper.writeValue(oo, this);
             return oo.toByteArray();
         } catch (IOException impossible) {
@@ -87,7 +88,7 @@ public class LedgersInfo {
 
     }
 
-    public void addLedger(long id) {
+    public synchronized void addLedger(long id) {
         activeLedgers.add(id);
         ledgersTimestamps.add(System.currentTimeMillis());
         if (firstLedger < 0) {
@@ -95,7 +96,7 @@ public class LedgersInfo {
         }
     }
 
-    public void removeLedger(long id) throws IllegalArgumentException {
+    public synchronized void removeLedger(long id) throws IllegalArgumentException {
         int index = -1;
         for (int i = 0; i < activeLedgers.size(); i++) {
             if (activeLedgers.get(i) == id) {
@@ -110,7 +111,7 @@ public class LedgersInfo {
         ledgersTimestamps.remove(index);
     }
 
-    public List<Long> getOldLedgers(long timestamp) throws IllegalArgumentException {
+    public synchronized List<Long> getOldLedgers(long timestamp) throws IllegalArgumentException {
         List<Long> res = new ArrayList<>();
         for (int i = 0; i < activeLedgers.size(); i++) {
             long id = activeLedgers.get(i);
@@ -122,8 +123,8 @@ public class LedgersInfo {
         return res;
     }
 
-    public List<Long> getActiveLedgers() {
-        return activeLedgers;
+    public synchronized List<Long> getActiveLedgers() {
+        return new ArrayList<>(activeLedgers);
     }
 
     public void setActiveLedgers(List<Long> activeLedgers) {

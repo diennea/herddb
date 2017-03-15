@@ -256,7 +256,8 @@ public class FileCommitLog extends CommitLog {
 
                     }
                 }
-            } catch (Throwable t) {
+            } catch (LogNotAvailableException | IOException| InterruptedException t) {
+                failed = true;
                 LOGGER.log(Level.SEVERE, "general commit log failure on " + FileCommitLog.this.logDirectory);
             }
         }
@@ -333,7 +334,7 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public CommitLogResult log(LogEntry edit, boolean synch) throws LogNotAvailableException {
-        if (listeners != null) {
+        if (isHasListeners()) {
             synch = true;
         }
         if (LOGGER.isLoggable(Level.FINEST)) {
@@ -343,11 +344,7 @@ public class FileCommitLog extends CommitLog {
         try {
             writeQueue.put(future);
             LogSequenceNumber logPos = future.ack.get();
-            if (listeners != null) {
-                for (CommitLogListener l : listeners) {
-                    l.logEntry(logPos, edit);
-                }
-            }
+            notifyListeners(logPos, edit);
             return new CommitLogResult(logPos, !synch);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
@@ -411,6 +408,7 @@ public class FileCommitLog extends CommitLog {
 
             LOGGER.log(Level.SEVERE, "Max ledgerId is {0}", new Object[]{currentLedgerId});
         } catch (IOException | RuntimeException err) {
+            failed = true;
             throw new LogNotAvailableException(err);
         }
 
@@ -461,6 +459,7 @@ public class FileCommitLog extends CommitLog {
 
             LOGGER.log(Level.SEVERE, "Deleted logfiles: {0}", count);
         } catch (IOException err) {
+            failed = true;
             throw new LogNotAvailableException(err);
         }
     }
@@ -477,6 +476,7 @@ public class FileCommitLog extends CommitLog {
                 Files.createDirectories(logDirectory);
             }
         } catch (IOException err) {
+            failed = true;
             throw new LogNotAvailableException(err);
         }
     }
@@ -484,6 +484,7 @@ public class FileCommitLog extends CommitLog {
     private static final String LOGFILEEXTENSION = ".txlog";
 
     private volatile boolean closed = false;
+    private volatile boolean failed = false;
 
     @Override
     public void close() throws LogNotAvailableException {
@@ -502,6 +503,11 @@ public class FileCommitLog extends CommitLog {
     @Override
     public boolean isClosed() {
         return closed;
+    }
+
+    @Override
+    public boolean isFailed() {
+        return failed;
     }
 
     @Override

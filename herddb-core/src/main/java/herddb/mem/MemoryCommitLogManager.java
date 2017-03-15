@@ -20,7 +20,6 @@
 package herddb.mem;
 
 import herddb.log.CommitLog;
-import herddb.log.CommitLogListener;
 import herddb.log.CommitLogManager;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
@@ -44,17 +43,13 @@ public class MemoryCommitLogManager extends CommitLogManager {
 
             @Override
             public CommitLogResult log(LogEntry entry, boolean synch) throws LogNotAvailableException {
-                if (listeners != null) {
+                if (isHasListeners()) {
                     synch = true;
                 }
                 // NOOP
                 entry.serialize();
                 LogSequenceNumber logPos = new LogSequenceNumber(1, offset.incrementAndGet());
-                if (listeners != null) {
-                    for (CommitLogListener l : listeners) {
-                        l.logEntry(logPos, entry);
-                    }
-                }
+                notifyListeners(logPos, entry);
                 return new CommitLogResult(logPos, !synch);
             }
 
@@ -68,6 +63,11 @@ public class MemoryCommitLogManager extends CommitLogManager {
             @Override
             public void close() throws LogNotAvailableException {
                 closed = true;
+            }
+
+            @Override
+            public boolean isFailed() {
+                return false;
             }
 
             @Override

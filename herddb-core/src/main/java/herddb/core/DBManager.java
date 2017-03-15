@@ -42,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -81,7 +80,6 @@ import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
 import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.TuplePredicate;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -97,7 +95,6 @@ import herddb.sql.SQLPlanner;
 import herddb.sql.SQLStatementEvaluationContext;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.utils.ChangeThreadName;
 import herddb.utils.DataAccessor;
 import herddb.utils.DefaultJVMHalt;
 
@@ -119,6 +116,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final Thread activator;
     private final AtomicBoolean stopped = new AtomicBoolean();
     private final BlockingQueue<ActivatorRunRequest> activatorQueue = new LinkedBlockingDeque<>();
+    private final AtomicBoolean activatorPaused = new AtomicBoolean(false);
     private final SQLPlanner translator;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
@@ -393,14 +391,20 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         String tableSpaceName = tableSpace.name;
 
         TableSpaceManager actual_manager = tablesSpaces.get(tableSpaceName);
+        if (actual_manager != null && actual_manager.isFailed()) {
+            LOGGER.log(Level.INFO, "Tablespace {0} is in 'Failed' status", new Object[]{tableSpaceName, nodeId});
+            return;
+        }
         if (actual_manager != null && actual_manager.isLeader() && !tableSpace.leaderId.equals(nodeId)) {
             LOGGER.log(Level.SEVERE, "Tablespace {0} leader is no more {1}, it changed to {2}", new Object[]{tableSpaceName, nodeId, tableSpace.leaderId});
             stopTableSpace(tableSpaceName, tableSpace.uuid);
+            return;
         }
 
         if (actual_manager != null && !actual_manager.isLeader() && tableSpace.leaderId.equals(nodeId)) {
             LOGGER.log(Level.SEVERE, "Tablespace {0} need to switch to leadership on node {1}", new Object[]{tableSpaceName, nodeId});
             stopTableSpace(tableSpaceName, tableSpace.uuid);
+            return;
         }
 
         if (tableSpace.replicas.contains(nodeId) && !tablesSpaces.containsKey(tableSpaceName)) {
@@ -879,51 +883,63 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         @Override
         public void run() {
             try {
-                while (!stopped.get()) {
-                    ActivatorRunRequest type = activatorQueue.poll(1, TimeUnit.SECONDS);
-                    if (type == null) {
-                        type = ActivatorRunRequest.FULL;
+                try {
+                    while (!stopped.get()) {
+                        if (activatorPaused.get()) {
+                            Thread.sleep(500);
+                            return;
+                        }
+                        ActivatorRunRequest type = activatorQueue.poll(1, TimeUnit.SECONDS);
+                        if (type == null) {
+                            type = ActivatorRunRequest.FULL;
+                        }
+                        activatorQueue.clear();
+                        if (!stopped.get()) {
+                            executeActivator(type);
+                        }
                     }
-                    activatorQueue.clear();
-                    if (!stopped.get()) {
-                        executeActivator(type);
-                    }
+                } catch (InterruptedException ee) {
                 }
-            } catch (InterruptedException ee) {
-            }
 
-            generalLock.writeLock().lock();
-            try {
-                for (Map.Entry<String, TableSpaceManager> manager : tablesSpaces.entrySet()) {
-                    try {
-                        manager.getValue().close();
-                    } catch (Exception err) {
-                        LOGGER.log(Level.SEVERE, "error during shutdown of manager of tablespace " + manager.getKey(), err);
+                generalLock.writeLock().lock();
+                try {
+                    for (Map.Entry<String, TableSpaceManager> manager : tablesSpaces.entrySet()) {
+                        try {
+                            manager.getValue().close();
+                        } catch (Exception err) {
+                            LOGGER.log(Level.SEVERE, "error during shutdown of manager of tablespace " + manager.getKey(), err);
+                        }
                     }
+                } finally {
+                    generalLock.writeLock().unlock();
                 }
-            } finally {
-                generalLock.writeLock().unlock();
-            }
-            try {
-                dataStorageManager.close();
-            } catch (Exception err) {
-                LOGGER.log(Level.SEVERE, "error during shutdown", err);
-            }
-            try {
-                metadataStorageManager.close();
-            } catch (Exception err) {
-                LOGGER.log(Level.SEVERE, "error during shutdown", err);
-            }
+                try {
+                    dataStorageManager.close();
+                } catch (Exception err) {
+                    LOGGER.log(Level.SEVERE, "error during shutdown", err);
+                }
+                try {
+                    metadataStorageManager.close();
+                } catch (Exception err) {
+                    LOGGER.log(Level.SEVERE, "error during shutdown", err);
+                }
 
-            try {
-                commitLogManager.close();
-            } catch (Exception err) {
-                LOGGER.log(Level.SEVERE, "error during shutdown", err);
+                try {
+                    commitLogManager.close();
+                } catch (Exception err) {
+                    LOGGER.log(Level.SEVERE, "error during shutdown", err);
+                }
+                LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
+            } catch (RuntimeException err) {
+                LOGGER.log(Level.SEVERE, "fatal activator erro", err);
             }
-            LOGGER.log(Level.SEVERE, "{0} activator stopped", nodeId);
-
         }
 
+    }
+
+    public void setActivatorPauseStatus(boolean pause) {
+        // useful for tests
+        activatorPaused.set(pause);
     }
 
     private void executeActivator(ActivatorRunRequest type) {

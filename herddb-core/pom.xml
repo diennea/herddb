@@ -53,6 +53,12 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${libs.slf4j}</version>
+        </dependency>  
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-jdk14</artifactId>
+            <version>${libs.slf4j}</version>
+            <scope>test</scope>
         </dependency>     
         <dependency>
             <groupId>net.jpountz.lz4</groupId>

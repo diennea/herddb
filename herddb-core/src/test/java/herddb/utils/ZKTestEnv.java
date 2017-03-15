@@ -39,6 +39,13 @@ public class ZKTestEnv implements AutoCloseable {
     }
 
     public void startBookie() throws Exception {
+        startBookie(true);
+    }
+
+    public void startBookie(boolean format) throws Exception {
+        if (bookie != null) {
+            throw new Exception("bookie already started");
+        }
         ServerConfiguration conf = new ServerConfiguration();
         conf.setBookiePort(5621);
         conf.setUseHostNameAsBookieID(true);
@@ -46,7 +53,7 @@ public class ZKTestEnv implements AutoCloseable {
         Path targetDir = path.resolve("bookie_data");
         conf.setZkServers("localhost:1282");
         conf.setLedgerDirNames(new String[]{targetDir.toAbsolutePath().toString()});
-        conf.setJournalDirName(targetDir.toAbsolutePath().toString());        
+        conf.setJournalDirName(targetDir.toAbsolutePath().toString());
         conf.setFlushInterval(10000);
         conf.setGcWaitTime(5);
         conf.setJournalFlushWhenQueueEmpty(true);
@@ -57,10 +64,20 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setAllowLoopback(true);
         conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms            
 
-        ClientConfiguration adminConf = new ClientConfiguration(conf);
-        BookKeeperAdmin.format(adminConf, false, true);
+        if (format) {
+            ClientConfiguration adminConf = new ClientConfiguration(conf);
+            BookKeeperAdmin.format(adminConf, false, true);
+        }
         this.bookie = new BookieServer(conf);
         this.bookie.start();
+    }
+
+    public void stopBookie() throws Exception {
+        if (bookie != null) {
+            bookie.shutdown();
+            bookie.join();
+            bookie = null;
+        }
     }
 
     public String getAddress() {

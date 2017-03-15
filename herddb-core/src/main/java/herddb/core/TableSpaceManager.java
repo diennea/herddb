@@ -901,8 +901,11 @@ public class TableSpaceManager {
         failed = true;
     }
 
-    boolean isFailed() {
-        return failed;
+    public boolean isFailed() {
+        if (virtual) {
+            return false;
+        }
+        return failed || log.isFailed();
     }
 
     void startAsFollower() throws DataStorageManagerException, DDLException, LogNotAvailableException {
@@ -1474,6 +1477,10 @@ public class TableSpaceManager {
 
     public TableSpaceManagerStats getStats() {
         return stats;
+    }
+
+    public CommitLog getLog() {
+        return log;
     }
 
 }

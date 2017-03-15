@@ -873,7 +873,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public void apply(CommitLogResult writeResult, LogEntry entry, boolean recovery) throws DataStorageManagerException,
         LogNotAvailableException {
-        if (recovery && !writeResult.deferred) {
+        if (recovery) {
+            if (writeResult.deferred) {
+                throw new DataStorageManagerException("impossibile to have a deferred CommitLogResult during recovery");
+            }
             LogSequenceNumber position = writeResult.getLogSequenceNumber();
             if (dumpLogSequenceNumber != null && !position.after(dumpLogSequenceNumber)) {
                 // in "restore mode" the 'position" parameter is from the 'old' transaction log
