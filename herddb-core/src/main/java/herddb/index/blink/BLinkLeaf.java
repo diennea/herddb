@@ -41,7 +41,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
     private long elements;
 
     private final K highKey;
-    private final BlinkPtr right;
+    private final BLinkPtr right;
 
     public BLinkLeaf(BLinkNodeMetadata<K> metadata, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
 
@@ -59,7 +59,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.highKey = metadata.highKey;
 
-        this.right = BlinkPtr.link(metadata.right);
+        this.right = BLinkPtr.link(metadata.right);
 
         this.dirty  = false;
         this.loaded = false;
@@ -87,7 +87,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.highKey = null;
 
-        this.right = BlinkPtr.empty();
+        this.right = BLinkPtr.empty();
 
         /* Dirty by default */
         this.dirty  = true;
@@ -116,14 +116,14 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.highKey = null;
 
-        this.right = BlinkPtr.empty();
+        this.right = BLinkPtr.empty();
 
         /* Dirty by default */
         this.dirty  = true;
         this.loaded = true;
     }
 
-    private BLinkLeaf(long storeId, BLinkPage page, long maxElements, long elements, Element<K> root, K highKey, BlinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    private BLinkLeaf(long storeId, BLinkPage page, long maxElements, long elements, Element<K> root, K highKey, BLinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -163,7 +163,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
     }
 
     @Override
-    public BlinkPtr getRight() {
+    public BLinkPtr getRight() {
         return right;
     }
 
@@ -346,7 +346,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
     }
 
     @Override
-    public BlinkPtr getFirstChild() {
+    public BLinkPtr getFirstChild() {
 
         final Lock lock = loadAndLock();
         try {
@@ -354,10 +354,10 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             Element<K> root = this.root;
 
             if (root == null) {
-                return BlinkPtr.empty();
+                return BLinkPtr.empty();
             }
 
-            return BlinkPtr.page(root.page);
+            return BLinkPtr.page(root.page);
 
         } finally {
             lock.unlock();
@@ -492,7 +492,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
 
     @Override
-    public BlinkPtr scanNode(K key) {
+    public BLinkPtr scanNode(K key) {
 
         /*
          * We could just load and copy root reference, but the node could be unloaded and loaded again
@@ -509,7 +509,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
                 int cmp = key.compareTo(current.key);
 
                 if (cmp == 0) {
-                    return BlinkPtr.page(current.page);
+                    return BLinkPtr.page(current.page);
                 }
 
                 current = current.next;
@@ -523,7 +523,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             return right;
         }
 
-        return BlinkPtr.empty();
+        return BLinkPtr.empty();
 
     }
 
@@ -742,7 +742,7 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
             // make high key of A' equal y;
             // make right-link of A' point to B';
-            BLinkLeaf<K> aprime = new BLinkLeaf<>(storeId, page, maxElements, splitpoint, aroot, broot.key, BlinkPtr.link(newPage), storage, policy);
+            BLinkLeaf<K> aprime = new BLinkLeaf<>(storeId, page, maxElements, splitpoint, aroot, broot.key, BLinkPtr.link(newPage), storage, policy);
 
             /*
              * Replace page loading management owner... If we are to unload during this procedure the thread will

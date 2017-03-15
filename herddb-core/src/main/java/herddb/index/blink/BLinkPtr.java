@@ -45,13 +45,13 @@ public class BLinkPtr {
     public String toString() {
         switch (type) {
             case LINK:
-                return "BlinkPtr [value=" + value + ", type=LINK]";
+                return "BLinkPtr [value=" + value + ", type=LINK]";
             case PAGE:
-                return "BlinkPtr [value=" + value + ", type=PAGE]";
+                return "BLinkPtr [value=" + value + ", type=PAGE]";
             case EMPTY:
-                return "BlinkPtr [value=" + value + ", type=EMPTY]";
+                return "BLinkPtr [value=" + value + ", type=EMPTY]";
             default:
-                return "BlinkPtr [value=" + value + ", type=" + type + "]";
+                return "BLinkPtr [value=" + value + ", type=" + type + "]";
         }
     }
 

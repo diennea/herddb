@@ -32,7 +32,7 @@ public class BLink<K extends Comparable<K>> {
         private final BLink<K> tree;
         private final K end;
 
-        private BlinkPtr right;
+        private BLinkPtr right;
         private K highKey;
 
         private Iterator<Entry<K, Long>> current;
@@ -160,7 +160,7 @@ public class BLink<K extends Comparable<K>> {
 
     private final LongAdder size;
 
-    private volatile BlinkPtr root;
+    private volatile BLinkPtr root;
 
     public BLink(BLinkMetadata<K> metadata, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         this.nodeSize = metadata.nodeSize;
@@ -186,14 +186,14 @@ public class BLink<K extends Comparable<K>> {
                     continue;
             }
 
-            publish(node, BlinkPtr.page(node.getPageId()), false);
+            publish(node, BLinkPtr.page(node.getPageId()), false);
         }
 
         if (!nodes.containsKey(metadata.root)) {
             throw new IllegalArgumentException("Malformed metadata, unknown root " + metadata.root);
         }
 
-        this.root = BlinkPtr.page(metadata.root);
+        this.root = BLinkPtr.page(metadata.root);
     }
 
 
@@ -214,7 +214,7 @@ public class BLink<K extends Comparable<K>> {
 
     private void initEmptyRoot() {
         final long id = idGenerator.incrementAndGet();
-        this.root = BlinkPtr.page(id);
+        this.root = BLinkPtr.page(id);
 
         /* Root vuota */
         final BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, id, leafSize, storage, policy);
@@ -236,7 +236,7 @@ public class BLink<K extends Comparable<K>> {
 //        this.policy  = policy;
 //
 //        this.size = new LongAdder();
-//        this.root = BlinkPtr.empty();
+//        this.root = BLinkPtr.empty();
 //    }
 
 
@@ -304,7 +304,7 @@ public class BLink<K extends Comparable<K>> {
     public BLinkLeaf<K> scannode(K v) {
 
         /* Get ptr to root node */
-        BlinkPtr current = root;
+        BLinkPtr current = root;
 
         /* Read node into memory */
         BLinkNode<K> a = get(current);
@@ -325,7 +325,7 @@ public class BLink<K extends Comparable<K>> {
         /* Now we have reached leaves. */
 
         /* Keep moving right if necessary */
-        BlinkPtr t;
+        BLinkPtr t;
         while( ((t = a.scanNode(v)).isLink()) ) {
             current = t;
             /* Get node */
@@ -341,7 +341,7 @@ public class BLink<K extends Comparable<K>> {
     public long search(K v) {
 
         /* Get ptr to root node */
-        BlinkPtr current = root;
+        BLinkPtr current = root;
 
         /* Read node into memory */
         BLinkNode<K> a = get(current);
@@ -362,7 +362,7 @@ public class BLink<K extends Comparable<K>> {
         /* Now we have reached leaves. */
 
         /* Keep moving right if necessary */
-        BlinkPtr t;
+        BLinkPtr t;
         while( ((t = a.scanNode(v)).isLink()) ) {
             current = t;
             /* Get node */
@@ -383,7 +383,7 @@ public class BLink<K extends Comparable<K>> {
     public Stream<Entry<K, Long>> fullScan() {
 
         /* Get ptr to root node */
-        BlinkPtr current = root;
+        BLinkPtr current = root;
 
         /* Read node into memory */
         BLinkNode<K> a = get(current);
@@ -415,7 +415,7 @@ public class BLink<K extends Comparable<K>> {
     public Stream<Entry<K, Long>> scan(K start, K end) {
 
         /* Get ptr to root node */
-        BlinkPtr current = root;
+        BLinkPtr current = root;
 
         /* Read node into memory */
         BLinkNode<K> a = get(current);
@@ -436,7 +436,7 @@ public class BLink<K extends Comparable<K>> {
         /* Now we have reached leaves. */
 
         /* Keep moving right if necessary */
-        BlinkPtr t;
+        BLinkPtr t;
         while( ((t = a.scanNode(start)).isLink()) ) {
             current = t;
             /* Get node */
@@ -455,10 +455,10 @@ public class BLink<K extends Comparable<K>> {
     public long insert(K v, long z) {
 
         /* For remembering ancestors */
-        Deque<BlinkPtr> stack = new LinkedList<>();
+        Deque<BLinkPtr> stack = new LinkedList<>();
 
         /* Get ptr to root node */
-        BlinkPtr current = root;
+        BLinkPtr current = root;
 
         BLinkNode<K> a = get(current);
 
@@ -472,7 +472,7 @@ public class BLink<K extends Comparable<K>> {
                 if ( root.isEmpty() ) {
 
                     final long root = createNewPage();
-                    final BlinkPtr ptr = BlinkPtr.page(root);
+                    final BLinkPtr ptr = BLinkPtr.page(root);
 
                     BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, root, leafSize, v, z, storage, policy);
 
@@ -498,10 +498,10 @@ public class BLink<K extends Comparable<K>> {
             a = get(current);
         }
 
-        BlinkPtr oldRoot = current;
+        BLinkPtr oldRoot = current;
 
         /* Scan down tree */
-        BlinkPtr t;
+        BLinkPtr t;
         while(!a.isLeaf()) {
             t = current;
             current = a.scanNode(v);
@@ -572,14 +572,14 @@ public class BLink<K extends Comparable<K>> {
             K y = aprime.getHighKey();
 
             /* Insert B before A */
-            BlinkPtr bptr = BlinkPtr.page(u);
+            BLinkPtr bptr = BLinkPtr.page(u);
             publish(bprime,bptr,true);
 
             /* Instantaneous change of 2 nodes */
             republish(aprime,current);
 
             /* Now insert pointer in parent */
-            BlinkPtr oldnode = current;
+            BLinkPtr oldnode = current;
 
             v = y;
             w = u;
@@ -588,7 +588,7 @@ public class BLink<K extends Comparable<K>> {
 
                 synchronized (this) {
 
-                    BlinkPtr currentRoot = root;
+                    BLinkPtr currentRoot = root;
                     if (oldRoot.value == currentRoot.value) {
 
                         /* We are exiting from root! */
@@ -603,7 +603,7 @@ public class BLink<K extends Comparable<K>> {
 
 //                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION root " + newRoot);
 
-                        final BlinkPtr ptr = BlinkPtr.page(r);
+                        final BLinkPtr ptr = BLinkPtr.page(r);
                         publish(newRoot, ptr, false);
                         root = ptr;
 
@@ -713,7 +713,7 @@ public class BLink<K extends Comparable<K>> {
     public long delete(K v) {
 
         /* Get ptr to root node */
-        BlinkPtr current = root;
+        BLinkPtr current = root;
 
         BLinkNode<K> a = get(current);
 
@@ -736,7 +736,7 @@ public class BLink<K extends Comparable<K>> {
         }
 
         /* Scan down tree */
-        BlinkPtr t;
+        BLinkPtr t;
         while(!a.isLeaf()) {
             t = current;
             current = a.scanNode(v);
@@ -780,11 +780,11 @@ public class BLink<K extends Comparable<K>> {
 
     }
 
-    private BLinkNode<K> get(BlinkPtr pointer) {
+    private BLinkNode<K> get(BLinkPtr pointer) {
         return nodes.get(pointer.value);
     }
 
-    private void republish(BLinkNode<K> node, BlinkPtr pointer) {
+    private void republish(BLinkNode<K> node, BLinkPtr pointer) {
         /* Il lock e una enty di nodo devono già esistere! */
         if (!locks.containsKey(pointer.value)){
             throw new InternalError("Lock expected");
@@ -793,7 +793,7 @@ public class BLink<K extends Comparable<K>> {
         nodes.put(pointer.value,node);
     }
 
-    private void publish(BLinkNode<K> node, BlinkPtr pointer, boolean locked) {
+    private void publish(BLinkNode<K> node, BLinkPtr pointer, boolean locked) {
         Lock lock = new ReentrantLock();
         if (locked) {
 //            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
@@ -811,7 +811,7 @@ public class BLink<K extends Comparable<K>> {
         return idGenerator.incrementAndGet();
     }
 
-    private void lock(BlinkPtr pointer) {
+    private void lock(BLinkPtr pointer) {
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
 
 //        try {
@@ -835,7 +835,7 @@ public class BLink<K extends Comparable<K>> {
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock " + pointer);
     }
 
-    private void unlock(BlinkPtr pointer) {
+    private void unlock(BLinkPtr pointer) {
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Unlock " + pointer);
 
         try {
@@ -849,9 +849,9 @@ public class BLink<K extends Comparable<K>> {
         }
     }
 
-    private MoveRightResult<K> moveRight(BLinkNode<K> a, K key, BlinkPtr current) {
+    private MoveRightResult<K> moveRight(BLinkNode<K> a, K key, BLinkPtr current) {
 
-        BlinkPtr t;
+        BLinkPtr t;
         /* Move right if necessary */
         while( ((t = a.scanNode(key)).isLink()) ) {
             /* Note left-to-right locking */
@@ -865,11 +865,11 @@ public class BLink<K extends Comparable<K>> {
     }
 
     private static final class MoveRightResult<K extends Comparable<K>> {
-        final BlinkPtr t;
-        final BlinkPtr current;
+        final BLinkPtr t;
+        final BLinkPtr current;
         final BLinkNode<K> a;
 
-        public MoveRightResult(BlinkPtr t, BlinkPtr current, BLinkNode<K> a) {
+        public MoveRightResult(BLinkPtr t, BLinkPtr current, BLinkNode<K> a) {
             super();
             this.t = t;
             this.current = current;
@@ -902,7 +902,7 @@ public class BLink<K extends Comparable<K>> {
 //
 //            int indents = (int) o[0];
 //
-//            BlinkPtr current = (BlinkPtr) o[1];
+//            BLinkPtr current = (BLinkPtr) o[1];
 //
 //            /* Read node into memory */
 //            BLinkNode<K> node = get(current);
@@ -929,7 +929,7 @@ public class BLink<K extends Comparable<K>> {
 //                Deque<Object[]> ministack = new LinkedList<>();
 //
 //                while(e != null) {
-//                    ministack.push(new Object[] {indents + 1, BlinkPtr.page(e.page)});
+//                    ministack.push(new Object[] {indents + 1, BLinkPtr.page(e.page)});
 //                    e = e.next;
 //                }
 //

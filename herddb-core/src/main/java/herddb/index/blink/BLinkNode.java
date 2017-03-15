@@ -6,7 +6,7 @@ import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
 public interface BLinkNode<K extends Comparable<K>> {
 
-    public BlinkPtr scanNode(K key);
+    public BLinkPtr scanNode(K key);
 
     public boolean isLeaf();
 
@@ -25,8 +25,8 @@ public interface BLinkNode<K extends Comparable<K>> {
     public K getHighKey();
     public K getLowKey();
 
-    public BlinkPtr getFirstChild();
-    public BlinkPtr getRight();
+    public BLinkPtr getFirstChild();
+    public BLinkPtr getRight();
 
     public long keys();
 
