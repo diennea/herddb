@@ -8,7 +8,7 @@ import herddb.core.PageReplacementPolicy;
  *
  * @author diego.salvi
  */
-public class BLinkPage extends Page<BLinkPageOwner> {
+public final class BLinkPage extends Page<BLinkPageOwner> {
 
     public BLinkPage(long page) {
         super(new BLinkPageOwner(), page);

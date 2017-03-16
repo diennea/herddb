@@ -25,7 +25,7 @@ import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
-public class BLink<K extends Comparable<K>> {
+public final class BLink<K extends Comparable<K>> {
 
     private static final class LeafValueIterator<K extends Comparable<K>> implements Iterator<Entry<K, Long>> {
 

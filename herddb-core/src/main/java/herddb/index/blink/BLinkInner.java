@@ -12,7 +12,7 @@ import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
-public class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
+public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
     private static final Logger LOGGER = Logger.getLogger(BLinkInner.class.getName());
 

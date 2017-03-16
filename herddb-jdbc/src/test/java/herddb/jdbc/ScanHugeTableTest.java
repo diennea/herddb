@@ -74,7 +74,8 @@ public class ScanHugeTableTest {
                             if (i % 60000 == 0) {
                                 ps.executeBatch();
                                 con.commit();
-                                System.out.println("written " + i + " records");
+                                long _stop = System.currentTimeMillis();
+                                System.out.println("written " + i + " records_ "+(_stop-_start)+" ms");
                             }
                         }
                         ps.executeBatch();

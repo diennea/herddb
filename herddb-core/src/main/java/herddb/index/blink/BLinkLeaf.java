@@ -17,7 +17,7 @@ import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
-public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
+public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
     private static final Logger LOGGER = Logger.getLogger(BLinkLeaf.class.getName());
 
@@ -506,9 +506,9 @@ public class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             Element<K> current = root;
 
             while(current != null) {
-                int cmp = key.compareTo(current.key);
+                final boolean cmp = key.equals(current.key);
 
-                if (cmp == 0) {
+                if (cmp) {
                     return BLinkPtr.page(current.page);
                 }
 

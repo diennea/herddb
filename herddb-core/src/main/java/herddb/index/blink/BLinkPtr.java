@@ -1,6 +1,6 @@
 package herddb.index.blink;
 
-public class BLinkPtr {
+public final class BLinkPtr {
 
     public static final byte LINK  = -1;
     public static final byte PAGE  =  1;

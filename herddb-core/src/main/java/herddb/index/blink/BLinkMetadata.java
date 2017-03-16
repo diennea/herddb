@@ -26,7 +26,7 @@ import java.util.List;
  *
  * @author diego.salvi
  */
-public class BLinkMetadata<K> {
+public final class BLinkMetadata<K> {
 
 
     final long nodeSize;

@@ -2,7 +2,7 @@ package herddb.index.blink;
 
 import herddb.core.Page;
 
-public class BLinkPageOwner implements Page.Owner {
+public final class BLinkPageOwner implements Page.Owner {
 
     private volatile BLinkNode<?> node;
 
