@@ -33,14 +33,16 @@ public final class BLinkMetadata<K> {
     final long leafSize;
 
     final long root;
+    final long nextNodeId;
 
     final List<BLinkNodeMetadata<K>> nodeMetadatas;
 
-    public BLinkMetadata(long nodeSize, long leafSize, long root, List<BLinkNodeMetadata<K>> nodeMetadatas) {
+    public BLinkMetadata(long nodeSize, long leafSize, long root, long nextNodeId, List<BLinkNodeMetadata<K>> nodeMetadatas) {
         super();
         this.nodeSize = nodeSize;
         this.leafSize = leafSize;
         this.root = root;
+        this.nextNodeId = nextNodeId;
         this.nodeMetadatas = nodeMetadatas;
     }
 

@@ -1,3 +1,22 @@
+/*
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+ */
 package herddb.index.blink;
 
 import java.io.IOException;
@@ -39,6 +58,12 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 
+/**
+ * Implementation of {@link KeyToPageIndex} with a backing {@link BLink} paged and stored to
+ * {@link DataStorageManager}.
+ *
+ * @author diego.salvi
+ */
 public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     private static final Logger LOGGER = Logger.getLogger(BLinkInner.class.getName());
@@ -70,6 +95,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             stream.writeVLong(metadata.nodeSize);
             stream.writeVLong(metadata.leafSize);
             stream.writeVLong(metadata.root);
+            stream.writeVLong(metadata.nextNodeId);
 
             for (BLinkNodeMetadata<Bytes> node : metadata.nodeMetadatas) {
 
@@ -102,6 +128,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             long nodeSize = stream.readVLong();
             long leafSize = stream.readVLong();
             long root = stream.readVLong();
+            long nextNodeId = stream.readVLong();
 
             List<BLinkNodeMetadata<Bytes>> nodes = new LinkedList<>();
 
@@ -124,7 +151,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 nodes.add(node);
             }
 
-            BLinkMetadata<Bytes> metadata = new BLinkMetadata<>(nodeSize, leafSize, root, nodes);
+            BLinkMetadata<Bytes> metadata = new BLinkMetadata<>(nodeSize, leafSize, root, nextNodeId, nodes);
 
             return metadata;
         }
@@ -160,18 +187,21 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 if (tree == null) {
 
                     /* Create a tree using given key for page size estimation */
-                    final long estimation = key.getEstimatedSize() + 32;
+                    final long entryInnerNodeEstimation = key.getEstimatedSize() + BLinkInner.CONSTANT_ENTRY_BYTE_SIZE;
+                    final long entryLeafNodeEstimation  = key.getEstimatedSize() + BLinkLeaf.CONSTANT_ENTRY_BYTE_SIZE;
+
                     final long pageSize = memoryManager.getMaxLogicalPageSize();
-                    final long nodeSize = pageSize / estimation;
+                    final long nodeSize = (pageSize - BLinkInner.CONSTANT_NODE_BYTE_SIZE)  / entryInnerNodeEstimation;
+                    final long leafSize = (pageSize - BLinkLeaf.CONSTANT_NODE_BYTE_SIZE)   / entryLeafNodeEstimation;
 
                     if (nodeSize < 3) {
-                        throw new IllegalArgumentException("Key size too big for current page size! Key " + estimation + " page " + pageSize);
+                        throw new IllegalArgumentException("Key size too big for current page size! Key " + entryInnerNodeEstimation + " page " + pageSize);
                     }
 
-                    long leafSize = nodeSize;
-                    if (leafSize >= 1000) {
-                        leafSize = 1000;
-                    }              
+                    if (leafSize < 3) {
+                        throw new IllegalArgumentException("Key size too big for current page size! Key " + entryLeafNodeEstimation + " page " + pageSize);
+                    }
+
                     tree = new BLink<>(nodeSize, leafSize, indexDataStorage, memoryManager.getIndexPageReplacementPolicy());
 
                     /* Publish */

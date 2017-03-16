@@ -1,3 +1,22 @@
+/*
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+ */
 package herddb.index.blink;
 
 import java.io.IOException;
@@ -25,122 +44,10 @@ import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
+/**
+ * @author diego.salvi
+ */
 public final class BLink<K extends Comparable<K>> {
-
-    private static final class LeafValueIterator<K extends Comparable<K>> implements Iterator<Entry<K, Long>> {
-
-        private final BLink<K> tree;
-        private final K end;
-
-        private BLinkPtr right;
-        private K highKey;
-
-        private Iterator<Entry<K, Long>> current;
-
-        public LeafValueIterator(BLink<K> tree, BLinkLeaf<K> leaf, K start, K end) {
-            super();
-
-            this.tree = tree;
-            this.right = leaf.getRight();
-
-            this.current = leaf.getValues(start, end).iterator();
-            this.highKey = leaf.getHighKey();
-
-            this.end = end;
-        }
-
-
-        @Override
-        public boolean hasNext() {
-
-            while (current != null) {
-
-                /* If remains data in currently checked node use it */
-                if (current.hasNext()) {
-
-                    return true;
-
-                } else {
-
-                    /* Otherwise try to move right */
-                    if (!right.isEmpty()) {
-
-                        /* If current highkey is greater than end we can move right */
-                        if (end == null || highKey.compareTo(end) > 0) {
-
-                            /* Move right */
-                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
-                            current = leaf.getValues(null, end).iterator();
-                            highKey = leaf.getHighKey();
-                            right   = leaf.getRight();
-
-                        } else {
-
-                            /* Oterwise there is no interesting data at right */
-                            current = null;
-                            return false;
-                        }
-
-                    } else {
-
-                        /* Oterwise there is no data at right */
-                        current = null;
-                        return false;
-
-                    }
-                }
-            }
-
-            return false;
-        }
-
-        @Override
-        public Entry<K, Long> next() {
-            while (current != null) {
-
-                /* If remains data in currently checked node use it */
-                if (current.hasNext()) {
-
-                    return current.next();
-
-                } else {
-
-                    /* Otherwise try to move right */
-                    if (!right.isEmpty()) {
-
-                        /* If current highkey is greater than end we can move right */
-                        if (end == null || highKey.compareTo(end) > 0) {
-
-                            /* Move right */
-                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
-                            current = leaf.getValues(null, end).iterator();
-                            highKey = leaf.getHighKey();
-                            right   = leaf.getRight();
-
-                        } else {
-
-                            /* Oterwise there is no interesting data at right */
-                            current = null;
-                            throw new NoSuchElementException();
-                        }
-
-                    } else {
-
-                        /* Oterwise there is no data at right */
-                        current = null;
-                        throw new NoSuchElementException();
-
-                    }
-                }
-            }
-
-            throw new NoSuchElementException();
-        }
-
-    }
-
-
-
 
     private static final Logger LOGGER = Logger.getLogger(BLink.class.getName());
 
@@ -153,7 +60,7 @@ public final class BLink<K extends Comparable<K>> {
     private final BLinkIndexDataStorage<K> storage;
     private final PageReplacementPolicy policy;
 
-    private final AtomicLong idGenerator = new AtomicLong();
+    private final AtomicLong nextNodeId;
 
     public final ConcurrentMap<Long,BLinkNode<K>> nodes = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long,Lock> locks = new ConcurrentHashMap<>();
@@ -168,6 +75,8 @@ public final class BLink<K extends Comparable<K>> {
 
         this.storage = storage;
         this.policy  = policy;
+
+        this.nextNodeId = new AtomicLong(metadata.nextNodeId);
 
         this.size = new LongAdder();
 
@@ -206,6 +115,8 @@ public final class BLink<K extends Comparable<K>> {
         this.storage = storage;
         this.policy  = policy;
 
+        this.nextNodeId = new AtomicLong(1);
+
         this.size = new LongAdder();
 
         initEmptyRoot();
@@ -213,7 +124,7 @@ public final class BLink<K extends Comparable<K>> {
     }
 
     private void initEmptyRoot() {
-        final long id = idGenerator.incrementAndGet();
+        final long id = nextNodeId.getAndIncrement();
         this.root = BLinkPtr.page(id);
 
         /* Root vuota */
@@ -262,7 +173,7 @@ public final class BLink<K extends Comparable<K>> {
             metadatas.add(metadata);
         }
 
-        return new BLinkMetadata<>(nodeSize, leafSize, root.value, metadatas);
+        return new BLinkMetadata<>(nodeSize, leafSize, root.value, nextNodeId.get(), metadatas);
     }
 
     /** Non threadsafe */
@@ -288,6 +199,7 @@ public final class BLink<K extends Comparable<K>> {
 
         nodes.clear();
         locks.clear();
+
     }
 
     /** Non threadsafe */
@@ -301,42 +213,42 @@ public final class BLink<K extends Comparable<K>> {
 
     }
 
-    public BLinkLeaf<K> scannode(K v) {
-
-        /* Get ptr to root node */
-        BLinkPtr current = root;
-
-        /* Read node into memory */
-        BLinkNode<K> a = get(current);
-
-        /* Missing root, no data in current index */
-        if (a == null) {
-            return null;
-        }
-
-        /* Scan through tree */
-        while( !a.isLeaf() ) {
-            /* Find correct (maybe link) ptr */
-            current = a.scanNode(v);
-            /* Read node into memory */
-            a = get(current);
-        }
-
-        /* Now we have reached leaves. */
-
-        /* Keep moving right if necessary */
-        BLinkPtr t;
-        while( ((t = a.scanNode(v)).isLink()) ) {
-            current = t;
-            /* Get node */
-            a = get(t);
-        }
-
-        /* Now we have the leaf node in which u should exist. */
-
-        return (BLinkLeaf<K>) a;
-
-    }
+//    public BLinkLeaf<K> scannode(K v) {
+//
+//        /* Get ptr to root node */
+//        BLinkPtr current = root;
+//
+//        /* Read node into memory */
+//        BLinkNode<K> a = get(current);
+//
+//        /* Missing root, no data in current index */
+//        if (a == null) {
+//            return null;
+//        }
+//
+//        /* Scan through tree */
+//        while( !a.isLeaf() ) {
+//            /* Find correct (maybe link) ptr */
+//            current = a.scanNode(v);
+//            /* Read node into memory */
+//            a = get(current);
+//        }
+//
+//        /* Now we have reached leaves. */
+//
+//        /* Keep moving right if necessary */
+//        BLinkPtr t;
+//        while( ((t = a.scanNode(v)).isLink()) ) {
+//            current = t;
+//            /* Get node */
+//            a = get(t);
+//        }
+//
+//        /* Now we have the leaf node in which u should exist. */
+//
+//        return (BLinkLeaf<K>) a;
+//
+//    }
 
     public long search(K v) {
 
@@ -808,7 +720,7 @@ public final class BLink<K extends Comparable<K>> {
 
 
     private long createNewPage() {
-        return idGenerator.incrementAndGet();
+        return nextNodeId.getAndIncrement();
     }
 
     private void lock(BLinkPtr pointer) {
@@ -843,6 +755,9 @@ public final class BLink<K extends Comparable<K>> {
         } catch (Exception e) {
             System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> UNLOCK FAIL " + pointer);
 
+            System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + e);
+            System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + e.getMessage());
+            e.printStackTrace(System.out);
             for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
                 System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + ste);
             }
@@ -879,7 +794,7 @@ public final class BLink<K extends Comparable<K>> {
 
     @Override
     public String toString() {
-        return "BLink [nodeSize=" + nodeSize + ", leafSize=" + leafSize + ", size=" + size + ", nextNodeId=" + idGenerator + "]";
+        return "BLink [nodeSize=" + nodeSize + ", leafSize=" + leafSize + ", size=" + size + ", nextNodeId=" + nextNodeId + "]";
     }
 
 //    public void deepPrint(int maxstack) {
@@ -942,4 +857,123 @@ public final class BLink<K extends Comparable<K>> {
 //        }
 //
 //    }
+
+    /**
+     * Iterate through leaf values, looking for right leaves if needed.
+     *
+     * @author diego.salvi
+     *
+     * @param <K>
+     */
+    private static final class LeafValueIterator<K extends Comparable<K>> implements Iterator<Entry<K, Long>> {
+
+        private final BLink<K> tree;
+        private final K end;
+
+        private BLinkPtr right;
+        private K highKey;
+
+        private Iterator<Entry<K, Long>> current;
+
+        public LeafValueIterator(BLink<K> tree, BLinkLeaf<K> leaf, K start, K end) {
+            super();
+
+            this.tree = tree;
+            this.right = leaf.getRight();
+
+            this.current = leaf.getValues(start, end).iterator();
+            this.highKey = leaf.getHighKey();
+
+            this.end = end;
+        }
+
+
+        @Override
+        public boolean hasNext() {
+
+            while (current != null) {
+
+                /* If remains data in currently checked node use it */
+                if (current.hasNext()) {
+
+                    return true;
+
+                } else {
+
+                    /* Otherwise try to move right */
+                    if (!right.isEmpty()) {
+
+                        /* If current highkey is greater than end we can move right */
+                        if (end == null || highKey.compareTo(end) > 0) {
+
+                            /* Move right */
+                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
+                            current = leaf.getValues(null, end).iterator();
+                            highKey = leaf.getHighKey();
+                            right   = leaf.getRight();
+
+                        } else {
+
+                            /* Oterwise there is no interesting data at right */
+                            current = null;
+                            return false;
+                        }
+
+                    } else {
+
+                        /* Oterwise there is no data at right */
+                        current = null;
+                        return false;
+
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        @Override
+        public Entry<K, Long> next() {
+            while (current != null) {
+
+                /* If remains data in currently checked node use it */
+                if (current.hasNext()) {
+
+                    return current.next();
+
+                } else {
+
+                    /* Otherwise try to move right */
+                    if (!right.isEmpty()) {
+
+                        /* If current highkey is greater than end we can move right */
+                        if (end == null || highKey.compareTo(end) > 0) {
+
+                            /* Move right */
+                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
+                            current = leaf.getValues(null, end).iterator();
+                            highKey = leaf.getHighKey();
+                            right   = leaf.getRight();
+
+                        } else {
+
+                            /* Oterwise there is no interesting data at right */
+                            current = null;
+                            throw new NoSuchElementException();
+                        }
+
+                    } else {
+
+                        /* Oterwise there is no data at right */
+                        current = null;
+                        throw new NoSuchElementException();
+
+                    }
+                }
+            }
+
+            throw new NoSuchElementException();
+        }
+
+    }
 }

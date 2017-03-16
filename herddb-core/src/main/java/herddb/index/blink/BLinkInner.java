@@ -1,6 +1,28 @@
+/*
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+ */
 package herddb.index.blink;
 
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -12,7 +34,17 @@ import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
-public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
+/**
+ * Inner node (non leaf) of {@link BLink}
+ *
+ * @author diego.salvi
+ */
+final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
+
+    public static final long CONSTANT_NODE_BYTE_SIZE = 432;
+
+    /** Doesn't account key occupancy */
+    public static final long CONSTANT_ENTRY_BYTE_SIZE = 48;
 
     private static final Logger LOGGER = Logger.getLogger(BLinkInner.class.getName());
 
@@ -29,8 +61,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     private volatile boolean loaded;
     private volatile boolean dirty;
 
-//    private Element<K> root;
-    Element<K> root; // per string
+    private final ConcurrentSkipListMap<Comparable<?>,Long> map;
 
     private final long maxElements;
     private final long minElements;
@@ -38,6 +69,54 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
     private final K highKey;
     private final BLinkPtr right;
+
+    @SuppressWarnings("rawtypes")
+    private static final class EverBiggerKey implements Comparable {
+
+        private static final EverBiggerKey INSTANCE = new EverBiggerKey();
+
+        /** Do not create new instances: use Singleton */
+        private EverBiggerKey() {}
+
+        @Override
+        public int compareTo(Object o) {
+            /* Never really used */
+            return Integer.MAX_VALUE;
+        }
+
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final class EverBiggerKeyComparator implements Comparator<Comparable> {
+
+        private static final EverBiggerKeyComparator INSTANCE = new EverBiggerKeyComparator();
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public int compare(Comparable o1, Comparable o2) {
+
+            if (o1 == EverBiggerKey.INSTANCE) {
+
+                /*
+                 * Without this second check the map will continue to append EverBiggerKey element at the end
+                 * (because it can't handle equality I presume).
+                 */
+                if (o2 == EverBiggerKey.INSTANCE) {
+                    return 0;
+                }
+
+                return Integer.MAX_VALUE;
+
+            } else if (o2 == EverBiggerKey.INSTANCE) {
+
+                return Integer.MIN_VALUE;
+
+            } else {
+                return o1.compareTo(o2);
+            }
+        }
+
+    }
 
     public BLinkInner(BLinkNodeMetadata<K> metadata, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
 
@@ -52,6 +131,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.minElements = maxElements / 2;
 
         this.elements = metadata.keys;
+        this.map = createNewMap();
 
         this.highKey = metadata.highKey;
 
@@ -75,8 +155,11 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.minElements = maxElements / 2;
 
         this.elements = 1;
-        this.root = new Element<>(key1, value1);
-        this.root.next = new Element<>(null, value2);
+        this.map = createNewMap();
+        this.map.put(key1, value1);
+
+        /* Add the placeholder for null key */
+        this.map.put(EverBiggerKey.INSTANCE, value2);
 
         this.highKey = null;
 
@@ -87,7 +170,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.loaded = true;
     }
 
-    private BLinkInner(long storeId, BLinkPage page, long maxElements, long elements, Element<K> root, K highKey, BLinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    private BLinkInner(long storeId, BLinkPage page, long maxElements, long elements, ConcurrentSkipListMap<Comparable<?>,Long> map, K highKey, BLinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -101,7 +184,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.minElements = maxElements / 2;
 
         this.elements = elements;
-        this.root = root;
+        this.map = map;
 
         this.highKey = highKey;
 
@@ -133,8 +216,10 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public K getLowKey() {
-        return root.key;
+        /* Inner node MUST have at least one key (so no EverBiggerKey will pop out) */
+        return (K) map.firstKey();
     }
 
     @Override
@@ -185,7 +270,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
                     checkpoint();
                 }
 
-                root = null;
+                map.clear();
                 loaded = false;
 
                 LOGGER.log(Level.FINE, "unloaded inner node {0}", new Object[] {page.pageId});
@@ -235,6 +320,28 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
             return metadata;
         }
 
+        // LOTHRUIN
+        /* TODO: scamuffo per ora, se va andrà cambiato */
+
+        Element<K> root = null;
+        Element<K> current = null;
+
+        for(Map.Entry<Comparable<?>,Long> entry : map.entrySet()) {
+
+            final Comparable<?> k = entry.getKey();
+
+            @SuppressWarnings("unchecked")
+            final K key = (k == EverBiggerKey.INSTANCE) ? null : (K) k;
+
+            if (root == null) {
+                root = new Element<>(key,entry.getValue());
+                current = root;
+            } else {
+                current.next = new Element<>(key,entry.getValue());
+                current = current.next;
+            }
+        }
+
         long storeId = storage.createDataPage(root);
 
         this.storeId = storeId;
@@ -272,9 +379,18 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
                     /* load */
 
-                    Element<K> root = storage.loadPage(storeId);
+                    Element<K> current = storage.loadPage(storeId);
 
-                    this.root = root;
+                    while(current != null) {
+
+                        if (current.key == null) {
+                            /* Add the placeholder for null key */
+                            map.put(EverBiggerKey.INSTANCE,current.page);
+                        } else {
+                            map.put(current.key,current.page);
+                        }
+                        current = current.next;
+                    }
 
                     loaded = true;
 
@@ -313,13 +429,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         final Lock lock = loadAndLock();
         try {
 
-            Element<K> root = this.root;
-
-            if (root == null) {
-                return BLinkPtr.empty();
-            }
-
-            return BLinkPtr.page(root.page);
+            return map.isEmpty() ?  BLinkPtr.empty() : BLinkPtr.page(map.firstEntry().getValue());
 
         } finally {
             lock.unlock();
@@ -336,6 +446,11 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
          * approach locking load for the whole scan method
          */
 
+        if (highKey != null && key.compareTo(highKey) >= 0) {
+            return right;
+        }
+
+        final Map.Entry<Comparable<?>,Long> entry;
         final Lock lock = loadAndLock();
         try {
 
@@ -343,34 +458,14 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
              * This is the sole procedure that can invoked on replaced nodes because isn't retrieved a write lock
              * for the node itself
              */
-            Element<K> current = root;
-            do {
 
-                if (current.key == null) {
-
-                    if (highKey != null && key.compareTo(highKey) >= 0) {
-                        return right;
-                    }
-
-                    return BLinkPtr.page(current.page);
-
-                } else {
-
-                    int cmp = key.compareTo(current.key);
-
-                    if (cmp < 0) {
-                        return BLinkPtr.page(current.page);
-                    }
-
-                }
-
-            } while ((current = current.next) != null);
+            entry = map.higherEntry(key);
 
         } finally {
             lock.unlock();
         }
 
-        return BLinkPtr.empty();
+        return entry == null ? BLinkPtr.empty() : BLinkPtr.page(entry.getValue());
 
     }
 
@@ -420,54 +515,62 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
             throw new IllegalStateException("Invoking insert on a unsafe node");
         }
 
+        toString();
+
         final Lock lock = loadAndLock();
 
         try {
             /* Lock already held for modifications */
 
-            Element<K> current = root;
-            Element<K> previous = null;
-            do {
 
-                if (current.key == null) {
-                    /* Insert after last */
-                    break;
-                }
+            final Map.Entry<Comparable<?>,Long> ceiling = map.ceilingEntry(key);
 
-                final int cmp = current.key.compareTo(key);
-
-                if (cmp < 0) {
-                    previous = current;
-                } else if ( cmp == 0 ) {
-                    throw new InternalError("Update Key NOT expected!");
-
-                } else {
-
-                    /* Got the first element greater than we must insert between this and previous */
-                    break;
-                }
-
-            } while ((current = current.next) != null);
-
-            /* Proceed to insertion */
-            final Element<K> n1 = new Element<>(current.key, pointer, current.next);
-            final Element<K> n2 = new Element<>(key, current.page, n1);
-
-            /* Link to previous chain, the element already point to "current" node! */
-            if (previous != null) {
-                previous.next = n2;
-            } else {
-                /* Linking before root */
-                root = n2;
+            if (ceiling.getKey().equals(key)) {
+                throw new InternalError("Update Key NOT expected!");
             }
+
+            /* Insert data in two phases, it can be done and read concurrently */
+            /**
+             * From
+             * <pre>
+             *     A -> B -> C -> n -> r
+             *    /    /    /    /
+             *   A'   B'   C'   D'
+             * </pre>
+             *
+             * To
+             * <pre>
+             *     A -> X -> B -> C -> n -> r
+             *    /    /    /    /    /
+             *   A'   B'   B'   C'   D'
+             * </pre>
+             */
+            map.put(key, ceiling.getValue());
+
+            /**
+             * From
+             * <pre>
+             *     A -> X -> B -> C -> n -> r
+             *    /    /    /    /    /
+             *   A'   B'   B'   C'   D'
+             * </pre>
+             *
+             * To
+             * <pre>
+             *     A -> X -> B -> C -> n -> r
+             *    /    /    /    /    /
+             *   A'   B'   X'   C'   D'
+             * </pre>
+             */
+            map.put(ceiling.getKey(), pointer);
+
+            ++elements;
+
+            dirty = true;
 
         } finally {
             lock.unlock();
         }
-
-        ++elements;
-
-        dirty = true;
 
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " INSERTED page " + this.page + " modified " + this + " K " + key + " ptr " + pointer );
 
@@ -513,6 +616,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
      * </pre>
      * </p>
      */
+    @SuppressWarnings("unchecked")
     @Override
     public BLinkNode<K>[] split(K key, long pointer, long newPage) {
 
@@ -529,37 +633,28 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
         final long splitpoint = (elements + 1) / 2;
 
-        Element<K> chainroot = null;
-        Element<K> chaincurrent = null;
-        Element<K> current = null;
-
-        Element<K> aroot = null;
         K push = null;
 
         int count = 0;
         boolean insert = true;
+
+        ConcurrentSkipListMap<Comparable<?>,Long> amap = null;
+        ConcurrentSkipListMap<Comparable<?>,Long> bmap = null;
+
+        ConcurrentSkipListMap<Comparable<?>,Long> currentmap = createNewMap();
 
         /* Retrieve lock to avoid concurrent page unloads */
         final Lock lock = loadAndLock();
 
         try {
 
-            /*
-             * TODO: scanning the whole sequence isn't really needed just scan till split point has been reached
-             * AND the new element has been inserted then append the remaining sequence
-             */
-            current = root;
-
-            Element<K> next;
-            do {
+            for( Map.Entry<Comparable<?>,Long> entry : map.entrySet() ) {
 
                 /* If still needs to insert */
                 if (insert) {
 
                     /* First of all check if it needs to interleave the new key/value */
-
-                    /* Force insertion if is the last element */
-                    final int cmp = current.key == null ? /* Insert after last */ 1 : current.key.compareTo(key);
+                    final int cmp = EverBiggerKeyComparator.INSTANCE.compare(entry.getKey(), key);
 
                     if (cmp > 0) {
 
@@ -570,70 +665,48 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
                             /* Save the key as the "push" key */
                             push = key;
 
-                            /* Attach the last element to current root */
-                            next = new Element<>(null, current.page);
-
+                            /* Attach the last element to current map */
                             /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
-                            chaincurrent.next = next;
+                            currentmap.put(EverBiggerKey.INSTANCE, entry.getValue());
 
-                            /* Save old chain root as the new a root */
-                            aroot = chainroot;
+                            /* Save old current map as the new a map */
+                            amap = currentmap;
 
-                            /* Reset the chain root */
-                            chainroot = null;
+                            /* Reset the current map */
+                            currentmap = createNewMap();
 
                         } else {
 
-                            /* Otherwise just append the element to the current chain  */
-                            next = new Element<>(key, current.page);
-
-                            if (chainroot == null) {
-                                chainroot = next;
-                            } else {
-                                chaincurrent.next = next;
-                            }
-
-                            chaincurrent = next;
+                            /* Otherwise just append the element to the current map  */
+                            currentmap.put(key, entry.getValue());
                         }
 
                         if (count++ == splitpoint) {
 
                             /* Save the key as the "push" key */
-                            push = current.key;
+                            /* Inner node MUST have at least one key (so no EverBiggerKey will pop out) */
+                            push = (K) entry.getKey();
 
-                            /* Attach the last element to current root */
-                            next = new Element<>(null, pointer);
-
+                            /* Attach the last element to current map */
                             /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
-                            chaincurrent.next = next;
+                            currentmap.put(EverBiggerKey.INSTANCE, pointer);
 
-                            /* Save old chain root as the new a root */
-                            aroot = chainroot;
+                            /* Save old current map as the new a map */
+                            amap = currentmap;
 
-                            /* Reset the chain root */
-                            chainroot = null;
+                            /* Reset the current map */
+                            currentmap = createNewMap();
 
                         } else {
 
-                            /* Otherwise just append the element to the current chain  */
-                            next = new Element<>(current.key, pointer);
-
-                            if (chainroot == null) {
-                                chainroot = next;
-                            } else {
-                                chaincurrent.next = next;
-                            }
-
-                            chaincurrent = next;
+                            /* Otherwise just append the element to the current map  */
+                            currentmap.put(entry.getKey(), pointer);
                         }
 
                         /* Signal that the element has been inserted */
                         insert = false;
 
-                        /* Need to advance because we have handled current element too */
-                        if ((current = current.next) == null) {
-                            break;
-                        }
+                        continue;
 
                     }
 
@@ -642,53 +715,41 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
                 if (count++ == splitpoint) {
 
                     /* Save the key as the "push" key */
-                    push = current.key;
+                    push = (K) entry.getKey();
 
-                    /* Attach the last element to current root */
-                    next = new Element<>(null, current.page);
-
+                    /* Attach the last element to current map */
                     /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
-                    chaincurrent.next = next;
+                    currentmap.put(EverBiggerKey.INSTANCE, entry.getValue());
 
-                    /* Save old chain root as the new a root */
-                    aroot = chainroot;
+                    /* Save old current map as the new a map */
+                    amap = currentmap;
 
-                    /* Reset the chain root */
-                    chainroot = null;
+                    /* Reset the current map */
+                    currentmap = createNewMap();
 
                 } else {
 
-                    /* Otherwise just append the element to the current chain  */
-                    next = new Element<>(current.key, current.page);
-
-                    if (chainroot == null) {
-                        chainroot = next;
-                    } else {
-                        chaincurrent.next = next;
-                    }
-
-                    chaincurrent = next;
+                    /* Otherwise just append the element to the current map  */
+                    currentmap.put(entry.getKey(), entry.getValue());
                 }
-
-            } while((current = current.next) != null);
-
+            }
 
             if (insert) {
                 throw new InternalError(
                         "We should have inserted the node");
             }
 
-            if (aroot == null) {
+            if (amap == null) {
                 throw new InternalError(
                         "We should have split the node");
             }
 
-            /* Sets the root of chain b, chain a has already been set */
-            Element<K> broot = chainroot;
+            /* Sets the bprime map, aprime map has already been set */
+            bmap = currentmap;
 
     //      make high key of A' equal y;
             //      make right-link of A' point to B';
-            BLinkInner<K> aprime = new BLinkInner<>(storeId, page, maxElements, splitpoint, aroot, push, BLinkPtr.link(newPage), storage, policy);
+            BLinkInner<K> aprime = new BLinkInner<>(storeId, page, maxElements, splitpoint, amap, push, BLinkPtr.link(newPage), storage, policy);
 
             /*
              * Replace page loading management owner... If we are to unload during this procedure the thread will
@@ -700,7 +761,7 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
             BLinkPage bpage = new BLinkPage(newPage);
             //      make high key of B' equal old high key of A';
             //      make right-link of B' equal old right-link of A';
-            BLinkInner<K> bprime = new BLinkInner<>(BLinkIndexDataStorage.NEW_PAGE, bpage,   maxElements, elements - splitpoint, broot, highKey, right, storage, policy);
+            BLinkInner<K> bprime = new BLinkInner<>(BLinkIndexDataStorage.NEW_PAGE, bpage,   maxElements, elements - splitpoint, bmap, highKey, right, storage, policy);
 
             /* Set page owner after construction */
             bpage.owner.setOwner(bprime);
@@ -711,7 +772,6 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
             unload = policy.add(bpage);
 
-            @SuppressWarnings("unchecked")
             final BLinkNode<K>[] result = new BLinkNode[] { aprime, bprime };
 
             return result;
@@ -736,39 +796,17 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         try {
             /* Lock already held for modifications */
 
-            Element<K> current = root;
-            Element<K> previous = null;
-            do {
+            Long old = map.remove(key);
 
-                final int cmp = current.key.compareTo(key);
+            if (old == null) {
+                throw new InternalError("An element to delete was expected!");
+            }
 
-                if (cmp < 0) {
-                    previous = current;
-                } else if ( cmp == 0 ) {
+            --elements;
 
-                    /* Delete! */
+            dirty = true;
 
-                    if (previous == null) {
-                        /* Delete root */
-                        root = current.next;
-                    } else {
-                        /* Shortcut */
-                        previous.next = current.next;
-                    }
-
-                    --elements;
-
-                    dirty = true;
-
-                    return this;
-
-                } else {
-                    break;
-                }
-
-            } while ((current = current.next) != null);
-
-            throw new InternalError("An element to delete was expected!");
+            return this;
 
         } finally {
             lock.unlock();
@@ -776,6 +814,9 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
     }
 
+    private static final ConcurrentSkipListMap<Comparable<?>,Long> createNewMap() {
+        return new ConcurrentSkipListMap<>(EverBiggerKeyComparator.INSTANCE);
+    }
     @Override
     public String toString() {
 
@@ -790,26 +831,21 @@ public final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
             .append(", right: ").append(right)
             .append(", data: ");
 
-        Element<K> current = root;
-
-        while(current != null) {
-
-            if (current.key == null) {
+        for(Map.Entry<Comparable<?>,Long> entry : map.entrySet()) {
+            if (entry.getKey() == EverBiggerKey.INSTANCE) {
                 builder.setLength(builder.length() - 2);
 
                 builder
                     .append(" -> ")
-                    .append(current.page);
+                    .append(entry.getValue());
 
             } else {
                 builder
-                    .append(current.page)
+                    .append(entry.getValue())
                     .append(" <- ")
-                    .append(current.key)
+                    .append(entry.getKey())
                     .append(", ");
             }
-
-            current = current.next;
         }
 
         builder.append("]");

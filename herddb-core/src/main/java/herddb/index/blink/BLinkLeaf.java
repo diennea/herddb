@@ -1,11 +1,51 @@
+/*
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+ */
+/*
+ Licensed to Diennea S.r.l. under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Diennea S.r.l. licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License.  You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+ */
 package herddb.index.blink;
 
 import java.io.IOException;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -17,7 +57,17 @@ import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 
-public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
+/**
+ * Leaf of {@link BLink}
+ *
+ * @author diego.salvi
+ */
+final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
+
+    public static final long CONSTANT_NODE_BYTE_SIZE = 432;
+
+    /** Doesn't account key occupancy */
+    public static final long CONSTANT_ENTRY_BYTE_SIZE = 48;
 
     private static final Logger LOGGER = Logger.getLogger(BLinkLeaf.class.getName());
 
@@ -34,7 +84,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
     private volatile boolean loaded;
     private volatile boolean dirty;
 
-    private Element<K> root;
+    private final ConcurrentSkipListMap<K,Long> map;
 
     private final long maxElements;
     private final long minElements;
@@ -56,6 +106,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         this.minElements = maxElements / 2;
 
         this.elements = metadata.keys;
+        this.map = new ConcurrentSkipListMap<>();
 
         this.highKey = metadata.highKey;
 
@@ -63,6 +114,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.dirty  = false;
         this.loaded = false;
+
     }
 
     public BLinkLeaf(long storeId, long page, long maxElements, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
@@ -83,7 +135,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         }
 
         this.elements = 0;
-        this.root = null;
+        this.map = new ConcurrentSkipListMap<>();
 
         this.highKey = null;
 
@@ -112,7 +164,8 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         }
 
         this.elements = 1;
-        this.root = new Element<>(key, value);
+        this.map = new ConcurrentSkipListMap<>();
+        this.map.put(key, value);
 
         this.highKey = null;
 
@@ -123,7 +176,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         this.loaded = true;
     }
 
-    private BLinkLeaf(long storeId, BLinkPage page, long maxElements, long elements, Element<K> root, K highKey, BLinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    private BLinkLeaf(long storeId, BLinkPage page, long maxElements, long elements, ConcurrentSkipListMap<K,Long> map, K highKey, BLinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -141,7 +194,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         }
 
         this.elements = elements;
-        this.root = root;
+        this.map = map;
 
         this.highKey = highKey;
 
@@ -174,7 +227,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
     @Override
     public K getLowKey() {
-        return root.key;
+        return map.firstKey();
     }
 
 
@@ -226,7 +279,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
                     checkpoint();
                 }
 
-                root = null;
+                map.clear();
                 loaded = false;
 
                 LOGGER.log(Level.FINE, "unloaded leaf node {0}", new Object[] {page.pageId});
@@ -273,6 +326,22 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             return metadata;
         }
 
+        // LOTHRUIN
+        /* TODO: scamuffo per ora, se va andrà cambiato */
+
+        Element<K> root = null;
+        Element<K> current = null;
+
+        for(Map.Entry<K,Long> entry : map.entrySet()) {
+            if (root == null) {
+                root = new Element<>(entry.getKey(),entry.getValue());
+                current = root;
+            } else {
+                current.next = new Element<>(entry.getKey(),entry.getValue());
+                current = current.next;
+            }
+        }
+
         long storeId = storage.createDataPage(root);
 
         this.storeId = storeId;
@@ -310,10 +379,12 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
                     /* load */
 
-                    Element<K> root = storage.loadPage(storeId);
+                    Element<K> current = storage.loadPage(storeId);
 
-                    this.root = root;
-
+                    while(current != null) {
+                        map.put(current.key,current.page);
+                        current = current.next;
+                    }
                     loaded = true;
 
                     final Metadata unload = policy.add(page);
@@ -351,13 +422,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         final Lock lock = loadAndLock();
         try {
 
-            Element<K> root = this.root;
-
-            if (root == null) {
-                return BLinkPtr.empty();
-            }
-
-            return BLinkPtr.page(root.page);
+            return map.isEmpty() ?  BLinkPtr.empty() : BLinkPtr.page(map.firstEntry().getValue());
 
         } finally {
             lock.unlock();
@@ -370,126 +435,32 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         final Lock lock = loadAndLock();
         try {
 
-            Element<K> root = this.root;
-
-            if (root == null) {
+            if (map.isEmpty()) {
                 return Collections.emptyList();
             }
 
+            ConcurrentNavigableMap<K,Long> submap;
             if (start == null) {
                 if (end == null) {
-                    return getAllValues(root);
+                    submap = map;
                 } else {
-                    return getEndValues(root,end);
+                    submap = map.headMap(end);
                 }
             } else {
                 if (end == null) {
-                    return getStartValues(root,start);
+                    submap = map.tailMap(start);
                 } else {
-                    return getBothValues(root,start, end);
+                    submap = map.subMap(start,end);
                 }
             }
+
+            /* Data copy */
+            return new ArrayList<>(submap.entrySet());
 
         } finally {
             lock.unlock();
         }
     }
-
-    private List<Entry<K, Long>> getBothValues(Element<K> root, K start, K end) {
-
-        final List<Entry<K, Long>> result = new ArrayList<>((int) elements);
-
-        Element<K> current = root;
-
-        boolean found = false;
-
-        do {
-            int cmp = current.key.compareTo(start);
-
-            found = cmp >= 0;
-
-        } while (!found && (current = current.next) != null);
-
-        if (!found) {
-            return Collections.emptyList();
-        }
-
-        do {
-            int cmp = current.key.compareTo(end);
-
-            if (cmp >= 0) {
-                break;
-            }
-
-            result.add(new AbstractMap.SimpleImmutableEntry<>(current.key,current.page));
-        } while ((current = current.next) != null);
-
-        return result;
-
-    }
-
-    private List<Entry<K, Long>> getStartValues(Element<K> root, K start) {
-
-        final List<Entry<K, Long>> result = new ArrayList<>((int) elements);
-
-        Element<K> current = root;
-
-        boolean found = false;
-
-        do {
-            int cmp = current.key.compareTo(start);
-
-            found = cmp >= 0;
-
-        } while (!found && (current = current.next) != null);
-
-        if (!found) {
-            return Collections.emptyList();
-        }
-
-        do {
-            result.add(new AbstractMap.SimpleImmutableEntry<>(current.key,current.page));
-        } while ((current = current.next) != null);
-
-        return result;
-
-    }
-
-    private List<Entry<K, Long>> getEndValues(Element<K> root, K end) {
-
-        final List<Entry<K, Long>> result = new ArrayList<>((int) elements);
-
-        Element<K> current = root;
-
-        do {
-            int cmp = current.key.compareTo(end);
-
-            if (cmp >= 0) {
-                break;
-            }
-
-            result.add(new AbstractMap.SimpleImmutableEntry<>(current.key,current.page));
-
-        } while ((current = current.next) != null);
-
-        return result;
-
-    }
-
-    private List<Entry<K, Long>> getAllValues(Element<K> root) {
-
-        final List<Entry<K, Long>> result = new ArrayList<>((int) elements);
-
-        Element<K> current = root;
-
-        do {
-            result.add(new AbstractMap.SimpleImmutableEntry<>(current.key,current.page));
-        } while ((current = current.next) != null);
-
-        return result;
-
-    }
-
 
     @Override
     public BLinkPtr scanNode(K key) {
@@ -500,31 +471,21 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
          * approach locking load for the whole scan method
          */
 
+        if (highKey != null && key.compareTo(highKey) >= 0) {
+            return right;
+        }
+
+        Long value;
         final Lock lock = loadAndLock();
         try {
 
-            Element<K> current = root;
-
-            while(current != null) {
-                final boolean cmp = key.equals(current.key);
-
-                if (cmp) {
-                    return BLinkPtr.page(current.page);
-                }
-
-                current = current.next;
-            }
+            value = map.get(key);
 
         } finally {
             lock.unlock();
         }
 
-        if (highKey != null && key.compareTo(highKey) >= 0) {
-            return right;
-        }
-
-        return BLinkPtr.empty();
-
+        return (value == null) ? BLinkPtr.empty() : BLinkPtr.page(value);
     }
 
     @Override
@@ -537,56 +498,11 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         try {
             /* Lock already held for modifications */
 
-            Element<K> current = root;
-            Element<K> previous = null;
+            Long old = map.put(key, pointer);
 
-            while(current != null) {
-
-                final int cmp = current.key.compareTo(key);
-
-                if (cmp < 0) {
-                    previous = current;
-                } else if ( cmp == 0 ) {
-
-                    /* Update! */
-                    final Element<K> replacement = new Element<>(key, pointer, current.next);
-
-                    if (previous == null) {
-                        /* Updating root */
-                        root = replacement;
-                    } else {
-                        previous.next = replacement;
-                    }
-
-                    dirty = true;
-
-                    return this;
-
-                } else {
-
-                    /* Got the first element greater than we must insert between this and previous */
-                    break;
-                }
-
-                current = current.next;
-            };
-
-            if (!isSafe()) {
-                throw new IllegalStateException("Invoking a real insert (no update) on a unsafe node");
+            if (old == null) {
+                ++elements;
             }
-
-            /* Proceed to insertion */
-            final Element<K> inserted = new Element<>(key, pointer, current);
-
-            /* Link to previous chain, the element already point to "current" node! */
-            if (previous == null) {
-                /* Linking before root */
-                root = inserted;
-            } else {
-                previous.next = inserted;
-            }
-
-            ++elements;
 
             dirty = true;
 
@@ -620,57 +536,31 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         final long splitpoint = (elements + 1) / 2;
 
-        Element<K> current = null;
-
-        Element<K> aroot = null;
-        Element<K> broot = null;
-
-        Element<K> acurrent = null;
-        Element<K> bcurrent = null;
-
         int count = 0;
         boolean insert = true;
 
+        final ConcurrentSkipListMap<K,Long> amap = new ConcurrentSkipListMap<>();
+        final ConcurrentSkipListMap<K,Long> bmap = new ConcurrentSkipListMap<>();
 
         /* Retrieve lock to avoid concurrent page unloads */
         final Lock lock = loadAndLock();
 
         try {
 
-            current = root;
-
-            do {
+            for( Map.Entry<K,Long> entry : map.entrySet() ) {
 
                 if (insert) {
-                    final int cmp = current.key.compareTo(key);
+                    final int cmp = entry.getKey().compareTo(key);
 
                     if (cmp > 0) {
 
                         /* Insert here! */
-                        Element<K> next = new Element<>(key, pointer);
 
                         /* Check and force count increment */
                         if (count++ < splitpoint) {
-
-
-                            if (acurrent == null) {
-                                aroot = next;
-                                acurrent = next;
-                            } else {
-                                acurrent.next = next;
-                                acurrent = next;
-                            }
-
+                            amap.put(key, pointer);
                         } else {
-
-                            if (bcurrent == null) {
-                                broot = next;
-                                bcurrent = next;
-                            } else {
-                                bcurrent.next = next;
-                                bcurrent = next;
-                            }
-
+                            bmap.put(key, pointer);
                         }
 
                         /* Signal that the element has been inserted */
@@ -686,63 +576,31 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
                 }
 
                 /* Append */
-                Element<K> next = new Element<>(current.key, current.page);
+
+                /* Check and force count increment */
                 if (count++ < splitpoint) {
-
-
-                    if (acurrent == null) {
-                        aroot = next;
-                        acurrent = next;
-                    } else {
-                        acurrent.next = next;
-                        acurrent = next;
-                    }
-
+                    amap.put(entry.getKey(), entry.getValue());
                 } else {
-
-                    if (bcurrent == null) {
-                        broot = next;
-                        bcurrent = next;
-                    } else {
-                        bcurrent.next = next;
-                        bcurrent = next;
-                    }
-
+                    bmap.put(entry.getKey(), entry.getValue());
                 }
 
-            } while((current = current.next) != null);
-
+            }
 
             if (insert) {
 
                 /* Insert here! */
-                Element<K> next = new Element<>(key, pointer);
+
+                /* Check and force count increment */
                 if (count++ < splitpoint) {
-
-                    if (acurrent == null) {
-                        aroot = next;
-                        acurrent = next;
-                    } else {
-                        acurrent.next = next;
-                        acurrent = next;
-                    }
-
+                    amap.put(key, pointer);
                 } else {
-
-                    if (bcurrent == null) {
-                        broot = next;
-                        bcurrent = next;
-                    } else {
-                        bcurrent.next = next;
-                        bcurrent = next;
-                    }
-
+                    bmap.put(key, pointer);
                 }
             }
 
             // make high key of A' equal y;
             // make right-link of A' point to B';
-            BLinkLeaf<K> aprime = new BLinkLeaf<>(storeId, page, maxElements, splitpoint, aroot, broot.key, BLinkPtr.link(newPage), storage, policy);
+            BLinkLeaf<K> aprime = new BLinkLeaf<>(storeId, page, maxElements, splitpoint, amap, bmap.firstKey(), BLinkPtr.link(newPage), storage, policy);
 
             /*
              * Replace page loading management owner... If we are to unload during this procedure the thread will
@@ -754,7 +612,7 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             final BLinkPage bpage = new BLinkPage(newPage);
             // make high key of B' equal old high key of A';
             // make right-link of B' equal old right-link of A';
-            BLinkLeaf<K> bprime = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, bpage, maxElements, count - splitpoint, broot, highKey, right, storage, policy);
+            BLinkLeaf<K> bprime = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, bpage, maxElements, count - splitpoint, bmap, highKey, right, storage, policy);
 
             /* Set page owner after construction */
             bpage.owner.setOwner(bprime);
@@ -801,41 +659,17 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         try {
             /* Lock already held for modifications */
 
-            Element<K> current = root;
-            Element<K> previous = null;
+            Long old = map.remove(key);
 
-            while(current != null) {
-
-                final int cmp = current.key.compareTo(key);
-
-                if (cmp < 0) {
-                    previous = current;
-                } else if ( cmp == 0 ) {
-
-                    /* Delete! */
-
-                    if (previous == null) {
-                        /* Delete root */
-                        root = current.next;
-                    } else {
-                        /* Shortcut */
-                        previous.next = current.next;
-                    }
-
-                    --elements;
-
-                    dirty = true;
-
-                    return this;
-
-                } else {
-                    break;
-                }
-
-                current = current.next;
+            if (old == null) {
+                throw new InternalError("An element to delete was expected!");
             }
 
-            throw new InternalError("An element to delete was expected!");
+            --elements;
+
+            dirty = true;
+
+            return this;
 
         } finally {
             lock.unlock();
@@ -965,21 +799,18 @@ public final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             .append(", right: ").append(right)
             .append(", data: ");
 
-        Element<K> current = root;
+        int len = builder.length();
+        for(Map.Entry<K,Long> entry : map.entrySet()) {
+            builder
+                .append("(")
+                .append(entry.getKey())
+                .append(",")
+                .append(entry.getValue())
+                .append("), ");
+        }
 
-        if (current != null) {
-            while(current != null) {
-
-                builder
-                    .append("(")
-                    .append(current.key)
-                    .append(",")
-                    .append(current.page)
-                    .append("), ");
-
-                current = current.next;
-            }
-
+        if (builder.length() > len) {
+            /* We added something and we need to remove last ', ' chars */
             builder.setLength(builder.length() - 2);
         }
 
