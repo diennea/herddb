@@ -874,12 +874,6 @@ public class FileDataStorageManager extends DataStorageManager {
         return new BLinkKeyToPageIndex(tablespace, name, memoryManager, this);
 
 //        return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
-
-//        try {
-//              return new MapDBKeyToPageIndex(tmpDirectory, tablespace + "." + name);
-//        } catch (IOException err) {
-//            throw new DataStorageManagerException(err);
-//        }
     }
 
     @Override

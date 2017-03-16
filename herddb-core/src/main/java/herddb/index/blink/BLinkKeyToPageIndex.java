@@ -59,7 +59,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     public volatile BLink<Bytes> tree;
 
-
     private static final class MetadataSerializer {
 
         public static final MetadataSerializer INSTANCE = new MetadataSerializer();
@@ -94,40 +93,40 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         public BLinkMetadata<Bytes> deserialize(ExtendedDataInputStream stream) throws IOException {
 
-                byte type = stream.readByte();
+            byte type = stream.readByte();
 
-                if (type != METADATA_PAGE) {
-                    throw new IOException("Wrong page type " + type);
-                }
+            if (type != METADATA_PAGE) {
+                throw new IOException("Wrong page type " + type);
+            }
 
-                long nodeSize = stream.readVLong();
-                long leafSize = stream.readVLong();
-                long root = stream.readVLong();
+            long nodeSize = stream.readVLong();
+            long leafSize = stream.readVLong();
+            long root = stream.readVLong();
 
-                List<BLinkNodeMetadata<Bytes>> nodes = new LinkedList<>();
+            List<BLinkNodeMetadata<Bytes>> nodes = new LinkedList<>();
 
-                while (stream.available() > 0) {
-                    final byte ntype = stream.readByte();
+            while (stream.available() > 0) {
+                final byte ntype = stream.readByte();
 
-                    long nodeId = stream.readVLong();
-                    long storeId = stream.readVLong();
+                long nodeId = stream.readVLong();
+                long storeId = stream.readVLong();
 
-                    byte[] hk = stream.readArray();
-                    Bytes highKey = hk.length == 0 ? null : Bytes.from_array(hk);;
+                byte[] hk = stream.readArray();
+                Bytes highKey = hk.length == 0 ? null : Bytes.from_array(hk);;
 
-                    long maxKeys = stream.readVLong();
+                long maxKeys = stream.readVLong();
 
-                    long keys = stream.readVLong();
-                    long right = stream.readZLong();
+                long keys = stream.readVLong();
+                long right = stream.readZLong();
 
-                    BLinkNodeMetadata<Bytes> node = new BLinkNodeMetadata<>(ntype, nodeId, storeId, highKey, maxKeys, keys, right);
+                BLinkNodeMetadata<Bytes> node = new BLinkNodeMetadata<>(ntype, nodeId, storeId, highKey, maxKeys, keys, right);
 
-                    nodes.add(node);
-                }
+                nodes.add(node);
+            }
 
-                BLinkMetadata<Bytes> metadata = new BLinkMetadata<>(nodeSize, leafSize, root, nodes);
+            BLinkMetadata<Bytes> metadata = new BLinkMetadata<>(nodeSize, leafSize, root, nodes);
 
-                return metadata;
+            return metadata;
         }
     }
 
@@ -154,11 +153,11 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     public Long put(Bytes key, Long currentPage) {
 
         BLink<Bytes> tree = this.tree;
-        if ( tree == null ) {
+        if (tree == null) {
             synchronized (this) {
 
                 tree = this.tree;
-                if ( tree == null ) {
+                if (tree == null) {
 
                     /* Create a tree using given key for page size estimation */
                     final long estimation = key.getEstimatedSize() + 32;
@@ -166,10 +165,16 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     final long nodeSize = pageSize / estimation;
 
                     if (nodeSize < 3) {
-                        throw new IllegalArgumentException("Key size too big for current page size! Key " + estimation + " page " + pageSize );
+                        throw new IllegalArgumentException("Key size too big for current page size! Key " + estimation + " page " + pageSize);
                     }
 
-                    tree = new BLink<>(nodeSize, nodeSize, indexDataStorage, memoryManager.getIndexPageReplacementPolicy());
+                    long leafSize = nodeSize;
+                    if (leafSize >= 1000) {
+                        leafSize = 1000;
+                    }
+                    System.out.println("nodeSize:" + nodeSize);
+                    System.out.println("leafSize:" + leafSize);
+                    tree = new BLink<>(nodeSize, leafSize, indexDataStorage, memoryManager.getIndexPageReplacementPolicy());
 
                     /* Publish */
                     this.tree = tree;
@@ -211,7 +216,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public Stream<Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
-            TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException {
+        TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException {
         final BLink<Bytes> tree = this.tree;
         if (tree == null) {
             return Stream.empty();
@@ -229,7 +234,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 if (pageId == BLink.NO_RESULT) {
                     return Stream.empty();
                 }
-                return Stream.of(new AbstractMap.SimpleImmutableEntry<>(key,pageId));
+                return Stream.of(new AbstractMap.SimpleImmutableEntry<>(key, pageId));
             } catch (StatementExecutionException err) {
                 throw new DataStorageManagerException(err);
             }
@@ -311,11 +316,11 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 if (pageIDGenerator.get() <= pageId) {
                     pageIDGenerator.set(pageId + 1);
                 }
-                LOGGER.log(Level.FINEST, "recovery index {0}, acceptPage {1} pagedata: {2} bytes", new Object[]{indexName, pageId,pagedata.length});
+                LOGGER.log(Level.FINEST, "recovery index {0}, acceptPage {1} pagedata: {2} bytes", new Object[]{indexName, pageId, pagedata.length});
 
                 byte type = pagedata[0];
 
-                switch(type) {
+                switch (type) {
                     case METADATA_PAGE:
                         LOGGER.log(Level.INFO, "recovery index {0}, metatadata page {1}", new Object[]{indexName, pageId});
                         binaryMetadata.value = pagedata;
@@ -335,7 +340,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
             BLinkMetadata<Bytes> metadata;
             try (SimpleByteArrayInputStream bis = new SimpleByteArrayInputStream(binaryMetadata.value);
-                 ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
+                ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
 
                 metadata = MetadataSerializer.INSTANCE.deserialize(edis);
             } catch (IOException e) {
@@ -351,7 +356,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
     }
-
 
     @Override
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
@@ -377,7 +381,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus));
 
             LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} blocks, pages {2}", new Object[]{
-                    indexName, Integer.toString(metadata.nodeMetadatas.size()), activePages.toString()});
+                indexName, Integer.toString(metadata.nodeMetadatas.size()), activePages.toString()});
 
             return result;
 
@@ -439,7 +443,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
                 Element<Bytes> current = root;
 
-                while(current != null) {
+                while (current != null) {
 
                     /* current.key can be null for last inner node element */
                     if (current.key == null) {
@@ -451,7 +455,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     edos.writeVLong(current.page);
 
                     /* current.next is not needed it will be reconstructed */
-
                     current = current.next;
                 }
 
