@@ -171,9 +171,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     long leafSize = nodeSize;
                     if (leafSize >= 1000) {
                         leafSize = 1000;
-                    }
-                    System.out.println("nodeSize:" + nodeSize);
-                    System.out.println("leafSize:" + leafSize);
+                    }              
                     tree = new BLink<>(nodeSize, leafSize, indexDataStorage, memoryManager.getIndexPageReplacementPolicy());
 
                     /* Publish */
