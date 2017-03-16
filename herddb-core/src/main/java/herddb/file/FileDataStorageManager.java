@@ -197,27 +197,30 @@ public class FileDataStorageManager extends DataStorageManager {
     public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         Path pageFile = getPageFile(tableDir, pageId);
+        long _start = System.currentTimeMillis();
         byte[] pageData;
-        try {
-            pageData = FileUtils.fastReadFile(pageFile);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-        boolean okHash = XXHash64Utils.verifyBlockWithFooter(pageData, 0, pageData.length);
-        if (!okHash) {
-            throw new DataStorageManagerException("corrutped data file " + pageFile.toAbsolutePath() + ", checksum failed");
-        }
-        try (InputStream input = new SimpleByteArrayInputStream(pageData);
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+        long hashFromFile;
+        long hashFromDigest;
+        try (InputStream input = Files.newInputStream(pageFile);
+            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(input);
+            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
-            byte[] data = dataIn.readArray();
-            return data;
+            pageData = dataIn.readArray();
+            hashFromDigest = hash.hash();
+            hashFromFile = dataIn.readLong();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+        if (hashFromDigest != hashFromFile) {
+            throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
+        }
+        long _stop = System.currentTimeMillis();
+        long delta = _stop - _start;
+        LOGGER.log(Level.FINE, "readIndexPage {0}.{1} {2} ms", new Object[]{tableSpace, indexName, delta + ""});
+        return pageData;
     }
 
     @Override
@@ -595,7 +598,6 @@ public class FileDataStorageManager extends DataStorageManager {
         long pageId, byte[] page, int offset, int len) throws DataStorageManagerException {
         // synch on table is done by the TableManager
         long _start = System.currentTimeMillis();
-        long _endhash;
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         try {
             Files.createDirectories(tableDir);
@@ -603,28 +605,25 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
         Path pageFile = getPageFile(tableDir, pageId);
-        int size;
-        try (VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(10 * 1024 * 1024);) {
-            try (ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
-                dataOutput.writeVInt(0); // flags for future implementations
-                dataOutput.writeArray(page, offset, len);
-            }
-            byte[] digest = oo.xxhash64();
-            _endhash = System.currentTimeMillis();
-
-            // footer
-            oo.write(digest);
+        long size;
+        try (OutputStream foo = Files.newOutputStream(pageFile, StandardOpenOption.CREATE,
+            StandardOpenOption.TRUNCATE_EXISTING);
+            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(foo);
+            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
+            dataOutput.writeVInt(0); // flags for future implementations
+            dataOutput.writeArray(page, offset, len);
             size = oo.size();
-
-            FileUtils.fastWriteFile(pageFile, oo.getBuffer(), 0, oo.size());
+            long digest = oo.hash();
+            // footer
+            dataOutput.writeLong(digest);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
 
         long now = System.currentTimeMillis();
-        LOGGER.log(Level.INFO,
-            "writeIndexPage " + indexName + " page " + pageId + " " + (size / 1024) + " KBytes, "
-            + "time " + (now - _start) + " ms (" + (now - _endhash) + " disk)");
+        if (LOGGER.isLoggable(Level.FINER)) {
+            LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", (now - _start) + ""});
+        }
     }
 
     @Override
