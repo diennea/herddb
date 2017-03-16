@@ -188,7 +188,7 @@ public class HerdDBCLI {
                         long fileSize = f.length();
                         try (FileInputStream rawStream = new FileInputStream(file);
                             CounterInputStream counter = new CounterInputStream(rawStream);
-                            InputStream fIn = wrapStream(f, rawStream);
+                            InputStream fIn = wrapStream(f, counter);
                             CounterInputStream counterUnzipped = new CounterInputStream(fIn);
                             InputStreamReader ii = new InputStreamReader(counterUnzipped, "utf-8");) {
                             int _autotransactionbatchsize = autotransactionbatchsize;
@@ -200,14 +200,16 @@ public class HerdDBCLI {
                                     if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
                                         long _now = System.currentTimeMillis();
                                         int percent = (int) (counter.count * 100.0 / fileSize);
-                                        long speed = (long) ((counter.count * 1000.0 / (1024 * 1024.0 * (_now - _start))));
+                                        long delta = (_now - _start);
                                         long countUnzipped = counterUnzipped.count;
+                                        double speed = ((countUnzipped * 60000.0) / (1.0 * delta));
+
                                         if (countUnzipped != counter.count) {
                                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                                + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB (" + (countUnzipped / (1024 * 1024)) + " MB unzipped) over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
+                                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + "/min");
                                         } else {
                                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                                + " COMMIT after " + totalDoneCount.value + " records, read " + (counter.count / (1024 * 1024)) + " MB over " + (fileSize / (1024 * 1024)) + " MB. " + percent + "%, " + speed + " MB/sec");
+                                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
                                         }
                                         connection.commit();
                                         doneCount.value = 0;
@@ -511,6 +513,8 @@ public class HerdDBCLI {
                             DoubleValue sv = (DoubleValue) e;
                             parameters.add(sv.getValue());
                             done = true;
+                        } else {
+                            System.out.println("cannot rewrite " + e);
                         }
                         if (done) {
                             expressions.set(i, new JdbcParameter());
@@ -576,5 +580,15 @@ public class HerdDBCLI {
         }
 
         connection.setSchema(schema);
+    }
+
+    private static String formatBytes(double bytes) {
+        if (bytes > 1024 * 1024) {
+            return (long) (bytes / (1024 * 1024)) + " MB";
+        } else if (bytes > 1024) {
+            return (long) (bytes / (1024)) + " KB";
+        } else {
+            return (long) bytes + " bytes";
+        }
     }
 }
