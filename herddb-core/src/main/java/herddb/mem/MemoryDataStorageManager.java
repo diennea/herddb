@@ -115,8 +115,14 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
+        return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+    }
+
+    @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
-        consumer.acceptTableStatus(new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>()));
+        TableStatus ts = getLatestTableStatus(tableSpace, tableName);
+        consumer.acceptTableStatus(ts);
     }
 
     @Override

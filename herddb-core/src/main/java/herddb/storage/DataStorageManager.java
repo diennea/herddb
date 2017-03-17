@@ -33,6 +33,7 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
+import java.io.IOException;
 
 /**
  * Physical storage of data
@@ -101,6 +102,8 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws DataStorageManagerException
      */
     public abstract int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException;
+
+    public abstract TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException;
 
     /**
      * Boots the Storage Manager

@@ -357,54 +357,60 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void start() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {0}", new Object[]{table.name});
+
         Set<Long> activePagesAtBoot = new HashSet<>();
         bootSequenceNumber = log.getLastSequenceNumber();
+        boolean requireLoadAtStartup = keyToPage.requireLoadAtStartup();
 
+        if (requireLoadAtStartup) {
+            // non persistent primary key index, we need a full table scan
+            LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {0}", new Object[]{table.name});
+            dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
+                new FullTableScanConsumer() {
 
-        dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
-            new FullTableScanConsumer() {
+                Long currentPage;
 
-            Long currentPage;
-
-            @Override
-            public void acceptTableStatus(TableStatus tableStatus) {
-                LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
-                nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
-                nextPageId = tableStatus.nextPageId;
-                bootSequenceNumber = tableStatus.sequenceNumber;
-            }
-
-            @Override
-            public void startPage(long pageId) {
-                currentPage = pageId;
-            }
-
-            @Override
-            public void acceptRecord(Record record) {
-                if (currentPage < 0) {
-                    throw new IllegalStateException();
+                @Override
+                public void acceptTableStatus(TableStatus tableStatus) {
+                    LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
+                    nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
+                    nextPageId = tableStatus.nextPageId;
+                    bootSequenceNumber = tableStatus.sequenceNumber;
                 }
-                /*
-                 * TODO: rewrite the procedure to avoid full table scan if not needed to populate
-                 * keyToPage, be aware that we need activePagesAtBoot too
-                 */
-                if (keyToPage.requireLoadAtStartup()) {
+
+                @Override
+                public void startPage(long pageId) {
+                    currentPage = pageId;
+                }
+
+                @Override
+                public void acceptRecord(Record record) {
+                    if (currentPage < 0) {
+                        throw new IllegalStateException();
+                    }
                     keyToPage.put(record.key, currentPage);
+                    activePagesAtBoot.add(currentPage);
                 }
-                activePagesAtBoot.add(currentPage);
-            }
 
-            @Override
-            public void endPage() {
-                currentPage = null;
-            }
+                @Override
+                public void endPage() {
+                    currentPage = null;
+                }
 
-            @Override
-            public void endTable() {
-            }
+                @Override
+                public void endTable() {
+                }
 
-        });
+            });
+        } else {
+            LOGGER.log(Level.SEVERE, "loading table {0}", new Object[]{table.name});
+            TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.name);
+            LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
+            nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
+            nextPageId = tableStatus.nextPageId;
+            bootSequenceNumber = tableStatus.sequenceNumber;
+            activePagesAtBoot.addAll(tableStatus.activePages);
+        }
 
         keyToPage.start();
 
@@ -526,7 +532,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 pageSet.pageCreated(newId);
 
                 /* From this moment on the page has been published */
-                /* The lock is needed to block other threads up to this point */
+ /* The lock is needed to block other threads up to this point */
                 currentDirtyRecordsPage.set(newId);
 
                 /*

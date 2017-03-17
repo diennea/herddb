@@ -251,13 +251,7 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
         try {
-            Path lastFile = getLastTableCheckpointFile(tableSpace, tableName);
-            TableStatus latestStatus;
-            if (lastFile == null) {
-                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
-            } else {
-                latestStatus = readTableStatusFromFile(lastFile);
-            }
+            TableStatus latestStatus = getLatestTableStatus(tableSpace, tableName);
 
             LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
             consumer.acceptTableStatus(latestStatus);
@@ -273,10 +267,32 @@ public class FileDataStorageManager extends DataStorageManager {
                 consumer.endPage();
             }
             consumer.endTable();
-        } catch (IOException | HerdDBInternalException err) {
+        } catch (HerdDBInternalException err) {
             throw new DataStorageManagerException(err);
         }
 
+    }
+
+    @Override
+    public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
+        TableStatus latestStatus = getLatestTableStatus(tableSpace, tableName);
+        return latestStatus.activePages.size();
+    }
+
+    @Override
+    public TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
+        try {
+            Path lastFile = getLastTableCheckpointFile(tableSpace, tableName);
+            TableStatus latestStatus;
+            if (lastFile == null) {
+                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+            } else {
+                latestStatus = readTableStatusFromFile(lastFile);
+            }
+            return latestStatus;
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
     private TableStatus readTableStatusFromFile(Path checkpointsFile) throws IOException {
@@ -623,22 +639,6 @@ public class FileDataStorageManager extends DataStorageManager {
         long now = System.currentTimeMillis();
         if (LOGGER.isLoggable(Level.FINER)) {
             LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", (now - _start) + ""});
-        }
-    }
-
-    @Override
-    public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
-        try {
-            Path lastFile = getLastTableCheckpointFile(tableSpace, tableName);
-            TableStatus latestStatus;
-            if (lastFile == null) {
-                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
-            } else {
-                latestStatus = readTableStatusFromFile(lastFile);
-            }
-            return latestStatus.activePages.size();
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
         }
     }
 
