@@ -77,7 +77,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             throw SQLExceptionUtils.wrapException(ex);
         }
     }
-    
+
     private void ensureParameterPos(int index) {
         while (parameters.size() < index) {
             parameters.add(null);
@@ -200,12 +200,12 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     @Override
     @SuppressFBWarnings("OBL_UNSATISFIED_OBLIGATION")
     public boolean execute() throws SQLException {
-        if (sql.toLowerCase().contains("select")) {
+        if (sql.toLowerCase().startsWith("select")) {
             executeQuery();
             moreResults = true;
             return true;
         } else {
-            executeUpdate();
+            executeLargeUpdate();           
             moreResults = false;
             return false;
         }
@@ -222,6 +222,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             int[] results = new int[batch.size()];
             int i = 0;
 
+            lastUpdateCount = 0;
             parent.discoverTableSpace(sql);
             List<DMLResult> dmlresults = parent.getConnection().executeUpdates(
                 parent.getTableSpace(), sql,
@@ -230,7 +231,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
             for (DMLResult dmlresult : dmlresults) {
                 results[i++] = (int) dmlresult.updateCount;
                 parent.statementFinished(dmlresult.transactionId);
-                lastUpdateCount = dmlresult.updateCount;
+                lastUpdateCount += dmlresult.updateCount;                
                 lastKey = dmlresult.key;
             }
             return results;

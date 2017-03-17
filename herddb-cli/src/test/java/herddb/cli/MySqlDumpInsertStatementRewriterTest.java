@@ -55,6 +55,7 @@ public class MySqlDumpInsertStatementRewriterTest {
             assertNull(result);
             return;
         }
+        assertEquals("table",result.tableName);
         assertNotNull(result);
         assertEquals(rewritten, result.query);
         assertEquals(expectedParameters, result.jdbcParameters);

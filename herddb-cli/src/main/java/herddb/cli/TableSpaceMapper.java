@@ -78,6 +78,10 @@ public class TableSpaceMapper {
         return mapTableNameToSchema(tableName);
     }
 
+    public String getTableSpace(String tableName) throws ScriptException {
+        return mapTableNameToSchema(tableName);
+    }
+
     protected String mapTableNameToSchema(String tableName) throws ScriptException {
         if (engine == null) {
             return null;

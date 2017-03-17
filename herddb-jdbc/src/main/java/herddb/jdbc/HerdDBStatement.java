@@ -152,12 +152,12 @@ public class HerdDBStatement implements java.sql.Statement {
     }
 
     @Override
-    public int getUpdateCount() throws SQLException {
+    public int getUpdateCount() throws SQLException {        
         return (int) lastUpdateCount;
     }
 
     @Override
-    public boolean getMoreResults() throws SQLException {
+    public boolean getMoreResults() throws SQLException {        
         lastUpdateCount = -1;
         return moreResults;
     }

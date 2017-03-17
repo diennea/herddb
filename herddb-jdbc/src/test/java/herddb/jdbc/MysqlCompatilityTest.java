@@ -25,6 +25,7 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -68,12 +69,55 @@ public class MysqlCompatilityTest {
                         + "  PRIMARY KEY (`ip`)\n"
                         + ") ENGINE=InnoDB DEFAULT CHARSET=utf8;");
 
-                    statement.executeUpdate("INSERT INTO `sm_machine` VALUES"
+                    int multiInsertCount = statement.executeUpdate("INSERT INTO `sm_machine` VALUES"
                         + "('10.168.10.106',26,36,9,NULL,1),"
                         + "('10.168.10.107',26,31,10,NULL,1),"
                         + "('10.168.10.108',26,36,11,NULL,2),"
                         + "('10.168.10.109',33,38,10,NULL,3),"
                         + "('10.168.10.110',33,38,10,NULL,4);");
+                    assertEquals(5, multiInsertCount);
+
+                    try (PreparedStatement ps = statement.getConnection().prepareStatement("INSERT INTO `sm_machine` VALUES"
+                        + "(?,?,?,?,?,?),"
+                        + "(?,?,?,?,?,?),"
+                        + "(?,?,?,?,?,?),"
+                        + "(?,?,?,?,?,?),"
+                        + "(?,?,?,?,?,?)")) {
+                        int i = 1;
+                        ps.setString(i++, "11.168.10.106");
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, null);
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, "11.168.10.107");
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, null);
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, "11.168.10.108");
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, null);
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, "11.168.10.109");
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, null);
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, "11.168.10.110");
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.setString(i++, null);
+                        ps.setInt(i++, 1);
+                        ps.setInt(i++, 1);
+                        ps.execute();
+                        int multiInsertCount2 = ps.getUpdateCount();
+                        assertEquals(5, multiInsertCount2);
+                    }
 
                     statement.executeQuery("SELECT ip, `offset` FROM sm_machine WHERE `offset` = 1").close();
 

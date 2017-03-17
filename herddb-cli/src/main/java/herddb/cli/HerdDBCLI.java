@@ -60,7 +60,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
 import java.util.logging.LogManager;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipInputStream;
@@ -190,7 +192,8 @@ public class HerdDBCLI {
                         File f = new File(file);
                         long fileSize = f.length();
                         try (FileInputStream rawStream = new FileInputStream(file);
-                            CounterInputStream counter = new CounterInputStream(rawStream);
+                            BufferedInputStream buffer = new BufferedInputStream(rawStream);
+                            CounterInputStream counter = new CounterInputStream(buffer);
                             InputStream fIn = wrapStream(f, counter);
                             CounterInputStream counterUnzipped = new CounterInputStream(fIn);
                             InputStreamReader ii = new InputStreamReader(counterUnzipped, "utf-8");) {
@@ -202,14 +205,17 @@ public class HerdDBCLI {
                                     totalDoneCount.value += count;
                                     if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
                                         long _now = System.currentTimeMillis();
+                                        long countZipped = counter.count;
                                         int percent = (int) (counter.count * 100.0 / fileSize);
                                         long delta = (_now - _start);
                                         long countUnzipped = counterUnzipped.count;
                                         double speed = ((countUnzipped * 60000.0) / (1.0 * delta));
 
+                                        double speedZipped = ((countZipped * 60000.0) / (1.0 * delta));
+
                                         if (countUnzipped != counter.count) {
                                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + "/min");
+                                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + "/min (UNZIPPED "+formatBytes(speedZipped)+"/min)");
                                         } else {
                                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
                                                 + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
@@ -391,7 +397,7 @@ public class HerdDBCLI {
                         ps.setObject(i++, o);
                     }
                     boolean resultSet = ps.execute();
-                    return reallyExecuteStatement(statement, resultSet, verbose);
+                    return reallyExecuteStatement(ps, resultSet, verbose);
                 }
             } else {
                 boolean resultSet = statement.execute(query);
@@ -437,7 +443,7 @@ public class HerdDBCLI {
             if (verbose) {
                 System.out.println("UPDATE COUNT: " + updateCount);
             }
-            return updateCount;
+            return updateCount >= 0 ? updateCount : 0;
         }
     }
 
@@ -498,6 +504,8 @@ public class HerdDBCLI {
                 if (rewriteSimpleInsertStatement != null) {
                     query = rewriteSimpleInsertStatement.query;
                     parameters.addAll(rewriteSimpleInsertStatement.jdbcParameters);
+                    String schema = mapper == null ? null : mapper.getTableSpace(rewriteSimpleInsertStatement.tableName);
+                    return new QueryWithParameters(query, rewriteSimpleInsertStatement.tableName, parameters, schema);
                 }
             }
 
@@ -590,10 +598,10 @@ public class HerdDBCLI {
                     }
                 }
                 String schema = mapper == null ? null : mapper.getTableSpace(stmt);
-                return new QueryWithParameters(query, parameters, schema);
+                return new QueryWithParameters(query, null, parameters, schema);
             } else {
                 String schema = mapper == null ? null : mapper.getTableSpace(stmt);
-                return new QueryWithParameters(query, Collections.emptyList(), schema);
+                return new QueryWithParameters(query, null, Collections.emptyList(), schema);
             }
         } catch (ExecutionException err) {
             System.out.println("error for query: " + query + " -> " + err.getCause());

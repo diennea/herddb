@@ -69,20 +69,27 @@ public class SQLFileParser {
             char c = (char) _c;
             switch (state) {
                 case OUT: {
-                    if (c == '\n' || c == '\r' || c == ';') {
+                    switch (c) {
                         // swallow
-                    } else if (c == '-') {
-                        state = State.SINGLELINECOMMENT_FIRSTCHAR;
-                        current.append(c);
-                    } else if (c == '/') {
-                        state = State.MULTILINECOMMENT_FIRSTCHAR;
-                        current.append(c);
-                    } else {
-                        if (_c == EOF) {
-                            return;
-                        }
-                        state = State.INSQL;
-                        current.append(c);
+                        case '\n':
+                        case '\r':
+                        case ';':
+                            break;
+                        case '-':
+                            state = State.SINGLELINECOMMENT_FIRSTCHAR;
+                            current.append(c);
+                            break;
+                        case '/':
+                            state = State.MULTILINECOMMENT_FIRSTCHAR;
+                            current.append(c);
+                            break;
+                        default:
+                            if (_c == EOF) {
+                                return;
+                            }
+                            state = State.INSQL;
+                            current.append(c);
+                            break;
                     }
                     break;
                 }
@@ -148,7 +155,6 @@ public class SQLFileParser {
                 }
                 case INSQL: {
                     if (_c == EOF) {
-                        state = State.OUT;
                         statements.accept(new Statement(current.toString(), false));
                         current.setLength(0);
                         return;

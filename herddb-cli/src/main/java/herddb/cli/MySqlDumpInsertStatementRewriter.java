@@ -49,6 +49,8 @@ public class MySqlDumpInsertStatementRewriter {
         if (startValues <= 0) {
             return null;
         }
+        String tableName = query.substring(12, startValues).trim();
+
         List<Object> jdbcParameters = new ArrayList<>();
         int pos = startValues + "VALUES ".length();
         StringBuilder rewritten = new StringBuilder(query.substring(0, pos));
@@ -204,6 +206,6 @@ public class MySqlDumpInsertStatementRewriter {
         if (state != STATE_START_RECORD) {
             return null;
         }
-        return new QueryWithParameters(rewritten.toString(), jdbcParameters, null);
+        return new QueryWithParameters(rewritten.toString(), tableName, jdbcParameters, null);
     }
 }
