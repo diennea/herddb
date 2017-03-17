@@ -286,6 +286,10 @@ public class BookkeeperCommitLog extends CommitLog {
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
                     LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
+                    if (lastAddConfirmed <= 0) {
+                        lastAddConfirmed = handle.readLastConfirmed();
+                        LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " after readLastConfirmed lastAddConfirmed=" + lastAddConfirmed);
+                    }
 
                     final int BATCH_SIZE = 10000;
                     if (lastAddConfirmed > 0) {

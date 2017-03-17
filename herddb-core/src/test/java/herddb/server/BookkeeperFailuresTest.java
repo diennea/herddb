@@ -39,6 +39,7 @@ import herddb.model.commands.InsertStatement;
 import herddb.utils.ZKTestEnv;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.List;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.conf.ClientConfiguration;
@@ -342,7 +343,6 @@ public class BookkeeperFailuresTest {
     }
 
     @Test
-    @Ignore(value = "this test is flaky")
     public void testBookieNotAvailableDuringTransaction() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
@@ -352,12 +352,6 @@ public class BookkeeperFailuresTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
-
-        ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server = new Server(serverconfig_1)) {
             server.start();
@@ -371,7 +365,9 @@ public class BookkeeperFailuresTest {
 
             StatementExecutionResult executeStatement = server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
             long transactionId = executeStatement.transactionId;
+
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(transactionId));
+
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(transactionId));
             TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
             BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
@@ -381,8 +377,13 @@ public class BookkeeperFailuresTest {
             Transaction transaction = tableSpaceManager.getTransactions().stream().filter(t -> t.transactionId == transactionId).findFirst().get();
             transaction.synch();
 
-            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList());) {
-                assertEquals(1, scan.consume().size());
+            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList(), new TransactionContext(transactionId));) {
+                assertEquals(3, scan.consume().size());
+            }
+
+            try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList(), TransactionContext.NO_TRANSACTION);) {
+                // no record, but the table exists!
+                assertEquals(0, scan.consume().size());
             }
 
             // we do not want auto-recovery
