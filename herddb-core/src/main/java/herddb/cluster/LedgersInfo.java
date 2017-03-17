@@ -40,23 +40,23 @@ public class LedgersInfo {
     private int zkVersion = -1;
 
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return "LedgersInfo{" + "activeLedgers=" + activeLedgers + ", firstLedger=" + firstLedger + ", zkVersion=" + zkVersion + '}';
     }
 
-    public List<Long> getLedgersTimestamps() {
+    public synchronized List<Long> getLedgersTimestamps() {
         return ledgersTimestamps;
     }
 
-    public void setLedgersTimestamps(List<Long> ledgersTimestamps) {
+    public synchronized void setLedgersTimestamps(List<Long> ledgersTimestamps) {
         this.ledgersTimestamps = ledgersTimestamps;
     }
 
-    public int getZkVersion() {
+    public synchronized int getZkVersion() {
         return zkVersion;
     }
 
-    public void setZkVersion(int zkVersion) {
+    public synchronized void setZkVersion(int zkVersion) {
         this.zkVersion = zkVersion;
     }
 
@@ -127,15 +127,15 @@ public class LedgersInfo {
         return new ArrayList<>(activeLedgers);
     }
 
-    public void setActiveLedgers(List<Long> activeLedgers) {
+    public synchronized void setActiveLedgers(List<Long> activeLedgers) {
         this.activeLedgers = activeLedgers;
     }
 
-    public long getFirstLedger() {
+    public synchronized long getFirstLedger() {
         return firstLedger;
     }
 
-    public void setFirstLedger(long firstLedger) {
+    public synchronized void setFirstLedger(long firstLedger) {
         this.firstLedger = firstLedger;
     }
 
