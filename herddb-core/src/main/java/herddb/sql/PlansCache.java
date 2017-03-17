@@ -21,7 +21,11 @@ package herddb.sql;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import herddb.model.ExecutionPlan;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * LRU Cache of Execution plans
@@ -30,17 +34,38 @@ import herddb.model.ExecutionPlan;
  */
 public class PlansCache {
 
+    private static final Logger LOG = Logger.getLogger(PlansCache.class.getName());
+
     private final Cache<String, ExecutionPlan> cache;
 
     public PlansCache(long maxBytes) {
+
+        LOG.log(Level.INFO, "Max query plan cache size: {0} bytes", maxBytes + "");
+
         this.cache = CacheBuilder
             .newBuilder()
+            .recordStats()
             .weigher((String sql, ExecutionPlan plan) -> {
-                return sql.length() * 2;
+                return sql.length();
             })
             .maximumWeight(maxBytes)
+            .removalListener((RemovalNotification<String, ExecutionPlan> notification) -> {
+                LOG.log(Level.FINE, "Removed query " + notification.getCause() + " -> " + notification.getKey());
+            })
             .build();
 
+    }
+
+    public long getCacheSize() {
+        return cache.size();
+    }
+
+    public long getCacheHits() {
+        return cache.stats().hitCount();
+    }
+
+    public long getCacheMisses() {
+        return cache.stats().missCount();
     }
 
     public ExecutionPlan get(String sql) {

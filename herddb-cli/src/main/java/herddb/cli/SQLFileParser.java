@@ -21,7 +21,6 @@ package herddb.cli;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.function.Consumer;
 
 /**
  * Breaks an SQL file into statements

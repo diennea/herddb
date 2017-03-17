@@ -142,4 +142,42 @@ public class JMXUtils {
         }
     }
 
+    public static void registerDBManagerStatsMXBean(DBManagerStatsMXBean bean) {
+        if (platformMBeanServer == null) {
+            throw new HerdDBInternalException("PlatformMBeanServer not available", mBeanServerLookupError);
+        }
+
+        try {
+            ObjectName name = new ObjectName("herddb.server:type=Server");
+            LOG.log(Level.FINE, "Publishing stats for server at {2}", new Object[]{name});
+            if (platformMBeanServer.isRegistered(name)) {
+                try {
+                    platformMBeanServer.unregisterMBean(name);
+                } catch (InstanceNotFoundException noProblem) {
+                }
+            }
+            platformMBeanServer.registerMBean(bean, name);
+        } catch (MalformedObjectNameException | InstanceAlreadyExistsException | MBeanRegistrationException | NotCompliantMBeanException e) {
+            throw new HerdDBInternalException("Could not register MXBean " + e);
+        }
+    }
+
+    public static void unregisterDBManagerStatsMXBean() {
+        if (platformMBeanServer == null) {
+            return;
+        }
+
+        try {
+            ObjectName name = new ObjectName("herddb.server:type=Server");
+            if (platformMBeanServer.isRegistered(name)) {
+                try {
+                    platformMBeanServer.unregisterMBean(name);
+                } catch (InstanceNotFoundException noProblem) {
+                }
+            }
+        } catch (MalformedObjectNameException | MBeanRegistrationException e) {
+            throw new HerdDBInternalException("Could not unregister MXBean " + e);
+        }
+    }
+
 }

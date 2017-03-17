@@ -19,6 +19,8 @@
  */
 package herddb.cli;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import groovy.lang.Binding;
 import groovy.lang.GroovyShell;
@@ -57,12 +59,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.logging.LogManager;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipInputStream;
 import javax.script.ScriptException;
-import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -72,6 +74,7 @@ import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.ItemsList;
+import net.sf.jsqlparser.expression.operators.relational.MultiExpressionList;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
@@ -112,7 +115,7 @@ public class HerdDBCLI {
             options.addOption("g", "script", true, "Groovy Script to execute");
             options.addOption("i", "ignoreerrors", false, "Ignore SQL Errors during file execution");
             options.addOption("sc", "sqlconsole", false, "Execute SQL console in interactive mode");
-            options.addOption("fmd", "frommysqldump", false, "Intruct the parser that the script is coming from a MySQL Dump");
+            options.addOption("fmd", "mysql", false, "Intruct the parser that the script is coming from a MySQL Dump");
             options.addOption("rwst", "rewritestatements", false, "Rewrite all statements to use JDBC parameters");
             options.addOption("d", "dump", true, "Dump tablespace");
             options.addOption("r", "restore", true, "Restore tablespace");
@@ -157,8 +160,8 @@ public class HerdDBCLI {
             int dumpfetchsize = Integer.parseInt(commandLine.getOptionValue("dumpfetchsize", 100000 + ""));
             final boolean ignoreerrors = commandLine.hasOption("ignoreerrors");
             boolean sqlconsole = commandLine.hasOption("sqlconsole");
-            final boolean frommysqldump = commandLine.hasOption("frommysqldump");
-            final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.isEmpty();
+            final boolean frommysqldump = commandLine.hasOption("mysql");
+            final boolean rewritestatements = commandLine.hasOption("rewritestatements") || !tablespacemapperfile.isEmpty() || frommysqldump;
             boolean autotransaction = commandLine.hasOption("autotransaction") || frommysqldump;
             int autotransactionbatchsize = Integer.parseInt(commandLine.getOptionValue("autotransactionbatchsize", 100000 + ""));
             if (!autotransaction) {
@@ -373,8 +376,7 @@ public class HerdDBCLI {
 
             QueryWithParameters rewritten = null;
             if (rewritestatements) {
-                rewritten = rewriteQuery(query, tableSpaceMapper);
-
+                rewritten = rewriteQuery(query, tableSpaceMapper, frommysqldump);
             }
             if (rewritten != null) {
                 if (rewritten.schema != null) {
@@ -480,11 +482,31 @@ public class HerdDBCLI {
 
     }
 
-    private static QueryWithParameters rewriteQuery(String query, TableSpaceMapper mapper) throws ScriptException {
+    private final static Cache<String, net.sf.jsqlparser.statement.Statement> PARSER_CACHE = CacheBuilder
+        .newBuilder()
+        .maximumSize(50)
+        .build();
+
+    private static QueryWithParameters rewriteQuery(String query, TableSpaceMapper mapper, boolean frommysqldump) throws ScriptException {
         try {
-            net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
+
+            List<Object> parameters = new ArrayList<>();
+
+            if (frommysqldump && query.startsWith("INSERT INTO")) {
+                // this is faster than CCJSqlParserUtil and will allow the cache to work at "client-side" too
+                QueryWithParameters rewriteSimpleInsertStatement = MySqlDumpInsertStatementRewriter.rewriteSimpleInsertStatement(query);
+                if (rewriteSimpleInsertStatement != null) {
+                    query = rewriteSimpleInsertStatement.query;
+                    parameters.addAll(rewriteSimpleInsertStatement.jdbcParameters);
+                }
+            }
+
+            String _query = query;
+            net.sf.jsqlparser.statement.Statement stmt = PARSER_CACHE.get(_query, () -> {
+                return CCJSqlParserUtil.parse(_query);
+            });
             if (stmt instanceof Insert) {
-                List<Object> parameters = new ArrayList<>();
+                boolean somethingdone = false;
                 Insert insert = (Insert) stmt;
                 ItemsList itemlist = insert.getItemsList();
                 if (itemlist instanceof ExpressionList) {
@@ -513,27 +535,68 @@ public class HerdDBCLI {
                             DoubleValue sv = (DoubleValue) e;
                             parameters.add(sv.getValue());
                             done = true;
-                        } else {
-                            System.out.println("cannot rewrite " + e);
                         }
                         if (done) {
+                            somethingdone = true;
                             expressions.set(i, new JdbcParameter());
                         }
                     }
-                    StringBuilder queryResult = new StringBuilder();
-                    InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null, queryResult);
-                    deparser.deParse(insert);
-                    String schema = mapper == null ? null : mapper.getTableSpace(stmt);
-                    return new QueryWithParameters(queryResult.toString(), parameters, schema);
-                } else {
-                    String schema = mapper == null ? null : mapper.getTableSpace(stmt);
-                    return new QueryWithParameters(query, Collections.emptyList(), schema);
+                    if (somethingdone) {
+                        StringBuilder queryResult = new StringBuilder();
+                        InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null, queryResult);
+                        deparser.deParse(insert);
+                        query = queryResult.toString();
+                    }
+                } else if (itemlist instanceof MultiExpressionList) {
+                    MultiExpressionList mlist = (MultiExpressionList) itemlist;
+                    List<ExpressionList> lists = mlist.getExprList();
+                    for (ExpressionList list : lists) {
+                        List<Expression> expressions = list.getExpressions();
+                        for (int i = 0; i < expressions.size(); i++) {
+                            Expression e = expressions.get(i);
+                            boolean done = false;
+                            if (e instanceof StringValue) {
+                                StringValue sv = (StringValue) e;
+                                parameters.add(sv.getValue());
+                                done = true;
+                            } else if (e instanceof LongValue) {
+                                LongValue sv = (LongValue) e;
+                                parameters.add(sv.getValue());
+                                done = true;
+                            } else if (e instanceof NullValue) {
+                                NullValue sv = (NullValue) e;
+                                parameters.add(null);
+                                done = true;
+                            } else if (e instanceof TimestampValue) {
+                                TimestampValue sv = (TimestampValue) e;
+                                parameters.add(sv.getValue());
+                                done = true;
+                            } else if (e instanceof DoubleValue) {
+                                DoubleValue sv = (DoubleValue) e;
+                                parameters.add(sv.getValue());
+                                done = true;
+                            }
+                            if (done) {
+                                somethingdone = true;
+                                expressions.set(i, new JdbcParameter());
+                            }
+                        }
+                    }
+                    if (somethingdone) {
+                        StringBuilder queryResult = new StringBuilder();
+                        InsertDeParser deparser = new InsertDeParser(new ExpressionDeParser(null, queryResult), null, queryResult);
+                        deparser.deParse(insert);
+                        query = queryResult.toString();
+                    }
                 }
+                String schema = mapper == null ? null : mapper.getTableSpace(stmt);
+                return new QueryWithParameters(query, parameters, schema);
             } else {
                 String schema = mapper == null ? null : mapper.getTableSpace(stmt);
                 return new QueryWithParameters(query, Collections.emptyList(), schema);
             }
-        } catch (JSQLParserException err) {
+        } catch (ExecutionException err) {
+            System.out.println("error for query: " + query + " -> " + err.getCause());
             return null;
         }
     }

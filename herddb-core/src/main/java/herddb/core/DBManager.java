@@ -50,6 +50,7 @@ import herddb.client.ClientConfiguration;
 import herddb.core.join.DataScannerJoinExecutor;
 import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileMetadataStorageManager;
+import herddb.jmx.DBManagerStatsMXBean;
 import herddb.jmx.JMXUtils;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogManager;
@@ -270,6 +271,25 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxIndexUsedMemory = maxIndexUsedMemory;
     }
 
+    private final DBManagerStatsMXBean stats = new DBManagerStatsMXBean() {
+        
+        @Override
+        public long getCachedPlans() {
+            return translator.getCacheSize();
+        }
+
+        @Override
+        public long getCachePlansHits() {
+            return translator.getCacheHits();
+        }
+
+        @Override
+        public long getCachePlansMisses() {
+            return translator.getCacheMisses();
+        }
+
+    };
+
     /**
      * Initial boot of the system
      *
@@ -278,6 +298,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      * @throws herddb.metadata.MetadataStorageManagerException
      */
     public void start() throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
+
+        if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
+            JMXUtils.registerDBManagerStatsMXBean(stats);
+        }
 
         final long maxHeap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getMax();
 
@@ -299,15 +323,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         /* If max used memory is too high lower index and data accordingly */
         if (maxDataUsedMemory + maxIndexUsedMemory > maxMemoryReference) {
 
-            long data  = (int) ((double) maxDataUsedMemory  /
-                    ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
-            long index = (int) ((double) maxIndexUsedMemory /
-                    ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
+            long data = (int) ((double) maxDataUsedMemory
+                / ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
+            long index = (int) ((double) maxIndexUsedMemory
+                / ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
 
             maxDataUsedMemory = data;
             maxIndexUsedMemory = index;
         }
-
 
         memoryManager = new MemoryManager(maxDataUsedMemory, maxIndexUsedMemory, maxLogicalPageSize);
 
@@ -791,6 +814,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             ignore.printStackTrace();
         }
         threadPool.shutdown();
+
+        if (serverConfiguration.getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
+            JMXUtils.unregisterDBManagerStatsMXBean();
+        }
     }
 
     public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {

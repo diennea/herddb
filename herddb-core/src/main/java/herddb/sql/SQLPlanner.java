@@ -134,6 +134,18 @@ public class SQLPlanner {
     private final DBManager manager;
     private final PlansCache cache;
 
+    public long getCacheSize() {
+        return cache.getCacheSize();
+    }
+
+    public long getCacheHits() {
+        return cache.getCacheHits();
+    }
+
+    public long getCacheMisses() {
+        return cache.getCacheMisses();
+    }
+
     public void clearCache() {
         cache.clear();
     }
@@ -1411,12 +1423,12 @@ public class SQLPlanner {
                     int rowCountJdbcParameter = -1;
                     if (limit.getRowCount() instanceof JdbcParameter) {
                         rowCount = -1;
-                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex()-1;
+                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex() - 1;
                     } else {
                         rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
                     }
                     int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
-                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter+1);
+                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter + 1);
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
                         throw new StatementExecutionException("Invalid TOP clause (top=" + top + ")");
@@ -1470,12 +1482,12 @@ public class SQLPlanner {
                     int rowCountJdbcParameter = -1;
                     if (limit.getRowCount() instanceof JdbcParameter) {
                         rowCount = -1;
-                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex()-1;
+                        rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex() - 1;
                     } else {
                         rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
                     }
                     int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
-                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter+1);
+                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter + 1);
 
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
