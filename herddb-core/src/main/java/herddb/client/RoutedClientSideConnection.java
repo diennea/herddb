@@ -249,7 +249,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 if (channel != null) {
                     return channel;
                 }
-                LOGGER.log(Level.SEVERE, "{0} - connect to {1}:{2} ssh:{3}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
+                LOGGER.log(Level.FINE, "{0} - connect to {1}:{2} ssh:{3}", new Object[]{this, server.getHost(), server.getPort(), server.isSsl()});
                 Channel _channel = this.connection.getClient().createChannelTo(server, this);
                 try {
                     performAuthentication(_channel, server.getHost());
