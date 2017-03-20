@@ -82,7 +82,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     private final BLinkIndexDataStorage<Bytes> indexDataStorage;
 
-    public volatile BLink<Bytes> tree;
+    public BLink<Bytes> tree;
 
     private static final class MetadataSerializer {
 
@@ -94,8 +94,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             stream.writeVLong(0L);
             stream.write(BLinkKeyToPageIndex.METADATA_PAGE);
 
-            stream.writeVLong(metadata.nodeSize);
-            stream.writeVLong(metadata.leafSize);
             stream.writeVLong(metadata.root);
             stream.writeVLong(metadata.nextNodeId);
 
@@ -106,14 +104,14 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 stream.writeVLong(node.nodeId);
                 stream.writeVLong(node.storeId);
 
+
                 if (node.highKey == null) {
                     stream.writeArray(NULL_KEY);
                 } else {
                     stream.writeArray(node.highKey.data);
                 }
 
-                stream.writeVLong(node.maxKeys);
-
+                stream.writeVLong(node.size);
                 stream.writeVLong(node.keys);
                 stream.writeZLong(node.right);
             }
@@ -130,8 +128,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 throw new IOException("Wrong page type " + type);
             }
 
-            long nodeSize = stream.readVLong();
-            long leafSize = stream.readVLong();
             long root = stream.readVLong();
             long nextNodeId = stream.readVLong();
 
@@ -144,19 +140,18 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 long storeId = stream.readVLong();
 
                 byte[] hk = stream.readArray();
-                Bytes highKey = hk.length == 0 ? null : Bytes.from_array(hk);;
+                Bytes highKey = hk.length == 0 ? null : Bytes.from_array(hk);
 
-                long maxKeys = stream.readVLong();
-
+                long size = stream.readVLong();
                 long keys = stream.readVLong();
                 long right = stream.readZLong();
 
-                BLinkNodeMetadata<Bytes> node = new BLinkNodeMetadata<>(ntype, nodeId, storeId, highKey, maxKeys, keys, right);
+                BLinkNodeMetadata<Bytes> node = new BLinkNodeMetadata<>(ntype, nodeId, storeId, highKey, size, keys, right);
 
                 nodes.add(node);
             }
 
-            BLinkMetadata<Bytes> metadata = new BLinkMetadata<>(nodeSize, leafSize, root, nextNodeId, nodes);
+            BLinkMetadata<Bytes> metadata = new BLinkMetadata<>(root, nextNodeId, nodes);
 
             return metadata;
         }
@@ -176,73 +171,27 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public long size() {
-        BLink<Bytes> tree = this.tree;
-
-        return tree == null ? 0 : tree.size();
+        return tree.size();
     }
 
     @Override
     public Long put(Bytes key, Long currentPage) {
-
-        BLink<Bytes> tree = this.tree;
-        if (tree == null) {
-            synchronized (this) {
-
-                tree = this.tree;
-                if (tree == null) {
-
-                    /* Create a tree using given key for page size estimation */
-                    final long entryInnerNodeEstimation = key.getEstimatedSize() + BLinkInner.CONSTANT_ENTRY_BYTE_SIZE;
-                    final long entryLeafNodeEstimation  = key.getEstimatedSize() + BLinkLeaf.CONSTANT_ENTRY_BYTE_SIZE;
-
-                    final long pageSize = memoryManager.getMaxLogicalPageSize();
-                    final long nodeSize = (pageSize - BLinkInner.CONSTANT_NODE_BYTE_SIZE)  / entryInnerNodeEstimation;
-                    final long leafSize = (pageSize - BLinkLeaf.CONSTANT_NODE_BYTE_SIZE)   / entryLeafNodeEstimation;
-
-                    if (nodeSize < 3) {
-                        throw new IllegalArgumentException("Key size too big for current page size! Key " + entryInnerNodeEstimation + " page " + pageSize);
-                    }
-
-                    if (leafSize < 3) {
-                        throw new IllegalArgumentException("Key size too big for current page size! Key " + entryLeafNodeEstimation + " page " + pageSize);
-                    }
-
-                    tree = new BLink<>(nodeSize, leafSize, indexDataStorage, memoryManager.getIndexPageReplacementPolicy());
-
-                    /* Publish */
-                    this.tree = tree;
-                }
-            }
-        }
-
         return tree.insert(key, currentPage);
     }
 
     @Override
     public boolean containsKey(Bytes key) {
-        final BLink<Bytes> tree = this.tree;
-        if (tree == null) {
-            return false;
-        }
         return tree.search(key) != BLink.NO_RESULT;
     }
 
     @Override
     public Long get(Bytes key) {
-        final BLink<Bytes> tree = this.tree;
-        if (tree == null) {
-            return null;
-        }
         final long result = tree.search(key);
         return (result == BLink.NO_RESULT) ? null : result;
     }
 
     @Override
     public Long remove(Bytes key) {
-        final BLink<Bytes> tree = this.tree;
-        if (tree == null) {
-            return null;
-        }
         final long result = tree.delete(key);
         return (result == BLink.NO_RESULT) ? null : result;
     }
@@ -250,11 +199,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     @Override
     public Stream<Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
         TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException {
-        final BLink<Bytes> tree = this.tree;
-        if (tree == null) {
-            return Stream.empty();
-        }
-
         if (operation instanceof PrimaryIndexSeek) {
             try {
                 PrimaryIndexSeek seek = (PrimaryIndexSeek) operation;
@@ -314,10 +258,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public void truncate() {
-        final BLink<Bytes> tree = this.tree;
-        if (tree != null) {
-            tree.truncate();
-        }
+        tree.truncate();
     }
 
     @Override
@@ -369,7 +310,18 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         });
 
-        if (binaryMetadata.value != null) {
+        /* Actually the same size */
+        final long nodeSize = memoryManager.getMaxLogicalPageSize();
+        final long leafSize = memoryManager.getMaxLogicalPageSize();
+
+        if (binaryMetadata.value == null) {
+
+            tree = new BLink<>(nodeSize, leafSize, indexDataStorage, memoryManager.getIndexPageReplacementPolicy());
+
+            /* Empty index */
+            LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{indexName});
+
+        } else {
 
             BLinkMetadata<Bytes> metadata;
             try (SimpleByteArrayInputStream bis = new SimpleByteArrayInputStream(binaryMetadata.value);
@@ -380,12 +332,11 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 throw new RuntimeException(e);
             }
 
-            tree = new BLink<>(metadata, indexDataStorage, memoryManager.getDataPageReplacementPolicy());
+            tree = new BLink<>(memoryManager.getMaxLogicalPageSize(), memoryManager.getMaxLogicalPageSize(),
+                    metadata, indexDataStorage, memoryManager.getDataPageReplacementPolicy());
 
             LOGGER.log(Level.SEVERE, "loaded index {0}: {1} keys", new Object[]{indexName, tree.size()});
-        } else {
-            /* Empty index */
-            LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{indexName});
+
         }
 
     }

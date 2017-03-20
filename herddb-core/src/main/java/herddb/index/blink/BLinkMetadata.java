@@ -22,24 +22,24 @@ package herddb.index.blink;
 import java.util.List;
 
 /**
- * Serializable metadata for BLink indexes
+ * Serializable metadata for BLink indexes.
+ *
+ * <p>
+ * Doesn't contains any node max size because page byte size can change between reboots. Nodes need to be
+ * able to adapt to page size changes.
+ * </p>
  *
  * @author diego.salvi
  */
 public final class BLinkMetadata<K> {
-
-    final long nodeSize;
-    final long leafSize;
 
     final long root;
     final long nextNodeId;
 
     final List<BLinkNodeMetadata<K>> nodeMetadatas;
 
-    public BLinkMetadata(long nodeSize, long leafSize, long root, long nextNodeId, List<BLinkNodeMetadata<K>> nodeMetadatas) {
+    public BLinkMetadata(long root, long nextNodeId, List<BLinkNodeMetadata<K>> nodeMetadatas) {
         super();
-        this.nodeSize = nodeSize;
-        this.leafSize = leafSize;
         this.root = root;
         this.nextNodeId = nextNodeId;
         this.nodeMetadatas = nodeMetadatas;
@@ -57,12 +57,11 @@ public final class BLinkMetadata<K> {
 
         final K highKey;
 
-        final long maxKeys;
-
+        final long size;
         final long keys;
         final long right;
 
-        public BLinkNodeMetadata(byte type, long nodeId, long storeId, K highKey, long maxKeys, long keys, long right) {
+        public BLinkNodeMetadata(byte type, long nodeId, long storeId, K highKey, long size, long keys, long right) {
             super();
 
             this.type = type;
@@ -72,24 +71,23 @@ public final class BLinkMetadata<K> {
 
             this.highKey = highKey;
 
-            this.maxKeys = maxKeys;
-
+            this.size = size;
             this.keys = keys;
+
             this.right = right;
         }
 
         @Override
         public String toString() {
             return "BLinkNodeMetadata [type=" + type + ", nodeId=" + nodeId + ", storeId=" + storeId + ", highKey="
-                    + highKey + ", maxKeys=" + maxKeys + ", keys=" + keys + ", right=" + right + "]";
+                    + highKey + ", size=" + size + ", keys=" + keys + ", right=" + right + "]";
         }
 
     }
 
     @Override
     public String toString() {
-        return "BLinkMetadata [nodeSize=" + nodeSize + ", leafSize=" + leafSize + ", root=" + root + ", nodeMetadatas="
-                + nodeMetadatas + "]";
+        return "BLinkMetadata [root=" + root + ", nodeMetadatas=" + nodeMetadatas + "]";
     }
 
 }

@@ -43,19 +43,27 @@ import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.SizeAwareObject;
 
 /**
  * @author diego.salvi
  */
-public final class BLink<K extends Comparable<K>> {
+public final class BLink<K extends Comparable<K> & SizeAwareObject> {
 
     private static final Logger LOGGER = Logger.getLogger(BLink.class.getName());
 
     public static final long NO_RESULT = -1;
     public static final long NO_PAGE = -1;
 
+    private static final long minNodeKeys = 3;
+    private static final long minLeafKeys = 3;
+
+    private static final long minNodeAvalilableSize = 1024;
+    private static final long minLeafAvalilableSize = 1024;
+
     private final long nodeSize;
     private final long leafSize;
+    private final long maxKeySize;
 
     private final BLinkIndexDataStorage<K> storage;
     private final PageReplacementPolicy policy;
@@ -69,9 +77,14 @@ public final class BLink<K extends Comparable<K>> {
 
     private volatile BLinkPtr root;
 
-    public BLink(BLinkMetadata<K> metadata, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
-        this.nodeSize = metadata.nodeSize;
-        this.leafSize = metadata.leafSize;
+    public BLink(long nodeSize, long leafSize, BLinkMetadata<K> metadata,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+
+        checkNodeSize(nodeSize, leafSize);
+
+        this.nodeSize = nodeSize;
+        this.leafSize = leafSize;
+        this.maxKeySize = evaluateMaxKeySize(nodeSize, leafSize);
 
         this.storage = storage;
         this.policy  = policy;
@@ -84,10 +97,10 @@ public final class BLink<K extends Comparable<K>> {
             BLinkNode<K> node;
             switch(nodeMetadata.type) {
                 case BLinkNodeMetadata.NODE_TYPE:
-                    node = new BLinkInner<>(nodeMetadata, storage, policy);
+                    node = new BLinkInner<>(nodeMetadata, nodeSize, storage, policy);
                     break;
                 case BLinkNodeMetadata.LEAF_TYPE:
-                    node = new BLinkLeaf<>(nodeMetadata, storage, policy);
+                    node = new BLinkLeaf<>(nodeMetadata, leafSize, storage, policy);
                     size.add(node.keys());
                     break;
                 default:
@@ -103,14 +116,17 @@ public final class BLink<K extends Comparable<K>> {
         }
 
         this.root = BLinkPtr.page(metadata.root);
+
     }
 
+    public BLink(long nodeSize, long leafSize,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
 
-
-    public BLink(long nodeSize, long leafSize, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+        checkNodeSize(nodeSize, leafSize);
 
         this.nodeSize = nodeSize;
         this.leafSize = leafSize;
+        this.maxKeySize = evaluateMaxKeySize(nodeSize, leafSize);
 
         this.storage = storage;
         this.policy  = policy;
@@ -138,17 +154,32 @@ public final class BLink<K extends Comparable<K>> {
         }
     }
 
-//    public BLink(long nodeSize, long leafSize, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
-//
-//        this.nodeSize = nodeSize;
-//        this.leafSize = leafSize;
-//
-//        this.storage = storage;
-//        this.policy  = policy;
-//
-//        this.size = new LongAdder();
-//        this.root = BLinkPtr.empty();
-//    }
+    private long evaluateMaxKeySize(long nodeSize, long leafSize) {
+
+        long node = ((nodeSize - BLinkInner.CONSTANT_NODE_BYTE_SIZE) / minNodeKeys) - BLinkInner.CONSTANT_ENTRY_BYTE_SIZE;
+        long leaf = ((leafSize - BLinkLeaf.CONSTANT_NODE_BYTE_SIZE) / minLeafKeys) - BLinkLeaf.CONSTANT_ENTRY_BYTE_SIZE;
+
+        return Math.min(node, leaf);
+    }
+
+    private void checkNodeSize(long nodeSize, long leafSize) {
+
+        long realMinNodeSize = minNodeAvalilableSize + BLinkInner.CONSTANT_NODE_BYTE_SIZE
+                + BLinkInner.CONSTANT_ENTRY_BYTE_SIZE * minNodeKeys;
+
+        if (nodeSize < realMinNodeSize) {
+            throw new IllegalArgumentException(
+                    "Node size too small! Node size " + nodeSize + " minimum node size " + realMinNodeSize);
+        }
+
+        long realMinLeafSize = minLeafAvalilableSize + BLinkLeaf.CONSTANT_NODE_BYTE_SIZE
+                + BLinkLeaf.CONSTANT_ENTRY_BYTE_SIZE * minLeafKeys;
+
+        if (leafSize < realMinLeafSize) {
+            throw new IllegalArgumentException(
+                    "Leaf size too small! Leaf size " + leafSize + " minimum leaf size " + realMinLeafSize);
+        }
+    }
 
 
     public long size() {
@@ -173,7 +204,7 @@ public final class BLink<K extends Comparable<K>> {
             metadatas.add(metadata);
         }
 
-        return new BLinkMetadata<>(nodeSize, leafSize, root.value, nextNodeId.get(), metadatas);
+        return new BLinkMetadata<>(root.value, nextNodeId.get(), metadatas);
     }
 
     /** Non threadsafe */
@@ -200,7 +231,6 @@ public final class BLink<K extends Comparable<K>> {
         nodes.clear();
         locks.clear();
         size.reset();
-
     }
 
     /** Non threadsafe */
@@ -367,49 +397,55 @@ public final class BLink<K extends Comparable<K>> {
 
     public long insert(K v, long z) {
 
+        if (v.getEstimatedSize() > maxKeySize) {
+            throw new IllegalArgumentException("Key size too big for current page size! Key " + v.getEstimatedSize()
+                    + " maximum key size " + maxKeySize);
+        }
+
         /* For remembering ancestors */
         Deque<BLinkPtr> stack = new LinkedList<>();
 
         /* Get ptr to root node */
         BLinkPtr current = root;
 
+        /* Root is ensure existent at BLink creation, see initEmptyRoot */
         BLinkNode<K> a = get(current);
 
-        /* Missing root, no data in current index */
-        if (a == null) {
-
-            synchronized (this) {
-                /* Root initialization */
-
-                /* Check if already created */
-                if ( root.isEmpty() ) {
-
-                    final long root = createNewPage();
-                    final BLinkPtr ptr = BLinkPtr.page(root);
-
-                    BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, root, leafSize, v, z, storage, policy);
-
-                    publish(node, ptr, false);
-
-                    final Page.Metadata unload = policy.add(node.getPage());
-                    if (unload != null) {
-                        unload.owner.unload(unload.pageId);
-                    }
-
-                    this.root = ptr;
-
-                    size.increment();
-
-                    return NO_RESULT;
-                }
-
-            }
-
-            /* Get ptr to root node (now should exist!) */
-            current = root;
-
-            a = get(current);
-        }
+//        /* Missing root, no data in current index */
+//        if (a == null) {
+//
+//            synchronized (this) {
+//                /* Root initialization */
+//
+//                /* Check if already created */
+//                if ( root.isEmpty() ) {
+//
+//                    final long root = createNewPage();
+//                    final BLinkPtr ptr = BLinkPtr.page(root);
+//
+//                    BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, root, leafSize, v, z, storage, policy);
+//
+//                    publish(node, ptr, false);
+//
+//                    final Page.Metadata unload = policy.add(node.getPage());
+//                    if (unload != null) {
+//                        unload.owner.unload(unload.pageId);
+//                    }
+//
+//                    this.root = ptr;
+//
+//                    size.increment();
+//
+//                    return NO_RESULT;
+//                }
+//
+//            }
+//
+//            /* Get ptr to root node (now should exist!) */
+//            current = root;
+//
+//            a = get(current);
+//        }
 
         BLinkPtr oldRoot = current;
 
@@ -464,7 +500,7 @@ public final class BLink<K extends Comparable<K>> {
 
         /* Do insertion */
 
-        while(!a.isSafe()) {
+        while(!a.isSafeInsert(v)) {
 
             /* Original "if is safe = false" branch */
 
@@ -780,7 +816,7 @@ public final class BLink<K extends Comparable<K>> {
         return new MoveRightResult<>(t, current, a);
     }
 
-    private static final class MoveRightResult<K extends Comparable<K>> {
+    private static final class MoveRightResult<K extends Comparable<K> & SizeAwareObject> {
         final BLinkPtr t;
         final BLinkPtr current;
         final BLinkNode<K> a;
@@ -866,7 +902,7 @@ public final class BLink<K extends Comparable<K>> {
      *
      * @param <K>
      */
-    private static final class LeafValueIterator<K extends Comparable<K>> implements Iterator<Entry<K, Long>> {
+    private static final class LeafValueIterator<K extends Comparable<K> & SizeAwareObject> implements Iterator<Entry<K, Long>> {
 
         private final BLink<K> tree;
         private final K end;

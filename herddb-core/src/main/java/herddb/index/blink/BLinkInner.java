@@ -19,7 +19,6 @@
  */
 package herddb.index.blink;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Map;
@@ -30,24 +29,32 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.SizeAwareObject;
 
 /**
  * Inner node (non leaf) of {@link BLink}
  *
  * @author diego.salvi
  */
-final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
+final class BLinkInner<K extends Comparable<K> & SizeAwareObject> implements BLinkNode<K> {
 
-    public static final long CONSTANT_NODE_BYTE_SIZE = 432;
+    /** Accounts the extra long value for last pointer */
+    public static final long CONSTANT_NODE_BYTE_SIZE = 448;
 
     /**
      * Doesn't account key occupancy
      */
     public static final long CONSTANT_ENTRY_BYTE_SIZE = 48;
+
+    /** Helper method to evaluate a key/pointer pair entry size*/
+    private static final long ENTRY_SIZE(SizeAwareObject key) {
+        return CONSTANT_ENTRY_BYTE_SIZE + key.getEstimatedSize();
+    }
 
     private static final Logger LOGGER = Logger.getLogger(BLinkInner.class.getName());
 
@@ -66,9 +73,15 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
     private final ConcurrentSkipListMap<Comparable<?>, Long> map;
 
-    private final long maxElements;
-    private final long minElements;
-    private long elements;
+    private final long maxSize;
+    private final long minSize;
+    private long size;
+
+    /**
+     * Needed just to answer {@link #keys()} (needed just for informational size on tree rebuild).
+     * TODO: evaluate drop
+     */
+    private volatile long elements;
 
     private final K highKey;
     private final BLinkPtr right;
@@ -125,7 +138,8 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
     }
 
-    public BLinkInner(BLinkNodeMetadata<K> metadata, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    public BLinkInner(BLinkNodeMetadata<K> metadata, long maxSize,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
 
         this.storage = storage;
         this.policy = policy;
@@ -134,8 +148,9 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.page = new BLinkPage(metadata.nodeId, this);
 
-        this.maxElements = metadata.maxKeys;
-        this.minElements = maxElements / 2;
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+        this.size    = metadata.size;
 
         this.elements = metadata.keys;
         this.map = createNewMap();
@@ -148,7 +163,8 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.loaded = false;
     }
 
-    public BLinkInner(long storeId, long page, long maxElements, K key1, long value1, long value2, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    public BLinkInner(long storeId, long page, long maxSize, K key, long left, long right,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -158,15 +174,16 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.page = new BLinkPage(page, this);
 
-        this.maxElements = maxElements;
-        this.minElements = maxElements / 2;
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+        this.size = CONSTANT_NODE_BYTE_SIZE + ENTRY_SIZE(key);
 
         this.elements = 1;
         this.map = createNewMap();
-        this.map.put(key1, value1);
+        this.map.put(key, left);
 
         /* Add the placeholder for null key */
-        this.map.put(EverBiggerKey.INSTANCE, value2);
+        this.map.put(EverBiggerKey.INSTANCE, right);
 
         this.highKey = null;
 
@@ -177,7 +194,9 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.loaded = true;
     }
 
-    private BLinkInner(long storeId, BLinkPage page, long maxElements, long elements, ConcurrentSkipListMap<Comparable<?>, Long> map, K highKey, BLinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    private BLinkInner(long storeId, BLinkPage page, long maxSize, long size,
+            ConcurrentSkipListMap<Comparable<?>, Long> map, K highKey, BLinkPtr right,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -187,10 +206,11 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.page = page;
 
-        this.maxElements = maxElements;
-        this.minElements = maxElements / 2;
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+        this.size = size;
 
-        this.elements = elements;
+        this.elements = map.size();
         this.map = map;
 
         this.highKey = highKey;
@@ -198,7 +218,7 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.right = right;
 
         /* Dirty by default */
-        this.dirty = true;
+        this.dirty  = true;
         this.loaded = true;
     }
 
@@ -233,13 +253,8 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     }
 
     @Override
-    public boolean isSafe() {
-        return elements < maxElements;
-    }
-
-    @Override
-    public boolean isSafeDelete() {
-        return elements > minElements;
+    public boolean isSafeInsert(K key) {
+        return size + ENTRY_SIZE(key) <= maxSize;
     }
 
     @Override
@@ -313,9 +328,8 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     private BLinkMetadata.BLinkNodeMetadata<K> doCheckpoint() throws IOException {
 
         if (!dirty || !loaded) {
-
             BLinkMetadata.BLinkNodeMetadata<K> metadata = new BLinkMetadata.BLinkNodeMetadata<>(
-                BLinkNodeMetadata.NODE_TYPE, page.pageId, storeId, highKey, maxElements, elements, right.value);
+                BLinkNodeMetadata.NODE_TYPE, page.pageId, storeId, highKey, size, elements, right.value);
             return metadata;
         }
 
@@ -345,7 +359,7 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
         this.storeId = storeId;
 
         BLinkMetadata.BLinkNodeMetadata<K> metadata = new BLinkMetadata.BLinkNodeMetadata<>(
-            BLinkNodeMetadata.NODE_TYPE, page.pageId, storeId, highKey, maxElements, elements, right.value);
+            BLinkNodeMetadata.NODE_TYPE, page.pageId, storeId, highKey, size, elements, right.value);
 
         dirty = false;
 
@@ -505,11 +519,13 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     public BLinkInner<K> insert(K key, long pointer) {
 
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " INSERT page " + this.page + " orig " + this + " K " + key + " ptr " + pointer );
-        if (!isSafe()) {
-            throw new IllegalStateException("Invoking insert on a unsafe node");
-        }
+//        if (!isSafeInsert(key)) {
+//            throw new IllegalStateException("Invoking insert on a unsafe node");
+//        }
+//
+//        toString();
 
-        toString();
+        final long entrySize = ENTRY_SIZE(key);
 
         final Lock lock = loadAndLock();
 
@@ -557,6 +573,7 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
              */
             map.put(ceiling.getKey(), pointer);
 
+            size += entrySize;
             ++elements;
 
             dirty = true;
@@ -613,25 +630,38 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     public BLinkNode<K>[] split(K key, long pointer, long newPage) {
 
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " orig " + this + " K " + key + " ptr " + pointer );
-        if (isSafe()) {
-            throw new IllegalStateException("Invoking rearrange on a safe node");
-        }
+//        if (isSafeInsert(key)) {
+//            throw new IllegalStateException("Invoking rearrange on a safe node");
+//        }
 
         /* Unreferenced page from page policy replacement */
         Page.Metadata unload = null;
 
-        /* Lock already held for modifications */
-        final long splitpoint = (elements + 1) / 2;
+        /*
+         * Size on which split data (account only data size without node implicit one, we'll add it back again
+         * during split nodes creation)
+         *
+         * TODO: We are assuming that inserting key and push back key are roughly of the same size, remove
+         * this assumption and do a real check.
+         */
+        final long splitsize = (size - CONSTANT_NODE_BYTE_SIZE) / 2;
 
         K push = null;
 
-        int count = 0;
+        /* If true we still need to insert the pushed key */
         boolean insert = true;
+
+        /* If true we still need to find a splitting point */
+        boolean split = true;
 
         ConcurrentSkipListMap<Comparable<?>, Long> amap = null;
         ConcurrentSkipListMap<Comparable<?>, Long> bmap = null;
+        long asize = 0L;
+        long bsize = 0L;
 
         ConcurrentSkipListMap<Comparable<?>, Long> currentmap = createNewMap();
+        long currentsize = 0L;
+        long currentElementSize;
 
         /* Retrieve lock to avoid concurrent page unloads */
         final Lock lock = loadAndLock();
@@ -649,20 +679,36 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
                     if (cmp > 0) {
 
                         /* Need to interleave the key/value */
-                        if (count++ == splitpoint) {
+
+                        currentElementSize = ENTRY_SIZE(key);
+
+                        /* Increment current node byte size */
+                        currentsize += currentElementSize;
+
+                        if (split && currentsize > splitsize) {
+
+                            split = false;
+
+                            /*
+                             * Remove push element from size (it's simpler to account element size every time
+                             * and remove it just one time here that continuously check sums and then sum).
+                             */
+                            currentsize -= currentElementSize;
 
                             /* Save the key as the "push" key */
                             push = key;
 
                             /* Attach the last element to current map */
- /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
+                            /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
                             currentmap.put(EverBiggerKey.INSTANCE, entry.getValue());
 
                             /* Save old current map as the new a map */
                             amap = currentmap;
+                            asize = currentsize;
 
                             /* Reset the current map */
                             currentmap = createNewMap();
+                            currentsize = 0L;
 
                         } else {
 
@@ -670,21 +716,36 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
                             currentmap.put(key, entry.getValue());
                         }
 
-                        if (count++ == splitpoint) {
+                        currentElementSize = ENTRY_SIZE((K) entry.getKey());
+
+                        /* Increment current node byte size */
+                        currentsize += currentElementSize;
+
+                        if (split && currentsize > splitsize) {
+
+                            split = false;
+
+                            /*
+                             * Remove push element from size (it's simpler to account element size every time
+                             * and remove it just one time here that continuously check sums and then sum).
+                             */
+                            currentsize -= currentElementSize;
 
                             /* Save the key as the "push" key */
- /* Inner node MUST have at least one key (so no EverBiggerKey will pop out) */
+                            /* Inner node MUST have at least one key (so no EverBiggerKey will pop out) */
                             push = (K) entry.getKey();
 
                             /* Attach the last element to current map */
- /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
+                            /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
                             currentmap.put(EverBiggerKey.INSTANCE, pointer);
 
                             /* Save old current map as the new a map */
                             amap = currentmap;
+                            asize = currentsize;
 
                             /* Reset the current map */
                             currentmap = createNewMap();
+                            currentsize = 0L;
 
                         } else {
 
@@ -701,20 +762,35 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
                 }
 
-                if (count++ == splitpoint) {
+                currentElementSize = ENTRY_SIZE((K) entry.getKey());
+
+                /* Increment current node byte size */
+                currentsize += currentElementSize;
+
+                if (split && currentsize > splitsize) {
+
+                    split = false;
+
+                    /*
+                     * Remove push element from size (it's simpler to account element size every time
+                     * and remove it just one time here that continuously check sums and then sum).
+                     */
+                    currentsize -= currentElementSize;
 
                     /* Save the key as the "push" key */
                     push = (K) entry.getKey();
 
                     /* Attach the last element to current map */
- /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
+                    /* Attention! Split point cannot be the first element! (There cannot be a node with no key!)*/
                     currentmap.put(EverBiggerKey.INSTANCE, entry.getValue());
 
                     /* Save old current map as the new a map */
                     amap = currentmap;
+                    asize = currentsize;
 
                     /* Reset the current map */
                     currentmap = createNewMap();
+                    currentsize = 0L;
 
                 } else {
 
@@ -735,10 +811,12 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
             /* Sets the bprime map, aprime map has already been set */
             bmap = currentmap;
+            bsize = currentsize;
 
             //      make high key of A' equal y;
             //      make right-link of A' point to B';
-            BLinkInner<K> aprime = new BLinkInner<>(storeId, page, maxElements, splitpoint, amap, push, BLinkPtr.link(newPage), storage, policy);
+            BLinkInner<K> aprime = new BLinkInner<>(storeId, page, maxSize,
+                    asize + CONSTANT_NODE_BYTE_SIZE, amap, push, BLinkPtr.link(newPage), storage, policy);
 
             /*
              * Replace page loading management owner... If we are to unload during this procedure the thread will
@@ -750,7 +828,8 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
             BLinkPage bpage = new BLinkPage(newPage);
             //      make high key of B' equal old high key of A';
             //      make right-link of B' equal old right-link of A';
-            BLinkInner<K> bprime = new BLinkInner<>(BLinkIndexDataStorage.NEW_PAGE, bpage, maxElements, elements - splitpoint, bmap, highKey, right, storage, policy);
+            BLinkInner<K> bprime = new BLinkInner<>(BLinkIndexDataStorage.NEW_PAGE, bpage, maxSize,
+                    bsize + CONSTANT_NODE_BYTE_SIZE, bmap, highKey, right, storage, policy);
 
             /* Set page owner after construction */
             bpage.owner.setOwner(bprime);
@@ -778,6 +857,8 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
 
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " DELETE page " + this.page + " orig " + this + " K " + key );
 
+        final long entrySize = ENTRY_SIZE(key);
+
         /* Retrieve lock to avoid concurrent page unloads */
         final Lock lock = loadAndLock();
 
@@ -790,6 +871,7 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
                 throw new InternalError("An element to delete was expected!");
             }
 
+            size -= entrySize;
             --elements;
 
             dirty = true;

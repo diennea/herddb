@@ -22,6 +22,7 @@ package herddb.index.blink;
 import java.io.IOException;
 
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.SizeAwareObject;
 
 /**
  * Node interface of {@link BLink}
@@ -30,14 +31,13 @@ import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
  *
  * @param <K>
  */
-interface BLinkNode<K extends Comparable<K>> {
+interface BLinkNode<K extends Comparable<K> & SizeAwareObject> {
 
     public BLinkPtr scanNode(K key);
 
     public boolean isLeaf();
 
-    public boolean isSafe();
-    public boolean isSafeDelete();
+    public boolean isSafeInsert(K key);
 
     public BLinkNode<K> insert(K key, long pointer);
 
@@ -46,15 +46,16 @@ interface BLinkNode<K extends Comparable<K>> {
     public BLinkNode<K> delete(K key);
 
     public long getPageId();
+
     BLinkPage getPage();
 
     public K getHighKey();
 
     public BLinkPtr getFirstChild();
+
     public BLinkPtr getRight();
 
     public long keys();
-
 
     BLinkNodeMetadata<K> checkpoint() throws IOException;
 

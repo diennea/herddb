@@ -36,18 +36,24 @@ import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import herddb.utils.SizeAwareObject;
 
 /**
  * Leaf of {@link BLink}
  *
  * @author diego.salvi
  */
-final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
+final class BLinkLeaf<K extends Comparable<K> & SizeAwareObject> implements BLinkNode<K> {
 
-    public static final long CONSTANT_NODE_BYTE_SIZE = 432;
+    public static final long CONSTANT_NODE_BYTE_SIZE = 440;
 
     /** Doesn't account key occupancy */
     public static final long CONSTANT_ENTRY_BYTE_SIZE = 48;
+
+    /** Helper method to evaluate a key/pointer pair entry size*/
+    private static final long ENTRY_SIZE(SizeAwareObject key) {
+        return CONSTANT_ENTRY_BYTE_SIZE + key.getEstimatedSize();
+    }
 
     private static final Logger LOGGER = Logger.getLogger(BLinkLeaf.class.getName());
 
@@ -66,14 +72,21 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
     private volatile ConcurrentSkipListMap<K,Long> map;
 
-    private final long maxElements;
-    private final long minElements;
-    private long elements;
+    private final long maxSize;
+    private final long minSize;
+    private long size;
+
+    /**
+     * Needed just to answer {@link #keys()} (needed just for informational size on tree rebuild).
+     * TODO: evaluate drop
+     */
+    private volatile long elements;
 
     private final K highKey;
     private final BLinkPtr right;
 
-    public BLinkLeaf(BLinkNodeMetadata<K> metadata, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    public BLinkLeaf(BLinkNodeMetadata<K> metadata, long maxSize,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
 
         this.storage = storage;
         this.policy = policy;
@@ -82,8 +95,9 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.page = new BLinkPage(metadata.nodeId, this);
 
-        this.maxElements = metadata.maxKeys;
-        this.minElements = maxElements / 2;
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+        this.size    = metadata.size;
 
         this.elements = metadata.keys;
         this.map = new ConcurrentSkipListMap<>();
@@ -97,7 +111,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
     }
 
-    public BLinkLeaf(long storeId, long page, long maxElements, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    public BLinkLeaf(long storeId, long page, long maxSize,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -107,12 +122,9 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.page = new BLinkPage(page, this);
 
-        this.maxElements = maxElements;
-        this.minElements = maxElements / 2;
-
-        if (minElements < 1) {
-            throw new IllegalArgumentException("At least one element!");
-        }
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+        this.size = CONSTANT_NODE_BYTE_SIZE;
 
         this.elements = 0;
         this.map = new ConcurrentSkipListMap<>();
@@ -126,7 +138,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         this.loaded = true;
     }
 
-    public BLinkLeaf(long storeId, long page, long maxElements, K key, long value, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    public BLinkLeaf(long storeId, long page, long maxSize, K key, long value,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -136,18 +149,13 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.page = new BLinkPage(page, this);
 
-        this.maxElements = maxElements;
-        this.minElements = maxElements / 2;
-
-        if (minElements < 1) {
-            throw new IllegalArgumentException("At least one element!");
-        }
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+        this.size = CONSTANT_NODE_BYTE_SIZE + ENTRY_SIZE(key);
 
         this.elements = 1;
-
         final ConcurrentSkipListMap<K,Long> map = new ConcurrentSkipListMap<>();
         map.put(key, value);
-
         this.map = map;
 
         this.highKey = null;
@@ -159,7 +167,9 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         this.loaded = true;
     }
 
-    private BLinkLeaf(long storeId, BLinkPage page, long maxElements, long elements, ConcurrentSkipListMap<K,Long> map, K highKey, BLinkPtr right, BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+    private BLinkLeaf(long storeId, BLinkPage page, long maxSize, long size,
+            ConcurrentSkipListMap<K,Long> map, K highKey, BLinkPtr right,
+            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
         super();
 
         this.storage = storage;
@@ -169,14 +179,11 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         this.page = page;
 
-        this.maxElements = maxElements;
-        this.minElements = maxElements / 2;
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+        this.size = size;
 
-        if (minElements < 1) {
-            throw new IllegalArgumentException("At least one element!");
-        }
-
-        this.elements = elements;
+        this.elements = map.size();
         this.map = map;
 
         this.highKey = highKey;
@@ -219,13 +226,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
     }
 
     @Override
-    public boolean isSafe() {
-        return elements < maxElements;
-    }
-
-    @Override
-    public boolean isSafeDelete() {
-        return elements > minElements;
+    public boolean isSafeInsert(K key) {
+        return size + ENTRY_SIZE(key) <= maxSize;
     }
 
     @Override
@@ -300,7 +302,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         if (!dirty || !loaded) {
             BLinkMetadata.BLinkNodeMetadata<K> metadata = new BLinkMetadata.BLinkNodeMetadata<>(
-                    BLinkNodeMetadata.LEAF_TYPE, page.pageId, storeId, highKey, maxElements, elements, right.value);
+                    BLinkNodeMetadata.LEAF_TYPE, page.pageId, storeId, highKey, size, elements, right.value);
             return metadata;
         }
 
@@ -326,7 +328,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         this.storeId = storeId;
 
         BLinkMetadata.BLinkNodeMetadata<K> metadata = new BLinkMetadata.BLinkNodeMetadata<>(
-                BLinkNodeMetadata.LEAF_TYPE, page.pageId, storeId, highKey, maxElements, elements, right.value);
+                BLinkNodeMetadata.LEAF_TYPE, page.pageId, storeId, highKey, size, elements, right.value);
 
         dirty = false;
 
@@ -489,6 +491,12 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             Long old = map.put(key, pointer);
 
             if (old == null) {
+
+                /*
+                 * We need to evaluate size ONLY for inserts, if is an update the key size was already
+                 * accounted and it didn't change and pointer size is always the same
+                 */
+                size += ENTRY_SIZE(key);
                 ++elements;
             }
 
@@ -513,22 +521,38 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
 //        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " SPLIT page " + this.page + " orig " + this + " K " + key + " ptr " + pointer );
 
-        if (isSafe()) {
-            throw new IllegalStateException("Invoking rearrange on a safe node");
-        }
+//        if (isSafeInsert(key)) {
+//            throw new IllegalStateException("Invoking rearrange on a safe node");
+//        }
 
         /* Unreferenced page from page policy replacement */
         Page.Metadata unload = null;
 
         /* Lock already held for modifications */
 
-        final long splitpoint = (elements + 1) / 2;
+        final long entrySize = ENTRY_SIZE(key);
 
-        int count = 0;
+        /*
+         * Size on which split data (account only data size without node implicit one, we'll add it back again
+         * during split nodes creation)
+         */
+        final long splitsize = (size - CONSTANT_NODE_BYTE_SIZE + entrySize) / 2;
+
+
+        /* If true we still need to insert the pushed key */
         boolean insert = true;
 
-        final ConcurrentSkipListMap<K,Long> amap = new ConcurrentSkipListMap<>();
-        final ConcurrentSkipListMap<K,Long> bmap = new ConcurrentSkipListMap<>();
+        /* If true we still need to find a splitting point */
+        boolean split = true;
+
+        ConcurrentSkipListMap<K,Long> amap = null;
+        ConcurrentSkipListMap<K,Long> bmap = null;
+        long asize = 0L;
+        long bsize = 0L;
+
+        ConcurrentSkipListMap<K, Long> currentmap = new ConcurrentSkipListMap<>();
+        long currentsize = 0L;
+        long currentElementSize;
 
         /* Retrieve lock to avoid concurrent page unloads */
         final Lock lock = loadAndLock();
@@ -545,11 +569,34 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
                         /* Insert here! */
 
-                        /* Check and force count increment */
-                        if (count++ < splitpoint) {
-                            amap.put(key, pointer);
+                        /* Increment current node byte size */
+                        currentsize += entrySize;
+
+                        if (split && currentsize > splitsize) {
+
+                            split = false;
+
+                            /*
+                             * Remove push element from size (it's simpler to account element size every time
+                             * and remove it just one time here that continuously check sums and then sum).
+                             */
+                            currentsize -= entrySize;
+
+                            /* Save old current map as the new a map */
+                            amap = currentmap;
+                            asize = currentsize;
+
+                            /* Reset the current map */
+                            currentmap = new ConcurrentSkipListMap<>();
+                            currentsize = 0L;
+
+                            currentmap.put(key, pointer);
+                            currentsize = entrySize;
+
                         } else {
-                            bmap.put(key, pointer);
+
+                            currentmap.put(key, pointer);
+
                         }
 
                         /* Signal that the element has been inserted */
@@ -566,30 +613,58 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
                 /* Append */
 
-                /* Check and force count increment */
-                if (count++ < splitpoint) {
-                    amap.put(entry.getKey(), entry.getValue());
+                currentElementSize = ENTRY_SIZE(entry.getKey());
+
+                /* Increment current node byte size */
+                currentsize += currentElementSize;
+
+                if (split && currentsize > splitsize) {
+
+                    split = false;
+
+                    /*
+                     * Remove push element from size (it's simpler to account element size every time
+                     * and remove it just one time here that continuously check sums and then sum).
+                     */
+                    currentsize -= currentElementSize;
+
+                    /* Save old current map as the new a map */
+                    amap = currentmap;
+                    asize = currentsize;
+
+                    /* Reset the current map */
+                    currentmap = new ConcurrentSkipListMap<>();
+                    currentsize = 0L;
+
+                    currentmap.put(entry.getKey(), entry.getValue());
+                    currentsize = entrySize;
+
                 } else {
-                    bmap.put(entry.getKey(), entry.getValue());
+
+                    currentmap.put(entry.getKey(), entry.getValue());
+
                 }
 
             }
 
             if (insert) {
-
-                /* Insert here! */
-
-                /* Check and force count increment */
-                if (count++ < splitpoint) {
-                    amap.put(key, pointer);
-                } else {
-                    bmap.put(key, pointer);
-                }
+                currentmap.put(key, pointer);
+                currentsize += entrySize;
             }
+
+            if (amap == null) {
+                throw new InternalError(
+                    "We should have split the node");
+            }
+
+            /* Sets the bprime map, aprime map has already been set */
+            bmap = currentmap;
+            bsize = currentsize;
 
             // make high key of A' equal y;
             // make right-link of A' point to B';
-            BLinkLeaf<K> aprime = new BLinkLeaf<>(storeId, page, maxElements, splitpoint, amap, bmap.firstKey(), BLinkPtr.link(newPage), storage, policy);
+            BLinkLeaf<K> aprime = new BLinkLeaf<>(storeId, page, maxSize,
+                    asize + CONSTANT_NODE_BYTE_SIZE, amap, bmap.firstKey(), BLinkPtr.link(newPage), storage, policy);
 
             /*
              * Replace page loading management owner... If we are to unload during this procedure the thread will
@@ -601,7 +676,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             final BLinkPage bpage = new BLinkPage(newPage);
             // make high key of B' equal old high key of A';
             // make right-link of B' equal old right-link of A';
-            BLinkLeaf<K> bprime = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, bpage, maxElements, count - splitpoint, bmap, highKey, right, storage, policy);
+            BLinkLeaf<K> bprime = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, bpage, maxSize,
+                    bsize + CONSTANT_NODE_BYTE_SIZE, bmap, highKey, right, storage, policy);
 
             /* Set page owner after construction */
             bpage.owner.setOwner(bprime);
@@ -642,6 +718,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 //            throw new IllegalStateException("Invoking delete on a unsafe safe delete node");
 //        }
 
+        final long entrySize = ENTRY_SIZE(key);
+
         /* Retrieve lock to avoid concurrent page unloads */
         final Lock lock = loadAndLock();
 
@@ -654,6 +732,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
                 throw new InternalError("An element to delete was expected!");
             }
 
+            size -= entrySize;
             --elements;
 
             dirty = true;
