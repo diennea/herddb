@@ -199,6 +199,7 @@ public final class BLink<K extends Comparable<K>> {
 
         nodes.clear();
         locks.clear();
+        size.reset();
 
     }
 
@@ -870,6 +871,8 @@ public final class BLink<K extends Comparable<K>> {
         private final BLink<K> tree;
         private final K end;
 
+        private boolean nextChecked;
+
         private BLinkPtr right;
         private K highKey;
 
@@ -881,15 +884,19 @@ public final class BLink<K extends Comparable<K>> {
             this.tree = tree;
             this.right = leaf.getRight();
 
-            this.current = leaf.getValues(start, end).iterator();
+            this.current = leaf.getValues(start, end);
             this.highKey = leaf.getHighKey();
 
             this.end = end;
+
+            this.nextChecked = false;
         }
 
 
         @Override
         public boolean hasNext() {
+
+            nextChecked = true;
 
             while (current != null) {
 
@@ -903,12 +910,12 @@ public final class BLink<K extends Comparable<K>> {
                     /* Otherwise try to move right */
                     if (!right.isEmpty()) {
 
-                        /* If current highkey is greater than end we can move right */
-                        if (end == null || highKey.compareTo(end) > 0) {
+                        /* If current highkey is less than or equal to target end we can move right */
+                        if (end == null || highKey.compareTo(end) <= 0) {
 
                             /* Move right */
                             BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
-                            current = leaf.getValues(null, end).iterator();
+                            current = leaf.getValues(null, end);
                             highKey = leaf.getHighKey();
                             right   = leaf.getRight();
 
@@ -934,45 +941,66 @@ public final class BLink<K extends Comparable<K>> {
 
         @Override
         public Entry<K, Long> next() {
-            while (current != null) {
 
-                /* If remains data in currently checked node use it */
-                if (current.hasNext()) {
+            if (nextChecked) {
 
-                    return current.next();
+                if (current == null) {
+                    throw new NoSuchElementException();
+                }
 
-                } else {
+                /*
+                 * If next has been checked we don't need to replay all next checking... it's already
+                 * prepared!
+                 */
 
-                    /* Otherwise try to move right */
-                    if (!right.isEmpty()) {
+                nextChecked = false;
+                return current.next();
 
-                        /* If current highkey is greater than end we can move right */
-                        if (end == null || highKey.compareTo(end) > 0) {
+            } else {
 
-                            /* Move right */
-                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
-                            current = leaf.getValues(null, end).iterator();
-                            highKey = leaf.getHighKey();
-                            right   = leaf.getRight();
+                while (current != null) {
 
-                        } else {
+                    /* If remains data in currently checked node use it */
+                    if (current.hasNext()) {
 
-                            /* Oterwise there is no interesting data at right */
-                            current = null;
-                            throw new NoSuchElementException();
-                        }
+                        nextChecked = false;
+                        return current.next();
 
                     } else {
 
-                        /* Oterwise there is no data at right */
-                        current = null;
-                        throw new NoSuchElementException();
+                        /* Otherwise try to move right */
+                        if (!right.isEmpty()) {
 
+                            /* If current highkey is greater than end we can move right */
+                            if (end == null || highKey.compareTo(end) > 0) {
+
+                                /* Move right */
+                                BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
+                                current = leaf.getValues(null, end);
+                                highKey = leaf.getHighKey();
+                                right   = leaf.getRight();
+
+                            } else {
+
+                                /* Oterwise there is no interesting data at right */
+                                current = null;
+                                throw new NoSuchElementException();
+                            }
+
+                        } else {
+
+                            /* Oterwise there is no data at right */
+                            current = null;
+                            throw new NoSuchElementException();
+
+                        }
                     }
                 }
+
+                throw new NoSuchElementException();
+
             }
 
-            throw new NoSuchElementException();
         }
 
     }

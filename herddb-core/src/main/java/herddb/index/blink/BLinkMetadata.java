@@ -28,7 +28,6 @@ import java.util.List;
  */
 public final class BLinkMetadata<K> {
 
-
     final long nodeSize;
     final long leafSize;
 
@@ -92,7 +91,5 @@ public final class BLinkMetadata<K> {
         return "BLinkMetadata [nodeSize=" + nodeSize + ", leafSize=" + leafSize + ", root=" + root + ", nodeMetadatas="
                 + nodeMetadatas + "]";
     }
-
-
 
 }

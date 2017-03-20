@@ -17,31 +17,11 @@
  under the License.
 
  */
-/*
- Licensed to Diennea S.r.l. under one
- or more contributor license agreements. See the NOTICE file
- distributed with this work for additional information
- regarding copyright ownership. Diennea S.r.l. licenses this file
- to you under the Apache License, Version 2.0 (the
- "License"); you may not use this file except in compliance
- with the License.  You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-
- Unless required by applicable law or agreed to in writing,
- software distributed under the License is distributed on an
- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- KIND, either express or implied.  See the License for the
- specific language governing permissions and limitations
- under the License.
-
- */
 package herddb.index.blink;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentNavigableMap;
@@ -84,7 +64,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
     private volatile boolean loaded;
     private volatile boolean dirty;
 
-    private final ConcurrentSkipListMap<K,Long> map;
+    private volatile ConcurrentSkipListMap<K,Long> map;
 
     private final long maxElements;
     private final long minElements;
@@ -164,8 +144,11 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         }
 
         this.elements = 1;
-        this.map = new ConcurrentSkipListMap<>();
-        this.map.put(key, value);
+
+        final ConcurrentSkipListMap<K,Long> map = new ConcurrentSkipListMap<>();
+        map.put(key, value);
+
+        this.map = map;
 
         this.highKey = null;
 
@@ -226,12 +209,6 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
     }
 
     @Override
-    public K getLowKey() {
-        return map.firstKey();
-    }
-
-
-    @Override
     public long keys() {
         return elements;
     }
@@ -279,7 +256,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
                     checkpoint();
                 }
 
-                map.clear();
+                /* Junk old map... it could still be referenced in some iterator for getValues method */
+                map = new ConcurrentSkipListMap<>();
                 loaded = false;
 
                 LOGGER.log(Level.FINE, "unloaded leaf node {0}", new Object[] {page.pageId});
@@ -332,6 +310,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         Element<K> root = null;
         Element<K> current = null;
 
+        final ConcurrentSkipListMap<K,Long> map = this.map;
         for(Map.Entry<K,Long> entry : map.entrySet()) {
             if (root == null) {
                 root = new Element<>(entry.getKey(),entry.getValue());
@@ -381,10 +360,14 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
                     Element<K> current = storage.loadPage(storeId);
 
+                    final ConcurrentSkipListMap<K,Long> map = new ConcurrentSkipListMap<>();
                     while(current != null) {
+
                         map.put(current.key,current.page);
                         current = current.next;
                     }
+
+                    this.map = map;
                     loaded = true;
 
                     final Metadata unload = policy.add(page);
@@ -422,7 +405,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         final Lock lock = loadAndLock();
         try {
 
-            return map.isEmpty() ?  BLinkPtr.empty() : BLinkPtr.page(map.firstEntry().getValue());
+            final ConcurrentSkipListMap<K,Long> map = this.map;
+            return map.isEmpty() ? BLinkPtr.empty() : BLinkPtr.page(map.firstEntry().getValue());
 
         } finally {
             lock.unlock();
@@ -430,18 +414,20 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
     }
 
-    public List<Entry<K, Long>> getValues(K start, K end) {
+    public Iterator<Entry<K, Long>> getValues(K start, K end) {
 
         final Lock lock = loadAndLock();
+
+        final ConcurrentSkipListMap<K,Long> map = this.map;
         try {
 
             if (map.isEmpty()) {
-                return Collections.emptyList();
+                return Collections.emptyIterator();
             }
 
             ConcurrentNavigableMap<K,Long> submap;
             if (start == null) {
-                if (end == null) {
+                if (end == null || (highKey != null && highKey.compareTo(end) <= 0)) {
                     submap = map;
                 } else {
                     submap = map.headMap(end);
@@ -454,8 +440,8 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
                 }
             }
 
-            /* Data copy */
-            return new ArrayList<>(submap.entrySet());
+            /* Do not copy data, the page data will be kept live until iterator dereference */
+            return submap.entrySet().iterator();
 
         } finally {
             lock.unlock();
@@ -479,6 +465,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         final Lock lock = loadAndLock();
         try {
 
+            final ConcurrentSkipListMap<K,Long> map = this.map;
             value = map.get(key);
 
         } finally {
@@ -498,6 +485,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         try {
             /* Lock already held for modifications */
 
+            final ConcurrentSkipListMap<K,Long> map = this.map;
             Long old = map.put(key, pointer);
 
             if (old == null) {
@@ -547,6 +535,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 
         try {
 
+            final ConcurrentSkipListMap<K,Long> map = this.map;
             for( Map.Entry<K,Long> entry : map.entrySet() ) {
 
                 if (insert) {
@@ -659,7 +648,7 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
         try {
             /* Lock already held for modifications */
 
-            Long old = map.remove(key);
+            final Long old = map.remove(key);
 
             if (old == null) {
                 throw new InternalError("An element to delete was expected!");
@@ -780,11 +769,6 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
 //        return aprime;
 //    }
 
-
-
-
-
-
     @Override
     public String toString() {
 
@@ -799,19 +783,24 @@ final class BLinkLeaf<K extends Comparable<K>> implements BLinkNode<K> {
             .append(", right: ").append(right)
             .append(", data: ");
 
-        int len = builder.length();
-        for(Map.Entry<K,Long> entry : map.entrySet()) {
-            builder
+        ConcurrentSkipListMap<K,Long> map = this.map;
+
+        if (map != null) {
+            int len = builder.length();
+
+            for(Map.Entry<K,Long> entry : map.entrySet()) {
+                builder
                 .append("(")
                 .append(entry.getKey())
                 .append(",")
                 .append(entry.getValue())
                 .append("), ");
-        }
+            }
 
-        if (builder.length() > len) {
-            /* We added something and we need to remove last ', ' chars */
-            builder.setLength(builder.length() - 2);
+            if (builder.length() > len) {
+                /* We added something and we need to remove last ', ' chars */
+                builder.setLength(builder.length() - 2);
+            }
         }
 
         builder.append("]");

@@ -223,13 +223,6 @@ final class BLinkInner<K extends Comparable<K>> implements BLinkNode<K> {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public K getLowKey() {
-        /* Inner node MUST have at least one key (so no EverBiggerKey will pop out) */
-        return (K) map.firstKey();
-    }
-
-    @Override
     public long keys() {
         return elements;
     }

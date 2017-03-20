@@ -90,6 +90,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         public void serialize(BLinkMetadata<Bytes> metadata, ExtendedDataOutputStream stream) throws IOException {
 
+            /* flags for future implementations, actually unused */
+            stream.writeVLong(0L);
             stream.write(BLinkKeyToPageIndex.METADATA_PAGE);
 
             stream.writeVLong(metadata.nodeSize);
@@ -119,6 +121,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         public BLinkMetadata<Bytes> deserialize(ExtendedDataInputStream stream) throws IOException {
 
+            /* flags for future implementations, actually unused */
+            @SuppressWarnings("unused")
+            long flags = stream.readVLong();
             byte type = stream.readByte();
 
             if (type != METADATA_PAGE) {

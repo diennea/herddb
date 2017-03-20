@@ -49,7 +49,6 @@ interface BLinkNode<K extends Comparable<K>> {
     BLinkPage getPage();
 
     public K getHighKey();
-    public K getLowKey();
 
     public BLinkPtr getFirstChild();
     public BLinkPtr getRight();
@@ -60,9 +59,5 @@ interface BLinkNode<K extends Comparable<K>> {
     BLinkNodeMetadata<K> checkpoint() throws IOException;
 
     public void unload(boolean flush);
-
-
-    /* K key key to delete during merging */
-//    BLinkNode<K> merge(K key, BLinkNode<K> sibling);
 
 }
