@@ -81,6 +81,7 @@ final class BLinkInner<K extends Comparable<K> & SizeAwareObject> implements BLi
      * Needed just to answer {@link #keys()} (needed just for informational size on tree rebuild).
      * TODO: evaluate drop
      */
+    @SuppressFBWarnings("VO_VOLATILE_INCREMENT")
     private volatile long elements;
 
     private final K highKey;

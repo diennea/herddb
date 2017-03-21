@@ -36,6 +36,7 @@ import java.util.stream.Stream;
 
 import javax.xml.ws.Holder;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.AbstractIndexManager;
 import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
@@ -117,6 +118,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             }
         }
 
+        @SuppressFBWarnings(value="DLS_DEAD_LOCAL_STORE", justification="flags still not used but it must be forcefully read")
         public BLinkMetadata<Bytes> deserialize(ExtendedDataInputStream stream) throws IOException {
 
             /* flags for future implementations, actually unused */

@@ -32,6 +32,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
@@ -80,6 +81,7 @@ final class BLinkLeaf<K extends Comparable<K> & SizeAwareObject> implements BLin
      * Needed just to answer {@link #keys()} (needed just for informational size on tree rebuild).
      * TODO: evaluate drop
      */
+    @SuppressFBWarnings("VO_VOLATILE_INCREMENT")
     private volatile long elements;
 
     private final K highKey;
