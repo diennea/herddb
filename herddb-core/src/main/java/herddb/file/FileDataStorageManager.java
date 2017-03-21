@@ -67,9 +67,11 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
+import java.io.BufferedOutputStream;
 
 /**
  * Data Storage on local filesystem
@@ -166,7 +168,8 @@ public class FileDataStorageManager extends DataStorageManager {
         long hashFromFile;
         long hashFromDigest;
         try (InputStream input = Files.newInputStream(pageFile);
-            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(input);
+            BufferedInputStream buffer = new BufferedInputStream(input, 1024);
+            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
@@ -202,7 +205,8 @@ public class FileDataStorageManager extends DataStorageManager {
         long hashFromFile;
         long hashFromDigest;
         try (InputStream input = Files.newInputStream(pageFile);
-            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(input);
+            BufferedInputStream buffer = new BufferedInputStream(input, 1024);
+            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             int flags = dataIn.readVInt(); // flags for future implementations
             if (flags != 0) {
@@ -581,7 +585,8 @@ public class FileDataStorageManager extends DataStorageManager {
         long size;
         try (OutputStream foo = Files.newOutputStream(pageFile, StandardOpenOption.CREATE,
             StandardOpenOption.TRUNCATE_EXISTING);
-            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(foo);
+            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(foo, 1024);
+            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
             dataOutput.writeVInt(0); // flags for future implementations
             dataOutput.writeInt(newPage.size());
@@ -624,7 +629,8 @@ public class FileDataStorageManager extends DataStorageManager {
         long size;
         try (OutputStream foo = Files.newOutputStream(pageFile, StandardOpenOption.CREATE,
             StandardOpenOption.TRUNCATE_EXISTING);
-            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(foo);
+            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(foo, 1024);
+            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
             dataOutput.writeVInt(0); // flags for future implementations
             dataOutput.writeArray(page, offset, len);
