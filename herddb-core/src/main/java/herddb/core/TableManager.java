@@ -49,6 +49,7 @@ import java.util.stream.Stream;
 import javax.xml.ws.Holder;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.codec.RecordSerializer;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
@@ -682,12 +683,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     // OK, INSERT on a DELETED record inside this transaction
                 } else if (transaction.recordInserted(table.name, key) != null) {
                     // ERROR, INSERT on a INSERTED record inside this transaction
-                    throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
+                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as "+RecordSerializer.deserializePrimaryKey(key.data, table)+", already exists in table " + table.name+" inside transaction "+transaction.transactionId);
                 } else if (keyToPage.containsKey(key)) {
-                    throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
+                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as "+RecordSerializer.deserializePrimaryKey(key.data, table)+", already exists in table " + table.name+" during transaction "+transaction.transactionId);
                 }
             } else if (keyToPage.containsKey(key)) {
-                throw new DuplicatePrimaryKeyException(key, "key " + key + " already exists in table " + table.name);
+                throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as "+RecordSerializer.deserializePrimaryKey(key.data, table)+", already exists in table " + table.name);
             }
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
