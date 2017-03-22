@@ -310,14 +310,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             maxMemoryReference = maxHeap;
         }
 
-        /* If max data memory for pages isn't configured or is too high default it to 0.5 maxMemoryReference */
+        /* If max data memory for pages isn't configured or is too high default it to 0.3 maxMemoryReference */
         if (maxDataUsedMemory == 0 || maxDataUsedMemory > maxMemoryReference) {
-            maxDataUsedMemory = (long) (0.5F * maxMemoryReference);
+            maxDataUsedMemory = (long) (0.3F * maxMemoryReference);
         }
 
-        /* If max index memory for pages isn't configured or is too high default it to 0.3 maxMemoryReference */
+        /* If max index memory for pages isn't configured or is too high default it to 0.2 maxMemoryReference */
         if (maxIndexUsedMemory == 0 || maxIndexUsedMemory > maxMemoryReference) {
-            maxIndexUsedMemory = (long) (0.3F * maxMemoryReference);
+            maxIndexUsedMemory = (long) (0.2F * maxMemoryReference);
         }
 
         /* If max used memory is too high lower index and data accordingly */
