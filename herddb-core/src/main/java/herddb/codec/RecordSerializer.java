@@ -34,12 +34,18 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import herddb.model.ColumnsList;
+import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SingleEntryMap;
+import java.sql.Timestamp;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Locale;
 import java.util.function.BiConsumer;
-import javax.imageio.IIOException;
 
 /**
  * Record conversion to byte[]
@@ -250,14 +256,26 @@ public final class RecordSerializer {
         }
     }
 
-    public static Object convert(int type, Object value) {
+    public static Object convert(int type, Object value) throws StatementExecutionException {
         switch (type) {
             case ColumnTypes.TIMESTAMP:
                 if ((value instanceof java.sql.Timestamp)) {
                     return value;
                 } else if (value instanceof RawString
                     || value instanceof String) {
-                    return java.sql.Timestamp.valueOf(value.toString());
+                    try {
+                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                            .withZone(ZoneId.systemDefault());
+                        ZonedDateTime dateTime = ZonedDateTime.parse(value.toString(), formatter);
+                        long millis = (dateTime.toInstant().toEpochMilli());
+                        Timestamp timestamp = new java.sql.Timestamp(millis);
+                        if (timestamp.getTime() != millis) {
+                            throw new StatementExecutionException("Unparsable timestamp " + value + " would been converted as java.sql.Timestamp to " + new java.sql.Timestamp(millis));
+                        }
+                        return timestamp;
+                    } catch (DateTimeParseException err) {
+                        throw new StatementExecutionException("Unparsable timestamp " + value, err);
+                    }
                 }
             case ColumnTypes.BYTEARRAY:
                 if (value instanceof RawString) {
@@ -523,7 +541,6 @@ public final class RecordSerializer {
             throw new IllegalArgumentException("malformed record", err);
         }
     }
-
 
     private static class DataAccessorForPrimaryKey implements DataAccessor {
 

@@ -148,4 +148,34 @@ public class MysqlCompatilityTest {
         }
 
     }
+
+    @Test
+    public void test2() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
+                    Connection con = dataSource.getConnection();
+                    Connection con2 = dataSource.getConnection();
+                    Statement statement = con.createStatement();) {
+                    con.setAutoCommit(false);
+                    statement.execute("CREATE TABLE `queuebouncecategory_history` (\n"
+                        + "  `queueid` int(11) NOT NULL,\n"
+                        + "  `idbouncecategory` smallint(6) NOT NULL,\n"
+                        + "  `refdate` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n"
+                        + "  `messagecount` bigint(20) NOT NULL,\n"
+                        + "  PRIMARY KEY (`queueid`,`refdate`,`idbouncecategory`)\n"
+                        + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+                    statement.executeUpdate("INSERT INTO `queuebouncecategory_history` VALUES (1,3,'2015-03-29 01:00:00',1)");
+                    statement.executeUpdate("INSERT INTO `queuebouncecategory_history` VALUES (1,3,'2015-03-29 02:00:00',1)");
+                    statement.executeUpdate("INSERT INTO `queuebouncecategory_history` VALUES (1,3,'2015-03-29 03:00:00',1)");
+
+                }
+
+            }
+        }
+    }
 }
