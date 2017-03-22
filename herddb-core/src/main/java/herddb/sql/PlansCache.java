@@ -19,11 +19,16 @@
  */
 package herddb.sql;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Output;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import herddb.model.ExecutionPlan;
+import herddb.utils.IntHolder;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -36,7 +41,44 @@ public class PlansCache {
 
     private static final Logger LOG = Logger.getLogger(PlansCache.class.getName());
 
-    private final Cache<String, ExecutionPlan> cache;
+    private final Cache<String, ExecutionPlanContainer> cache;
+
+    private static final class ExecutionPlanContainer {
+
+        private final ExecutionPlan plan;
+        private final int weight;
+
+        public ExecutionPlanContainer(ExecutionPlan plan) {
+            this.plan = plan;
+            this.weight = computeWeigth(plan);
+        }
+
+        private int computeWeigth(ExecutionPlan plan) {
+            final Kryo kryo = new Kryo();
+            IntHolder res = new IntHolder();
+            try (Output oo = new Output(new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    res.value++;
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    res.value += len;
+                }
+
+                @Override
+                public void write(byte[] b) throws IOException {
+                    res.value += b.length;
+                }
+
+            });) {
+                kryo.writeObject(oo, plan);
+            }
+            return res.value;
+        }
+
+    }
 
     public PlansCache(long maxBytes) {
 
@@ -45,13 +87,13 @@ public class PlansCache {
         this.cache = CacheBuilder
             .newBuilder()
             .recordStats()
-            .softValues()
-            .weigher((String sql, ExecutionPlan plan) -> {
-                return sql.length() * 10;
+            .weigher((String sql, ExecutionPlanContainer plan) -> {
+                return plan.weight;
             })
             .maximumWeight(maxBytes)
-            .removalListener((RemovalNotification<String, ExecutionPlan> notification) -> {
-                LOG.log(Level.FINE, "Removed query " + notification.getCause() + " -> " + notification.getKey());
+            .removalListener((RemovalNotification<String, ExecutionPlanContainer> notification) -> {
+                LOG.log(Level.FINE, "Removed query {0} -> {1} size {2} bytes", new Object[]{notification.getCause(),
+                    notification.getKey(), notification.getValue().weight});
             })
             .build();
 
@@ -70,11 +112,12 @@ public class PlansCache {
     }
 
     public ExecutionPlan get(String sql) {
-        return this.cache.getIfPresent(sql);
+        ExecutionPlanContainer res = this.cache.getIfPresent(sql);
+        return res != null ? res.plan : null;
     }
 
     public void put(String sql, ExecutionPlan statement) {
-        this.cache.put(sql, statement);
+        this.cache.put(sql, new ExecutionPlanContainer(statement));
     }
 
     public void clear() {
