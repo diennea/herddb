@@ -45,8 +45,9 @@ public class PlansCache {
         this.cache = CacheBuilder
             .newBuilder()
             .recordStats()
+            .softValues()
             .weigher((String sql, ExecutionPlan plan) -> {
-                return sql.length();
+                return sql.length() * 10;
             })
             .maximumWeight(maxBytes)
             .removalListener((RemovalNotification<String, ExecutionPlan> notification) -> {

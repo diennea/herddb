@@ -31,6 +31,7 @@ import net.sf.jsqlparser.expression.CastExpression;
 import net.sf.jsqlparser.expression.DateTimeLiteralExpression;
 import net.sf.jsqlparser.expression.DateValue;
 import net.sf.jsqlparser.expression.DoubleValue;
+import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.ExpressionVisitor;
 import net.sf.jsqlparser.expression.ExtractExpression;
 import net.sf.jsqlparser.expression.Function;
@@ -461,6 +462,12 @@ class JdbcQueryRewriter implements StatementVisitor,
     }
 
     private void visitBinaryExpression(BinaryExpression e) {
+        if (e.getLeftExpression() instanceof JdbcParameter) {
+            e.setLeftExpression(ImmutableExpressionsCache.internJdbcParameterExpression((JdbcParameter) e.getLeftExpression()));
+        }
+        if (e.getRightExpression() instanceof JdbcParameter) {
+            e.setRightExpression(ImmutableExpressionsCache.internJdbcParameterExpression((JdbcParameter) e.getRightExpression()));
+        }
         e.getLeftExpression().accept(this);
         e.getRightExpression().accept(this);
     }
@@ -740,7 +747,16 @@ class JdbcQueryRewriter implements StatementVisitor,
 
     @Override
     public void visit(ExpressionList expressionList) {
-        expressionList.getExpressions().forEach(e -> e.accept(this));
+        List<Expression> expressions = expressionList.getExpressions();
+        int size = expressions.size();
+        for (int i = 0; i < size; i++) {
+            Expression e = expressions.get(i);
+            if (e instanceof JdbcParameter) {
+                e = ImmutableExpressionsCache.internJdbcParameterExpression((JdbcParameter) e);
+            }
+            expressions.set(i, e);
+            e.accept(this);
+        }
     }
 
     @Override
