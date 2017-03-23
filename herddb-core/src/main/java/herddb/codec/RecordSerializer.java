@@ -40,6 +40,7 @@ import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.SingleEntryMap;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -256,6 +257,8 @@ public final class RecordSerializer {
         }
     }
 
+    private static final ZoneId UTC = ZoneId.of("UTC");
+
     public static Object convert(int type, Object value) throws StatementExecutionException {
         switch (type) {
             case ColumnTypes.TIMESTAMP:
@@ -264,10 +267,12 @@ public final class RecordSerializer {
                 } else if (value instanceof RawString
                     || value instanceof String) {
                     try {
-                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                            .withZone(ZoneId.systemDefault());
+                        DateTimeFormatter formatter
+                            = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                                .withZone(UTC);
                         ZonedDateTime dateTime = ZonedDateTime.parse(value.toString(), formatter);
-                        long millis = (dateTime.toInstant().toEpochMilli());
+                        Instant toInstant = dateTime.toInstant();
+                        long millis = (toInstant.toEpochMilli());
                         Timestamp timestamp = new java.sql.Timestamp(millis);
                         if (timestamp.getTime() != millis) {
                             throw new StatementExecutionException("Unparsable timestamp " + value + " would been converted as java.sql.Timestamp to " + new java.sql.Timestamp(millis));
