@@ -74,7 +74,6 @@ public class TableSpaceMapper {
         } else {
             return null;
         }
-        tableName = tableName.replace("`", "");
         return mapTableNameToSchema(tableName);
     }
 
@@ -83,6 +82,7 @@ public class TableSpaceMapper {
     }
 
     protected String mapTableNameToSchema(String tableName) throws ScriptException {
+        tableName = tableName.replace("`", "");
         if (engine == null) {
             return null;
         }
