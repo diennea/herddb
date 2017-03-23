@@ -53,22 +53,24 @@ public class BigTableScanTest {
     public void bigTableScan() throws Exception {
         int testSize = 5000;
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.setMaxMemoryReference(128 * 1024);
             manager.setMaxLogicalPageSize(32 * 1024);
+            manager.setMaxIndexUsedMemory(manager.getMaxLogicalPageSize()*2);
+            
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                    .builder()
-                    .tablespace("tblspace1")
-                    .name("t1")
-                    .column("id", ColumnTypes.STRING)
-                    .column("name", ColumnTypes.STRING)
-                    .primaryKey("id")
-                    .build();
+                .builder()
+                .tablespace("tblspace1")
+                .name("t1")
+                .column("id", ColumnTypes.STRING)
+                .column("name", ColumnTypes.STRING)
+                .primaryKey("id")
+                .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -80,7 +82,7 @@ public class BigTableScanTest {
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
             assertEquals(testSize, stats.getTablesize());
-            assertEquals(3, stats.getLoadedpages());
+            assertEquals(2, stats.getLoadedpages());
 
             manager.checkpoint();
 
