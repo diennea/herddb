@@ -45,7 +45,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Locale;
 import java.util.function.BiConsumer;
 
 /**
@@ -258,6 +257,11 @@ public final class RecordSerializer {
     }
 
     private static final ZoneId UTC = ZoneId.of("UTC");
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(UTC);
+
+    public static final DateTimeFormatter getUTCTimestampFormatter() {
+        return TIMESTAMP_FORMATTER;
+    }
 
     public static Object convert(int type, Object value) throws StatementExecutionException {
         switch (type) {
@@ -267,10 +271,8 @@ public final class RecordSerializer {
                 } else if (value instanceof RawString
                     || value instanceof String) {
                     try {
-                        DateTimeFormatter formatter
-                            = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-                                .withZone(UTC);
-                        ZonedDateTime dateTime = ZonedDateTime.parse(value.toString(), formatter);
+
+                        ZonedDateTime dateTime = ZonedDateTime.parse(value.toString(), TIMESTAMP_FORMATTER);
                         Instant toInstant = dateTime.toInstant();
                         long millis = (toInstant.toEpochMilli());
                         Timestamp timestamp = new java.sql.Timestamp(millis);

@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.codec.RecordSerializer;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
@@ -142,15 +143,21 @@ public class RawSQLTest {
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
-            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string,t1 timestamp)", Collections.emptyList());
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string,n1 int,s1 string,t1 timestamp, primary key (t1) )", Collections.emptyList());
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,CURRENT_TIMESTAMP)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
             Thread.sleep(500);
             assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consume().get(0).get("n1"));
-            java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
 
+            java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
             // non standard syntax, needs a decoding
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + now + "')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + RecordSerializer.getUTCTimestampFormatter()
+                .format(now.toInstant()) + "')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
+
+
+            java.sql.Timestamp now2 = new java.sql.Timestamp(now.getTime() + 1000);
+            // standard syntax, but timezone dependant
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,{ts '" + now2 + "'})", Arrays.asList("mykey3", Integer.valueOf(1234))).getUpdateCount());
         }
     }
 
@@ -1510,7 +1517,7 @@ public class RawSQLTest {
                     assertEquals(1, records.get(0).getFieldNames().length);
                     assertEquals(1, records.get(0).toMap().size());
                     assertEquals("theKey", records.get(0).getFieldNames()[0]);
-                    System.out.println("type: "+records.get(0).getClass());
+                    System.out.println("type: " + records.get(0).getClass());
                     assertEquals(RawString.of("mykey2"), records.get(0).get(0));
                 }
             }
