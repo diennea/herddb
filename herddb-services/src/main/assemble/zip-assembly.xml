@@ -23,7 +23,14 @@
                 <include>service</include>                
                 <include>bookkeeper</include>                
             </includes>
-        </fileSet>        
+        </fileSet>   
+        <fileSet>
+            <directory>target/generated-sources/license</directory>
+            <outputDirectory>license</outputDirectory>
+            <includes>
+                <include>*</include>
+            </includes>           
+        </fileSet>     
                
     </fileSets>
     <dependencySets>      
