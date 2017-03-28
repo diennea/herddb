@@ -19,6 +19,20 @@
  */
 package herddb.index;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Stream;
+
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
@@ -34,27 +48,12 @@ import herddb.model.TableContext;
 import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Stream;
 
 /**
  * HASH index. The index resides entirely in memory. It is serialized fully on the IndexStatus structure
@@ -77,23 +76,16 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     @Override
     public void start() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for mem index {0}", new Object[]{index.name});
-        bootSequenceNumber = log.getLastSequenceNumber();
 
-        dataStorageManager.fullIndexScan(tableSpaceUUID, index.name,
-            new FullIndexScanConsumer() {
+        IndexStatus status = dataStorageManager.getLatestIndexStatus(tableSpaceUUID, index.name);
+        if (status.sequenceNumber == LogSequenceNumber.START_OF_TIME) {
+            /* Empty index */
+            LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
+        } else {
+            for(long pageId : status.activePages) {
+                byte[] pagedata = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId);
 
-            @Override
-            public void acceptIndexStatus(IndexStatus indexStatus) {
-                LOGGER.log(Level.SEVERE, "recovery index " + indexStatus.indexName + " at " + indexStatus.sequenceNumber);
-                bootSequenceNumber = indexStatus.sequenceNumber;
-            }
-
-            @Override
-            public void acceptPage(long pageId, byte[] pagedata) {
-                if (newPageId.get() <= pageId) {
-                    newPageId.set(pageId + 1);
-                }
-                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length);
+                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", load " + pageId + " pagedata size: " + pagedata.length);
 
                 SimpleByteArrayInputStream indexData = new SimpleByteArrayInputStream(pagedata);
                 try (ExtendedDataInputStream oo = new ExtendedDataInputStream(indexData)) {
@@ -109,13 +101,14 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                         data.put(Bytes.from_array(indexKey), value);
                     }
                 } catch (IOException error) {
-                    throw new RuntimeException(error);
+                    throw new DataStorageManagerException(error);
                 }
+
             }
 
-        });
-
-        LOGGER.log(Level.SEVERE, "loaded {0} keys for index {1}", new Object[]{data.size(), index.name});
+            newPageId.set(status.newPageId);
+            LOGGER.log(Level.SEVERE, "loaded {0} keys for index {1}", new Object[]{data.size(), index.name});
+        }
     }
 
     @Override
@@ -241,7 +234,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         byte[] data = indexData.toByteArray();
         long pageId = newPageId.getAndIncrement();
         dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, data);
-        IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, Collections.singleton(pageId), null);
+        IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), Collections.singleton(pageId), null);
         result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus));
         LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries, page {2}", new Object[]{index.name, count + "", pageId + ""});
         return result;

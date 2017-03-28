@@ -70,6 +70,8 @@ public class ScanDuringCheckPointTest {
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
+            String tableSpaceUUID = manager.getTableSpaceManager("tblspace1").getTableSpaceUUID();
+
             Table table = Table
                 .builder()
                 .tablespace("tblspace1")
@@ -94,7 +96,7 @@ public class ScanDuringCheckPointTest {
             }
             manager.checkpoint();
 
-            assertTrue(manager.getDataStorageManager().getActualNumberOfPages(table.tablespace, table.name) > 1);
+            assertTrue(manager.getDataStorageManager().getActualNumberOfPages(tableSpaceUUID, table.name) > 1);
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
             assertEquals(testSize, stats.getTablesize());

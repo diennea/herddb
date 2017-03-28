@@ -37,8 +37,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-import javax.xml.ws.Holder;
-
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.AbstractIndexManager;
 import herddb.core.MemoryManager;
@@ -56,7 +54,6 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
@@ -90,24 +87,22 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     private final MemoryManager memoryManager;
     private final DataStorageManager dataStorageManager;
 
-    private final AtomicLong pageIDGenerator;
+    private final AtomicLong newPageId;
 
     private final BLinkIndexDataStorage<Bytes,Long> indexDataStorage;
-    private final MetadataStorage metadataStorage;
 
     public BLink<Bytes,Long> tree;
 
     public BLinkKeyToPageIndex(String tableSpace, String tableName, MemoryManager memoryManager, DataStorageManager dataStorageManager) {
         super();
         this.tableSpace = tableSpace;
-        this.indexName = tableName + ".primary";
+        this.indexName = tableName + "_primary";
 
         this.memoryManager = memoryManager;
         this.dataStorageManager = dataStorageManager;
 
-        this.pageIDGenerator = new AtomicLong(0);
+        this.newPageId = new AtomicLong(1);
         this.indexDataStorage = new BLinkIndexDataStorageImpl();
-        this.metadataStorage = new MetadataStorage();
     }
 
     @Override
@@ -213,56 +208,23 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     @Override
     public void start() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, " start index {0}", new Object[]{indexName});
-//        bootSequenceNumber = log.getLastSequenceNumber();
-        Holder<Long> metadataPageId = new Holder<>();
-        dataStorageManager.fullIndexScan(tableSpace, indexName,
-            new FullIndexScanConsumer() {
-
-            @Override
-            public void acceptIndexStatus(IndexStatus indexStatus) {
-                LOGGER.log(Level.SEVERE, "recovery index {0} at {1}", new Object[]{indexStatus.indexName, indexStatus.sequenceNumber});
-//                bootSequenceNumber = indexStatus.sequenceNumber;
-            }
-
-            @Override
-            public void acceptPage(long pageId, byte[] pagedata) {
-                if (pageIDGenerator.get() <= pageId) {
-                    pageIDGenerator.set(pageId + 1);
-                }
-                LOGGER.log(Level.FINEST, "recovery index {0}, acceptPage {1} pagedata: {2} bytes", new Object[]{indexName, pageId, pagedata.length});
-
-                byte type = pagedata[0];
-
-                switch (type) {
-                    case METADATA_PAGE:
-                        LOGGER.log(Level.INFO, "recovery index {0}, metatadata page {1}", new Object[]{indexName, pageId});
-                        metadataPageId.value = pageId;
-                        break;
-                    case INNER_NODE_PAGE:
-                        LOGGER.log(Level.FINE, "recovery index {0}, data page {1}", new Object[]{indexName, pageId});
-                        break;
-                    default:
-                        LOGGER.log(Level.SEVERE, "recovery index {0}, ignore page type {1}", new Object[]{indexName, type});
-                        break;
-                }
-            }
-
-        });
 
         /* Actually the same size */
         final long pageSize = memoryManager.getMaxLogicalPageSize();
 
-        if (metadataPageId.value == null) {
+        IndexStatus status = dataStorageManager.getLatestIndexStatus(tableSpace, indexName);
+
+        if (status.sequenceNumber == LogSequenceNumber.START_OF_TIME) {
             tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
                     memoryManager.getIndexPageReplacementPolicy(), indexDataStorage);
 
             /* Empty index */
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{indexName});
-
         } else {
 
             try {
-                final BLinkMetadata<Bytes> metadata = metadataStorage.read(metadataPageId.value);
+                BLinkMetadata<Bytes> metadata = MetadataSerializer.INSTANCE.read(status.indexData);
+
                 tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
                         memoryManager.getIndexPageReplacementPolicy(), indexDataStorage,
                         metadata);
@@ -270,10 +232,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 throw new DataStorageManagerException(e);
             }
 
+            newPageId.set(status.newPageId);
             LOGGER.log(Level.SEVERE, "loaded index {0}: {1} keys", new Object[]{indexName, tree.size()});
-
         }
-
     }
 
     @Override
@@ -289,13 +250,12 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
             BLinkMetadata<Bytes> metadata = tree.checkpoint();
 
-            long metaPage = metadataStorage.write(metadata);
+            byte[] metaPage = MetadataSerializer.INSTANCE.write(metadata);
 
             Set<Long> activePages = new HashSet<>();
-            activePages.add(metaPage);
             metadata.nodes.forEach(node -> activePages.add(node.storeId));
 
-            IndexStatus indexStatus = new IndexStatus(indexName, sequenceNumber, activePages, null);
+            IndexStatus indexStatus = new IndexStatus(indexName, sequenceNumber, newPageId.get(), activePages, metaPage);
             List<PostCheckpointAction> result = new ArrayList<>();
             result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus));
 
@@ -344,12 +304,14 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
     }
 
-    private final class MetadataStorage {
+    private static final class MetadataSerializer {
 
-        public long write(BLinkMetadata<Bytes> metadata) throws IOException {
+        public static final MetadataSerializer INSTANCE = new MetadataSerializer();
+
+        public byte[] write(BLinkMetadata<Bytes> metadata) throws IOException {
 
             final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
-            try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
+            try ( ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
 
                 /* flags for future implementations, actually unused */
                 edos.writeVLong(0L);
@@ -397,20 +359,13 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
             }
 
-            long pageId = pageIDGenerator.incrementAndGet();
-
-            dataStorageManager.writeIndexPage(tableSpace, indexName, pageId, bos.getBuffer(), 0, bos.size());
-
-            return pageId;
+            return bos.toByteArray();
 
         }
 
         @SuppressWarnings("unchecked")
         @SuppressFBWarnings(value="DLS_DEAD_LOCAL_STORE", justification="flags still not used but it must be forcefully read")
-        public BLinkMetadata<Bytes> read(long pageId) throws IOException {
-
-
-            byte[] data = dataStorageManager.readIndexPage(tableSpace, indexName, pageId);
+        public BLinkMetadata<Bytes> read(byte[] data) throws IOException {
 
             try ( ByteArrayInputStream bis = new ByteArrayInputStream(data);
                   ExtendedDataInputStream edis = new ExtendedDataInputStream(bis) ) {
@@ -478,6 +433,140 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         }
     }
+//    private final class MetadataStorage {
+//
+//        public long write(BLinkMetadata<Bytes> metadata) throws IOException {
+//
+//            final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
+//            try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
+//
+//                /* flags for future implementations, actually unused */
+//                edos.writeVLong(0L);
+//                edos.writeByte(METADATA_PAGE);
+//
+//                edos.writeVLong(metadata.nextID);
+//
+//                edos.writeVLong(metadata.fast);
+//                edos.writeVInt(metadata.fastheight);
+//
+//                edos.writeVLong(metadata.top);
+//                edos.writeVInt(metadata.topheight);
+//
+//                edos.writeVLong(metadata.first);
+//                edos.writeVLong(metadata.values);
+//
+//                for (BLinkNodeMetadata<Bytes> node : metadata.nodes) {
+//
+//                    edos.writeVInt(METADATA_PAGE_NODE_BLOCK);
+//
+//                    edos.writeBoolean(node.leaf);
+//
+//                    edos.writeVLong(node.id);
+//                    edos.writeVLong(node.storeId);
+//
+//                    edos.writeBoolean(node.empty);
+//
+//                    edos.writeVInt(node.keys);
+//                    edos.writeVLong(node.bytes);
+//
+//                    edos.writeZLong(node.outlink);
+//                    edos.writeZLong(node.rightlink);
+//
+//
+//                    boolean hasInf = node.rightsep == EverBiggerKey.INSTANCE;
+//
+//                    edos.writeBoolean(hasInf);
+//
+//                    if (!hasInf) {
+//                        edos.writeArray(((Bytes) node.rightsep).to_array());
+//                    }
+//                }
+//
+//                edos.writeVInt(METADATA_PAGE_END_BLOCK);
+//
+//            }
+//
+//            long pageId = pageIDGenerator.incrementAndGet();
+//
+//            dataStorageManager.writeIndexPage(tableSpace, indexName, pageId, bos.getBuffer(), 0, bos.size());
+//
+//            return pageId;
+//
+//        }
+//
+//        @SuppressWarnings("unchecked")
+//        @SuppressFBWarnings(value="DLS_DEAD_LOCAL_STORE", justification="flags still not used but it must be forcefully read")
+//        public BLinkMetadata<Bytes> read(long pageId) throws IOException {
+//
+//
+//            byte[] data = dataStorageManager.readIndexPage(tableSpace, indexName, pageId);
+//
+//            try ( ByteArrayInputStream bis = new ByteArrayInputStream(data);
+//                  ExtendedDataInputStream edis = new ExtendedDataInputStream(bis) ) {
+//
+//                /* flags for future implementations, actually unused */
+//                @SuppressWarnings("unused")
+//                long flags = edis.readVLong();
+//                byte rtype = edis.readByte();
+//
+//                if (rtype != METADATA_PAGE) {
+//                    throw new IOException("Wrong page type " + rtype + " expected " + METADATA_PAGE );
+//                }
+//
+//                long nextID = edis.readVLong();
+//
+//                long fast = edis.readVLong();
+//                int fastheight = edis.readVInt();
+//
+//                long top = edis.readVLong();
+//                int topheight = edis.readVInt();
+//
+//                long first = edis.readVLong();
+//                long values = edis.readVLong();
+//
+//                List<BLinkNodeMetadata<Bytes>> nodes = new LinkedList<>();
+//
+//                int block;
+//
+//                while ((block = edis.readVInt()) != METADATA_PAGE_END_BLOCK) {
+//
+//                    if (block != METADATA_PAGE_NODE_BLOCK) {
+//                        throw new IOException("Wrong block type " + block);
+//                    }
+//
+//                    final boolean leaf = edis.readBoolean();
+//
+//                    long id = edis.readVLong();
+//                    long storeId = edis.readVLong();
+//
+//                    boolean empty = edis.readBoolean();
+//
+//                    int keys = edis.readVInt();
+//                    long bytes = edis.readVLong();
+//
+//                    long outlink = edis.readZLong();
+//                    long rightlink = edis.readZLong();
+//
+//                    boolean hasInf = edis.readBoolean();
+//
+//                    Comparable<Bytes> rightsep;
+//                    if (hasInf) {
+//                        rightsep = EverBiggerKey.INSTANCE;
+//                    } else {
+//                        rightsep = Bytes.from_array(edis.readArray());
+//                    }
+//
+//                    BLinkNodeMetadata<Bytes> node =
+//                            new BLinkNodeMetadata<>(leaf, id, storeId, empty, keys, bytes, outlink, rightlink, rightsep);
+//
+//                    nodes.add(node);
+//                }
+//
+//                return new BLinkMetadata<>(nextID, fast, fastheight, top, topheight, first, values, nodes);
+//            }
+//
+//        }
+//    }
 
     private final class BLinkIndexDataStorageImpl implements BLinkIndexDataStorage<Bytes,Long> {
 
@@ -592,7 +681,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
             /* Write/overwrite switch */
             if (pageId == NEW_PAGE) {
-                pageId = pageIDGenerator.incrementAndGet();
+                pageId = newPageId.getAndIncrement();
             }
 
             dataStorageManager.writeIndexPage(tableSpace, indexName, pageId, bos.getBuffer(), 0, bos.size());

@@ -21,6 +21,7 @@ package herddb.mem;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.core.MemoryManager;
@@ -45,12 +47,14 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
+import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
 
 /**
  * In memory StorageManager, for tests
@@ -81,7 +85,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
     private final ConcurrentHashMap<String, Page> pages = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Bytes> indexpages = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Set<Bytes>> keysByPage = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, byte[]> tableStatuses = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, byte[]> indexStatuses = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<Table>> tablesByTablespace = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<Index>> indexesByTablespace = new ConcurrentHashMap<>();
 
@@ -89,58 +94,103 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
         int res = 0;
         for (String key : pages.keySet()) {
-            if (key.startsWith(tableName + "_")) {
+            if (key.startsWith(tableSpace + "." + tableName + "_")) {
                 res++;
             }
         }
         return res;
     }
 
-    public Page getPage(String tableName, Long pageId) {
-        return pages.get(tableName + "_" + pageId);
+    public Page getPage(String tableSpace, String tableName, Long pageId) {
+        return pages.get(tableSpace + "." + tableName + "_" + pageId);
     }
 
     @Override
     public List<Record> readPage(String tableSpace, String tableName, Long pageId) {
-        Page page = pages.get(tableName + "_" + pageId);
+        Page page = pages.get(tableSpace + "." + tableName + "_" + pageId);
         //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         return page != null ? page.records : null;
     }
 
     @Override
     public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
-        Bytes page = indexpages.get(indexName + "_" + pageId);
+        Bytes page = indexpages.get(tableSpace + "." + indexName + "_" + pageId);
         //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         return page != null ? page.data : null;
     }
 
     @Override
     public TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
-        return new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+
+        byte[] data = tableStatuses.get(tableSpace + "." + tableName);
+        TableStatus latestStatus;
+        if (data == null) {
+            latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+        } else {
+            try {
+                try (InputStream input = new SimpleByteArrayInputStream(data);
+                    ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                    latestStatus = TableStatus.deserialize(dataIn);
+                }
+            } catch (IOException err) {
+                throw new DataStorageManagerException(err);
+            }
+        }
+
+        return latestStatus;
+    }
+
+    @Override
+    public IndexStatus getLatestIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException {
+
+        byte[] data = indexStatuses.get(tableSpace + "." + indexName);
+        IndexStatus latestStatus;
+        if (data == null) {
+            latestStatus = new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, 1, null, null);
+        } else {
+            try {
+                try (InputStream input = new SimpleByteArrayInputStream(data);
+                    ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                    latestStatus = IndexStatus.deserialize(dataIn);
+                }
+            } catch (IOException err) {
+                throw new DataStorageManagerException(err);
+            }
+        }
+
+        return latestStatus;
     }
 
     @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
         TableStatus ts = getLatestTableStatus(tableSpace, tableName);
         consumer.acceptTableStatus(ts);
-    }
 
-    @Override
-    public void fullIndexScan(String tableSpace, String tableName, FullIndexScanConsumer consumer) throws DataStorageManagerException {
-        consumer.acceptIndexStatus(new IndexStatus(tableName, LogSequenceNumber.START_OF_TIME, null, null));
+        List<Long> activePages = new ArrayList<>(ts.activePages);
+        activePages.sort(null);
+        for (long idpage : activePages) {
+            List<Record> records = readPage(tableSpace, tableName, idpage);
+            consumer.startPage(idpage);
+            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
+            for (Record record : records) {
+                consumer.acceptRecord(record);
+            }
+            consumer.endPage();
+        }
+        consumer.endTable();
     }
 
     @Override
     public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         Page page = new Page(new ArrayList<>(newPage));
-        pages.put(tableName + "_" + pageId, page);
+        pages.put(tableSpace + "." + tableName + "_" + pageId, page);
         //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
     }
 
     @Override
     public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException {
         Bytes page_wrapper = Bytes.from_array(page);
-        indexpages.put(indexName + "_" + pageId, page_wrapper);
+        indexpages.put(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
     }
 
     @Override
@@ -148,14 +198,14 @@ public class MemoryDataStorageManager extends DataStorageManager {
         byte[] data = new byte[len];
         System.arraycopy(page, offset, data, 0, len);
         Bytes page_wrapper = Bytes.from_array(data);
-        indexpages.put(indexName + "_" + pageId, page_wrapper);
+        indexpages.put(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
     }
 
     @Override
     public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
 
         List<Long> pagesForTable = new ArrayList<>();
-        String prefix = tableName + "_";
+        String prefix = tableSpace + "." + tableName + "_";
         for (String key : pages.keySet()) {
             if (key.startsWith(prefix)) {
                 long pageId = Long.parseLong(key.substring(prefix.length()));
@@ -175,12 +225,60 @@ public class MemoryDataStorageManager extends DataStorageManager {
                 }
             });
         }
+
+        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
+        try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+            tableStatus.serialize(dataOutputKeys);
+            dataOutputKeys.flush();
+            oo.write(oo.xxhash64());
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+
+        /* Uses a copy to limit byte[] size at the min needed */
+        tableStatuses.put(tableSpace + "." + tableName, oo.toByteArray());
+
         return result;
     }
 
     @Override
-    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String tableName, IndexStatus indexStatus) throws DataStorageManagerException {
-        return Collections.emptyList();
+    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus) throws DataStorageManagerException {
+
+        List<Long> pagesForIndex = new ArrayList<>();
+        String prefix = tableSpace + "." + indexName + "_";
+        for (String key : indexpages.keySet()) {
+            if (key.startsWith(prefix)) {
+                long pageId = Long.parseLong(key.substring(prefix.length()));
+                pagesForIndex.add(pageId);
+            }
+        }
+
+        pagesForIndex.removeAll(indexStatus.activePages);
+        List<PostCheckpointAction> result = new ArrayList<>();
+
+        for (long pageId : pagesForIndex) {
+            result.add(new PostCheckpointAction(indexName, "drop page " + pageId) {
+                @Override
+                public void run() {
+                    // remove only after checkpoint completed
+                    indexpages.remove(prefix + pageId);
+                }
+            });
+        }
+
+        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
+        try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+            indexStatus.serialize(dataOutputKeys);
+            dataOutputKeys.flush();
+            oo.write(oo.xxhash64());
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+
+        /* Uses a copy to limit byte[] size at the min needed */
+        indexStatuses.put(tableSpace + "." + indexName, oo.toByteArray());
+
+        return result;
     }
 
     @Override
@@ -190,8 +288,12 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public void close() throws DataStorageManagerException {
-        this.pages.clear();
-        this.keysByPage.clear();
+        pages.clear();
+        indexpages.clear();
+        tableStatuses.clear();
+        indexStatuses.clear();
+        tablesByTablespace.clear();
+        indexesByTablespace.clear();
     }
 
     @Override

@@ -59,7 +59,6 @@ import herddb.model.Transaction;
 import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.storage.TableStatus;
@@ -71,7 +70,6 @@ import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
-import java.io.BufferedOutputStream;
 
 /**
  * Data Storage on local filesystem
@@ -228,31 +226,6 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void fullIndexScan(String tableSpace, String indexName, FullIndexScanConsumer consumer) throws DataStorageManagerException {
-        try {
-            Path lastFile = getLastIndexCheckpointFile(tableSpace, indexName);
-            IndexStatus latestStatus;
-            if (lastFile == null) {
-                latestStatus = new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, null, null);
-            } else {
-                latestStatus = readIndexStatusFromFile(lastFile);
-            }
-            LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", status: " + latestStatus);
-            consumer.acceptIndexStatus(latestStatus);
-
-            List<Long> activePages = new ArrayList<>(latestStatus.activePages);
-            activePages.sort(null);
-            for (long idpage : activePages) {
-                byte[] records = readIndexPage(tableSpace, indexName, idpage);
-                consumer.acceptPage(idpage, records);
-                LOGGER.log(Level.SEVERE, "fullIndexScan index " + tableSpace + "." + indexName + ", page " + idpage + ", " + records.length + " bytes");
-            }
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
-        }
-    }
-
-    @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
         try {
             TableStatus latestStatus = getLatestTableStatus(tableSpace, tableName);
@@ -281,6 +254,22 @@ public class FileDataStorageManager extends DataStorageManager {
     public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
         TableStatus latestStatus = getLatestTableStatus(tableSpace, tableName);
         return latestStatus.activePages.size();
+    }
+
+    @Override
+    public IndexStatus getLatestIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException {
+        try {
+            Path lastFile = getLastIndexCheckpointFile(tableSpace, indexName);
+            IndexStatus latestStatus;
+            if (lastFile == null) {
+                latestStatus = new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, 1, null, null);
+            } else {
+                latestStatus = readIndexStatusFromFile(lastFile);
+            }
+            return latestStatus;
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
     @Override

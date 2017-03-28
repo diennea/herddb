@@ -33,7 +33,6 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
-import java.io.IOException;
 
 /**
  * Physical storage of data
@@ -62,8 +61,6 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @throws herddb.storage.DataStorageManagerException
      */
     public abstract void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException;
-
-    public abstract void fullIndexScan(String tableSpace, String tableName, FullIndexScanConsumer consumer) throws DataStorageManagerException;
 
     /**
      * Write a page on disk
@@ -104,6 +101,8 @@ public abstract class DataStorageManager implements AutoCloseable {
     public abstract int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException;
 
     public abstract TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException;
+
+    public abstract IndexStatus getLatestIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException;
 
     /**
      * Boots the Storage Manager

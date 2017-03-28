@@ -35,8 +35,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-import javax.xml.ws.Holder;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
@@ -58,7 +56,6 @@ import herddb.model.TableContext;
 import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.storage.FullIndexScanConsumer;
 import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
@@ -166,49 +163,22 @@ public class BRINIndexManager extends AbstractIndexManager {
     public void start() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, " start index {0}", new Object[]{index.name});
         bootSequenceNumber = log.getLastSequenceNumber();
-        Holder<PageContents> metadataBlock = new Holder<>();
-        dataStorageManager.fullIndexScan(tableSpaceUUID, index.name,
-            new FullIndexScanConsumer() {
 
-            @Override
-            public void acceptIndexStatus(IndexStatus indexStatus) {
-                LOGGER.log(Level.SEVERE, "recovery index " + indexStatus.indexName + " at " + indexStatus.sequenceNumber);
-                bootSequenceNumber = indexStatus.sequenceNumber;
-            }
-
-            @Override
-            public void acceptPage(long pageId, byte[] pagedata) {
-                if (newPageId.get() <= pageId) {
-                    newPageId.set(pageId + 1);
-                }
-                LOGGER.log(Level.FINEST, "recovery index " + index.name + ", acceptPage " + pageId + " pagedata: " + pagedata.length + " bytes");
-                try {
-                    PageContents pg = PageContents.deserialize(pagedata);
-                    switch (pg.type) {
-                        case PageContents.TYPE_METADATA:
-                            metadataBlock.value = pg;
-                            LOGGER.log(Level.INFO, "recovery index " + index.name + ", metatadata page " + pageId + " contains " + pg.metadata.size() + " blocks metadata");
-                            break;
-                        case PageContents.TYPE_BLOCKDATA:
-                            LOGGER.log(Level.INFO, "recovery index " + index.name + ", data page " + pageId + " contains " + pg.pageData.size() + " entries");
-                            break;
-                        default:
-                            LOGGER.log(Level.SEVERE, "recovery index {0}, ignore page type {1}", new Object[]{index.name, pg.type});
-                            break;
-                    }
-                } catch (IOException err) {
-                    throw new RuntimeException(err);
-                }
-            }
-
-        });
-
-        if (metadataBlock.value != null) {
-            this.data.boot(new BlockRangeIndexMetadata<>(metadataBlock.value.metadata));
-        } else {
+        IndexStatus status = dataStorageManager.getLatestIndexStatus(tableSpaceUUID, index.name);
+        if (status.sequenceNumber == LogSequenceNumber.START_OF_TIME) {
+            /* Empty index */
             this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
+            LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
+        } else {
+            try {
+                PageContents metadataBlock = PageContents.deserialize(status.indexData);
+                this.data.boot(new BlockRangeIndexMetadata<>(metadataBlock.metadata));
+            } catch (IOException e) {
+                throw new DataStorageManagerException(e);
+            }
+            newPageId.set(status.newPageId);
+            LOGGER.log(Level.SEVERE, "loaded index {0} {1} blocks", new Object[]{index.name, this.data.getNumBlocks()});
         }
-        LOGGER.log(Level.SEVERE, "loaded index {0} {1} blocks", new Object[]{index.name, this.data.getNumBlocks()});
     }
 
     @Override
@@ -234,14 +204,12 @@ public class BRINIndexManager extends AbstractIndexManager {
             PageContents page = new PageContents();
             page.type = PageContents.TYPE_METADATA;
             page.metadata = metadata.getBlocksMetadata();
-            long newPage = newPageId.incrementAndGet();
-            dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, newPage, page.serialize());
+            byte[] contents = page.serialize();
             Set<Long> activePages = new HashSet<>();
-            activePages.add(newPage);
             page.metadata.forEach(b -> {
                 activePages.add(b.pageId);
             });
-            IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, activePages, null);
+            IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), activePages, contents);
             List<PostCheckpointAction> result = new ArrayList<>();
             result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus));
             LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} blocks, pages {2}", new Object[]{index.name, page.metadata.size() + "", activePages + ""});
@@ -347,7 +315,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                 contents.type = PageContents.TYPE_BLOCKDATA;
                 contents.pageData = values;
                 byte[] serialized = contents.serialize();
-                long pageId = newPageId.incrementAndGet();
+                long pageId = newPageId.getAndIncrement();
                 dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, serialized);
                 return pageId;
             } catch (DataStorageManagerException err) {

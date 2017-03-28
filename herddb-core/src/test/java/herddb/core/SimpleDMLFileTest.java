@@ -64,11 +64,11 @@ public class SimpleDMLFileTest extends BaseTestcase {
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
-        assertNull(dataStorageManager.readPage(tableSpace, tableName, 1L));
-        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.readPage(tableSpace, tableName, 1L));
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
 
         {
             GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -76,7 +76,7 @@ public class SimpleDMLFileTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("5"));
@@ -86,7 +86,7 @@ public class SimpleDMLFileTest extends BaseTestcase {
 
         // a new page must be allocated
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("6"));
@@ -100,7 +100,7 @@ public class SimpleDMLFileTest extends BaseTestcase {
         }
         // only a new page must be allocated, not two more
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
 
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
@@ -111,7 +111,7 @@ public class SimpleDMLFileTest extends BaseTestcase {
 
         // a delete does not trigger new pages in this case
         manager.checkpoint();
-        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
 
         {
             assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key2"), Bytes.from_string("50"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
@@ -119,7 +119,7 @@ public class SimpleDMLFileTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpace, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key2"), null);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());

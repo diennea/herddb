@@ -19,15 +19,16 @@
  */
 package herddb.storage;
 
-import herddb.log.LogSequenceNumber;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+
+import herddb.log.LogSequenceNumber;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 
 /**
  * Status of an index on disk
@@ -40,18 +41,23 @@ public class IndexStatus {
     public final LogSequenceNumber sequenceNumber;
     public final byte[] indexData;
     public final Set<Long> activePages;
+    public final long newPageId;
 
-    public IndexStatus(String indexName, LogSequenceNumber sequenceNumber, final Set<Long> activePages, byte[] indexData) {
+    public IndexStatus(String indexName, LogSequenceNumber sequenceNumber,
+            long newPageId, final Set<Long> activePages, byte[] indexData) {
         this.indexName = indexName;
         this.sequenceNumber = sequenceNumber;
+        this.newPageId = newPageId;
         this.indexData = indexData != null ? indexData : new byte[0];
         this.activePages = activePages != null ? activePages : Collections.emptySet();
     }
+
 
     public void serialize(ExtendedDataOutputStream output) throws IOException {
         output.writeUTF(indexName);
         output.writeLong(sequenceNumber.ledgerId);
         output.writeLong(sequenceNumber.offset);
+        output.writeVLong(newPageId);
         output.writeVInt(activePages.size());
         for (long idpage : activePages) {
             output.writeVLong(idpage);
@@ -64,13 +70,14 @@ public class IndexStatus {
         String indexName = in.readUTF();
         long ledgerId = in.readLong();
         long offset = in.readLong();
+        long nextPageId = in.readVLong();
         int numPages = in.readVInt();
         Set<Long> activePages = new HashSet<>();
         for (int i = 0; i < numPages; i++) {
             activePages.add(in.readVLong());
         }
         byte[] indexData = in.readArray();
-        return new IndexStatus(indexName, new LogSequenceNumber(ledgerId, offset), activePages, indexData);
+        return new IndexStatus(indexName, new LogSequenceNumber(ledgerId, offset), nextPageId, activePages, indexData);
     }
 
     @Override
@@ -81,10 +88,11 @@ public class IndexStatus {
     @Override
     public int hashCode() {
         int hash = 7;
-        hash = 13 * hash + Objects.hashCode(this.indexName);
-        hash = 13 * hash + Objects.hashCode(this.sequenceNumber);
-        hash = 13 * hash + Arrays.hashCode(this.indexData);
-        hash = 13 * hash + Objects.hashCode(this.activePages);
+        hash = 13 * hash + Objects.hashCode(indexName);
+        hash = 13 * hash + Objects.hashCode(sequenceNumber);
+        hash = 13 * hash + Objects.hashCode(newPageId);
+        hash = 13 * hash + Arrays.hashCode(indexData);
+        hash = 13 * hash + Objects.hashCode(activePages);
         return hash;
     }
 
@@ -104,6 +112,9 @@ public class IndexStatus {
             return false;
         }
         if (!Objects.equals(this.sequenceNumber, other.sequenceNumber)) {
+            return false;
+        }
+        if (!Objects.equals(this.newPageId, other.newPageId)) {
             return false;
         }
         if (!Arrays.equals(this.indexData, other.indexData)) {
