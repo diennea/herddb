@@ -20,170 +20,282 @@
 package herddb.index.blink;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
+import java.util.Queue;
+import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
-import herddb.utils.SizeAwareObject;
 
 /**
+ * Java implementation of b-link tree derived from Vladimir Lanin and Dennis Shasha work: <i>A symmetric
+ * concurrent b-tree algorithm</i>
+ *
+ * <p>
+ * This implementations add variable sized nodes, range scans, truncation and a way to store data pages.
+ * </p>
+ *
+ * <p>
+ * For original work see:
+ *
+ * <pre>
+ * LANIN, Vladimir; SHASHA, Dennis. A symmetric concurrent b-tree algorithm.
+ * In: Proceedings of 1986 ACM Fall joint computer conference.
+ * IEEE Computer Society Press, 1986. p. 380-389
+ * </pre>
+ * </p>
+ *
  * @author diego.salvi
  */
-public final class BLink<K extends Comparable<K> & SizeAwareObject> {
+public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Owner {
 
     private static final Logger LOGGER = Logger.getLogger(BLink.class.getName());
 
-    public static final long NO_RESULT = -1;
-    public static final long NO_PAGE = -1;
+//    type
+//        locktype = (readlock, writelock);
+//        nodeptr = "node;
+//        height = 1 .. maxint;
+//        task = (add, remove);
 
-    private static final long minNodeKeys = 3;
-    private static final long minLeafKeys = 3;
+    private static final int READ_LOCK  = 1;
+    private static final int WRITE_LOCK = 2;
 
-    private static final long minNodeAvalilableSize = 1024;
-    private static final long minLeafAvalilableSize = 1024;
+    private static final int ADD_TASK    = 1;
+    private static final int REMOVE_TASK = 2;
 
-    private final long nodeSize;
-    private final long leafSize;
-    private final long maxKeySize;
+    /**
+     * Minimum number of children to keep a node as root.
+     * <p>
+     * In original algorithm was children > 3 but testing this facility too much time was expended into
+     * move_right at higher levels. It's better to keep it at a minimum of 2 children to reduce move_right
+     * invocations.
+     * </p>
+     */
+    private static final int CRITIC_MIN_CHILDREN = 2;
 
-    private final BLinkIndexDataStorage<K> storage;
+    private final Anchor<K,V> anchor;
+
+    public final ConcurrentMap<Long,Node<K,V>> nodes;
+
+    private final AtomicLong nextID;
+
+    private final long maxSize;
+    private final long minSize;
+
+    private final SizeEvaluator<K,V> evaluator;
+
+    private final BLinkIndexDataStorage<K,V> storage;
     private final PageReplacementPolicy policy;
 
-    private final AtomicLong nextNodeId;
-
-    public final ConcurrentMap<Long,BLinkNode<K>> nodes = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Long,Lock> locks = new ConcurrentHashMap<>();
+    private final AtomicBoolean closed;
 
     private final LongAdder size;
 
-    private volatile BLinkPtr root;
+    /**
+     * Support structure to evaluates memory byte size occupancy of keys and values
+     *
+     * @author diego.salvi
+     */
+    public static interface SizeEvaluator<X,Y> {
 
-    public BLink(long nodeSize, long leafSize, BLinkMetadata<K> metadata,
-            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
+        /** Evaluate the key size only */
+        public long evaluateKey(X key);
 
-        checkNodeSize(nodeSize, leafSize);
+        /** Evaluate the value size only */
+        public long evaluateValue(Y value);
 
-        this.nodeSize = nodeSize;
-        this.leafSize = leafSize;
-        this.maxKeySize = evaluateMaxKeySize(nodeSize, leafSize);
+        /** Evaluate both key and value size */
+        public long evaluateAll(X key, Y value);
+
+    }
+
+    public BLink(long maxSize, SizeEvaluator<K,V> evaluator,
+            PageReplacementPolicy policy, BLinkIndexDataStorage<K,V> storage) {
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+
+        this.evaluator = evaluator;
 
         this.storage = storage;
         this.policy  = policy;
 
-        this.nextNodeId = new AtomicLong(metadata.nextNodeId);
+        this.nextID = new AtomicLong(1L);
+        this.closed = new AtomicBoolean(false);
+        this.size   = new LongAdder();
 
-        this.size = new LongAdder();
+        this.nodes = new ConcurrentHashMap<>();
 
-        for( BLinkNodeMetadata<K> nodeMetadata : metadata.nodeMetadatas ) {
-            BLinkNode<K> node;
-            switch(nodeMetadata.type) {
-                case BLinkNodeMetadata.NODE_TYPE:
-                    node = new BLinkInner<>(nodeMetadata, nodeSize, storage, policy);
-                    break;
-                case BLinkNodeMetadata.LEAF_TYPE:
-                    node = new BLinkLeaf<>(nodeMetadata, leafSize, storage, policy);
-                    size.add(node.keys());
-                    break;
-                default:
-                    LOGGER.log(Level.SEVERE, "ignoring unknown node type {0} during startup", new Object[]{nodeMetadata.type});
-                    continue;
+        final Node<K,V> root = allocate_node(true);
+        this.anchor = new Anchor<>(root);
+
+        /* Nothing to load locked now */
+        final Metadata meta = policy.add(root);
+        if(meta != null) {
+            meta.owner.unload(meta.pageId);
+        }
+    }
+
+
+    public BLink(long maxSize, SizeEvaluator<K,V> evaluator,
+            PageReplacementPolicy policy, BLinkIndexDataStorage<K,V> storage,
+            BLinkMetadata<K> metadata) {
+
+        this.maxSize = maxSize;
+        this.minSize = maxSize / 2;
+
+        this.evaluator = evaluator;
+
+        this.storage = storage;
+        this.policy  = policy;
+
+        this.nextID = new AtomicLong(metadata.nextID);
+        this.closed = new AtomicBoolean(false);
+        this.size   = new LongAdder();
+        size.add(metadata.values);
+
+
+        this.nodes = new ConcurrentHashMap<>();
+
+        convertNodeMetadata(metadata.nodes, nodes);
+
+        this.anchor = new Anchor<>(
+                nodes.get(metadata.fast), metadata.fastheight,
+                nodes.get(metadata.top), metadata.topheight,
+                nodes.get(metadata.first));
+    }
+
+    /**
+     * Convert given node metadatas in real nodes and push them into given map
+     */
+    private void convertNodeMetadata(List<BLinkNodeMetadata<K>> nodes, Map<Long,Node<K,V>> map) {
+
+        /* First loop: create every node without links (no rightlink nor outlink) */
+        for (BLinkNodeMetadata<K> metadata : nodes) {
+            map.put(metadata.id, new Node<>(metadata, this) );
+        }
+
+        /* Second loop: add missing links (rightlink or outlink) */
+        for (BLinkNodeMetadata<K> metadata : nodes) {
+
+            final Node<K,V> node = map.get(metadata.id);
+
+            if (metadata.rightlink != BLinkNodeMetadata.NO_LINK) {
+                node.rightlink = map.get(metadata.rightlink);
             }
 
-            publish(node, BLinkPtr.page(node.getPageId()), false);
-        }
-
-        if (!nodes.containsKey(metadata.root)) {
-            throw new IllegalArgumentException("Malformed metadata, unknown root " + metadata.root);
-        }
-
-        this.root = BLinkPtr.page(metadata.root);
-
-    }
-
-    public BLink(long nodeSize, long leafSize,
-            BLinkIndexDataStorage<K> storage, PageReplacementPolicy policy) {
-
-        checkNodeSize(nodeSize, leafSize);
-
-        this.nodeSize = nodeSize;
-        this.leafSize = leafSize;
-        this.maxKeySize = evaluateMaxKeySize(nodeSize, leafSize);
-
-        this.storage = storage;
-        this.policy  = policy;
-
-        this.nextNodeId = new AtomicLong(1);
-
-        this.size = new LongAdder();
-
-        initEmptyRoot();
-
-    }
-
-    private void initEmptyRoot() {
-        final long id = nextNodeId.getAndIncrement();
-        this.root = BLinkPtr.page(id);
-
-        /* Root vuota */
-        final BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, id, leafSize, storage, policy);
-
-        publish(node,root,false);
-
-        final Page.Metadata unload = policy.add(node.getPage());
-        if (unload != null) {
-            unload.owner.unload(unload.pageId);
+            if (metadata.outlink != BLinkNodeMetadata.NO_LINK) {
+                node.outlink = map.get(metadata.outlink);
+            }
         }
     }
 
-    private long evaluateMaxKeySize(long nodeSize, long leafSize) {
+    /**
+     * Fully close the facility
+     */
+    @Override
+    public void close() {
+        if (closed.compareAndSet(false, true)) {
 
-        long node = ((nodeSize - BLinkInner.CONSTANT_NODE_BYTE_SIZE) / minNodeKeys) - BLinkInner.CONSTANT_ENTRY_BYTE_SIZE;
-        long leaf = ((leafSize - BLinkLeaf.CONSTANT_NODE_BYTE_SIZE) / minLeafKeys) - BLinkLeaf.CONSTANT_ENTRY_BYTE_SIZE;
 
-        return Math.min(node, leaf);
+            final Iterator<Node<K,V>> iterator = nodes.values().iterator();
+            while(iterator.hasNext()) {
+                Node<K,V> node = iterator.next();
+                /* If the node has been unloaded removes it from policy */
+                if (node.unload(false)) {
+                    policy.remove(node);
+                }
+
+                /* linked nodes dereferencing */
+                node.outlink = null;
+                node.rightlink = null;
+            }
+
+            /* Anchor nodes dereferencing */
+            anchor.fast = null;
+            anchor.top = null;
+
+            nodes.clear();
+            size.reset();
+        }
     }
 
-    private void checkNodeSize(long nodeSize, long leafSize) {
+    /**
+     * Truncate any tree data. Invokers must ensure to call this method in a not concurrent way.
+     */
+    public void truncate() {
 
-        long realMinNodeSize = minNodeAvalilableSize + BLinkInner.CONSTANT_NODE_BYTE_SIZE
-                + BLinkInner.CONSTANT_ENTRY_BYTE_SIZE * minNodeKeys;
+        final Iterator<Node<K,V>> iterator = nodes.values().iterator();
+        while(iterator.hasNext()) {
+            Node<K,V> node = iterator.next();
+            /* If the node has been unloaded removes it from policy */
+            if (node.unload(false)) {
+                policy.remove(node);
+            }
 
-        if (nodeSize < realMinNodeSize) {
-            throw new IllegalArgumentException(
-                    "Node size too small! Node size " + nodeSize + " minimum node size " + realMinNodeSize);
+            /* linked nodes dereferencing */
+            node.outlink = null;
+            node.rightlink = null;
         }
 
-        long realMinLeafSize = minLeafAvalilableSize + BLinkLeaf.CONSTANT_NODE_BYTE_SIZE
-                + BLinkLeaf.CONSTANT_ENTRY_BYTE_SIZE * minLeafKeys;
+        nodes.clear();
+        size.reset();
 
-        if (leafSize < realMinLeafSize) {
-            throw new IllegalArgumentException(
-                    "Leaf size too small! Leaf size " + leafSize + " minimum leaf size " + realMinLeafSize);
+        final Node<K,V> root = allocate_node(true);
+        this.anchor.reset(root);
+
+        /* Nothing to load locked now */
+        final Metadata meta = policy.add(root);
+        if(meta != null) {
+            meta.owner.unload(meta.pageId);
         }
+
     }
 
-
+    /**
+     * Returns the number of key/value pairs stored into this tree.
+     *
+     * @return current size of the tree
+     */
     public long size() {
         return size.sum();
+    }
+
+    /* ******************** */
+    /* *** PAGE LOADING *** */
+    /* ******************** */
+
+    @Override
+    public void unload(long pageId) {
+        nodes.get(pageId).unload(true);
     }
 
     /**
@@ -197,737 +309,2027 @@ public final class BLink<K extends Comparable<K> & SizeAwareObject> {
      * @throws IOException
      */
     public BLinkMetadata<K> checkpoint() throws IOException {
-        final List<BLinkMetadata.BLinkNodeMetadata<K>> metadatas = new LinkedList<>();
-        for( BLinkNode<K> node : nodes.values() ) {
+
+        final List<BLinkNodeMetadata<K>> metadatas = new LinkedList<>();
+        for( Node<K,V> node : nodes.values() ) {
+
+            /*
+             * Lock shouldn't be really needed because checkpoint must invoked when no thread are modifying
+             * the index but to ensure that latest value of "empty" flag is read we must read it from RAM. Any
+             * memory breaking operation would suffice but tacking a read lock on the node is "cleaner"
+             */
+            lock(node, READ_LOCK);
+            try {
+                /*
+                 * Do not checkpoint empty nodes. They aren't needed at all and because no modification
+                 * operations is occurring currently seen empty node aren't referenced by anyone.
+                 */
+                if (node.empty) {
+                    continue;
+                }
+            } finally {
+                unlock(node, READ_LOCK);
+            }
+
             BLinkNodeMetadata<K> metadata = node.checkpoint();
 
             metadatas.add(metadata);
         }
 
-        return new BLinkMetadata<>(root.value, nextNodeId.get(), metadatas);
+        lock_anchor(READ_LOCK);
+
+        long fast = anchor.fast.pageId;
+        int fastheight = anchor.fastheight;
+        long top = anchor.top.pageId;
+        int topheight = anchor.topheight;
+        long first = anchor.first.pageId;
+
+        unlock_anchor(READ_LOCK);
+
+        return new BLinkMetadata<>(nextID.get(), fast, fastheight, top, topheight, first, size.sum(), metadatas);
     }
 
-    /** Non threadsafe */
-    public void close() {
-        root = null;
+    /* ******************** */
+    /* *** TREE METHODS *** */
+    /* ******************** */
 
-        /*
-         * Each page has a reference to the node so it will fully removed when both page and node have no
-         * other references. A node without data doesn't require much memory so it's imperative to "unload"
-         * data when removed from page replacement policy.
-         */
+//    function search(v: value); boolean;
+//    var
+//        n: nodeptr;
+//        descent: stack;
+//    begin
+//        n := locate-leaf(v, readlock, descent); {v € coverset(n), n read-locked}
+//        search := check-key(v, n); {decisive}
+//        unlock(n, readlock)
+//    end;
 
-        List<BLinkPage> pages = new ArrayList<>(nodes.size());
-        for(BLinkNode<K> node : nodes.values()) {
-            pages.add(node.getPage());
+    public V search(K v) {
 
-            /* Unload live data (avoid checkpoint) */
-            node.unload(false);
-        }
+        Node<K,V> n;
+        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
 
-        /* Remove from the policy */
-        policy.remove(pages);
+        n = locate_leaf(v, READ_LOCK, descent); // v € coverset(n), n read-locked
+        V search = n.check_key(v); // decisive;
+        unlock(n,READ_LOCK);
 
-        nodes.clear();
-        locks.clear();
-        size.reset();
+        return search;
     }
 
-    /** Non threadsafe */
-    public void truncate() {
+    /**
+     * Supports both from and to empty.
+     *
+     * @param from inclusive (if not empty)
+     * @param to   exclusive
+     * @return
+     */
+    public Stream<Entry<K,V>> scan(K from, K to) {
 
-        /* Like close: need to remove live data but can keep stored data untill next checkpoint. */
-        close();
+        Node<K,V> n;
+        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
 
-        /* ... but we must accept data again */
-        initEmptyRoot();
-
-    }
-
-//    public BLinkLeaf<K> scannode(K v) {
-//
-//        /* Get ptr to root node */
-//        BLinkPtr current = root;
-//
-//        /* Read node into memory */
-//        BLinkNode<K> a = get(current);
-//
-//        /* Missing root, no data in current index */
-//        if (a == null) {
-//            return null;
-//        }
-//
-//        /* Scan through tree */
-//        while( !a.isLeaf() ) {
-//            /* Find correct (maybe link) ptr */
-//            current = a.scanNode(v);
-//            /* Read node into memory */
-//            a = get(current);
-//        }
-//
-//        /* Now we have reached leaves. */
-//
-//        /* Keep moving right if necessary */
-//        BLinkPtr t;
-//        while( ((t = a.scanNode(v)).isLink()) ) {
-//            current = t;
-//            /* Get node */
-//            a = get(t);
-//        }
-//
-//        /* Now we have the leaf node in which u should exist. */
-//
-//        return (BLinkLeaf<K>) a;
-//
-//    }
-
-    public long search(K v) {
-
-        /* Get ptr to root node */
-        BLinkPtr current = root;
-
-        /* Read node into memory */
-        BLinkNode<K> a = get(current);
-
-        /* Missing root, no data in current index */
-        if (a == null) {
-            return NO_RESULT;
-        }
-
-        /* Scan through tree */
-        while( !a.isLeaf() ) {
-            /* Find correct (maybe link) ptr */
-            current = a.scanNode(v);
-            /* Read node into memory */
-            a = get(current);
-        }
-
-        /* Now we have reached leaves. */
-
-        /* Keep moving right if necessary */
-        BLinkPtr t;
-        while( ((t = a.scanNode(v)).isLink()) ) {
-            current = t;
-            /* Get node */
-            a = get(t);
-        }
-
-        /* Now we have the leaf node in which u should exist. */
-
-        if (t.isEmpty()) {
-            return NO_RESULT;
-        } else {
-
-            /* Already known to not be a link and not empty */
-            return t.value;
-        }
-    }
-
-    public Stream<Entry<K, Long>> fullScan() {
-
-        /* Get ptr to root node */
-        BLinkPtr current = root;
-
-        /* Read node into memory */
-        BLinkNode<K> a = get(current);
-
-        /* Missing root, no data in current index */
-        if (a == null) {
-            return Stream.empty();
-        }
-
-        /* Scan through tree */
-        while( !a.isLeaf() ) {
-            /* Find correct (maybe link) ptr */
-            current = a.getFirstChild();
-            /* Read node into memory */
-            a = get(current);
-        }
-
-        /* Now we have reached leaves. */
-
-        final BLinkLeaf<K> leaf = (BLinkLeaf<K>) a;
-
-        return StreamSupport.stream(
-                Spliterators.spliteratorUnknownSize(
-                        new LeafValueIterator<>(this, leaf, null, null),
-                        /* No characteristics */ 0),
-                /* No parallel */ false);
-    }
-
-    public Stream<Entry<K, Long>> scan(K start, K end) {
-
-        /* Get ptr to root node */
-        BLinkPtr current = root;
-
-        /* Read node into memory */
-        BLinkNode<K> a = get(current);
-
-        /* Missing root, no data in current index */
-        if (a == null) {
-            return Stream.empty();
-        }
-
-        /* Scan through tree */
-        while( !a.isLeaf() ) {
-            /* Find correct (maybe link) ptr */
-            current = a.scanNode(start);
-            /* Read node into memory */
-            a = get(current);
-        }
-
-        /* Now we have reached leaves. */
-
-        /* Keep moving right if necessary */
-        BLinkPtr t;
-        while( ((t = a.scanNode(start)).isLink()) ) {
-            current = t;
-            /* Get node */
-            a = get(t);
-        }
-
-        final BLinkLeaf<K> leaf = (BLinkLeaf<K>) a;
-
-        return StreamSupport.stream(
-                Spliterators.spliteratorUnknownSize(
-                        new LeafValueIterator<>(this, leaf, start, end),
-                        /* No characteristics */ 0),
-                /* No parallel */ false);
-    }
-
-    public long insert(K v, long z) {
-
-        if (v.getEstimatedSize() > maxKeySize) {
-            throw new IllegalArgumentException("Key size too big for current page size! Key " + v.getEstimatedSize()
-                    + " maximum key size " + maxKeySize);
-        }
-
-        /* For remembering ancestors */
-        Deque<BLinkPtr> stack = new LinkedList<>();
-
-        /* Get ptr to root node */
-        BLinkPtr current = root;
-
-        /* Root is ensure existent at BLink creation, see initEmptyRoot */
-        BLinkNode<K> a = get(current);
-
-//        /* Missing root, no data in current index */
-//        if (a == null) {
-//
-//            synchronized (this) {
-//                /* Root initialization */
-//
-//                /* Check if already created */
-//                if ( root.isEmpty() ) {
-//
-//                    final long root = createNewPage();
-//                    final BLinkPtr ptr = BLinkPtr.page(root);
-//
-//                    BLinkNode<K> node = new BLinkLeaf<>(BLinkIndexDataStorage.NEW_PAGE, root, leafSize, v, z, storage, policy);
-//
-//                    publish(node, ptr, false);
-//
-//                    final Page.Metadata unload = policy.add(node.getPage());
-//                    if (unload != null) {
-//                        unload.owner.unload(unload.pageId);
-//                    }
-//
-//                    this.root = ptr;
-//
-//                    size.increment();
-//
-//                    return NO_RESULT;
-//                }
-//
-//            }
-//
-//            /* Get ptr to root node (now should exist!) */
-//            current = root;
-//
-//            a = get(current);
-//        }
-
-        BLinkPtr oldRoot = current;
-
-        /* Scan down tree */
-        BLinkPtr t;
-        while(!a.isLeaf()) {
-            t = current;
-            current = a.scanNode(v);
-
-            if (!current.isLink()) {
-                /* Remember node at that level */
-                stack.push(t);
-            }
-
-            a = get(current);
-        }
-
-        /* We have a candidate leaf */
-        lock(current);
-
-        a = get(current);
-
-        /* If necessary */
-        MoveRightResult<K> moveRight = moveRight(a, v, current);
-        t = moveRight.t;
-        current = moveRight.current;
-        a = moveRight.a;
-
-
-        /* if v is in A then stop “v already exists in tree”... And t points to its record */
-        if (!t.isEmpty()) {
-
-            long result = t.value;
-
-            /* Insert even is unsafe! This is really an update! */
-            a.insert(v, z);
-
-//            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit update " + z );
-
-            unlock(current);
-
-            if ( result != NO_RESULT ) {
-                size.increment();
-            }
-
-            /* stop */
-            return result;
-        }
-
-        /* w <- pointer to pages allocated for record associated with v; */
-        long w = z;
-
-        /* Do insertion */
-
-        while(!a.isSafeInsert(v)) {
-
-            /* Original "if is safe = false" branch */
-
-            /* Must split node */
-
-            long u = createNewPage();
+        if (from == null) {
+            lock_anchor(READ_LOCK);
+            n = anchor.first;
+            unlock_anchor(READ_LOCK);
 
             /*
-             * A, B <- rearrange old A, adding v and w, to make 2 nodes,
-             * where (link ptr of A, link ptr of B) <- (u, link ptr of old A);
+             * We have to lock the first node, scan iterator require a read locked node (as produced from
+             * locate_leaf too)
              */
-            BLinkNode<K>[] nodes = a.split(v, w, u);
+            lock(n, READ_LOCK);
+        } else {
+            n = locate_leaf(from, READ_LOCK, descent); // v € coverset(n), n read-locked
+        }
 
-            BLinkNode<K> aprime = nodes[0];
-            BLinkNode<K> bprime = nodes[1];
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(
+                        new ScanIterator(n, from, from != null, to, false),
+                        /* No characteristics */ 0),
+                /* No parallel */ false);
+    }
 
-            /* For insertion into parent */
-            K y = aprime.getHighKey();
+//    function insert(v: value): boolean;
+//    var
+//        n: nodeptr;
+//        descent: stack;
+//    begin
+//        n := locate-leaf(v, writelock, descent); {v € coverset(n), n write-locked}
+//        insert := add-key(v, n); {decisive}
+//        normalize(n, descent, 1);
+//        unlock(n, writelock)
+//    end;
 
-            /* Insert B before A */
-            BLinkPtr bptr = BLinkPtr.page(u);
-            publish(bprime,bptr,true);
+    public V insert(K v, V e) {
 
-            /* Instantaneous change of 2 nodes */
-            republish(aprime,current);
+        Node<K,V> n;
+        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
+        Queue<Runnable> maintenance = new LinkedList<>();
 
-            /* Now insert pointer in parent */
-            BLinkPtr oldnode = current;
+        n = locate_leaf(v, WRITE_LOCK, descent); // v € coverset(n), n write-locked
+        V replaced = n.add_key(v,e); // decisive
+        normalize(n, descent, 1, maintenance);
+        unlock(n, WRITE_LOCK);
 
-            v = y;
-            w = u;
+        if (replaced == null) {
+            size.increment();
+        }
 
-            if (stack.isEmpty()) {
+        while(!maintenance.isEmpty()) {
+            maintenance.poll().run();
+        }
 
-                synchronized (this) {
+        return replaced;
+    }
 
-                    BLinkPtr currentRoot = root;
-                    if (oldRoot.value == currentRoot.value) {
+//    function delete(v: value): boolean;
+//    var
+//        n: nodeptr;
+//        descent: stack;
+//    begin
+//        n := locate-leaf(v, writelock, descent); {v € coverset(n) , n write-locked}
+//        delete := remove-key(v, n); {decisive}
+//        nornialize(n, descent, 1); unlock(n, writelock)
+//    end;
 
-                        /* We are exiting from root! */
-                        long r = createNewPage();
+    public V delete(K v) {
 
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION page " + r + " cr " + currentRoot + " or " + oldRoot);
+        Node<K,V> n;
+        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
+        Queue<Runnable> maintenance = new LinkedList<>();
 
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION A " + aprime );
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION B " + bprime );
+        n = locate_leaf(v, WRITE_LOCK, descent); // v € coverset(n), n write-locked
+        V delete = n.remove_key(v); // decisive
+        normalize(n, descent, 1, maintenance);
+        unlock(n, WRITE_LOCK);
 
-                        BLinkNode<K> newRoot = new BLinkInner<>(BLinkIndexDataStorage.NEW_PAGE, r, nodeSize, v, aprime.getPageId(), bprime.getPageId(), storage, policy);
+        if (delete != null) {
+            size.decrement();
+        }
 
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CREATION root " + newRoot);
+        while(!maintenance.isEmpty()) {
+            maintenance.poll().run();
+        }
 
-                        final BLinkPtr ptr = BLinkPtr.page(r);
-                        publish(newRoot, ptr, false);
-                        root = ptr;
-
-                        /* Success-done backtracking */
-                        unlock(oldnode);
-                        unlock(bptr);
-
-                        final Metadata unload = policy.add(newRoot.getPage());
-                        if (unload != null) {
-                            unload.owner.unload(unload.pageId);
-                        }
-
-                        size.increment();
-
-                        return NO_RESULT;
-
-                    } else {
-
-                        /* La root è cambiaaataaa!!!! */
-
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE cr " + currentRoot + " or " + oldRoot);
-
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE A " + aprime );
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " ROOT CHANGE B " + bprime );
-
-
-                        /* Get ptr to root node */
-                        current = root;
-
-                        /* Save it as the new "old root"*/
-                        oldRoot = current;
-
-                        a = get(current);
-
-                        /* Scan down tree */
-                        /* è un po' diverso dallo scan normale poiché dobbiamo essenzialmente trovare
-                         * il nodo che è diventato il padre della vecchia root per inserire i dati
-                         * In linea teorica potrebbe anche interessarci un solo nodo e rifare il giro se
-                         * è cambiato di nuovo! */
-                        K searchKey = aprime.getHighKey();
+        return delete;
+    }
 
 
-                        /* Scan down tree */
-                        while(!a.isLeaf()) {
-                            t = current;
-                            current = a.scanNode(searchKey);
+//    function locate-leaf(v: value; lastlock: locktype; var descent: stack): nodeptr;
+//    { locate-leaf descends from the anchor to the leaf whose coverset
+//    includes v, places a lock of kind specified in lastlock on that leaf,
+//    and returns a pointer to it. It records its path in the stack descent. }
+//    var
+//        n,m: nodeptr;
+//        h,enterheight: height;
+//        ubleftsep: value;
+//        { ubleftsep stands for "upper bound on the leftsep of the current node".
+//        This value is recorded for each node on the descent stack so that an ascending process can tell if it's too far to the right. }
+//    begin
+//        lock-anchor(readlock);
+//        n := anchor.fast; enterheight := anchor.fastheight; ubleftsep := +inf";
+//        unlock-anchor(readlock);
+//        set-to-empty(descent);
+//        for h := enterheight downto 2 do begin { v > leftsep (n)}
+//            move-right(v, n, ubleftsep, readlock);{ v € coverset(n) }
+//            push(n, ubleftsep, descent);
+//            (m, ubleftsep) := find(v, n, ubleftsep); { v > leftsep (m) }
+//            unlock(n, readlock); n := m
+//        end;
+//        move-right(v, n, ubleftsep, lastlock); {v € coverset(n) }
+//        locate-leaf := n
+//    end;
 
-                            if (!current.isLink()) {
-                                /* Remember node at that level */
-                                stack.push(t);
-                            }
-//                            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Searching roots: a " + a + " current " + current + " key " + searchKey);
+    /**
+     * locate-leaf descends from the anchor to the leaf whose coverset includes v, places a lock of kind specified in
+     * lastlock on that leaf, and returns a pointer to it. It records its path in the stack descent.
+     * @param v
+     * @param lastlock
+     * @param descent
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private Node<K,V> locate_leaf(K v, int lastlock, Deque<ResultCouple<K,V>> descent) {
 
-                            if (current.value == aprime.getPageId())
-                                break;
+        Node<K,V> n, m;
+        int h, enterheight;
 
-                            a = get(current);
-                        }
+        /*
+         * ubleftsep stands for "upper bound on the leftsep of the current node". This value is recorded for
+         * each node on the descent stack so that an ascending process can tell if it's too far to the right.
+         */
+        Comparable<K> ubleftsep;
 
-                        /* Now we have the node path again into stack */
+        lock_anchor(READ_LOCK);
+        n = anchor.fast;
+        enterheight = anchor.fastheight;
+        ubleftsep = EverBiggerKey.INSTANCE;
+        unlock_anchor(READ_LOCK);
 
-//                        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " stack " + stack );
+        descent.clear();
+
+        for(h = enterheight; h > 1; --h) { // v > leftsep (n)
+            ResultCouple<K,V> move_right = move_right(v,n,ubleftsep,READ_LOCK); // v € coverset(n)
+            n = move_right.node;
+            ubleftsep = move_right.ubleftsep;
+            descent.push(move_right);
+            ResultCouple<K,V> find = n.find(v, ubleftsep); // v > leftsep (m)
+            m = find.node;
+            ubleftsep = find.ubleftsep;
+            unlock(n, READ_LOCK);
+            n = m;
+        }
+
+        ResultCouple<K,V> move_right = move_right(v,n,ubleftsep,lastlock); // v € coverset(n)
+        n = move_right.node;
+        ubleftsep = move_right.ubleftsep;
+
+        return n;
+
+    }
+
+//    procedure move-right(v: value; var n: nodeptr; var ubleftsep: value; rw: locktype);
+//    { move-right scans along a level starting with node n until it comes to a node into whose coverset v falls (trivially, n itself).
+//    It assumes that no lock is held on n initially, and leaves a lock
+//    of the kind specified in rw on the final node. }
+//    var
+//        m: nodeptr;
+//    begin {assume v > leftsep (n)}
+//        lock(n, rw);
+//        while empty(n) or (rightsep(n) < v) do begin { v > leftsep (n) }
+//        if empty(n) then m := outlink(n) { v > leftsep (n) = leftsep (m) }
+//        else begin
+//            m := rightlink(n); {v > rightsep(n) = leftsep(m) }
+//            ubleftsep := rightsep(n);
+//        end;
+//        unlock(n, rw);
+//        lock(m, rw)
+//        n := m;
+//        end;
+//    end;
+
+    /**
+     * move-right scans along a level starting with node n until it comes to a node into whose coverset v
+     * falls (trivially, n itself). It assumes that no lock is held on n initially, and leaves a lock of the
+     * kind specified in rw on the final node.
+     *
+     * @param v
+     * @param n
+     * @param ubleftsep
+     * @param rw
+     * @return
+     */
+    private ResultCouple<K,V> move_right(K v, Node<K,V> n, Comparable<K> ubleftsep, int rw) {
+
+        Node<K,V> m;
+
+        // assume v > leftsep (n)
+
+        lock(n, rw);
+
+        while (n.empty() || n.rightsep().compareTo(v) < 0) { // v > leftsep (n)
+
+            if (n.empty()) {
+                m = n.outlink(); // v > leftsep (n) = leftsep (m)
+            } else {
+                m = n.rightlink(); // v > rightsep(n) = leftsep(m)
+                ubleftsep = n.rightsep();
+            }
+
+            unlock(n, rw);
+            lock(m, rw);
+            n = m;
+        }
+
+        return new ResultCouple<>(n, ubleftsep);
+    }
+
+
+//    procedure normalize(n: nodeptr; descent: stack; atheight: height);
+//    { normalize makes sure that node n is not too crowded
+//    or sparse by performing a split or merge as needed.
+//    A split may be necessary after a merge, n is assumed to be write-locked.
+//    descent and atheight are needed to ascend to the level above to complete a split or merge. }
+//    var
+//        sib, newsib: nodeptr;
+//        sep, newsep: value;
+//    begin
+//        if too-sparse(n) and (rightlink(n) <> nil) then begin
+//            sib := rightlink(n);
+//            lock(sib, writelock);
+//            sep := half-merge(n, sib);
+//            unlock(sib, writelock);
+//            spawn(ascend(remove, sep, sib, atheight+1, descent))
+//        end;
+//        if too-crowded(n) then begin
+//            allocate-node(newsib);
+//            newsep := half-split(n, newsib);
+//            spawn(ascend(add, newsep, newsib, atheight+1, descent))
+//        end
+//    end;
+
+    /**
+     * normalize makes sure that node n is not too crowded or sparse by performing a split or merge as needed.
+     * A split may be necessary after a merge, n is assumed to be write-locked. descent and atheight are
+     * needed to ascend to the level above to complete a split or merge.
+     *
+     * @param n
+     * @param descent
+     */
+    private void normalize(Node<K,V> n, Deque<ResultCouple<K,V>> descent, int atheight, Queue<Runnable> maintenance) {
+
+        Node<K,V> sib, newsib;
+        K sep, newsep;
+
+        if (n.too_sparse() && (n.rightlink() != null)) {
+
+            sib = n.rightlink();
+
+            lock(sib, WRITE_LOCK);
+            sep = n.half_merge(sib);
+            unlock(sib, WRITE_LOCK);
+
+            spawn(() -> ascend(REMOVE_TASK,sep,sib,atheight+1,clone(descent),maintenance), maintenance);
+
+            /* Having merged a node we could potentially lower the root or shrink it too much to be effective, run a
+             * critic check */
+
+            /*
+             * TODO: improve the critic execution heuristic. Actual heuristic is very conservative but it
+             * could be run many fewer times! (run critic every x merge of node size?)
+             */
+            spawn(() -> run_critic(), maintenance);
+        }
+
+        if (n.too_crowded()) {
+
+            newsib = allocate_node(n.leaf);
+            newsep = n.half_split(newsib);
+
+            /* Nothing to load locked now */
+            final Metadata meta = policy.add(newsib);
+            if(meta != null) {
+                meta.owner.unload(meta.pageId);
+            }
+
+            spawn(() -> ascend(ADD_TASK,newsep,newsib,atheight+1,clone(descent),maintenance), maintenance);
+        }
+
+    }
+
+//    procedure ascend(t: task; sep: value; child: nodeptr; toheight: height; descent: stack);
+//    { adds or removes separator sep and downlink to child at height toheight,
+//    using the descent stack to ascend to it. }
+//    var
+//        n: nodeptr;
+//        ubleftsep: value;
+//    begin n := locate-internal(sep, toheight, descent)
+//        while not add-or-remove-link(task, sep, child, n, toheight, descent) do begin
+//            { wait and try again, very rare }
+//            unlock(n, writelock);
+//            delay; { sep > teftsep(n) }
+//            move-right(sep, n, ubleftsep, writelock) { sep € coverset(n) }
+//        end;
+//        normalize(n, descent, toheight);
+//        unlock(n, writelock)
+//    end;
+
+    /**
+     * adds or removes separator sep and downlink to child at height toheight, using the descent stack to
+     * ascend to it.
+     *
+     * @param task
+     * @param sep
+     * @param child
+     * @param toheight
+     * @param descent
+     */
+    private void ascend(int t, K sep, Node<K,V> child, int toheight, Deque<ResultCouple<K,V>> descent, Queue<Runnable> maintenance) {
+        Node<K,V> n;
+        Comparable<K> ubleftsep;
+
+        ResultCouple<K,V> locate_internal = locate_internal(sep, toheight, descent, maintenance);
+        n = locate_internal.node;
+        ubleftsep = locate_internal.ubleftsep;
+
+        while (!add_or_remove_link(t, sep, child, n, toheight, descent, maintenance)) {
+            // wait and try again, very rare
+            unlock(n, WRITE_LOCK);
+            delay(1L); // sep > teftsep(n)
+            ResultCouple<K,V> move_right = move_right(sep, n, ubleftsep, WRITE_LOCK); // sep € coverset(n)
+            n = move_right.node;
+            ubleftsep = move_right.ubleftsep;
+        }
+        normalize(n, descent, toheight, maintenance);
+        unlock(n, WRITE_LOCK);
+    }
+
+//    function add-or-remove-link(t: task; sep: value; child: nodeptr;
+//    n: nodeptr; atheight: height; descent: stack): boolean;
+//    { tries to add or removes sep and downlink to child from
+//    node n and returns true if succeeded, if removing,
+//    and sep is rightmost in n, merges n with its right neighbor first,
+//    (if the resulting node is too large, it will be split by the upcoming normalization.). A solution that avoids this merge exists,
+//    but we present this for the sake of simplicity. }
+//    var
+//        sib: nodeptr;
+//        newsep: value;
+//    begin
+//        if t=add then add-or-remove-link := add-link(sep, child, n)
+//        else begin {t= remove}
+//            if rightsep(n) = sep then begin
+//                { the downlink to be removed is in n's right neighbor. }
+//                sib := rightlink(n); {rightsep(n) = sep < +inf, thus rightlink(n)<>nil
+//                lock(sib, writelock);
+//                newsep := half-merge(n, sib); {newsep = sep}
+//                unlock(sib, writelock);
+//                spawn(ascend(remove, newsep, sib, atheight+1, descent))
+//            end;
+//            add-or-remove-link := remove-link(sep, child, n)
+//        end
+//    end;
+    /**
+     * tries to add or removes sep and downlink to child from node n and returns true if succeeded, if
+     * removing, and sep is rightmost in n, merges n with its right neighbor first, (if the resulting node is
+     * too large, it will be split by the upcoming normalization.). A solution that avoids this merge exists,
+     * but we present this for the sake of simplicity.
+     *
+     * @param t
+     * @param sep
+     * @param child
+     * @param n
+     * @param atheight
+     * @param descent
+     * @return
+     */
+    private boolean add_or_remove_link(int t, K sep, Node<K,V> child, Node<K,V> n, int atheight, Deque<ResultCouple<K,V>> descent, Queue<Runnable> maintenance) {
+
+        Node<K,V> sib;
+        K newsep;
+
+        if (t == ADD_TASK) {
+            return n.add_link(sep, child);
+        } else {
+            if (n.rightsep().equals(sep)) {
+                // the downlink to be removed is in n's right neighbor.
+                sib = n.rightlink(); // rightsep(n) = sep < +inf, thus rightlink(n)<>nil
+                lock(sib, WRITE_LOCK);
+                newsep = n.half_merge(sib); // newsep = sep
+                unlock(sib, WRITE_LOCK);
+                spawn(() -> ascend(REMOVE_TASK, newsep, sib, atheight+1,clone(descent), maintenance), maintenance);
+            }
+            return n.remove_link(sep, child);
+        }
+    }
+
+//    function locate-internal(v: value; toheight: height; var descent: stack): nodeptr;
+//    { a modified locate phase; instead of finding a leaf whose coverset includes
+//    V, finds a node at height toheight whose coverset includes v.
+//    if possible, uses the descent stack (whose top points at toheight) }
+//    var
+//        n, m, newroot: nodeptr;
+//        h, enterheight: height;
+//        ubleftsep: value;
+//    begin
+//        if empty-stack(descent) then ubleftsep := +inf { force new descent }
+//        else pop(n, ubleftsep, descent);
+//        if v < = ubleftsep then begin
+//            { a new descent from the top must be made}
+//            lock-anchor(readlock);
+//            if anchor. topheight < toheight then begin
+//                unlock-anchor(readlock); lock-anchor(writelock);
+//                if anchor. topheight < toheight then begin
+//                    allocate-node(newroot);
+//                    grow(newroot)
+//                end;
+//                unlock-anchor(writelock); lock-anchor(readlock)
+//            end;
+//            if anchor. fastheight > = toheight then begin
+//                n := anchor. fast; enterheight := anchor. fastheight
+//            end
+//            else begin
+//                n := anchor. top; enterheight := anchor. topheight
+//            end;
+//            ubleftsep := +inf; { v > leftsep(n) }
+//            unlock-anchor(readlock);
+//            set-to-empty (descent);
+//            for h := enterheight downto toheight+1 do begin { v > leftsep(n) }
+//                move-right(v, n, ubleftsep, readlock);{ v € coverset(n) }
+//                push(n, ubleftsep, descent);
+//                (m, ubleftsep) := find(v, n, ubleftsep); { v > leftsep(m) }
+//                unlock(n, readlock);
+//                n := m
+//            end
+//        end;
+//        { v > leftsep(n), height of n = toheight }
+//        move-right(v, n, ubleftsep, writelock); { v € coverset(n) }
+//        locate-internal := n
+//    end;
+
+    /**
+     * a modified locate phase; instead of finding a leaf whose coverset includes v, finds a node at height
+     * toheight whose coverset includes v. if possible, uses the descent stack (whose top points at toheight)
+     *
+     * @param v
+     * @param toheight
+     * @param descent
+     * @return
+     */
+    @SuppressWarnings("unchecked")
+    private ResultCouple<K,V> locate_internal(K v, int toheight, Deque<ResultCouple<K,V>> descent, Queue<Runnable> maintenance) {
+
+        Node<K,V> n, m, newroot;
+        int h, enterheight;
+        Comparable<K> ubleftsep;
+
+        if (descent.isEmpty()) {
+            /*
+             * Just to avoid "The local variable n may not have been initialized" at last move_right.
+             *
+             * If there isn't descent ubleftsep is +inf then the check ubleftsep.comparteTo(v) > 0 will always
+             * be true and a root will be retrieved
+             */
+            n = null;
+
+            ubleftsep = EverBiggerKey.INSTANCE; // force new descent
+        } else {
+            ResultCouple<K,V> pop = descent.pop();
+            n = pop.node;
+            ubleftsep = pop.ubleftsep;
+        }
+
+        if (ubleftsep.compareTo(v) > 0) { // invert the check ubleftsep isn't always a K
+            // a new descent from the top must be made
+            lock_anchor(READ_LOCK);
+            if (anchor.topheight < toheight) {
+                unlock_anchor(READ_LOCK);
+                lock_anchor(WRITE_LOCK);
+                if (anchor.topheight < toheight) {
+                    newroot = allocate_node(false);
+                    grow(newroot);
+                    /* Nothing to load locked now */
+                    final Metadata meta = policy.add(newroot);
+                    if(meta != null) {
+                        meta.owner.unload(meta.pageId);
                     }
+                    spawn(() -> run_critic(), maintenance);
                 }
-
+                unlock_anchor(WRITE_LOCK);
+                lock_anchor(READ_LOCK);
+            }
+            if (anchor.fastheight >= toheight) {
+                n = anchor.fast;
+                enterheight = anchor.fastheight;
+            } else {
+                n = anchor.top;
+                enterheight = anchor.topheight;
             }
 
-            /* Backtrack */
-            current = stack.pop();
-
-            /* Well ordered */
-            lock(current);
-
-            a = get(current);
-
-            /* If necessary */
-            moveRight = moveRight(a, v, current);
-
-            t = moveRight.t;
-            current = moveRight.current;
-            a = moveRight.a;
-
-            unlock(oldnode);
-            unlock(bptr);
-
-            /* And repeat procedure for parent */
-
-        }
-
-        /* Original "if is safe = true" branch */
-        /* Exact manner depends if current is a leaf */
-
-        a = a.insert(v,w);
-        republish(a,current);
-
-        /* Success-done backtracking */
-        unlock(current);
-
-//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit insert " + z );
-
-        size.increment();
-
-        return NO_RESULT;
-
-    }
-
-    public long delete(K v) {
-
-        /* Get ptr to root node */
-        BLinkPtr current = root;
-
-        BLinkNode<K> a = get(current);
-
-        /* Missing root, no data in current index */
-        if (a == null) {
-
-            synchronized (this) {
-
-                /* Check if created by another thread */
-                if ( root.isEmpty() ) {
-                    return NO_RESULT;
-                }
-
+            ubleftsep = EverBiggerKey.INSTANCE; // v > leftsep(n)
+            unlock_anchor(READ_LOCK);
+            descent.clear();
+            for (h = enterheight; h > toheight; --h) { // v > leftsep(n)
+                ResultCouple<K,V> move_right = move_right(v, n, ubleftsep, READ_LOCK); // v € coverset(n)
+                n = move_right.node;
+                ubleftsep = move_right.ubleftsep;
+                descent.push(move_right);
+                ResultCouple<K,V> find = n.find(v, ubleftsep); // v > leftsep(m)
+                m = find.node;
+                ubleftsep = find.ubleftsep;
+                unlock(n, READ_LOCK);
+                n = m;
             }
-
-            /* Get ptr to root node (now should exist!) */
-            current = root;
-
-            a = get(current);
         }
 
-        /* Scan down tree */
-        BLinkPtr t;
-        while(!a.isLeaf()) {
-            t = current;
-            current = a.scanNode(v);
-            a = get(current);
+        // v > leftsep(n), height of n = toheight
+        ResultCouple<K,V> move_right = move_right(v, n, ubleftsep, WRITE_LOCK); // v € coverset(n)
+        n = move_right.node;
+        ubleftsep = move_right.ubleftsep;
+
+        return move_right;
+    }
+
+//    procedure critic;
+//    { the critic runs continuously; its function is to keep the target
+//    of the fast pointer in the anchor close to the highest level containing more than one downlink. }
+//    var
+//        n, m: nodeptr;
+//        h: height;
+//    begin
+//        while true do begin
+//            lock-anchor(readlock);
+//            n := anchor. top; h := anchor. topheight;
+//            unlock-anchor(readlock);
+//            lock(n, readlock);
+//            while numberofchildren(n)< = 3 and rightlink(n) = nil and h> 1 do begin
+//                m := leftmostchild(n);
+//                unlock(n, readlock);
+//                n := m;
+//                lock(n, readlock);
+//                h := h - 1
+//            end;
+//            unlock(n, readlock):
+//            lock-anchor(readlock);
+//            if anchor. fastheight = h then
+//                unlock-anchor(readlock)
+//            else begin
+//                unlock-anchor(readlock);
+//                lock-anchor(writelock);
+//                anchor.fastheight := h; anchor.fast := n;
+//                unlock-anchor(writelock)
+//            end;
+//            delay
+//        end
+//    end;
+
+    /**
+     * Custom critic version to be ran from querying threads. Avoid to run more than a critic a time
+     *
+     * <p>
+     * original comment: the critic runs continuously; its function is to keep the target of the fast pointer
+     * in the anchor close to the highest level containing more than one downlink.
+     * </p>
+     *
+     */
+    AtomicBoolean criticRunning = new AtomicBoolean(false);
+    private void run_critic() {
+
+        if (!criticRunning.compareAndSet(false, true)) {
+            /* Someone else is already running a critic */
+            return;
         }
 
-        /* We have a candidate leaf */
-        lock(current);
+        Node<K,V> n, m;
+        int h;
 
-        a = get(current);
+        lock_anchor(READ_LOCK);
+        n = anchor.top;
+        h = anchor.topheight;
+        unlock_anchor(READ_LOCK);
+        lock(n, READ_LOCK);
 
-        /* If necessary */
-        MoveRightResult<K> moveRight = moveRight(a, v, current);
-        t = moveRight.t;
-        current = moveRight.current;
-        a = moveRight.a;
-
-
-        /* if v is in not A then stop “v dowsn't exist in tree” */
-        if (t.isEmpty()) {
-            unlock(current);
-            return NO_RESULT;
+        while(n.number_of_children() < CRITIC_MIN_CHILDREN && n.rightlink() == null && h > 1) {
+            m = n.leftmost_child();
+            unlock(n, READ_LOCK);
+            n = m;
+            lock(n, READ_LOCK);
+            --h;
         }
 
-        /* result <- pointer to page allocated for stored record */
-        long result = t.value;
+        unlock(n, READ_LOCK);
+        lock_anchor(READ_LOCK);
 
-        /* Just delete on leaf, the tree will be rebalanced by a batch procedure */
-
-        a = a.delete(v);
-        republish(a,current);
-
-        /* Success-done backtracking */
-        unlock(current);
-
-//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Exit delete " + v );
-
-        size.decrement();
-
-        return result;
-
-    }
-
-    private BLinkNode<K> get(BLinkPtr pointer) {
-        return nodes.get(pointer.value);
-    }
-
-    private void republish(BLinkNode<K> node, BLinkPtr pointer) {
-        /* Il lock e una enty di nodo devono già esistere! */
-        if (!locks.containsKey(pointer.value)){
-            throw new InternalError("Lock expected");
+        if (anchor.fastheight == h) {
+            unlock_anchor(READ_LOCK);
+        } else {
+            unlock_anchor(READ_LOCK);
+            lock_anchor(WRITE_LOCK);
+            anchor.fastheight = h;
+            anchor.fast = n;
+            unlock_anchor(WRITE_LOCK);
         }
-
-        nodes.put(pointer.value,node);
     }
 
-    private void publish(BLinkNode<K> node, BLinkPtr pointer, boolean locked) {
-        Lock lock = new ReentrantLock();
-        if (locked) {
-//            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
-            lock.lock();
-//            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock " + pointer);
-        }
-
-        locks.put(pointer.value, lock);
-        nodes.put(pointer.value,node);
+    /**
+     * Differently from original algorithm <i>spawning</i> means just enqueuing maintenance work at for
+     * execution at the end of insert/update/delete
+     */
+    private void spawn(Runnable runnable, Queue<Runnable> maintenance) {
+        maintenance.offer(runnable);
     }
 
-
-
-    private long createNewPage() {
-        return nextNodeId.getAndIncrement();
+    @SuppressWarnings("unchecked")
+    private Deque<ResultCouple<K,V>> clone(Deque<ResultCouple<K,V>> descent) {
+        return (Deque<ResultCouple<K,V>>)((LinkedList<ResultCouple<K,V>>) descent).clone();
     }
 
-    private void lock(BLinkPtr pointer) {
-//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking " + pointer);
+    /*
+     * The search structure operations. Locking ensures that they are atomic.
+     */
 
+    @SuppressWarnings("unchecked")
+    private Node<K,V> allocate_node(boolean leaf) {
+        final Long nodeID = nextID.getAndIncrement();
+        final Node<K,V> node = new Node<>(nodeID, leaf, this, EverBiggerKey.INSTANCE);
+        nodes.put(nodeID, node);
+
+        return node;
+    }
+
+    /**
+     * n is made an internal node containing only a downlink to the current target of the anchor's top pointer
+     * and the separator +inf to its right. The anchor's top pointer is then set to point to n, and its height
+     * indicator is incremented.
+     *
+     * @param n
+     */
+    private void grow(Node<K,V> n) {
+        n.grow(anchor.top);
+
+        anchor.top = n;
+        anchor.topheight++;
+    }
+
+    private void lock_anchor(int locktype) {
+        lock(anchor.lock, locktype);
+    }
+
+    private void unlock_anchor(int locktype) {
+        unlock(anchor.lock, locktype);
+    }
+
+    private void lock(Node<K,V> n, int locktype) {
+//
+//      System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Locking  " + n + " " + (locktype == READ_LOCK ? "r" : "w"));
+//
+//      try {
+//          Lock lock;
+//          if (locktype == READ_LOCK) {
+//              lock = locks.get(n).readLock();
+//          } else {
+//              lock = locks.get(n).writeLock();
+//          }
+//          if (!lock.tryLock(3, TimeUnit.SECONDS)) {
+//              System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> Deadlock " + n);
+//
+//              Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+//
+//              for( Thread thread : threadSet )
+//                  for (StackTraceElement ste : thread.getStackTrace()) {
+//                      System.out.println("T" + Thread.currentThread().getId() + " TD" + thread.getId() + " -> " + ste);
+//              }
+//
+//              throw new InternalError("Deadlock " + n);
+//          }
+//      } catch (InterruptedException e) {
+//          throw new InternalError("interrupt " + n);
+//      }
+//
+//      System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock     " + n + " " + (locktype == READ_LOCK ? "r" : "w"));
+
+        lock(n.lock, locktype);
+    }
+
+    private void unlock(Node<K,V> n, int locktype) {
+//
 //        try {
-//            if (!locks.get(pointer.value).tryLock(3, TimeUnit.SECONDS)) {
-//                System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> Deadlock " + pointer);
 //
-//                Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-//
-//                for( Thread thread : threadSet )
-//                    for (StackTraceElement ste : thread.getStackTrace()) {
-//                        System.out.println("T" + Thread.currentThread().getId() + " TD" + thread.getId() + " -> " + ste);
-//                }
-//
-//                throw new InternalError("Deadlock " + pointer);
+//            Lock lock;
+//            if (locktype == READ_LOCK) {
+//                lock = locks.get(n).readLock();
+//            } else {
+//                lock = locks.get(n).writeLock();
 //            }
-//        } catch (InterruptedException e) {
-//            throw new InternalError("interrupt " + pointer);
+//
+//            lock.unlock();
+//
+//        } catch (Exception e) {
+//            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> UNLOCK FAIL " + n + " " + (locktype == READ_LOCK ? "r" : "w"));
+//
+//            System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + e);
+//            System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + e.getMessage());
+//            e.printStackTrace(System.out);
+//            for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
+//                System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + ste);
+//            }
 //        }
+//
+//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Unlocked " + n + " " + (locktype == READ_LOCK ? "r" : "w"));
 
-        locks.get(pointer.value).lock();
-//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Lock " + pointer);
+        unlock(n.lock, locktype);
     }
 
-    private void unlock(BLinkPtr pointer) {
-//        System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " Unlock " + pointer);
+    private void lock(ReadWriteLock lock, int locktype) {
+        if (locktype == READ_LOCK) {
+            lock.readLock().lock();
+        } else {
+            lock.writeLock().lock();
+        }
+    }
 
+    private void unlock(ReadWriteLock lock, int locktype) {
+        if (locktype == READ_LOCK) {
+            lock.readLock().unlock();
+        } else {
+            lock.writeLock().unlock();
+        }
+    }
+
+    private void delay(long time) {
         try {
-        locks.get(pointer.value).unlock();
-        } catch (Exception e) {
-            System.out.println("T" + Thread.currentThread().getId() + " " + System.currentTimeMillis() + " --------------> UNLOCK FAIL " + pointer);
-
-            System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + e);
-            System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + e.getMessage());
-            e.printStackTrace(System.out);
-            for (StackTraceElement ste : Thread.currentThread().getStackTrace()) {
-                System.out.println("T" + Thread.currentThread().getId() + " TD" + Thread.currentThread().getId() + " UNLOCK FAIL -> " + ste);
-            }
-        }
-    }
-
-    private MoveRightResult<K> moveRight(BLinkNode<K> a, K key, BLinkPtr current) {
-
-        BLinkPtr t;
-        /* Move right if necessary */
-        while( ((t = a.scanNode(key)).isLink()) ) {
-            /* Note left-to-right locking */
-            lock(t);
-            unlock(current);
-            current = t;
-            a = get(current);
-        }
-
-        return new MoveRightResult<>(t, current, a);
-    }
-
-    private static final class MoveRightResult<K extends Comparable<K> & SizeAwareObject> {
-        final BLinkPtr t;
-        final BLinkPtr current;
-        final BLinkNode<K> a;
-
-        public MoveRightResult(BLinkPtr t, BLinkPtr current, BLinkNode<K> a) {
-            super();
-            this.t = t;
-            this.current = current;
-            this.a = a;
+            Thread.sleep(time);
+        } catch (InterruptedException soaked) {/* SOAK */
+            Thread.currentThread().interrupt();
         }
     }
 
     @Override
     public String toString() {
-        return "BLink [nodeSize=" + nodeSize + ", leafSize=" + leafSize + ", size=" + size + ", nextNodeId=" + nextNodeId + "]";
+        return "BLink [anchor=" + anchor +
+                ", nextID=" + nextID +
+                ", keys=" + size() +
+                ", maxSize=" + maxSize +
+                ", minSize=" + minSize
+                + ", closed=" + closed +
+                "]";
     }
 
-//    public void deepPrint(int maxstack) {
-//
-//        System.out.println(this);
-//
-//        Set<Long> seen = new HashSet<>();
-//        Deque<Object[]> stack = new LinkedList<>();
-//        stack.push(new Object[] {1, root});
-//
-//        int count = 0;
-//        while (!stack.isEmpty())  {
-//
-//            if (++count == maxstack) {
-//                System.out.println("Max Stack " + count + " loops?");
-//                return;
-//            }
-//
-//            Object[] o = stack.pop();
-//
-//            int indents = (int) o[0];
-//
-//            BLinkPtr current = (BLinkPtr) o[1];
-//
-//            /* Read node into memory */
-//            BLinkNode<K> node = get(current);
-//
-//            StringBuilder builder = new StringBuilder();
-//            for(int i = 0; i < indents; ++i) {
-//                builder.append("-");
-//            }
-//            builder.append(node);
-//            System.out.println(builder);
-//
-//
-//            if (!seen.add(node.getPageId())) {
-//                System.out.println("Page " + node.getPageId() + " already seen");
-//                return;
-//            }
-//
-//            if (!node.isLeaf()) {
-//
-//                BLinkInner<K> inner = (BLinkInner<K>) node;
-//
-//                Element<K> e = inner.root;
-//
-//                Deque<Object[]> ministack = new LinkedList<>();
-//
-//                while(e != null) {
-//                    ministack.push(new Object[] {indents + 1, BLinkPtr.page(e.page)});
-//                    e = e.next;
-//                }
-//
-//                /* Reverse to match child ordering! */
-//                while(!ministack.isEmpty()) {
-//                    stack.push(ministack.pop());
-//                }
-//            }
-//
-//        }
-//
-//    }
-
     /**
-     * Iterate through leaf values, looking for right leaves if needed.
+     * Build a full string representation of this tree.
+     * <p>
+     * <b>Pay attention:</b> it will load/unload nodes potentially polluting the page replacement policy. Use
+     * this method just for test and analysis purposes.
+     * </p>
      *
-     * @author diego.salvi
-     *
-     * @param <K>
+     * @return full tree string representation
      */
-    private static final class LeafValueIterator<K extends Comparable<K> & SizeAwareObject> implements Iterator<Entry<K, Long>> {
+    @SuppressWarnings("unchecked")
+    public String toStringFull() {
 
-        private final BLink<K> tree;
-        private final K end;
+        Node<K,V> top = anchor.top;
+
+        Deque<Object[]> stack = new LinkedList<>();
+        Set<Node<K,V>> seen = new HashSet<>();
+
+
+        stack.push(new Object[] {top, 0});
+
+        int indents;
+
+        StringBuilder builder = new StringBuilder();
+        while(!stack.isEmpty()) {
+
+            Object[] el = stack.pop();
+            Node<K,V> node = (Node<K, V>) el[0];
+            indents = (int) el[1];
+
+            for(int i = 0; i < indents; ++i) {
+                builder.append("-");
+            }
+
+            builder.append("> ");
+
+            if (seen.contains(node)) {
+                builder.append("Seen: ").append(node.pageId).append('\n');
+
+            } else {
+                seen.add(node);
+                builder.append(node).append(' ');
+
+                if (node.leaf) {
+
+                    Deque<Object[]> cstack = new LinkedList<>();
+
+                    /* No other nodes currently loaded and can't require to unload itself */
+                    final LockAndUnload<K,V> loadLock = node.loadAndLock(true);
+                    try {
+                        for( Entry<Comparable<K>,V> child :
+                            (Collection<Entry<Comparable<K>,V>>) (Collection<?>)
+                                node.map.entrySet()) {
+
+                            builder.append(child.getValue()).append(" <- ").append(child.getKey()).append(" | ");
+                        }
+
+                        builder.setLength(builder.length() - 3);
+                    } finally {
+                        loadLock.unlock();
+                    }
+
+                    while(!cstack.isEmpty()) {
+                        stack.push(cstack.pop());
+                    }
+
+                } else {
+                    Deque<Object[]> cstack = new LinkedList<>();
+
+                    /* No other nodes currently loaded and can't require to unload itself */
+                    final LockAndUnload<K,V> loadLock = node.loadAndLock(true);
+                    try {
+                        for( Entry<Comparable<K>,Node<K,V>> child :
+                            (Collection<Entry<Comparable<K>,Node<K,V>>>) (Collection<?>)
+                                node.map.entrySet()) {
+
+                            builder.append(child.getValue().pageId).append(" <- ").append(child.getKey()).append(" | ");
+                            cstack.push(new Object[] {child.getValue(),indents+1});
+                        }
+
+                        builder.setLength(builder.length() - 3);
+                    } finally {
+                        loadLock.unlock();
+                    }
+
+                    while(!cstack.isEmpty()) {
+                        stack.push(cstack.pop());
+                    }
+                }
+
+                builder.append('\n');
+            }
+
+
+        }
+
+        return builder.toString();
+    }
+
+
+//  var
+//  anchor: record
+//    fast: nodeptr; fastheight: height;
+//    top: nodeptr; topheight: height;
+//  end;
+
+
+    private static final class Anchor<X extends Comparable<X>,Y> {
+
+        final ReadWriteLock lock;
+
+        /*
+         * Next fields won't need to be volatile. They are written only during write lock AND no other thread
+         * will have an opportunity do read this field until the lock is released.
+         */
+
+        Node<X,Y> fast;
+        int fastheight;
+
+        Node<X,Y> top;
+        int topheight;
+
+        /** The first leaf */
+        Node<X,Y> first;
+
+        public Anchor(Node<X,Y> root) {
+            this(root,1,root,1,root);
+        }
+
+        public Anchor(Node<X, Y> fast, int fastheight, Node<X, Y> top, int topheight, Node<X,Y> first) {
+            super();
+
+            this.fast = fast;
+            this.fastheight = fastheight;
+            this.top = top;
+            this.topheight = topheight;
+            this.first = first;
+
+            lock = new ReentrantReadWriteLock(false);
+        }
+
+        public void reset(Node<X,Y> root) {
+            this.fast = root;
+            this.fastheight = 1;
+            this.top = root;
+            this.topheight = 1;
+            this.first = root;
+        }
+
+        @Override
+        public String toString() {
+            return "Anchor [fast=" + fast.pageId +
+                    ", fastheight=" + fastheight +
+                    ", top=" + top.pageId +
+                    ", topheight=" + topheight +
+                    ", first=" + first +
+                    "]";
+        }
+    }
+
+    private static final class Node<X extends Comparable<X>, Y> extends BLinkPage<X,Y> {
+
+        /**
+         * <pre>
+         * herddb.index.blink.BLink$Node object internals:
+         *  OFFSET  SIZE                                         TYPE DESCRIPTION                               VALUE
+         *       0    12                                              (object header)                           N/A
+         *      12     4                       herddb.core.Page.Owner Page.owner                                N/A
+         *      16     8                                         long Page.pageId                               N/A
+         *      24     4                    herddb.core.Page.Metadata Page.metadata                             N/A
+         *      28     4                                          int Node.keys                                 N/A
+         *      32     8                                         long Node.storeId                              N/A
+         *      40     8                                         long Node.flushId                              N/A
+         *      48     8                                         long Node.size                                 N/A
+         *      56     1                                      boolean Node.leaf                                 N/A
+         *      57     1                                      boolean Node.empty                                N/A
+         *      58     1                                      boolean Node.loaded                               N/A
+         *      59     1                                      boolean Node.dirty                                N/A
+         *      60     4     java.util.concurrent.locks.ReadWriteLock Node.lock                                 N/A
+         *      64     4     java.util.concurrent.locks.ReadWriteLock Node.loadLock                             N/A
+         *      68     4   java.util.concurrent.ConcurrentSkipListMap Node.map                                  N/A
+         *      72     4                         java.lang.Comparable Node.rightsep                             N/A
+         *      76     4             herddb.index.blink.nn.BLink.Node Node.outlink                              N/A
+         *      80     4             herddb.index.blink.nn.BLink.Node Node.rightlink                            N/A
+         *      84     4                                              (loss due to the next object alignment)
+         * Instance size: 88 bytes
+         * Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+         * </pre>
+         *
+         * And still adding one of each:
+         * <pre>
+         * COUNT       AVG       SUM   DESCRIPTION
+         *   272        32      8704   java.util.concurrent.ConcurrentHashMap$Node
+         *   141        48      6768   java.util.concurrent.ConcurrentSkipListMap
+         *     8        16       128   java.util.concurrent.ConcurrentSkipListMap$EntrySet
+         *   209        32      6688   java.util.concurrent.ConcurrentSkipListMap$HeadIndex
+         *  3464        24     83136   java.util.concurrent.ConcurrentSkipListMap$Index
+         *     2        16        32   java.util.concurrent.locks.ReentrantLock
+         *     2        32        64   java.util.concurrent.locks.ReentrantLock$NonfairSync
+         *   283        24      6792   java.util.concurrent.locks.ReentrantReadWriteLock
+         *   283        48     13584   java.util.concurrent.locks.ReentrantReadWriteLock$NonfairSync
+         *   283        16      4528   java.util.concurrent.locks.ReentrantReadWriteLock$ReadLock
+         *   283        16      4528   java.util.concurrent.locks.ReentrantReadWriteLock$Sync$ThreadLocalHoldCounter
+         *   283        16      4528   java.util.concurrent.locks.ReentrantReadWriteLock$WriteLock
+         *
+         * One of each: 320 bytes
+         * </pre>
+         */
+        static final long NODE_CONSTANT_SIZE = 408L;
+        static final long ENTRY_CONSTANT_SIZE = /* ConcurrentSkipListMap$Node */ 24L;
+
+        long storeId;
+
+        /**
+         * Flush page id, used to reduce space consumption recycling stored pages. They will be used for
+         * storeId during checkpoint if no changes were done after last flush
+         */
+        long flushId;
+
+        final boolean leaf;
+
+        /** Node access lock */
+        final ReadWriteLock lock;
+
+        /** Node data load/unload lock ({@link #map}) */
+        final ReadWriteLock loadLock;
+
+        /** Inner nodes will have Long values, leaves Y values */
+        @SuppressWarnings("rawtypes")
+        final ConcurrentSkipListMap<Comparable,Object> map;
+
+        /*
+         * Next fields won't need to be volatile. They are written only during write lock AND no other thread
+         * will have an opportunity do read this field until the lock is released.
+         */
+
+        /** Managed key set size, {@link ConcurrentSkipListMap} size isn't a O(1) operation but a O(n) */
+        int keys;
+
+        /** Managed byte size node occupancy */
+        long size;
+
+        Comparable<X> rightsep;
+
+        Node<X,Y> outlink;
+
+        Node<X,Y> rightlink;
+
+        boolean empty;
+
+        boolean loaded;
+
+        volatile boolean dirty;
+
+        Node(long id, boolean leaf, BLink<X,Y> tree, Comparable<X> rightsep) {
+
+            super(tree,id);
+
+            this.storeId = BLinkIndexDataStorage.NEW_PAGE;
+            this.flushId = BLinkIndexDataStorage.NEW_PAGE;
+
+            this.leaf = leaf;
+
+            this.empty = false;
+
+            this.rightsep = rightsep;
+
+            this.lock = new ReentrantReadWriteLock(false);
+            this.loadLock = new ReentrantReadWriteLock(false);
+            this.map = new ConcurrentSkipListMap<>(EverBiggerKeyComparator.INSTANCE);
+
+            this.keys = 0;
+            this.size = NODE_CONSTANT_SIZE;
+
+            /* New live node, loaded and dirty by default */
+            this.loaded = true;
+            this.dirty  = true;
+        }
+
+        /**
+         * Create a node from his metadata.
+         * <p>
+         * Doesn't set {@link #outlink} and {@link #rightlink} because they could still not exist in a
+         * starting up tree.
+         * </p>
+         *
+         * @param metadata
+         * @param tree
+         */
+        Node(BLinkNodeMetadata<X> metadata, BLink<X,Y> tree) {
+
+            super(tree,metadata.id);
+
+            this.storeId = metadata.storeId;
+            this.flushId = BLinkIndexDataStorage.NEW_PAGE;
+
+            this.leaf = metadata.leaf;
+
+            this.empty = metadata.empty;
+
+            this.rightsep = metadata.rightsep;
+
+            this.lock = new ReentrantReadWriteLock(false);
+            this.loadLock = new ReentrantReadWriteLock(false);
+            this.map = new ConcurrentSkipListMap<>(EverBiggerKeyComparator.INSTANCE);
+
+            this.keys = metadata.keys;
+            this.size = metadata.bytes;
+
+            /* Old stored node, unloaded and clean by default */
+            this.loaded = false;
+            this.dirty  = false;
+        }
+
+        /* ********************************* */
+        /* *** FOR BOTH LEAVES AND NODES *** */
+        /* ********************************* */
+
+        boolean empty() {
+            return empty;
+        }
+
+        boolean too_sparse() {
+            return size < owner.minSize;
+        }
+
+        boolean too_crowded() {
+            return size > owner.maxSize;
+        }
+
+        Comparable<X> rightsep() {
+            /*
+             * Could be an EverBiggerKey... pay real attention how you check it (EverBiggerKey can compare to
+             * any key but no otherwise)
+             */
+            return rightsep;
+        }
+
+        Node<X,Y> outlink() {
+            return outlink;
+        }
+
+        Node<X,Y> rightlink() {
+            return rightlink;
+        }
+
+        /**
+         * The sequence in r is transferred to the end of the sequence in l. The rightlink of l is directed to the
+         * target of the rightlink in r, r is marked empty, its outlink pointing to l. If l is a leaf, its
+         * separator is set to the largest key in it. The previous value of the rightmost separator in l is
+         * returned.
+         */
+        X half_merge(Node<X,Y> right) {
+
+            // Cast to K, is K for sure because it has a right sibling
+            @SuppressWarnings("unchecked")
+            final X half_merge = (X) rightsep;
+
+            /* Could require to unload right but we need the data */
+            final LockAndUnload<X,Y> thisLoadLock = this.loadAndLock(false);
+            boolean thisUnloaded = thisLoadLock.unloadIfNot(right, owner);
+
+            /* Could require to unload this but we need the data */
+            final LockAndUnload<X,Y> rightLoadLock = right.loadAndLock(false);
+            boolean rightUnloaded = rightLoadLock.unloadIfNot(this, owner);
+
+            try {
+
+                try {
+
+                    // the sequence in r is transferred to the end of the sequence in l
+                    map.putAll(right.map);
+
+                    dirty = true;
+
+                } finally {
+                    /* We don't need this.map anymore (rightUnload -> this) */
+                    thisLoadLock.unlock();
+                    if (!rightUnloaded) {
+                        rightLoadLock.unload();
+                    }
+                }
+
+                // r is marked empty
+                right.empty = true;
+                right.map.clear();
+
+            } finally {
+
+                /* We don't need right.map anymore too (thisUnload -> right) */
+                rightLoadLock.unlock();
+                if (!thisUnloaded) {
+                    thisLoadLock.unload();
+                }
+
+            }
+
+            // add copied keys and size
+            keys += right.keys;
+            size += right.size - NODE_CONSTANT_SIZE; // just one node!
+
+            right.keys = 0;
+            right.size = 0;
+
+            // the rightlink of l is directed to the target of the rightlink in r
+            rightlink = right.rightlink;
+
+
+            // its outlink pointing to l
+            right.outlink = this;
+
+            // If l is a leaf, its separator is set to the largest key in it
+            rightsep = right.rightsep;
+
+            // the previous value of the rightmost separator in l is returned.
+            return half_merge;
+
+        }
+
+        /**
+         * The rightlink of new is directed to the target of the rightlink of n. The rightlink of n is directed to
+         * new. The right half of the sequence in n is moved to new. If n and new are leaves, their separators are
+         * set equal to the largest keys in them. The return value is the new rightmost separator in n.
+         */
+        @SuppressWarnings("unchecked")
+        X half_split(Node<X,Y> right) {
+
+            // the rightlink of new is directed to the target of the rightlink of n
+            right.rightlink = rightlink;
+
+            // the rightlink of n is directed to new
+            rightlink = right;
+
+            // the right half of the sequence in n is moved to new
+            long limit = (size - NODE_CONSTANT_SIZE) / 2L;
+            long keeping = 0L;
+            int count = 0;
+
+            Comparable<X> lastKey = null;
+            /*
+             * No other nodes currently loaded (right isn't currently known to page policy) and can't require
+             * to unload itself.
+             */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+
+                boolean toright = false;
+                for(@SuppressWarnings("rawtypes") Entry<Comparable,Object> entry : map.entrySet()) {
+                    if (toright) {
+                        right.map.put(entry.getKey(),entry.getValue());
+                        map.remove(entry.getKey());
+                    } else {
+                        ++count;
+                        if (leaf) {
+                            keeping += owner.evaluator.evaluateAll((X) entry.getKey(), (Y) entry.getValue()) + ENTRY_CONSTANT_SIZE;
+                        } else {
+                            keeping += owner.evaluator.evaluateKey((X) entry.getKey()) + ENTRY_CONSTANT_SIZE;
+                        }
+                        if (keeping >= limit) {
+                            toright = true;
+                            lastKey = entry.getKey();
+                        }
+                    }
+                }
+
+                dirty = true;
+
+            } finally {
+                loadLock.unlock();
+            }
+
+            right.keys = keys - count;
+            keys = count;
+
+            right.size = size - keeping;
+            size = keeping + NODE_CONSTANT_SIZE;
+
+            // if n and new are leaves, their separators are set equal to the largest keys in them
+            right.rightsep = rightsep;
+
+            rightsep = lastKey;
+
+            // the return value is the new rightmost separator in n
+            // Cast to K, is K for sure because it has a right sibling
+            return (X) rightsep;
+        }
+
+        /* ****************** */
+        /* *** FOR LEAVES *** */
+        /* ****************** */
+
+        /**
+         * Copy ranged values
+         */
+        @SuppressWarnings("unchecked")
+        List<Entry<X,Y>> copyRange(X start, boolean startInclusive, X end, boolean endInclusive) {
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+
+            @SuppressWarnings("rawtypes")
+            final Map<Comparable,Object> sub;
+            try {
+
+                /*
+                 * In reality ConcurrentSkipListMap.subMap could handle null start/end but it places some null
+                 * checks. So we have to check start/end nullity too and route to the right method that will...
+                 * route all to the same non visible procedure :( :( :(
+                 */
+                if (start == null) {
+
+                    if (startInclusive) {
+                        throw new NullPointerException("Null inclusive start");
+                    }
+
+                    if (end == null) {
+
+                        if (endInclusive) {
+                            throw new NullPointerException("Null inclusive end");
+                        }
+
+                        sub = map;
+
+                    } else {
+                        sub = map.headMap(end, endInclusive);
+                    }
+                } else {
+
+                    if (end == null) {
+
+                        if (endInclusive) {
+                            throw new NullPointerException("Null inclusive end");
+                        }
+
+                        sub = map.tailMap(start,startInclusive);
+
+                    } else {
+
+                        sub = map.subMap(start, startInclusive, end, endInclusive);
+                    }
+                }
+
+
+                /* Cast to Y: is a leaf */
+                return new ArrayList<>((Set<Entry<X,Y>>) (Set<?>) sub.entrySet());
+
+            } finally {
+                loadLock.unlock();
+            }
+        }
+
+        /**
+         * Check if the leaf contains the key.
+         */
+        @SuppressWarnings("unchecked")
+        Y check_key(X key) {
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+                /* Cast to Y: is a leaf */
+                return (Y) map.get(key);
+            } finally {
+                loadLock.unlock();
+            }
+        }
+
+        /**
+         * If the leaf doen't contains key it is added into the sequence of keys at an appropriate location an
+         * returns true otherwise false.
+         */
+        @SuppressWarnings("unchecked")
+        Y add_key(X key, Y value) {
+            final Y old;
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+                /* Cast to Y: is a leaf */
+                old = (Y) map.put(key, value);
+
+                dirty = true;
+            } finally {
+                loadLock.unlock();
+            }
+
+            if (old == null) {
+                ++keys;
+                size += owner.evaluator.evaluateAll(key,value) + ENTRY_CONSTANT_SIZE;
+                return null;
+            } else {
+                /* TODO: this could be avoided if we can ensure that every value will have the same size */
+                size += owner.evaluator.evaluateValue(value) - owner.evaluator.evaluateValue(old);
+                return old;
+            }
+        }
+
+        /**
+         * If the leaf contains key it is removed and true is returned, otherwise returns false.
+         */
+        @SuppressWarnings("unchecked")
+        Y remove_key(X key) {
+            final Y old;
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+                /* Cast to Y: is a leaf */
+                old = (Y) map.remove(key);
+
+                if (old != null) {
+                    dirty = true;
+                }
+
+            } finally {
+                loadLock.unlock();
+            }
+
+            if (old == null) {
+                return null;
+            } else {
+                --keys;
+                size -= owner.evaluator.evaluateAll(key, old) + ENTRY_CONSTANT_SIZE;
+                return old;
+            }
+        }
+
+        /* ***************** */
+        /* *** FOR NODES *** */
+        /* ***************** */
+
+
+        @SuppressWarnings("unchecked")
+        Node<X,Y> leftmost_child() {
+
+            // TODO: move the knowledge on metadata to avoid page loading during critic?
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+                return (Node<X,Y>) map.firstEntry().getValue();
+            } finally {
+                loadLock.unlock();
+            }
+        }
+
+        int number_of_children() {
+            return keys;
+        }
+
+        void grow(Node<X,Y> downlink) {
+            /* No load checks... a "growing" root isn't actually known at page policy */
+
+            // it assumes that node is empty!
+            map.put(EverBiggerKey.INSTANCE, downlink);
+            ++keys;
+
+            /* EverBiggerKey being singleton is practically considered 0 size */
+            size += ENTRY_CONSTANT_SIZE;
+        }
+
+        /**
+         * The smallest si in the node such that v <= si is identified. If i > 1 returns (pi,si-1) otherwise
+         * (pi,ubleftsep).
+         */
+        @SuppressWarnings("unchecked")
+        ResultCouple<X,Y> find(X v, Comparable<X> ubleftsep) {
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+
+                /*
+                 * ...,(pi-1,si-1),(pi,si),(pi+1,si+1)...
+                 */
+
+                @SuppressWarnings("rawtypes")
+                final Entry<Comparable,Object> ceiling = map.ceilingEntry(v);
+
+                @SuppressWarnings("rawtypes")
+                final Entry<Comparable,Object> first = map.firstEntry();
+
+                /* If is the first */
+                if (ceiling.getKey().compareTo(first.getKey()) == 0) {
+                    /* Cast to Long: is a node */
+                    final Comparable<X> key = map.lowerKey(v);
+                    return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), key);
+                } else {
+                    /* Cast to Long: is a node */
+                    return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), ubleftsep);
+                }
+
+            } finally {
+                loadLock.unlock();
+            }
+
+
+        }
+
+        /**
+         * The smallest index = i such that si >= s identified. If si = s, the operation returns false.
+         * Otherwise, it changes the sequence in parent to (.., pi,s,child,si,...) and returns true.
+         */
+        @SuppressWarnings("unchecked")
+        boolean add_link(X s, Node<X,Y> child) {
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+                @SuppressWarnings("rawtypes")
+                final Entry<Comparable,Object> ceiling = map.ceilingEntry(s);
+
+                if (ceiling.getKey().compareTo(s) == 0) {
+                    return false;
+                }
+
+                /* First add new */
+                map.put(s,ceiling.getValue());
+
+                /* Then overwrite old */
+                map.put(ceiling.getKey(),child);
+
+                dirty = true;
+            } finally {
+                loadLock.unlock();
+            }
+
+            ++keys;
+            size += owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+            return true;
+        }
+
+        /**
+         * If the sequence in node includes a separator s on the immediate left of a downlink to child, the
+         * two are removed and true is returned; otherwise the return value is false
+         *
+         * @param s
+         * @param child
+         * @return
+         */
+        boolean remove_link(X s, Node<X,Y> child) {
+
+            /* No other nodes currently loaded and can't require to unload itself */
+            final LockAndUnload<X,Y> loadLock = loadAndLock(true);
+            try {
+
+                /*
+                 * ...,(pi-1,si-1),(pi,si),(pi+1,si+1)...
+                 *
+                 * s := si
+                 * pi+1 == child?
+                 */
+
+                @SuppressWarnings("unchecked")
+                final Node<X,Y> pi = (Node<X,Y>) map.get(s);
+                if (pi == null) {
+                    return false;
+                }
+
+                @SuppressWarnings("rawtypes")
+                final Entry<Comparable,Object> eip1 = map.higherEntry(s);
+                if (eip1.getValue().equals(child)) {
+
+                    /*
+                     * the two are removed...
+                     *
+                     * from: ...,(pi-1,si-1),(pi,si),(pi+1,si+1)...
+                     * to: ...,(pi-1,si-1),(pi,si+1)...
+                     */
+
+                    map.put(eip1.getKey(), pi);
+                    map.remove(s);
+
+                    dirty = true;
+
+                    --keys;
+                    size -= owner.evaluator.evaluateKey(s) + ENTRY_CONSTANT_SIZE;
+
+                    return true;
+
+                }
+
+                return false;
+
+            } finally {
+                loadLock.unlock();
+            }
+        }
+
+
+        /* ******************** */
+        /* *** PAGE LOADING *** */
+        /* ******************** */
+
+        /**
+         * With {@code doUload} parameter to {@code true} will unload eventual pages before exit from this method
+         */
+        final LockAndUnload<X,Y> loadAndLock(boolean doUnload) {
+
+            Metadata unload = null;
+            Lock read = loadLock.readLock();
+            read.lock();
+
+            if (!loaded) {
+
+                /*
+                 * We need an upgrade from read to write, with ReentrantReadWriteLock isn't possible thus we
+                 * release current read lock and retrieve a write lock before recheck the condition.
+                 */
+                read.unlock();
+
+                Lock write = loadLock.writeLock();
+                write.lock();
+
+                try {
+                    /* Recheck condition (Another thread just loaded the node?) */
+                    if (!loaded) {
+
+                        /* load */
+                        readPage(flushId == BLinkIndexDataStorage.NEW_PAGE ? storeId : flushId);
+                        loaded = true;
+
+                        unload = owner.policy.add(this);
+
+                        if (doUnload && unload != null) {
+                            /* Directly unload metatada */
+                            unload.owner.unload(unload.pageId);
+                            unload = null;
+                        }
+
+                    } else {
+
+                        owner.policy.pageHit(this);
+                    }
+
+                    /* Downgrade the lock (permitted) */
+                    read.lock();
+
+                } catch (IOException err) {
+
+                    throw new UncheckedIOException("failed to read node " + pageId, err);
+
+                } finally {
+                    write.unlock();
+                }
+
+            } else {
+                owner.policy.pageHit(this);
+            }
+
+            return new LockAndUnload<>(read, unload);
+        }
+
+
+        boolean unload(boolean flush) {
+
+            /* No data cannot change during checkpoint! */
+            final Lock lock = loadLock.writeLock();
+            lock.lock();
+
+            try {
+
+                if (!loaded) {
+                    return false;
+                }
+
+                if (flush && dirty) {
+                    try {
+                        flush();
+                    } catch (IOException e) {
+
+                        /* Avoid any reuse of a possible broken/half-flushed page */
+                        flushId = BLinkIndexDataStorage.NEW_PAGE;
+
+                        throw new UncheckedIOException("failed to flush node " + pageId, e);
+                    }
+                }
+
+                map.clear();
+                loaded = false;
+
+                LOGGER.log(Level.FINE, "unloaded node {0}", new Object[]{pageId});
+
+                return true;
+
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        void flush() throws IOException {
+
+            /* No data cannot change during checkpoint! */
+            final Lock lock = loadLock.writeLock();
+            lock.lock();
+
+            try {
+
+                if (loaded && dirty) {
+                    /* Overwrite/NewPage */
+                    flushId = writePage(flushId);
+                    dirty = false;
+
+                    LOGGER.log(Level.FINE, "flush node " + pageId + ": page -> " + flushId + " with " + keys + " keys x " + size + " bytes");
+                }
+
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        BLinkMetadata.BLinkNodeMetadata<X> checkpoint() throws IOException {
+
+            /* No data cannot change during checkpoint! */
+            final Lock lock = loadLock.writeLock();
+            lock.lock();
+
+            try {
+
+                if (loaded && dirty) {
+
+                    /* New page */
+                    storeId = writePage(BLinkIndexDataStorage.NEW_PAGE);
+
+                    /*
+                     * "Reset" flush status: if not reset the next load would fetch an older flush and not the
+                     * right checkpoint.
+                     */
+                    flushId = BLinkIndexDataStorage.NEW_PAGE;
+
+                    dirty = false;
+
+                    LOGGER.log(Level.FINE, "checkpoint node " + pageId + ": newpage -> " + storeId + " with " + keys + " keys x " + size + " bytes");
+                } else {
+
+                    /*
+                     * No changes on data page from last flush, we can use directly last flush (obviously only
+                     * if last flush occurred). No last flush could happen with:
+                     *
+                     * a) old nodes never changed since last flush id reuse
+                     *
+                     * b) old nodes from previous boot and untouched since then (so no flushId)
+                     *
+                     * It cannot happen with new nodes never flushed because they should be dirty too (and
+                     * thus they fall in the other if branch).
+                     */
+                    if (flushId != BLinkIndexDataStorage.NEW_PAGE) {
+
+                        /* Flush recycle */
+                        storeId = flushId;
+
+                        /*
+                         * "Reset" flush status: we reused flush page as checkpoint one thus we need to force a
+                         * new flush page when needed.
+                         */
+                        flushId = BLinkIndexDataStorage.NEW_PAGE;
+
+                        LOGGER.log(Level.FINE, "checkpoint node " + pageId + ": from existing flush -> " + storeId + " with " + keys + " keys x " + size + " bytes");
+                    }
+
+                }
+
+                return new BLinkNodeMetadata<>(
+                        leaf,
+                        pageId,
+                        storeId,
+                        empty,
+                        keys,
+                        size,
+                        outlink   == null ? BLinkNodeMetadata.NO_LINK : outlink.pageId,
+                        rightlink == null ? BLinkNodeMetadata.NO_LINK : rightlink.pageId,
+                        rightsep);
+
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        /**
+         * Write/overwrite a data page. If no page id is given {@link BLinkIndexDataStorage#NEW_PAGE} a new
+         * page is created, otherwise old one is overwritten.
+         *
+         * @param pageId
+         * @return
+         * @throws IOException
+         */
+        private long writePage(long pageId) throws IOException {
+            if (leaf) {
+                return writeLeafPage(pageId);
+            } else {
+                return writeNodePage(pageId);
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private long writeNodePage(long pageId) throws IOException {
+            final Map<Comparable<X>,Long> pointers = new HashMap<>(keys);
+            map.forEach((x,y) -> {
+                pointers.put(x, ((Node<X,Y>) y).pageId);
+            });
+
+            if (pageId == BLinkIndexDataStorage.NEW_PAGE) {
+                return owner.storage.createNodePage(pointers);
+            }
+
+            owner.storage.overwriteNodePage(pageId,pointers);
+            return pageId;
+        }
+
+        @SuppressWarnings("unchecked")
+        private long writeLeafPage(long pageId) throws IOException {
+
+            if (pageId == BLinkIndexDataStorage.NEW_PAGE) {
+                return owner.storage.createLeafPage((Map<Comparable<X>,Y>) (Map<?,?>) map);
+            }
+
+            owner.storage.overwriteLeafPage(pageId, (Map<Comparable<X>,Y>) (Map<?,?>) map);
+            return pageId;
+        }
+
+        private void readPage(long pageId) throws IOException {
+            if (leaf) {
+                readLeafPage(pageId);
+            } else {
+                readNodePage(pageId);
+            }
+        }
+
+        private void readNodePage(long pageId) throws IOException {
+            final Map<Comparable<X>,Long> data = owner.storage.loadNodePage(pageId);
+            data.forEach((x,y) -> {
+                Node<X,Y> node = owner.nodes.get(y);
+                map.put(x, node);
+            });
+        }
+
+        private void readLeafPage(long pageId) throws IOException {
+            final Map<Comparable<X>,Y> data = owner.storage.loadLeafPage(pageId);
+            map.putAll(data);
+        }
+
+        @Override
+        public String toString() {
+            return "Node [id=" + pageId +
+                    ", leaf=" + leaf +
+                    ", empty=" + empty +
+                    ", nkeys=" + keys +
+                    ", size=" + size +
+                    ", outlink=" + (outlink == null ? null : outlink.pageId )+
+                    ", rightlink=" + (rightlink == null ? null : rightlink.pageId) +
+                    ", rightsep=" + rightsep +
+                    "]";
+        }
+    }
+
+    private static class BLinkPage<X extends Comparable<X>,Y> extends Page<BLink<X,Y>> {
+
+        public BLinkPage(BLink<X,Y> owner, long pageId) {
+            super(owner, pageId);
+        }
+
+    }
+
+    private static final class ResultCouple<X extends Comparable<X>,Y> {
+        final Node<X,Y> node;
+        final Comparable<X> ubleftsep;
+
+        ResultCouple(Node<X,Y> node, Comparable<X> ubleftsep) {
+            super();
+            this.node = node;
+            this.ubleftsep = ubleftsep;
+        }
+    }
+
+
+    private static final class LockAndUnload<X extends Comparable<X>,Y> {
+        private final Lock lock;
+        private final Metadata unload;
+
+        public LockAndUnload(Lock lock, Metadata unload) {
+            super();
+            this.lock = lock;
+            this.unload = unload;
+        }
+
+        public boolean unloadIfNot(Node<X,Y> node, BLink<X,Y> tree) {
+
+            /* If nothing to unload is a success */
+            if (unload == null) {
+                return true;
+            }
+
+            /* If is requested node (right page + right owner) do not unload */
+            if (node.pageId == unload.pageId && unload.owner == tree) {
+                return false;
+            }
+
+            /* Do real unload */
+            unload();
+
+            return true;
+        }
+
+        public void unload() {
+            unload.owner.unload(unload.pageId);
+        }
+
+        public void unlock() {
+            lock.unlock();
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    final static class EverBiggerKey implements Comparable {
+
+        public static final EverBiggerKey INSTANCE = new EverBiggerKey();
+
+        /**
+         * Do not create new instances: use Singleton
+         */
+        private EverBiggerKey() {
+        }
+
+        @Override
+        @SuppressFBWarnings("EQ_COMPARETO_USE_OBJECT_EQUALS")
+        public int compareTo(Object o) {
+            return +1;
+        }
+
+        @Override
+        public String toString() {
+            return "+inf";
+        }
+
+    }
+
+    @SuppressWarnings("rawtypes")
+    static final class EverBiggerKeyComparator implements Comparator<Comparable> {
+
+        private static final EverBiggerKeyComparator INSTANCE = new EverBiggerKeyComparator();
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public int compare(Comparable o1, Comparable o2) {
+
+            if (o1 == EverBiggerKey.INSTANCE) {
+
+                /*
+                 * Without this second check the map will continue to append EverBiggerKey element at the end
+                 * (because it can't handle equality I presume).
+                 */
+                if (o2 == EverBiggerKey.INSTANCE) {
+                    return 0;
+                }
+
+                return +1;
+
+            } else if (o2 == EverBiggerKey.INSTANCE) {
+
+                return -1;
+
+            } else {
+                return o1.compareTo(o2);
+            }
+        }
+    }
+
+    private final class ScanIterator implements Iterator<Entry<K,V>> {
 
         private boolean nextChecked;
 
-        private BLinkPtr right;
-        private K highKey;
+        private Iterator<Entry<K,V>> current;
+        private Node<K,V> node;
 
-        private Iterator<Entry<K, Long>> current;
+        private K lastRead;
 
-        public LeafValueIterator(BLink<K> tree, BLinkLeaf<K> leaf, K start, K end) {
-            super();
+        private Comparable<K> rightsep;
 
-            this.tree = tree;
-            this.right = leaf.getRight();
+        private final K end;
+        private final boolean inclusive;
 
-            this.current = leaf.getValues(start, end);
-            this.highKey = leaf.getHighKey();
+        public ScanIterator(Node<K,V> node, K start, boolean sinclusive, K end, boolean einclusive) {
 
             this.end = end;
+            this.inclusive = einclusive;
+
+            this.node = node;
+
+            /* Copy values to quicly release read lock */
+            final List<Entry<K,V>> list = node.copyRange(start, sinclusive, end, einclusive);
+
+            this.current = list.iterator();
+
+            this.rightsep = node.rightsep;
+
+            unlock(node, READ_LOCK);
 
             this.nextChecked = false;
         }
-
 
         @Override
         public boolean hasNext() {
@@ -943,32 +2345,60 @@ public final class BLink<K extends Comparable<K> & SizeAwareObject> {
 
                 } else {
 
-                    /* Otherwise try to move right */
-                    if (!right.isEmpty()) {
 
-                        /* If current highkey is less than or equal to target end we can move right */
-                        if (end == null || highKey.compareTo(end) <= 0) {
+                    if (rightsep != EverBiggerKey.INSTANCE) {
 
-                            /* Move right */
-                            BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
-                            current = leaf.getValues(null, end);
-                            highKey = leaf.getHighKey();
-                            right   = leaf.getRight();
+                        /* Check if new data was added to the node due to merge operations */
 
-                        } else {
+                        ResultCouple<K,V> move_right = move_right(lastRead, node, rightsep, READ_LOCK);
+                        node = move_right.node;
 
-                            /* Oterwise there is no interesting data at right */
-                            current = null;
-                            return false;
+                        /* Use custom comparator, both node.rightsep and rightsep could be a EverBiggerKey instance */
+                        if (EverBiggerKeyComparator.INSTANCE.compare(node.rightsep, rightsep) > 0) {
+
+                            /* rightsep changed from last separator... there could be other data to read in the node. */
+                            rightsep = node.rightsep;
+
+                            /* Copy values to quicly release read lock */
+                            final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
+
+                            current = list.iterator();
+
+                            unlock(node, READ_LOCK);
+
+                            if (current.hasNext()) {
+                                return true;
+                            }
+
                         }
 
-                    } else {
+                        node = jump_right(node, rightsep);
 
-                        /* Oterwise there is no data at right */
-                        current = null;
-                        return false;
+                        rightsep = node.rightsep;
+
+                        /* Copy values to quicly release read lock */
+                        final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
+
+                        current = list.iterator();
+
+                        unlock(node, READ_LOCK);
+
+                        if (current.hasNext()) {
+                            return true;
+                        }
 
                     }
+
+                    /* We couln't get any more data do cleanup */
+
+                    /* Cleanup: there is no interesting data at right */
+                    rightsep = null;
+                    lastRead = null;
+                    node     = null;
+                    current  = null;
+
+                    return false;
+
                 }
             }
 
@@ -976,67 +2406,50 @@ public final class BLink<K extends Comparable<K> & SizeAwareObject> {
         }
 
         @Override
-        public Entry<K, Long> next() {
+        public Entry<K,V> next() {
 
-            if (nextChecked) {
-
-                if (current == null) {
-                    throw new NoSuchElementException();
-                }
-
-                /*
-                 * If next has been checked we don't need to replay all next checking... it's already
-                 * prepared!
-                 */
-
-                nextChecked = false;
-                return current.next();
-
-            } else {
-
-                while (current != null) {
-
-                    /* If remains data in currently checked node use it */
-                    if (current.hasNext()) {
-
-                        nextChecked = false;
-                        return current.next();
-
-                    } else {
-
-                        /* Otherwise try to move right */
-                        if (!right.isEmpty()) {
-
-                            /* If current highkey is greater than end we can move right */
-                            if (end == null || highKey.compareTo(end) > 0) {
-
-                                /* Move right */
-                                BLinkLeaf<K> leaf = (BLinkLeaf<K>) tree.get(right);
-                                current = leaf.getValues(null, end);
-                                highKey = leaf.getHighKey();
-                                right   = leaf.getRight();
-
-                            } else {
-
-                                /* Oterwise there is no interesting data at right */
-                                current = null;
-                                throw new NoSuchElementException();
-                            }
-
-                        } else {
-
-                            /* Oterwise there is no data at right */
-                            current = null;
-                            throw new NoSuchElementException();
-
-                        }
-                    }
-                }
-
+            if (current == null) {
                 throw new NoSuchElementException();
-
             }
 
+            if (!nextChecked && !hasNext()) {
+                throw new NoSuchElementException();
+            }
+
+            nextChecked = false;
+
+            final Entry<K,V> next = current.next();
+
+            lastRead = next.getKey();
+
+            return next;
+
+        }
+
+        /**
+         * Differently from move_right given node <b>must be</b> locked
+         */
+        private Node<K,V> jump_right(Node<K,V> n, Comparable<K> rightsep) {
+
+            Node<K,V> m;
+
+            /*
+             * Jump until we found a node not empty and with a right separator greater than given
+             */
+            while (n.empty() || EverBiggerKeyComparator.INSTANCE.compare(n.rightsep(), rightsep) <= 0) {
+
+                if (n.empty()) {
+                    m = n.outlink(); // v > leftsep (n) = leftsep (m)
+                } else {
+                    m = n.rightlink(); // v > rightsep(n) = leftsep(m)
+                }
+
+                unlock(n, READ_LOCK);
+                lock(m, READ_LOCK);
+                n = m;
+            }
+
+            return n;
         }
 
     }

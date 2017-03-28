@@ -33,61 +33,102 @@ import java.util.List;
  */
 public final class BLinkMetadata<K> {
 
-    final long root;
-    final long nextNodeId;
+    final long nextID;
 
-    final List<BLinkNodeMetadata<K>> nodeMetadatas;
+    /** Anchor <i>fast node</i> pointer */
+    final long fast;
 
-    public BLinkMetadata(long root, long nextNodeId, List<BLinkNodeMetadata<K>> nodeMetadatas) {
+    /** Anchor <i>fast node</i> height */
+    final int fastheight;
+
+    /** Anchor real <i>root</i> pointer */
+    final long top;
+
+    /** Anchor real <i>root</i> height */
+    final int topheight;
+
+    /** Leftmost leaf */
+    final long first;
+
+    /** Stored values count */
+    final long values;
+
+    final List<BLinkNodeMetadata<K>> nodes;
+
+    public BLinkMetadata(long nextID,
+            long fast, int fastheight, long top, int topheight,
+            long first, long size,
+            List<BLinkNodeMetadata<K>> nodes) {
         super();
-        this.root = root;
-        this.nextNodeId = nextNodeId;
-        this.nodeMetadatas = nodeMetadatas;
-    }
-
-    public static final class BLinkNodeMetadata<K> {
-
-        public static final byte LEAF_TYPE = 0;
-        public static final byte NODE_TYPE = 1;
-
-        final byte type;
-
-        final long nodeId;
-        final long storeId;
-
-        final K highKey;
-
-        final long size;
-        final long keys;
-        final long right;
-
-        public BLinkNodeMetadata(byte type, long nodeId, long storeId, K highKey, long size, long keys, long right) {
-            super();
-
-            this.type = type;
-
-            this.nodeId = nodeId;
-            this.storeId = storeId;
-
-            this.highKey = highKey;
-
-            this.size = size;
-            this.keys = keys;
-
-            this.right = right;
-        }
-
-        @Override
-        public String toString() {
-            return "BLinkNodeMetadata [type=" + type + ", nodeId=" + nodeId + ", storeId=" + storeId + ", highKey="
-                    + highKey + ", size=" + size + ", keys=" + keys + ", right=" + right + "]";
-        }
-
+        this.nextID = nextID;
+        this.fast = fast;
+        this.fastheight = fastheight;
+        this.top = top;
+        this.topheight = topheight;
+        this.first = first;
+        this.values = size;
+        this.nodes = nodes;
     }
 
     @Override
     public String toString() {
-        return "BLinkMetadata [root=" + root + ", nodeMetadatas=" + nodeMetadatas + "]";
+        return "BLinkMetadata [nextID=" + nextID +
+                ", fast=" + fast +
+                ", fastheight=" + fastheight +
+                ", top=" + top +
+                ", topheight=" + topheight +
+                ", first=" + first +
+                ", size=" + values +
+                ", nodes=" + nodes.size() +
+                "]";
+    }
+
+    public static final class BLinkNodeMetadata<K> {
+
+        public static final long NO_LINK = -1;
+
+        final boolean leaf;
+
+        final long id;
+        final long storeId;
+
+        final boolean empty;
+
+        final int keys;
+        final long bytes;
+
+        final long outlink;
+        final long rightlink;
+
+        final Comparable<K> rightsep;
+
+        public BLinkNodeMetadata(boolean leaf, long id, long storeId, boolean empty, int keys, long size, long outlink, long rightlink, Comparable<K> rightsep) {
+            super();
+            this.leaf = leaf;
+            this.id = id;
+            this.storeId = storeId;
+            this.empty = empty;
+            this.keys = keys;
+            this.bytes = size;
+            this.outlink = outlink;
+            this.rightlink = rightlink;
+            this.rightsep = rightsep;
+        }
+
+        @Override
+        public String toString() {
+            return "BLinkNodeMetadata [leaf=" + leaf +
+                    ", id=" + id +
+                    ", storeId=" + storeId +
+                    ", empty=" + empty +
+                    ", keys=" + keys +
+                    ", size=" + bytes +
+                    ", outlink=" + outlink +
+                    ", rightlink=" + rightlink +
+                    ", rightsep=" + rightsep +
+                    "]";
+        }
+
     }
 
 }

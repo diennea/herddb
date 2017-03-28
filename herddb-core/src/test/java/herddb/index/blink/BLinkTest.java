@@ -23,6 +23,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +36,10 @@ import org.junit.Test;
 
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
+import herddb.index.blink.BLink;
+import herddb.index.blink.BLinkIndexDataStorage;
+import herddb.index.blink.BLinkMetadata;
+import herddb.index.blink.BLink.SizeEvaluator;
 import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
 
@@ -45,31 +51,81 @@ import herddb.utils.Sized;
 public class BLinkTest {
 
 
-    private static final class DummyBLinkIndexDataStorage<K extends Comparable<K> & SizeAwareObject> implements BLinkIndexDataStorage<K> {
+    private static final class DummyBLinkIndexDataStorage<K extends Comparable<K> & SizeAwareObject, V> implements BLinkIndexDataStorage<K,V> {
         AtomicLong newPageId = new AtomicLong();
 
-        private ConcurrentHashMap<Long, Element<K>> pages = new ConcurrentHashMap<>();
-        private ConcurrentHashMap<Long, BLinkMetadata<K>> metadatas = new ConcurrentHashMap<>();
+        private ConcurrentHashMap<Long, Object> datas = new ConcurrentHashMap<>();
+
 
         @Override
-        public Element<K> loadPage(long pageId) throws IOException {
-            return pages.get(pageId);
+        public Map<Comparable<K>, Long> loadNodePage(long pageId) throws IOException {
+            return (Map<Comparable<K>, Long>) datas.get(pageId);
         }
 
         @Override
-        public long createDataPage(Element<K> root) throws IOException {
+        public Map<Comparable<K>, V> loadLeafPage(long pageId) throws IOException {
+            return (Map<Comparable<K>, V>) datas.get(pageId);
+        }
+
+        @Override
+        public long createNodePage(Map<Comparable<K>, Long> data) throws IOException {
             long id = newPageId.incrementAndGet();
-            pages.put(id, root);
+            datas.put(id, new HashMap<>(data));
             return id;
         }
 
         @Override
-        public long createMetadataPage(BLinkMetadata<K> metadata) throws IOException {
+        public long createLeafPage(Map<Comparable<K>, V> data) throws IOException {
             long id = newPageId.incrementAndGet();
-            metadatas.put(id, metadata);
+            datas.put(id, new HashMap<>(data));
             return id;
+        }
+
+        @Override
+        public void overwriteNodePage(long pageId, Map<Comparable<K>, Long> data) throws IOException {
+            datas.put(pageId, new HashMap<>(data));
+        }
+
+        @Override
+        public void overwriteLeafPage(long pageId, Map<Comparable<K>, V> data) throws IOException {
+            datas.put(pageId, new HashMap<>(data));
         }
     }
+
+    private static final class StringSizeEvaluator implements SizeEvaluator<Sized<String>,Long> {
+        @Override
+        public long evaluateKey(Sized<String> key) {
+            return key.getEstimatedSize();
+        }
+
+        @Override
+        public long evaluateValue(Long value) {
+            return 24L;
+        }
+
+        @Override
+        public long evaluateAll(Sized<String> key, Long value) {
+            return evaluateKey(key) + evaluateValue(value);
+        }
+    }
+
+    private static final class LongSizeEvaluator implements SizeEvaluator<Sized<Long>,Long> {
+        @Override
+        public long evaluateKey(Sized<Long> key) {
+            return key.getEstimatedSize();
+        }
+
+        @Override
+        public long evaluateValue(Long value) {
+            return 24L;
+        }
+
+        @Override
+        public long evaluateAll(Sized<Long> key, Long value) {
+            return evaluateKey(key) + evaluateValue(value);
+        }
+    }
+
 
     @Test
     public void testCheckpointAndRestore() throws Exception {
@@ -79,28 +135,31 @@ public class BLinkTest {
                 "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"
         };
 
-        BLinkIndexDataStorage<Sized<String>> storage = new DummyBLinkIndexDataStorage<>();
+        BLinkIndexDataStorage<Sized<String>,Long> storage = new DummyBLinkIndexDataStorage<>();
 
-        BLink<Sized<String>> blink = new BLink<>(2048L, 2048L, storage, new RandomPageReplacementPolicy(3));
+        BLinkMetadata<Sized<String>> metadata;
+        try (BLink<Sized<String>,Long> blink = new BLink<>(2048L, new StringSizeEvaluator(), new RandomPageReplacementPolicy(3), storage)) {
 
-        for (int i = 0; i < data.length; ++i) {
-            blink.insert(Sized.valueOf(data[i]), i + 1L);
+            for (int i = 0; i < data.length; ++i) {
+                blink.insert(Sized.valueOf(data[i]), i + 1L);
+            }
+
+            assertEquals(data.length, blink.size());
+
+            metadata = blink.checkpoint();
         }
 
-        assertEquals(data.length, blink.size());
+        try (BLink<Sized<String>,Long> blinkFromMeta = new BLink<>(2048L, new StringSizeEvaluator(), new RandomPageReplacementPolicy(3), storage, metadata)) {
 
-        BLinkMetadata<Sized<String>> metadata = blink.checkpoint();
+            /* Require at least two nodes! */
+            assertNotEquals(1,metadata.nodes.size());
 
-        BLink<Sized<String>> blinkFromMeta = new BLink<>(2048L, 2048L, metadata, storage, new RandomPageReplacementPolicy(3));
+            for (int i = 0; i < data.length; ++i) {
+                assertEquals(i + 1L, (long) blinkFromMeta.search(Sized.valueOf(data[i])));
+            }
 
-        /* Require at least two nodes! */
-        assertNotEquals(1,metadata.nodeMetadatas.size());
-
-        for (int i = 0; i < data.length; ++i) {
-            assertEquals(i + 1L, blinkFromMeta.search(Sized.valueOf(data[i])));
+            assertEquals(data.length, blinkFromMeta.size());
         }
-
-        assertEquals(data.length, blinkFromMeta.size());
 
     }
 
@@ -109,58 +168,93 @@ public class BLinkTest {
 
         final long inserts = 100;
 
-        BLinkIndexDataStorage<Sized<Long>> storage = new DummyBLinkIndexDataStorage<>();
+        BLinkIndexDataStorage<Sized<Long>,Long> storage = new DummyBLinkIndexDataStorage<>();
 
-        BLink<Sized<Long>> blink = new BLink<>(2048L, 2048L, storage, new RandomPageReplacementPolicy(10));
+        try (BLink<Sized<Long>,Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
 
-        for (long l = 0; l < inserts;l++) {
-            blink.insert(Sized.valueOf(l), l);
+            for (long l = 0; l < inserts;l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            for (long l = 0; l < inserts; l++) {
+                assertEquals(l,(long) blink.search(Sized.valueOf(l)));
+            }
         }
+    }
 
-        for (long l = 0; l < inserts; l++) {
-            assertEquals(l,blink.search(Sized.valueOf(l)));
+    @Test
+    public void testDelete() throws Exception {
+
+        final long inserts = 100000;
+
+        BLinkIndexDataStorage<Sized<Long>,Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        try (BLink<Sized<Long>,Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
+
+            for (long l = 0; l < inserts;l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+
+            /* Require at least two nodes! */
+            assertNotEquals(1,metadata.nodes.size());
+
+            for (long l = 0; l < inserts; l++) {
+                assertEquals(l,(long) blink.delete(Sized.valueOf(l)));
+            }
+
+            for (long l = 0; l < inserts; l++) {
+                assertEquals(null,blink.search(Sized.valueOf(l)));
+            }
         }
     }
 
     @Test
     public void testScan() throws Exception {
 
-        BLinkIndexDataStorage<Sized<Long>> storage = new DummyBLinkIndexDataStorage<>();
+        BLinkIndexDataStorage<Sized<Long>,Long> storage = new DummyBLinkIndexDataStorage<>();
 
-        BLink<Sized<Long>> blink = new BLink<>(2048L, 2048L, storage, new RandomPageReplacementPolicy(10));
+        try (BLink<Sized<Long>,Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
 
-        final long inserts = 100;
+            final long inserts = 100;
 
-        for (long l = 0; l < inserts;l++) {
-            blink.insert(Sized.valueOf(l), l);
-        }
+            for (long l = 0; l < inserts;l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
 
-        long offset = 10;
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
 
-        for (long l = 0; l < inserts - offset; l++) {
+            /* Require at least two nodes! */
+            assertNotEquals(1,metadata.nodes.size());
 
-            Stream<Entry<Sized<Long>,Long>> stream = blink.scan(Sized.valueOf(l),Sized.valueOf(l + offset));
+            long offset = 10;
+
+            for (long l = 0; l < inserts - offset; l++) {
+
+                Stream<Entry<Sized<Long>,Long>> stream = blink.scan(Sized.valueOf(l),Sized.valueOf(l + offset));
 
 
-            Holder<Long> h = new Holder<>(l);
-            Holder<Long> count = new Holder<>(0L);
+                Holder<Long> h = new Holder<>(l);
+                Holder<Long> count = new Holder<>(0L);
 
-            StringBuilder builder = new StringBuilder();
+                StringBuilder builder = new StringBuilder();
 
-            /* Check each value */
-            stream.forEach(entry -> {
-                assertEquals(h.value,entry.getValue());
-                h.value++;
-                count.value++;
+                /* Check each value */
+                stream.forEach(entry -> {
+                    assertEquals(h.value,entry.getValue());
+                    h.value++;
+                    count.value++;
 
-                builder.append(entry.getValue()).append(", ");
-            });
+                    builder.append(entry.getValue()).append(", ");
+                });
 
-            builder.setLength(builder.length() -2);
-            System.out.println("start " + l + " end " + (l + offset) + " -> " + builder);
+                builder.setLength(builder.length() -2);
+                System.out.println("start " + l + " end " + (l + offset) + " -> " + builder);
 
-            assertEquals(offset,(long) count.value);
+                assertEquals(offset,(long) count.value);
 
+            }
         }
     }
 
@@ -169,27 +263,29 @@ public class BLinkTest {
 
         final int pages = 5;
         final int inserts = 100;
-        BLinkIndexDataStorage<Sized<Long>> storage = new DummyBLinkIndexDataStorage<>();
+        BLinkIndexDataStorage<Sized<Long>,Long> storage = new DummyBLinkIndexDataStorage<>();
 
         PageReplacementPolicy policy = new RandomPageReplacementPolicy(pages);
 
-        BLink<Sized<Long>> blink = new BLink<>(2048L, 2048L, storage, policy);
+        try (BLink<Sized<Long>,Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), policy, storage)) {
 
-        for (long l = 0; l < inserts;l++) {
-            blink.insert(Sized.valueOf(l), l);
+            for (long l = 0; l < inserts;l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            /* Must fill the polocy */
+            assertEquals(pages, policy.size());
+
+            assertEquals(inserts, blink.size());
+
+            blink.close();
+
+            /* No pages should remain in memory after unload!! */
+            assertEquals(0, policy.size());
+
+            assertEquals(0, blink.size());
+
         }
-
-        /* Must fill the polocy */
-        assertEquals(pages, policy.size());
-
-        assertEquals(inserts, blink.size());
-
-        blink.close();
-
-        /* No pages should remain in memory after unload!! */
-        assertEquals(0, policy.size());
-
-        assertEquals(0, blink.size());
 
     }
 }

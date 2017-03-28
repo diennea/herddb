@@ -20,18 +20,43 @@
 package herddb.index.blink;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * @author diego.salvi
  */
-interface BLinkIndexDataStorage<K> {
+interface BLinkIndexDataStorage<X,Y> {
 
     public static final long NEW_PAGE = -1;
 
-    public Element<K> loadPage(long pageId) throws IOException;
+    /**
+     * Load an internal node data page.
+     */
+    public Map<Comparable<X>, Long> loadNodePage(long pageId) throws IOException;
 
-    public long createDataPage(Element<K> root) throws IOException;
+    /**
+     * Load a leaf node data page.
+     */
+    public Map<Comparable<X>, Y> loadLeafPage(long pageId) throws IOException;
 
-    public long createMetadataPage(BLinkMetadata<K> metadata) throws IOException;
+    /**
+     * Create a new internal node page for given data.
+     */
+    public long createNodePage(Map<Comparable<X>,Long> data) throws IOException;
+
+    /**
+     * Create a new leaf node page for given data.
+     */
+    public long createLeafPage(Map<Comparable<X>,Y> data) throws IOException;
+
+    /**
+     * Overwrite an existing internal node page with given data.
+     */
+    public void overwriteNodePage(long pageId, Map<Comparable<X>,Long> data) throws IOException;
+
+    /**
+     * Overwrite an existing leaf node page with given data.
+     */
+    public void overwriteLeafPage(long pageId, Map<Comparable<X>,Y> data) throws IOException;
 
 }
