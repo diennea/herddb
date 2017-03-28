@@ -25,9 +25,9 @@ import java.util.Objects;
 
 import herddb.codec.RecordSerializer;
 import herddb.utils.Bytes;
-import herddb.utils.SizeAwareObject;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapDataAccessor;
+import herddb.utils.SizeAwareObject;
 
 /**
  * A generic record

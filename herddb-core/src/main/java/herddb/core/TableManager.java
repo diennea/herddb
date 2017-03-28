@@ -501,7 +501,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Page.Metadata unload = null;
         try {
 
-//            if (lastKnownPageId == nextPageId - 1) {
             /*
              * Use currentDirtyRecordsPage to check because nextPageId could be advanced for other needings
              * like rebuild a dirty page during checkpoint
@@ -529,10 +528,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
                 newPages.put(newId, newPage);
                 pages.put(newId, newPage);
-                pageSet.pageCreated(newId);
 
                 /* From this moment on the page has been published */
- /* The lock is needed to block other threads up to this point */
+                /* The lock is needed to block other threads up to this point */
                 currentDirtyRecordsPage.set(newId);
 
                 /*
@@ -576,10 +574,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         newPages.put(newId, newPage);
         pages.put(newId, newPage);
-        pageSet.pageCreated(newId);
 
         /* From this moment on the page has been published */
- /* The lock is needed to block other threads up to this point */
+        /* The lock is needed to block other threads up to this point */
         currentDirtyRecordsPage.set(newId);
     }
 
@@ -604,6 +601,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private void flushNewPage(DataPage page) {
         newPages.remove(page.pageId);
+
+        /* Set the new page as a fully active page */
+        pageSet.pageCreated(page.pageId);
+
         /*
          * We need to keep the page lock just to write the unloaded flag... after that write any other
          * thread that check the page will avoid writes (thus using page data is safe)
