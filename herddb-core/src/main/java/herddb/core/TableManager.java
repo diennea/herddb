@@ -48,7 +48,6 @@ import java.util.stream.Stream;
 
 import javax.xml.ws.Holder;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.codec.RecordSerializer;
 import herddb.core.stats.TableManagerStats;
 import herddb.index.IndexOperation;
@@ -1515,7 +1514,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @Override
-    @SuppressFBWarnings("WMI_WRONG_MAP_ITERATOR")
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
@@ -1591,8 +1589,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * Any newpage remaining here is unflushed and is not set as dirty (if "dirty" were unloaded!).
              * Just write the pages as they are.
              */
-            for (Long newPageId : newPages.keySet()) {
-                DataPage dataPage = newPages.get(newPageId);
+            for(DataPage dataPage : newPages.values()) {
                 flushNewPage(dataPage);
             }
 
@@ -1606,7 +1603,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     new Object[]{table.name, sequenceNumber, dirtyPages.toString()});
             }
 
-            pageSet.checkpointDone(dirtyPages);
 
             for (Long idDirtyPage : dirtyPages) {
                 final DataPage dirtyPage = pages.remove(idDirtyPage);
@@ -1615,6 +1611,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     pageReplacementPolicy.remove(dirtyPage);
                 }
             }
+
+            pageSet.checkpointDone(dirtyPages);
+            deletedKeys.clear();
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
                 Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId, pageSet.getActivePages());
