@@ -188,7 +188,7 @@ public class SimpleClusterTest extends BaseTestcase {
             }
 
         });
-        for (long pageId : _tableStatus.value.activePages) {
+        for (long pageId : _tableStatus.value.activePages.keySet()) {
             List<Record> records = dataStorageManager.readPage(tableSpaceUUID, tableName, pageId);
             System.out.println("PAGE #" + pageId + " records :" + records);
         }

@@ -100,6 +100,10 @@ public class DataPage extends Page<TableManager> {
         return true;
     }
 
+    boolean isEmpty() {
+        return data.isEmpty();
+    }
+
     int size() {
         return data.size();
     }

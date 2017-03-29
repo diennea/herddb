@@ -19,127 +19,140 @@
  */
 package herddb.core;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import herddb.model.Record;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 
 /**
  * Status of the set of pages of a Table
  *
  * @author enrico.olivelli
+ * @author diego.salvi
  */
 public final class PageSet {
 
     private static final Logger LOGGER = Logger.getLogger(PageSet.class.getName());
 
-    private final Set<Long> dirtyPages = new HashSet<>();
+    /** Dirty pages map (dirty/dirtysize)*/
+    private final Map<Long,LongAdder> dirtyPages = new ConcurrentHashMap<>();
 
-    private final Set<Long> activePages = new HashSet<>();
+    /** Active stored pages (active/size+avg)*/
+    private final Map<Long,DataPageMetaData> activePages = new ConcurrentHashMap<>();
 
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+    public static final class DataPageMetaData {
 
-    void setActivePagesAtBoot(Set<Long> activePagesAtBoot) {
-        lock.writeLock().lock();
-        try {
-            this.activePages.clear();
-            this.activePages.addAll(activePagesAtBoot);
-        } finally {
-            lock.writeLock().unlock();
+        final long size;
+        final long avgRecordSize;
+
+        public DataPageMetaData(long size, long avgRecordSize) {
+            super();
+            this.size = size;
+            this.avgRecordSize = avgRecordSize;
         }
+
+        public DataPageMetaData(DataPage page) {
+            super();
+            this.size = page.getUsedMemory();
+            this.avgRecordSize = size / page.data.size();
+        }
+
+        public void serialize(ExtendedDataOutputStream output) throws IOException {
+            output.writeVLong(size);
+            output.writeVLong(avgRecordSize);
+        }
+
+        public static final DataPageMetaData deserialize(ExtendedDataInputStream input) throws IOException {
+            return new DataPageMetaData(input.readVLong(), input.readVLong());
+        }
+
+        @Override
+        public String toString() {
+            return '[' + Long.toString(size) + ',' + Long.toString(avgRecordSize) + ']';
+        }
+
+    }
+    void setActivePagesAtBoot(Map<Long,DataPageMetaData> activePagesAtBoot) {
+        this.activePages.clear();
+        this.activePages.putAll(activePagesAtBoot);
     }
 
-    Set<Long> getActivePages() {
-        lock.readLock().lock();
-        try {
-            return new HashSet<>(activePages);
-        } finally {
-            lock.readLock().unlock();
-        }
+    void setDirtyPagesAtBoot(Map<Long,Long> dirtyPagesAtBoot) {
+        this.dirtyPages.clear();
+        dirtyPagesAtBoot.forEach((k,v) -> {
+            LongAdder dirtiness = new LongAdder();
+            dirtiness.add(v);
+            dirtyPages.put(k, dirtiness);
+        });
+    }
+
+
+    Map<Long,DataPageMetaData> getActivePages() {
+        return new HashMap<>(activePages);
     }
 
     int getActivePagesCount() {
-        lock.readLock().lock();
-        try {
-            return activePages.size();
-        } finally {
-            lock.readLock().unlock();
-        }
+        return activePages.size();
     }
 
     void truncate() {
-        lock.writeLock().lock();
-        try {
-            dirtyPages.clear();
-            activePages.clear();
-        } finally {
-            lock.writeLock().unlock();
-        }
+        dirtyPages.clear();
+        activePages.clear();
     }
 
     void setPageDirty(Long pageId) {
-        lock.writeLock().lock();
-        try {
-            boolean wasNotDirty = dirtyPages.add(pageId);
-            if (wasNotDirty) {
-                LOGGER.log(Level.FINEST, "now page " + pageId + " is dirty");
-            }
-        } finally {
-            lock.writeLock().unlock();
+        final DataPageMetaData metadata = activePages.get(pageId);
+        setPageDirty(pageId, metadata.avgRecordSize);
+    }
+
+    void setPageDirty(Long pageId, long size) {
+        final LongAdder dirtiness = dirtyPages.computeIfAbsent(pageId, k -> {
+            LOGGER.log(Level.FINEST, "now page " + pageId + " is dirty");
+            return new LongAdder();
+        });
+        dirtiness.add(size);
+    }
+
+    void setPageDirty(Long pageId, Record dirtyRecord) {
+        if(dirtyRecord == null) {
+            setPageDirty(pageId);
+        } else {
+            setPageDirty(pageId,dirtyRecord.getEstimatedSize());
         }
     }
 
     @Override
     public String toString() {
-        lock.readLock().lock();
-        try {
-            return "PageSet{" + "dirtyPages=" + dirtyPages + ", activePages=" + activePages + "}";
-        } finally {
-            lock.readLock().unlock();
-        }
+        return "PageSet{" + "dirtyPages=" + dirtyPages + ", activePages=" + activePages + "}";
     }
 
     int getDirtyPagesCount() {
-        lock.readLock().lock();
-        try {
-            return dirtyPages.size();
-        } finally {
-            lock.readLock().unlock();
-        }
+        return dirtyPages.size();
     }
 
-    Set<Long> getDirtyPages() {
-        lock.readLock().lock();
-        try {
-            return new HashSet<>(dirtyPages);
-        } finally {
-            lock.readLock().unlock();
-        }
+    Map<Long,Long> getDirtyPages() {
+        Map<Long,Long> map = new HashMap<>();
+        dirtyPages.forEach((k,v) -> map.put(k,v.sum()));
+        return map;
     }
 
-    void pageCreated(long pageId) {
-        lock.writeLock().lock();
-        try {
-            activePages.add(pageId);
-        } finally {
-            lock.writeLock().unlock();
-        }
+    void pageCreated(Long pageId, DataPage page) {
+        activePages.put(pageId, new DataPageMetaData(page));
     }
 
     void checkpointDone(Set<Long> dirtyPagesFlushed) {
-        lock.writeLock().lock();
-        try {
-            activePages.removeAll(dirtyPagesFlushed);
-            dirtyPages.removeAll(dirtyPagesFlushed);
-            LOGGER.log(Level.SEVERE, "checkpointDone " + dirtyPagesFlushed.size() + ", now activePages:" + activePages.size() + " dirty " + dirtyPages.size());
-        } finally {
-            lock.writeLock().unlock();
-        }
+        activePages.keySet().removeAll(dirtyPagesFlushed);
+        dirtyPages.keySet().removeAll(dirtyPagesFlushed);
+        LOGGER.log(Level.SEVERE, "checkpointDone " + dirtyPagesFlushed.size() + ", now activePages:"
+                + activePages.size() + " dirty " + dirtyPages.size());
     }
 
 }

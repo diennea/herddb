@@ -25,7 +25,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -125,7 +124,9 @@ public class MemoryDataStorageManager extends DataStorageManager {
         byte[] data = tableStatuses.get(tableSpace + "." + tableName);
         TableStatus latestStatus;
         if (data == null) {
-            latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+            latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
+                    Bytes.from_long(1).data, 1,
+                    Collections.emptyMap(), Collections.emptyMap());
         } else {
             try {
                 try (InputStream input = new SimpleByteArrayInputStream(data);
@@ -166,7 +167,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         TableStatus ts = getLatestTableStatus(tableSpace, tableName);
         consumer.acceptTableStatus(ts);
 
-        List<Long> activePages = new ArrayList<>(ts.activePages);
+        List<Long> activePages = new ArrayList<>(ts.activePages.keySet());
         activePages.sort(null);
         for (long idpage : activePages) {
             List<Record> records = readPage(tableSpace, tableName, idpage);
@@ -213,7 +214,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
             }
         }
 
-        pagesForTable.removeAll(tableStatus.activePages);
+        pagesForTable.removeAll(tableStatus.activePages.keySet());
         List<PostCheckpointAction> result = new ArrayList<>();
 
         for (long pageId : pagesForTable) {

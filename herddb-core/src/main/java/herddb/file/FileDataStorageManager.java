@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -232,7 +231,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
             LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
             consumer.acceptTableStatus(latestStatus);
-            List<Long> activePages = new ArrayList<>(latestStatus.activePages);
+            List<Long> activePages = new ArrayList<>(latestStatus.activePages.keySet());
             activePages.sort(null);
             for (long idpage : activePages) {
                 List<Record> records = readPage(tableSpace, tableName, idpage);
@@ -278,7 +277,9 @@ public class FileDataStorageManager extends DataStorageManager {
             Path lastFile = getLastTableCheckpointFile(tableSpace, tableName);
             TableStatus latestStatus;
             if (lastFile == null) {
-                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME, Bytes.from_long(1).data, 1, new HashSet<>());
+                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
+                        Bytes.from_long(1).data, 1,
+                        Collections.emptyMap(), Collections.emptyMap());
             } else {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
@@ -384,7 +385,7 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
-        long maxPageId = tableStatus.activePages.stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
+        long maxPageId = tableStatus.activePages.keySet().stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
         // we can drop old page files now
         List<Path> pageFiles = getTablePageFiles(tableSpace, tableName);
@@ -392,7 +393,7 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
-                && !tableStatus.activePages.contains(pageId)
+                && !tableStatus.activePages.containsKey(pageId)
                 && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new PostCheckpointAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath()) {
