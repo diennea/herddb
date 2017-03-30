@@ -1813,20 +1813,21 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 @SuppressWarnings("rawtypes")
                 final Entry<Comparable,Object> first = map.firstEntry();
 
-                /* If is the first */
+                /* Check if is the first */
                 if (ceiling.getKey().compareTo(first.getKey()) == 0) {
+                    /* First: i == 1 -> return (pi,ubleftsep) */
+                    /* Cast to Long: is a node */
+                    return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), ubleftsep);
+                } else {
+                    /* Not the first: i > 1 return (pi,si-1) */
                     /* Cast to Long: is a node */
                     final Comparable<X> key = map.lowerKey(v);
                     return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), key);
-                } else {
-                    /* Cast to Long: is a node */
-                    return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), ubleftsep);
                 }
 
             } finally {
                 loadLock.unlock();
             }
-
 
         }
 
@@ -2203,6 +2204,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.node = node;
             this.ubleftsep = ubleftsep;
         }
+
+        @Override
+        public String toString() {
+            return "[node=" + node + ", ubleftsep=" + ubleftsep + "]";
+        }
     }
 
 
@@ -2257,7 +2263,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         @Override
         @SuppressFBWarnings("EQ_COMPARETO_USE_OBJECT_EQUALS")
         public int compareTo(Object o) {
-            return +1;
+            return o == INSTANCE ? 0 : + 1;
         }
 
         @Override
