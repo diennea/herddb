@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -88,6 +89,8 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.TruncateTableStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.server.ServerConfiguration;
+import herddb.storage.DataPageDoesNotExistException;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -193,6 +196,18 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private long createdInTransaction;
 
+    /** Default dirty threshold for page rebuild during checkpoints */
+    private final double dirtyThreshold;
+
+    /** Default fill threshold for page rebuild during checkpoints */
+    private final double fillThreshold;
+
+    /** Checkpoint target max milliseconds */
+    private final long checkpointTargetTime;
+
+    /** Compaction (small pages) target max milliseconds */
+    private final long compactionTargetTime;
+
     private final TableManagerStats stats;
 
     void prepareForRestore(LogSequenceNumber dumpLogSequenceNumber) {
@@ -292,6 +307,26 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         this.pageReplacementPolicy = memoryManager.getDataPageReplacementPolicy();
         this.pages = new ConcurrentHashMap<>();
         this.newPages = new ConcurrentHashMap<>();
+
+        this.dirtyThreshold = tableSpaceManager.getDbmanager().getServerConfiguration().getDouble(
+                ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD,
+                ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD_DEFAULT);
+
+        this.fillThreshold = tableSpaceManager.getDbmanager().getServerConfiguration().getDouble(
+                ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD,
+                ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD_DEFAULT);
+
+        long checkpointTargetTime = tableSpaceManager.getDbmanager().getServerConfiguration().getLong(
+                ServerConfiguration.PROPERTY_CHECKPOINT_DURATION,
+                ServerConfiguration.PROPERTY_CHECKPOINT_DURATION_DEFAULT);
+
+        this.checkpointTargetTime = checkpointTargetTime < 0 ? Long.MAX_VALUE : checkpointTargetTime;
+
+        long compactionTargetTime = tableSpaceManager.getDbmanager().getServerConfiguration().getLong(
+                ServerConfiguration.PROPERTY_COMPACTION_DURATION,
+                ServerConfiguration.PROPERTY_COMPACTION_DURATION_DEFAULT);
+
+        this.compactionTargetTime = compactionTargetTime < 0 ? Long.MAX_VALUE : compactionTargetTime;
     }
 
     private TableContext buildTableContext() {
@@ -1466,6 +1501,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         maxCurrentPagesLoads.acquireUninterruptibly();
         try {
             page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+        } catch (DataPageDoesNotExistException ex) {
+            return null;
         } finally {
             maxCurrentPagesLoads.release();
         }
@@ -1520,12 +1557,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }
         } catch (RuntimeException error) {
-            if (error.getCause() != null
-                && error.getCause() instanceof DataStorageManagerException) {
-                throw (DataStorageManagerException) error.getCause();
-            } else {
-                throw new DataStorageManagerException(error);
+            if (error.getCause() != null) {
+                Throwable cause = error.getCause();
+
+                if (cause instanceof DataStorageManagerException) {
+                    if (cause instanceof DataPageDoesNotExistException) {
+                        return null;
+                    }
+                    throw (DataStorageManagerException) cause;
+                }
             }
+            throw new DataStorageManagerException(error);
         }
         if (computed.get()) {
             long _stop = System.currentTimeMillis();
@@ -1555,37 +1597,127 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @Override
+    public List<PostCheckpointAction> fullCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        return checkpoint(sequenceNumber, Double.NEGATIVE_INFINITY, fillThreshold, Long.MAX_VALUE, Long.MAX_VALUE);
+    }
+
+    @Override
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        return checkpoint(sequenceNumber, dirtyThreshold, fillThreshold, checkpointTargetTime, compactionTargetTime);
+    }
+
+
+    private static final class WeightedPage {
+        public static final Comparator<WeightedPage> ASCENDING_ORDER  = (a,b) -> Long.compare(a.weight, b.weight);
+        public static final Comparator<WeightedPage> DESCENDING_ORDER = (a,b) -> Long.compare(b.weight, a.weight);
+
+        private final Long pageId;
+        private final long weight;
+
+        public WeightedPage(Long pageId, long weight) {
+            super();
+            this.pageId = pageId;
+            this.weight = weight;
+        }
+
+        @Override
+        public String toString() {
+            return pageId + ":" + weight;
+        }
+
+
+
+    }
+
+    /**
+     * Sums two long values caring of overflows. Assumes that both values are positive!
+     */
+    private static final long sumOverflowWise(long a, long b) {
+        long total = a + b;
+        return total < 0 ? Long.MAX_VALUE : total;
+    }
+
+    /**
+     *
+     * @param sequenceNumber
+     * @param dirtyThreshold
+     * @param fillThreshold
+     * @param checkpointTargetTime checkpoint target max milliseconds
+     * @param compactionTargetTime compaction target max milliseconds
+     * @return
+     * @throws DataStorageManagerException
+     */
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber,
+            double dirtyThreshold, double fillThreshold,
+            long checkpointTargetTime, long compactionTargetTime) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
                 + "this table is created on transaction " + createdInTransaction + " which is not committed");
             return Collections.emptyList();
         }
+
+        final long fillPageThreshold  = (long) (fillThreshold * maxLogicalPageSize);
+        final long dirtyPageThreshold = (long) (dirtyThreshold * maxLogicalPageSize);
+
         long start = System.currentTimeMillis();
         long getlock;
         long dirtyPagesFlush;
+        long smallPagesFlush;
         long newPagesFlush;
         long tablecheckpoint;
         long keytopagecheckpoint;
-        List<PostCheckpointAction> result = new ArrayList<>();
+        final List<PostCheckpointAction> result = new ArrayList<>();
         checkpointLock.writeLock().lock();
         try {
             getlock = System.currentTimeMillis();
             checkPointRunning = true;
 
+            final long checkpointLimitInstant = sumOverflowWise(getlock,checkpointTargetTime);
+
             final Map<Long,Long> dirtyPages = pageSet.getDirtyPages();
+            final Map<Long,DataPageMetaData> activePages = pageSet.getActivePages();
 
             Map<Bytes, Record> buffer = new HashMap<>();
             long bufferPageSize = 0;
             long flushedRecords = 0;
 
-            /* Flush record to keep on dirty pages */
-            for (Long dirtyPageId : dirtyPages.keySet()) {
-                final DataPage dataPage = pages.get(dirtyPageId);
+
+            /* A first run to get dirty pages to rebuild */
+            final List<WeightedPage> flushingDirtyPages = new ArrayList<>(dirtyPages.size());
+            for (Entry<Long,Long> dirtyRef : dirtyPages.entrySet()) {
+                final Long pageId = dirtyRef.getKey();
+                final Long dirt  = dirtyRef.getValue();
+
+                /* Remove dirty page from active pages to check next because already handled here */
+                final DataPageMetaData metadata = activePages.remove(pageId);
+
+                /* Check the page should be rebuild */
+                if (/* Check dirtiness */ dirt < dirtyPageThreshold &&
+                    /* Check emptiness */ metadata.size > fillPageThreshold) {
+                    /* Skip not-so-dirty and not-so-empty page */
+                    continue;
+                }
+
+                /* Add page to selected dirty pages to flush  */
+                flushingDirtyPages.add(new WeightedPage(pageId, dirt));
+            }
+
+            /* Clean dirtier first */
+            flushingDirtyPages.sort(WeightedPage.DESCENDING_ORDER);
+
+            /* Rebuild dirty pages with only records to be kept */
+            final List<Long> flushedDirtyPages = new ArrayList<>(flushingDirtyPages.size());
+            for (WeightedPage weighted : flushingDirtyPages) {
+
+                /* Remove dirty page from active pages to check next because already handled */
+                activePages.remove(weighted.pageId);
+                flushedDirtyPages.add(weighted.pageId);
+
+                final DataPage dataPage = pages.get(weighted.pageId);
                 final Collection<Record> records;
                 if (dataPage == null) {
-                    records = dataStorageManager.readPage(tableSpaceUUID, table.name, dirtyPageId);
-                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{dirtyPageId, records.size()});
+                    records = dataStorageManager.readPage(tableSpaceUUID, table.name, weighted.pageId);
+                    LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
                 } else {
                     records = dataPage.data.values();
                 }
@@ -1596,7 +1728,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         continue;
                     }
                     Long currentPageId = keyToPage.get(record.key);
-                    if (!dirtyPageId.equals(currentPageId)) {
+                    if (!weighted.pageId.equals(currentPageId)) {
                         continue;
                     }
 
@@ -1612,9 +1744,92 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     buffer.put(record.key, record);
                     bufferPageSize += record.getEstimatedSize();
                 }
+
+                /* Do not continue if we have used up all configured checkpoint time */
+                if (checkpointLimitInstant <= System.currentTimeMillis()) {
+                    break;
+                }
             }
 
             dirtyPagesFlush = System.currentTimeMillis();
+
+            /* A first run to get small pages to rebuild. */
+            final List<WeightedPage> flushingSmallPages = new ArrayList<>();
+            for (Entry<Long,DataPageMetaData> active : activePages.entrySet()) {
+                final Long pageId = active.getKey();
+                final DataPageMetaData metadata = active.getValue();
+
+                /*
+                 * We don't need to handle dirty records on this page: dirty pages have been already removed
+                 * from the map.
+                 */
+
+                if (metadata.size > fillPageThreshold ||
+                    /* A really dirty check to avoid to rewrite an unfillable page! */
+                    maxLogicalPageSize - metadata.avgRecordSize < fillPageThreshold) {
+                    continue;
+                }
+
+                /* Add page to selected small pages to flush */
+                flushingSmallPages.add(new WeightedPage(pageId, metadata.size));
+            }
+
+            /* Clean smaller first */
+            flushingSmallPages.sort(WeightedPage.ASCENDING_ORDER);
+
+            /*
+             * If there is only one without additional data to add
+             * rebuilding the page make no sense: is too probable to rebuild an identical page!
+             */
+            if (flushingSmallPages.size() < 2 && buffer.isEmpty()){
+                flushingSmallPages.clear();
+            }
+
+            final long compactionLimitInstant = sumOverflowWise(dirtyPagesFlush, compactionTargetTime);
+
+            /* Rebuild too small pages */
+            final List<Long> flushedSmallPages = new ArrayList<>(flushingSmallPages.size());
+            for (WeightedPage weighted : flushingSmallPages) {
+
+                flushedSmallPages.add(weighted.pageId);
+
+                final DataPage dataPage = pages.get(weighted.pageId);
+                final Collection<Record> records;
+                if (dataPage == null) {
+                    records = dataStorageManager.readPage(tableSpaceUUID, table.name, weighted.pageId);
+                    LOGGER.log(Level.FINEST, "loaded small page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
+                } else {
+                    records = dataPage.data.values();
+                }
+
+                for (Record record : records) {
+                    /* Flush the page if it would exceed max page size */
+                    if (bufferPageSize + record.getEstimatedSize() > maxLogicalPageSize) {
+                        createImmutablePage(buffer, bufferPageSize);
+                        flushedRecords += buffer.size();
+                        bufferPageSize = 0;
+                        /* Do not clean old buffer! It will used in generated pages to avoid too many copies! */
+                        buffer = new HashMap<>(buffer.size());
+                    }
+
+                    buffer.put(record.key, record);
+                    bufferPageSize += record.getEstimatedSize();
+                }
+
+                final long now = System.currentTimeMillis();
+
+                /*
+                 * Do not continue if we have used up all configured compaction or checkpoint time (but still compact at
+                 * least the smaller page (normally the leftover from last checkpoint)
+                 */
+                if (compactionLimitInstant <= now || checkpointLimitInstant <= now) {
+                    break;
+                }
+            }
+
+            flushingSmallPages.clear();
+
+            smallPagesFlush = System.currentTimeMillis();
 
             /*
              * Flush dirty records (and remaining records from previous step).
@@ -1643,24 +1858,32 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             newPagesFlush = System.currentTimeMillis();
 
-            LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} new pages, {4} records",
-                new Object[]{table.name, sequenceNumber, dirtyPages.size(), flushedNewPages, flushedRecords});
+            LOGGER.log(Level.INFO, "checkpoint {0}, logpos {1}, flushed: {2} dirty pages, {3} small pages, {4} new pages, {5} records",
+                new Object[]{table.name, sequenceNumber, flushedDirtyPages.size(), flushedSmallPages.size(), flushedNewPages, flushedRecords});
 
             if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed dirty pages: {2}",
-                    new Object[]{table.name, sequenceNumber, dirtyPages.toString()});
+                LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed: dirty pages: {2}, small pages: {3}" ,
+                    new Object[]{table.name, sequenceNumber, flushedDirtyPages.toString(), flushedSmallPages.toString()});
             }
 
-
-            for (Long idDirtyPage : dirtyPages.keySet()) {
-                final DataPage dirtyPage = pages.remove(idDirtyPage);
-
-                if (dirtyPage != null) {
-                    pageReplacementPolicy.remove(dirtyPage);
+            /* Remove dirty pages handled */
+            for (Long pageId : flushedDirtyPages) {
+                final DataPage page = pages.remove(pageId);
+                if (page != null) {
+                    pageReplacementPolicy.remove(page);
                 }
             }
+            pageSet.checkpointDone(flushedDirtyPages);
 
-            pageSet.checkpointDone(dirtyPages.keySet());
+            /* Remove small pages handled */
+            for (Long pageId : flushedSmallPages) {
+                final DataPage page = pages.remove(pageId);
+                if (page != null) {
+                    pageReplacementPolicy.remove(page);
+                }
+            }
+            pageSet.checkpointDone(flushedSmallPages);
+
             deletedKeys.clear();
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
@@ -1698,11 +1921,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         long end = System.currentTimeMillis();
         long delta = end - start;
-        if (delta > 5000) {
+        if (delta > 0) {
 
             long delta_lock = getlock - start;
             long delta_dirtyPagesFlush = dirtyPagesFlush - getlock;
-            long delta_newPagesFlush = newPagesFlush - dirtyPagesFlush;
+            long delta_smallPagesFlush = smallPagesFlush - dirtyPagesFlush;
+            long delta_newPagesFlush = newPagesFlush - smallPagesFlush;
             long delta_tablecheckpoint = tablecheckpoint - newPagesFlush;
             long delta_keytopagecheckpoint = keytopagecheckpoint - tablecheckpoint;
             long delta_unload = end - keytopagecheckpoint;
@@ -1710,6 +1934,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1}", new Object[]{table.name,
                 delta + " ms (" + delta_lock
                 + "+" + delta_dirtyPagesFlush
+                + "+" + delta_smallPagesFlush
                 + "+" + delta_newPagesFlush
                 + "+" + delta_tablecheckpoint
                 + "+" + delta_keytopagecheckpoint
@@ -1942,11 +2167,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         while (true) {
 
             DataPage dataPage = fetchDataPage(pageId, localScanPageCache);
-            Record record = dataPage.get(key);
 
-            if (record != null) {
-                return record;
+            if (dataPage != null){
+                Record record = dataPage.get(key);
+                if (record != null) {
+                    return record;
+                }
             }
+
             Long relocatedPageId = keyToPage.get(key);
             LOGGER.log(Level.SEVERE, table.name + " fetchRecord " + key + " failed,"
                 + "checkPointRunning:" + checkPointRunning + " pageId:" + pageId + " relocatedPageId:" + relocatedPageId);

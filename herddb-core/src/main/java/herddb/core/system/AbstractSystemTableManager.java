@@ -44,7 +44,6 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.Transaction;
-import herddb.model.Tuple;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -163,6 +162,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
     @Override
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<PostCheckpointAction> fullCheckpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
         return Collections.emptyList();
     }
 

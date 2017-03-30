@@ -22,7 +22,6 @@ package herddb.core;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Rule;
@@ -39,6 +38,7 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
+import herddb.storage.DataPageDoesNotExistException;
 import herddb.utils.Bytes;
 
 /**
@@ -64,7 +64,16 @@ public class SimpleDMLFileTest extends BaseTestcase {
             InsertStatement st = new InsertStatement(tableSpace, tableName, record);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
-        assertNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));
+
+        boolean notexist = false;
+        try {
+            dataStorageManager.readPage(tableSpaceUUID, tableName, 1L);
+        } catch (DataPageDoesNotExistException ex) {
+            notexist = true;
+        } finally {
+            assertTrue(notexist);
+        }
+
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
         manager.checkpoint();
         assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));

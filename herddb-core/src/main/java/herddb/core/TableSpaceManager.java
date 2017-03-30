@@ -63,8 +63,10 @@ import herddb.core.system.SystablestatsTableManager;
 import herddb.core.system.SystransactionsTableManager;
 import herddb.index.MemoryHashIndexManager;
 import herddb.index.brin.BRINIndexManager;
+import herddb.jmx.JMXUtils;
 import herddb.log.CommitLog;
 import herddb.log.CommitLogListener;
+import herddb.log.CommitLogResult;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
@@ -111,8 +113,6 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
-import herddb.jmx.JMXUtils;
-import herddb.log.CommitLogResult;
 
 /**
  * Manages a TableSet in memory
@@ -1139,11 +1139,14 @@ public class TableSpaceManager {
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
-        TableManager tableManager = new TableManager(table, log, dbmanager.getMemoryManager(), dataStorageManager, this,
-            tableSpaceUUID, transaction);
-        if (dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
+        TableManager tableManager = new TableManager(
+                table, log, dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID, transaction);
+        if (dbmanager.getServerConfiguration().getBoolean(
+                ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
             JMXUtils.registerTableManagerStatsMXBean(tableSpaceName, table.name, tableManager.getStats());
         }
+
+
         if (dumpLogSequenceNumber != null) {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
         }

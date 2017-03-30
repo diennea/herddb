@@ -44,6 +44,7 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
+import herddb.storage.DataPageDoesNotExistException;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -105,17 +106,23 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<Record> readPage(String tableSpace, String tableName, Long pageId) {
+    public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataPageDoesNotExistException {
         Page page = pages.get(tableSpace + "." + tableName + "_" + pageId);
         //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
-        return page != null ? page.records : null;
+        if (page == null) {
+            throw new DataPageDoesNotExistException("No such page: " + tableSpace + "." + tableName + " page " + pageId);
+        }
+        return page.records;
     }
 
     @Override
     public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
         Bytes page = indexpages.get(tableSpace + "." + indexName + "_" + pageId);
         //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
-        return page != null ? page.data : null;
+        if (page == null) {
+            throw new DataStorageManagerException("No such page: " + tableSpace + "." + indexName + " page " + pageId);
+        }
+        return page.data;
     }
 
     @Override
@@ -223,6 +230,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
                 public void run() {
                     // remove only after checkpoint completed
                     pages.remove(prefix + pageId);
+                    LOGGER.log(Level.SEVERE, "removing " + (prefix + pageId) );
                 }
             });
         }

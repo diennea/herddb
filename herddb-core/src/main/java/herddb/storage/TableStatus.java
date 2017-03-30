@@ -47,7 +47,6 @@ public class TableStatus {
     public final Map<Long,Long> dirtyPages;
     public final long nextPageId;
 
-    // LOTHRUIN controlla che activePages e dirtyPages siano dati copiati
     public TableStatus(String tableName, LogSequenceNumber sequenceNumber, byte[] nextPrimaryKeyValue, long nextPageId,
             Map<Long,DataPageMetaData> activePages, Map<Long,Long> dirtyPages) {
         this.tableName = tableName;

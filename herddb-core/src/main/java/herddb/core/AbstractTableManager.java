@@ -19,6 +19,9 @@
  */
 package herddb.core;
 
+import java.util.List;
+import java.util.function.Consumer;
+
 import herddb.core.stats.TableManagerStats;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
@@ -36,8 +39,6 @@ import herddb.model.Transaction;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
-import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Abstract of Table
@@ -71,6 +72,15 @@ public interface AbstractTableManager extends AutoCloseable {
 
     List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
 
+    /**
+     * Performs a full deep checkpoint cleaning as much space as possible.
+     * <p>
+     * It's an hint for table manager for perform a more aggressive checkpoint. Table manager implementations
+     * can resolve to perform a normal checkpoint if they need for internal logic.
+     * </p>
+     */
+    List<PostCheckpointAction> fullCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+
     void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
     void flush() throws DataStorageManagerException;
@@ -84,5 +94,6 @@ public interface AbstractTableManager extends AutoCloseable {
     long getCreatedInTransaction();
 
     public List<Index> getAvailableIndexes();
+
 
 }

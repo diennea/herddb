@@ -28,6 +28,7 @@ import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
@@ -56,6 +57,7 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.server.ServerConfiguration;
+import herddb.storage.DataPageDoesNotExistException;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
@@ -157,7 +159,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException {
+    public List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException, DataPageDoesNotExistException {
         long _start = System.currentTimeMillis();
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
@@ -181,6 +183,8 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
+        } catch (NoSuchFileException nsfe) {
+            throw new DataPageDoesNotExistException("No such page: " + tableSpace +"_" + tableName + "." + pageId, nsfe);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }

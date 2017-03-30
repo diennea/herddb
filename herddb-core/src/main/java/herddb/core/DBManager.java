@@ -169,6 +169,23 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT));
         this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
+
+        this.maxMemoryReference = configuration.getLong(
+                ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE,
+                ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT);
+
+        this.maxLogicalPageSize = configuration.getLong(
+                ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE,
+                ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT);
+
+        this.maxDataUsedMemory  = configuration.getLong(
+                ServerConfiguration.PROPERTY_MAX_DATA_MEMORY,
+                ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_DEFAULT);
+
+        this.maxIndexUsedMemory = configuration.getLong(
+                ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY,
+                ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY_DEFAULT);
+
     }
 
     public boolean isHaltOnTableSpaceBootError() {
@@ -272,7 +289,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     private final DBManagerStatsMXBean stats = new DBManagerStatsMXBean() {
-        
+
         @Override
         public long getCachedPlans() {
             return translator.getCacheSize();

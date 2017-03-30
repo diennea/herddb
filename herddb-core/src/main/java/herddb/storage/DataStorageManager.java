@@ -47,8 +47,9 @@ public abstract class DataStorageManager implements AutoCloseable {
      * @param tableName
      * @param pageId
      * @return
+     * @throws herddb.storage.DataStorageManagerException
      */
-    public abstract List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException;
+    public abstract List<Record> readPage(String tableSpace, String tableName, Long pageId) throws DataStorageManagerException, DataPageDoesNotExistException;
 
     public abstract byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException;
 

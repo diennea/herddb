@@ -20,9 +20,9 @@
 package herddb.core;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.logging.Level;
@@ -148,7 +148,7 @@ public final class PageSet {
         activePages.put(pageId, new DataPageMetaData(page));
     }
 
-    void checkpointDone(Set<Long> dirtyPagesFlushed) {
+    void checkpointDone(Collection<Long> dirtyPagesFlushed) {
         activePages.keySet().removeAll(dirtyPagesFlushed);
         dirtyPages.keySet().removeAll(dirtyPagesFlushed);
         LOGGER.log(Level.SEVERE, "checkpointDone " + dirtyPagesFlushed.size() + ", now activePages:"
