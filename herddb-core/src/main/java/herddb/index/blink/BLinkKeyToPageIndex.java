@@ -194,8 +194,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             } else {
                 refmaxvalue = null;
             }
-            // TODO: '<=' is not working
-            return tree.scan(refminvalue, refmaxvalue);
+            return tree.scan(refminvalue, refmaxvalue, refmaxvalue != null);
         }
 
         throw new DataStorageManagerException("operation " + operation + " not implemented on " + this.getClass());

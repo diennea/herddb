@@ -408,6 +408,32 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 /* No parallel */ false);
     }
 
+    public Stream<Entry<K,V>> scan(K from, K to, boolean toInclusive) {
+
+        Node<K,V> n;
+        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
+
+        if (from == null) {
+            lock_anchor(READ_LOCK);
+            n = anchor.first;
+            unlock_anchor(READ_LOCK);
+
+            /*
+             * We have to lock the first node, scan iterator require a read locked node (as produced from
+             * locate_leaf too)
+             */
+            lock(n, READ_LOCK);
+        } else {
+            n = locate_leaf(from, READ_LOCK, descent); // v € coverset(n), n read-locked
+        }
+
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(
+                        new ScanIterator(n, from, from != null, to, toInclusive),
+                        /* No characteristics */ 0),
+                /* No parallel */ false);
+    }
+
 //    function insert(v: value): boolean;
 //    var
 //        n: nodeptr;
