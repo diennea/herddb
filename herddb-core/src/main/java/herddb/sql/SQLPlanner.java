@@ -31,7 +31,9 @@ import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
+import herddb.index.IndexOperation;
 import herddb.index.PrimaryIndexPrefixScan;
+import herddb.index.PrimaryIndexRangeScan;
 import herddb.index.PrimaryIndexSeek;
 import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexRangeScan;
@@ -709,89 +711,76 @@ public class SQLPlanner {
         // Perform a scan and then delete each row
         SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
         if (where != null) {
-            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name);
-            if (keyFunction != null) {
-                if (keyFunction.isFullPrimaryKey()) {
-                    where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
-                } else {
-                    where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
-                }
-            } else {
-                Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-                if (indexes != null) {
-                    // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
-                    for (AbstractIndexManager index : indexes.values()) {
-                        if (!index.isAvailable()) {
-                            continue;
-                        }
-                        String[] columnsToMatch = index.getColumnNames();
-                        SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
-                            index.getIndex(),
-                            table.name,
-                            EqualsTo.class
-                        );
-                        if (indexSeekFunction != null) {
-                            if (indexSeekFunction.isFullPrimaryKey()) {
-                                where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
-                            } else {
-                                where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
-                            }
-                            break;
-
-                        } else {
-                            SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
-                                index.getIndex(),
-                                table.name, GreaterThanEquals.class
-                            );
-                            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                                rangeMin = null;
-
-                            }
-                            if (rangeMin == null) {
-                                rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
-                                    index.getIndex(),
-                                    table.name, GreaterThan.class
-                                );
-                                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                                    rangeMin = null;
-
-                                }
-                            }
-
-                            SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
-                                index.getIndex(),
-                                table.name, MinorThanEquals.class
-                            );
-                            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                                rangeMax = null;
-
-                            }
-                            if (rangeMax == null) {
-                                rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
-                                    index.getIndex(),
-                                    table.name, MinorThan.class
-                                );
-                                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                                    rangeMax = null;
-                                }
-                            }
-
-                            if (rangeMin != null || rangeMax != null) {
-                                where.setIndexOperation(new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax));
-                                break;
-                            }
-
-                        }
-                    }
-                }
-            }
-            Expression filterPk = findFiltersOnPrimaryKey(table, table.name, s.getWhere());
-            where.setPrimaryKeyFilter(filterPk);
+            Expression expressionWhere = s.getWhere();
+            discoverIndexOperations(expressionWhere, table, table.name, where, tableSpaceManager);
         }
 
         DMLStatement st = new DeleteStatement(tableSpace, tableName, null, where).setReturnValues(returnValues);
         return ExecutionPlan.simple(st);
 
+    }
+
+    private void discoverIndexOperations(Expression expressionWhere, Table table, String mainTableAlias, SQLRecordPredicate where, TableSpaceManager tableSpaceManager) throws StatementExecutionException {
+        SQLRecordKeyFunction keyFunction = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, EqualsTo.class);
+        IndexOperation result = null;
+        if (keyFunction != null) {
+            if (keyFunction.isFullPrimaryKey()) {
+                result = new PrimaryIndexSeek(keyFunction);
+            } else {
+                result = new PrimaryIndexPrefixScan(keyFunction);
+            }
+        } else {
+            SQLRecordKeyFunction rangeMin = findIndexAccess(expressionWhere, table.primaryKey,
+                table, mainTableAlias, GreaterThanEquals.class
+            );
+            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                rangeMin = null;
+            }
+            if (rangeMin == null) {
+                rangeMin = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, GreaterThan.class);
+                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                    rangeMin = null;
+                }
+            }
+
+            SQLRecordKeyFunction rangeMax = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, MinorThanEquals.class
+            );
+            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                rangeMax = null;
+
+            }
+            if (rangeMax == null) {
+                rangeMax = findIndexAccess(expressionWhere, table.primaryKey, table, mainTableAlias, MinorThan.class
+                );
+                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                    rangeMax = null;
+                }
+            }
+            if (rangeMin != null || rangeMax != null) {
+                System.out.println("HERE PrimaryIndexRangeScan: rangeMin:" + rangeMin + " & rangeMax:" + rangeMax);
+                result = new PrimaryIndexRangeScan(table.primaryKey, rangeMin, rangeMax);
+            }
+        }
+
+        if (result == null) {
+            Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+            if (indexes != null) {
+                // TODO: use some kind of statistics, maybe using an index is more expensive than a full table scan
+                for (AbstractIndexManager index : indexes.values()) {
+                    if (!index.isAvailable()) {
+                        continue;
+                    }
+                    IndexOperation secondaryIndexOperation = findSecondaryIndexOperation(index, expressionWhere, table);
+                    if (secondaryIndexOperation != null) {
+                        result = secondaryIndexOperation;
+                        break;
+                    }
+                }
+            }
+        }
+        where.setIndexOperation(result);
+        Expression filterPk = findFiltersOnPrimaryKey(table, table.name, expressionWhere);
+        where.setPrimaryKeyFilter(filterPk);
     }
 
     private ExecutionPlan buildUpdateStatement(String defaultTableSpace, Update s,
@@ -833,84 +822,8 @@ public class SQLPlanner {
         // Perform a scan and then update each row
         SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;
         if (where != null) {
-            SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(s.getWhere(), table, table.name);
-            if (keyFunction != null) {
-                if (keyFunction.isFullPrimaryKey()) {
-                    where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
-                } else {
-                    where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
-                }
-            } else {
-                Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-                if (indexes != null) {
-                    // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
-                    for (AbstractIndexManager index : indexes.values()) {
-                        if (!index.isAvailable()) {
-                            continue;
-                        }
-                        String[] columnsToMatch = index.getColumnNames();
-                        SQLRecordKeyFunction indexSeekFunction = findIndexAccess(s.getWhere(), columnsToMatch,
-                            index.getIndex(),
-                            table.name,
-                            EqualsTo.class
-                        );
-                        if (indexSeekFunction != null) {
-                            if (indexSeekFunction.isFullPrimaryKey()) {
-                                where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
-                            } else {
-                                where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
-                            }
-                            break;
-
-                        } else {
-                            SQLRecordKeyFunction rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
-                                index.getIndex(),
-                                table.name, GreaterThanEquals.class
-                            );
-                            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                                rangeMin = null;
-
-                            }
-                            if (rangeMin == null) {
-                                rangeMin = findIndexAccess(s.getWhere(), columnsToMatch,
-                                    index.getIndex(),
-                                    table.name, GreaterThan.class
-                                );
-                                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                                    rangeMin = null;
-
-                                }
-                            }
-
-                            SQLRecordKeyFunction rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
-                                index.getIndex(),
-                                table.name, MinorThanEquals.class
-                            );
-                            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                                rangeMax = null;
-
-                            }
-                            if (rangeMax == null) {
-                                rangeMax = findIndexAccess(s.getWhere(), columnsToMatch,
-                                    index.getIndex(),
-                                    table.name, MinorThan.class
-                                );
-                                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                                    rangeMax = null;
-                                }
-                            }
-
-                            if (rangeMin != null || rangeMax != null) {
-                                where.setIndexOperation(new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax));
-                                break;
-                            }
-
-                        }
-                    }
-                }
-            }
-            Expression filterPk = findFiltersOnPrimaryKey(table, table.name, s.getWhere());
-            where.setPrimaryKeyFilter(filterPk);
+            Expression expressionWhere = s.getWhere();
+            discoverIndexOperations(expressionWhere, table, table.name, where, tableSpaceManager);
         }
         DMLStatement st = new UpdateStatement(tableSpace, tableName, null, function, where)
             .setReturnValues(returnValues);
@@ -927,7 +840,7 @@ public class SQLPlanner {
 
     }
 
-    private Expression findConstraintOnColumn(Expression where, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+    private static Expression findConstraintOnColumn(Expression where, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         if (where instanceof AndExpression) {
             AndExpression and = (AndExpression) where;
             Expression keyOnLeft = findConstraintOnColumn(and.getLeftExpression(), columnName, tableAlias, expressionType);
@@ -980,7 +893,7 @@ public class SQLPlanner {
         );
     }
 
-    private SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+    private static SQLRecordKeyFunction findIndexAccess(Expression where, String[] columnsToMatch, ColumnsList table, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         List<Expression> expressions = new ArrayList<>();
         List<String> columns = new ArrayList<>();
 
@@ -1037,7 +950,7 @@ public class SQLPlanner {
         }
     }
 
-    private Expression validateColumnConstaintToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
+    private static Expression validateColumnConstaintToExpression(Expression testExpression, String columnName, String tableAlias, Class<? extends BinaryExpression> expressionType) throws StatementExecutionException {
         Expression result = null;
         if (expressionType.isAssignableFrom(testExpression.getClass())) {
             BinaryExpression e = (BinaryExpression) testExpression;
@@ -1311,84 +1224,7 @@ public class SQLPlanner {
             if (!joinPresent) {
                 SQLRecordPredicate where = selectBody.getWhere() != null ? new SQLRecordPredicate(table, mainTableAlias, selectBody.getWhere()) : null;
                 if (where != null) {
-                    SQLRecordKeyFunction keyFunction = findPrimaryKeyIndexSeek(selectBody.getWhere(), table, mainTableAlias);
-                    if (keyFunction != null) {
-                        if (keyFunction.isFullPrimaryKey()) {
-                            where.setIndexOperation(new PrimaryIndexSeek(keyFunction));
-                        } else {
-                            where.setIndexOperation(new PrimaryIndexPrefixScan(keyFunction));
-                        }
-                    } else {
-                        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
-                        if (indexes != null) {
-                            // TODO: use some kink of statistics, maybe using an index is more expensive than a full table scan
-                            for (AbstractIndexManager index : indexes.values()) {
-                                if (!index.isAvailable()) {
-                                    continue;
-                                }
-                                String[] columnsToMatch = index.getColumnNames();
-                                SQLRecordKeyFunction indexSeekFunction = findIndexAccess(selectBody.getWhere(), columnsToMatch,
-                                    index.getIndex(),
-                                    table.name,
-                                    EqualsTo.class
-                                );
-                                if (indexSeekFunction != null) {
-                                    if (indexSeekFunction.isFullPrimaryKey()) {
-                                        where.setIndexOperation(new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction));
-                                    } else {
-                                        where.setIndexOperation(new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction));
-                                    }
-                                    break;
-
-                                } else {
-                                    SQLRecordKeyFunction rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
-                                        index.getIndex(),
-                                        table.name, GreaterThanEquals.class
-                                    );
-                                    if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                                        rangeMin = null;
-
-                                    }
-                                    if (rangeMin == null) {
-                                        rangeMin = findIndexAccess(selectBody.getWhere(), columnsToMatch,
-                                            index.getIndex(),
-                                            table.name, GreaterThan.class
-                                        );
-                                        if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
-                                            rangeMin = null;
-
-                                        }
-                                    }
-
-                                    SQLRecordKeyFunction rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
-                                        index.getIndex(),
-                                        table.name, MinorThanEquals.class
-                                    );
-                                    if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                                        rangeMax = null;
-
-                                    }
-                                    if (rangeMax == null) {
-                                        rangeMax = findIndexAccess(selectBody.getWhere(), columnsToMatch,
-                                            index.getIndex(),
-                                            table.name, MinorThan.class
-                                        );
-                                        if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
-                                            rangeMax = null;
-                                        }
-                                    }
-
-                                    if (rangeMin != null || rangeMax != null) {
-                                        where.setIndexOperation(new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax));
-                                        break;
-                                    }
-
-                                }
-                            }
-                        }
-                    }
-                    Expression filterPk = findFiltersOnPrimaryKey(table, table.name, selectBody.getWhere());
-                    where.setPrimaryKeyFilter(filterPk);
+                    discoverIndexOperations(selectBody.getWhere(), table, mainTableAlias, where, tableSpaceManager);
                 }
 
                 Aggregator aggregator = null;
@@ -1601,6 +1437,65 @@ public class SQLPlanner {
                 throw new StatementExecutionException(err);
             }
         }
+    }
+
+    private static IndexOperation findSecondaryIndexOperation(AbstractIndexManager index, Expression where, Table table) throws StatementExecutionException {
+        IndexOperation secondaryIndexOperation = null;
+        String[] columnsToMatch = index.getColumnNames();
+        SQLRecordKeyFunction indexSeekFunction = findIndexAccess(where, columnsToMatch,
+            index.getIndex(),
+            table.name,
+            EqualsTo.class
+        );
+        if (indexSeekFunction != null) {
+            if (indexSeekFunction.isFullPrimaryKey()) {
+                secondaryIndexOperation = new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction);
+            } else {
+                secondaryIndexOperation = new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction);
+            }
+        } else {
+            SQLRecordKeyFunction rangeMin = findIndexAccess(where, columnsToMatch,
+                index.getIndex(),
+                table.name, GreaterThanEquals.class
+            );
+            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                rangeMin = null;
+
+            }
+            if (rangeMin == null) {
+                rangeMin = findIndexAccess(where, columnsToMatch,
+                    index.getIndex(),
+                    table.name, GreaterThan.class
+                );
+                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                    rangeMin = null;
+
+                }
+            }
+
+            SQLRecordKeyFunction rangeMax = findIndexAccess(where, columnsToMatch,
+                index.getIndex(),
+                table.name, MinorThanEquals.class
+            );
+            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                rangeMax = null;
+
+            }
+            if (rangeMax == null) {
+                rangeMax = findIndexAccess(where, columnsToMatch,
+                    index.getIndex(),
+                    table.name, MinorThan.class
+                );
+                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                    rangeMax = null;
+                }
+            }
+            if (rangeMin != null || rangeMax != null) {
+                secondaryIndexOperation = new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax);
+            }
+
+        }
+        return secondaryIndexOperation;
     }
     private static final Logger LOG = Logger.getLogger(SQLPlanner.class.getName());
 

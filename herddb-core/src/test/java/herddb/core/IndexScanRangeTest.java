@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.index.PrimaryIndexRangeScan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -47,54 +48,54 @@ import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
 
 /**
- * 
+ *
  * @author enrico.olivelli
  * @author diego.salvi
  */
 public class IndexScanRangeTest {
-    
+
     @Test
     public void hashSecondaryIndexPrefixScan() throws Exception {
         secondaryIndexPrefixScan(Index.TYPE_HASH);
     }
-    
+
     @Test
     public void brinSecondaryIndexPrefixScan() throws Exception {
         secondaryIndexPrefixScan(Index.TYPE_BRIN);
     }
-    
+
     @Test
     public void hashSecondaryIndexSeek() throws Exception {
         secondaryIndexSeek(Index.TYPE_HASH);
     }
-    
+
     @Test
     public void brinSecondaryIndexSeek() throws Exception {
         secondaryIndexSeek(Index.TYPE_BRIN);
     }
-    
+
     @Test
     public void hashsecondaryIndexRangeScan() throws Exception {
         secondaryIndexRangeScan(Index.TYPE_HASH);
     }
-    
+
     @Test
     public void brinSecondaryIndexRangeScan() throws Exception {
         secondaryIndexRangeScan(Index.TYPE_BRIN);
     }
-    
+
     @Test
     public void hashNoIndexOperation() throws Exception {
         noIndexOperation(Index.TYPE_HASH);
     }
-    
+
     @Test
     public void brinNoIndexOperation() throws Exception {
         noIndexOperation(Index.TYPE_BRIN);
     }
-    
+
     private void secondaryIndexPrefixScan(String indexType) throws Exception {
-        
+
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
@@ -115,7 +116,7 @@ public class IndexScanRangeTest {
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             Index index = Index
                 .builder()
                 .onTable(table)
@@ -133,7 +134,7 @@ public class IndexScanRangeTest {
             // create index, it will be built using existing data
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
@@ -142,13 +143,13 @@ public class IndexScanRangeTest {
                     assertEquals(3, scan1.consume().size());
                 }
             }
-            
+
         }
 
     }
-    
+
     private void secondaryIndexSeek(String indexType) throws Exception {
-        
+
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
@@ -169,7 +170,7 @@ public class IndexScanRangeTest {
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             Index index = Index
                 .builder()
                 .onTable(table)
@@ -186,7 +187,7 @@ public class IndexScanRangeTest {
             // create index, it will be built using existing data
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             {
                 TranslatedQuery translated = manager
                     .getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1=2", Collections.emptyList(), true, true, false, -1);
@@ -196,13 +197,13 @@ public class IndexScanRangeTest {
                     assertEquals(3, scan1.consume().size());
                 }
             }
-            
+
         }
 
     }
-    
+
     private void secondaryIndexRangeScan(String indexType) throws Exception {
-        
+
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
@@ -223,7 +224,7 @@ public class IndexScanRangeTest {
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             Index index = Index
                 .builder()
                 .onTable(table)
@@ -240,7 +241,7 @@ public class IndexScanRangeTest {
             // create index, it will be built using existing data
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1>=1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
@@ -340,7 +341,7 @@ public class IndexScanRangeTest {
                     assertEquals(3, scan1.consume().size());
                 }
             }
-            
+
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1' and n1>=1 and n1<=2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
@@ -350,13 +351,13 @@ public class IndexScanRangeTest {
                     assertEquals(2, scan1.consume().size());
                 }
             }
-            
+
         }
 
     }
-    
+
     private void noIndexOperation(String indexType) throws Exception {
-        
+
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
@@ -377,7 +378,7 @@ public class IndexScanRangeTest {
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             Index index = Index
                 .builder()
                 .onTable(table)
@@ -394,18 +395,18 @@ public class IndexScanRangeTest {
             // create index, it will be built using existing data
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE n1<n2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 System.out.println("indexOperation:" + scan.getPredicate().getIndexOperation());
-                
+
                 assertNull(scan.getPredicate().getIndexOperation());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     assertEquals(5, scan1.consume().size());
                 }
             }
-            
+
         }
 
     }

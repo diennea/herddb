@@ -33,6 +33,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
+import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 
@@ -144,6 +145,48 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
                 byte[] fullrecordKey = t.getKey().data;
                 return Bytes.startsWith(fullrecordKey, prefix.length, prefix);
             };
+            Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
+            return baseStream.filter(predicate);
+        } else if (operation instanceof PrimaryIndexRangeScan) {
+            
+            byte[] refminvalue;
+            PrimaryIndexRangeScan sis = (PrimaryIndexRangeScan) operation;
+            SQLRecordKeyFunction minKey = sis.minValue;
+            if (minKey != null) {
+                refminvalue = minKey.computeNewValue(null, context, tableContext);
+            } else {
+                refminvalue = null;
+            }
+
+            byte[] refmaxvalue;
+            SQLRecordKeyFunction maxKey = sis.maxValue;
+            if (maxKey != null) {
+                refmaxvalue = maxKey.computeNewValue(null, context, tableContext);
+            } else {
+                refmaxvalue = null;
+            }
+            Predicate<Map.Entry<Bytes, Long>> predicate;
+            if (refminvalue != null && refmaxvalue == null) {
+                predicate = (Map.Entry<Bytes, Long> entry) -> {
+                    byte[] datum = entry.getKey().data;
+                    return Bytes.compare(datum, refminvalue) >= 0;
+                };
+            } else if (refminvalue == null && refmaxvalue != null) {
+                predicate = (Map.Entry<Bytes, Long> entry) -> {
+                    byte[] datum = entry.getKey().data;
+                    return Bytes.compare(datum, refmaxvalue) <= 0;
+                };
+            } else if (refminvalue != null && refmaxvalue != null) {
+                predicate = (Map.Entry<Bytes, Long> entry) -> {
+                    byte[] datum = entry.getKey().data;
+                    return Bytes.compare(datum, refmaxvalue) <= 0
+                        && Bytes.compare(datum, refminvalue) >= 0;
+                };
+            } else {
+                predicate = (Map.Entry<Bytes, Long> entry) -> {
+                    return true;
+                };
+            }
             Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
             return baseStream.filter(predicate);
         } else {

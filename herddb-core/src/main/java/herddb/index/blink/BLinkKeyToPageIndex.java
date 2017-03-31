@@ -44,6 +44,7 @@ import herddb.core.PostCheckpointAction;
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
 import herddb.index.PrimaryIndexPrefixScan;
+import herddb.index.PrimaryIndexRangeScan;
 import herddb.index.PrimaryIndexSeek;
 import herddb.index.blink.BLink.EverBiggerKey;
 import herddb.index.blink.BLink.SizeEvaluator;
@@ -52,6 +53,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
+import herddb.sql.SQLRecordKeyFunction;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.IndexStatus;
@@ -59,10 +61,10 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
+import java.util.function.Predicate;
 
 /**
- * Implementation of {@link KeyToPageIndex} with a backing {@link BLink} paged and stored to
- * {@link DataStorageManager}.
+ * Implementation of {@link KeyToPageIndex} with a backing {@link BLink} paged and stored to {@link DataStorageManager}.
  *
  * @author diego.salvi
  */
@@ -89,9 +91,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     private final AtomicLong newPageId;
 
-    private final BLinkIndexDataStorage<Bytes,Long> indexDataStorage;
+    private final BLinkIndexDataStorage<Bytes, Long> indexDataStorage;
 
-    public BLink<Bytes,Long> tree;
+    public BLink<Bytes, Long> tree;
 
     public BLinkKeyToPageIndex(String tableSpace, String tableName, MemoryManager memoryManager, DataStorageManager dataStorageManager) {
         super();
@@ -173,8 +175,27 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         if (operation == null) {
-            Stream<Map.Entry<Bytes, Long>> baseStream = tree.scan(null,null);
+            Stream<Map.Entry<Bytes, Long>> baseStream = tree.scan(null, null);
             return baseStream;
+        } else if (operation instanceof PrimaryIndexRangeScan) {
+
+            Bytes refminvalue;
+            PrimaryIndexRangeScan sis = (PrimaryIndexRangeScan) operation;
+            SQLRecordKeyFunction minKey = sis.minValue;
+            if (minKey != null) {
+                refminvalue = Bytes.from_array(minKey.computeNewValue(null, context, tableContext));
+            } else {
+                refminvalue = null;
+            }
+            Bytes refmaxvalue;
+            SQLRecordKeyFunction maxKey = sis.maxValue;
+            if (maxKey != null) {
+                refmaxvalue = Bytes.from_array(maxKey.computeNewValue(null, context, tableContext));
+            } else {
+                refmaxvalue = null;
+            }
+            // TODO: '<=' is not working
+            return tree.scan(refminvalue, refmaxvalue);
         }
 
         throw new DataStorageManagerException("operation " + operation + " not implemented on " + this.getClass());
@@ -183,7 +204,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public void close() {
-        final BLink<Bytes,Long> tree = this.tree;
+        final BLink<Bytes, Long> tree = this.tree;
         this.tree = null;
         if (tree != null) {
             tree.close();
@@ -215,7 +236,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
-                    memoryManager.getIndexPageReplacementPolicy(), indexDataStorage);
+                memoryManager.getIndexPageReplacementPolicy(), indexDataStorage);
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{indexName});
         } else {
             IndexStatus status = dataStorageManager.getIndexStatus(tableSpace, indexName, sequenceNumber);
@@ -223,8 +244,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 BLinkMetadata<Bytes> metadata = MetadataSerializer.INSTANCE.read(status.indexData);
 
                 tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
-                        memoryManager.getIndexPageReplacementPolicy(), indexDataStorage,
-                        metadata);
+                    memoryManager.getIndexPageReplacementPolicy(), indexDataStorage,
+                    metadata);
             } catch (IOException e) {
                 throw new DataStorageManagerException(e);
             }
@@ -240,7 +261,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         try {
 
             /* Tree can be null if no data was inserted (tree creation deferred to check evaluate key size) */
-            final BLink<Bytes,Long> tree = this.tree;
+            final BLink<Bytes, Long> tree = this.tree;
             if (tree == null) {
                 return Collections.emptyList();
             }
@@ -266,13 +287,18 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
     }
 
-    private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes,Long> {
+    private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes, Long> {
 
-        /** Siongleton INSTANCE */
-        public static final SizeEvaluator<Bytes,Long> INSTANCE = new SizeEvaluatorImpl();
+        /**
+         * Siongleton INSTANCE
+         */
+        public static final SizeEvaluator<Bytes, Long> INSTANCE = new SizeEvaluatorImpl();
 
-        /** Private constructor, use Singleton instance {@link #INSTANCE}*/
-        private SizeEvaluatorImpl() {}
+        /**
+         * Private constructor, use Singleton instance {@link #INSTANCE}
+         */
+        private SizeEvaluatorImpl() {
+        }
 
         @Override
         public long evaluateKey(Bytes key) {
@@ -308,7 +334,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         public byte[] write(BLinkMetadata<Bytes> metadata) throws IOException {
 
             final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
-            try ( ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
+            try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
 
                 /* flags for future implementations, actually unused */
                 edos.writeVLong(0L);
@@ -342,7 +368,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     edos.writeZLong(node.outlink);
                     edos.writeZLong(node.rightlink);
 
-
                     boolean hasInf = node.rightsep == EverBiggerKey.INSTANCE;
 
                     edos.writeBoolean(hasInf);
@@ -361,11 +386,11 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         @SuppressWarnings("unchecked")
-        @SuppressFBWarnings(value="DLS_DEAD_LOCAL_STORE", justification="flags still not used but it must be forcefully read")
+        @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "flags still not used but it must be forcefully read")
         public BLinkMetadata<Bytes> read(byte[] data) throws IOException {
 
-            try ( ByteArrayInputStream bis = new ByteArrayInputStream(data);
-                  ExtendedDataInputStream edis = new ExtendedDataInputStream(bis) ) {
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
+                ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
 
                 /* flags for future implementations, actually unused */
                 @SuppressWarnings("unused")
@@ -373,7 +398,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 byte rtype = edis.readByte();
 
                 if (rtype != METADATA_PAGE) {
-                    throw new IOException("Wrong page type " + rtype + " expected " + METADATA_PAGE );
+                    throw new IOException("Wrong page type " + rtype + " expected " + METADATA_PAGE);
                 }
 
                 long nextID = edis.readVLong();
@@ -419,8 +444,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                         rightsep = Bytes.from_array(edis.readArray());
                     }
 
-                    BLinkNodeMetadata<Bytes> node =
-                            new BLinkNodeMetadata<>(leaf, id, storeId, empty, keys, bytes, outlink, rightlink, rightsep);
+                    BLinkNodeMetadata<Bytes> node
+                        = new BLinkNodeMetadata<>(leaf, id, storeId, empty, keys, bytes, outlink, rightlink, rightsep);
 
                     nodes.add(node);
                 }
@@ -565,26 +590,26 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 //        }
 //    }
 
-    private final class BLinkIndexDataStorageImpl implements BLinkIndexDataStorage<Bytes,Long> {
+    private final class BLinkIndexDataStorageImpl implements BLinkIndexDataStorage<Bytes, Long> {
 
         @Override
-        public Map<Comparable<Bytes>,Long> loadNodePage(long pageId) throws IOException {
+        public Map<Comparable<Bytes>, Long> loadNodePage(long pageId) throws IOException {
             return loadPage(pageId, INNER_NODE_PAGE);
         }
 
         @Override
-        public Map<Comparable<Bytes>,Long> loadLeafPage(long pageId) throws IOException {
+        public Map<Comparable<Bytes>, Long> loadLeafPage(long pageId) throws IOException {
             return loadPage(pageId, LEAF_NODE_PAGE);
         }
 
         @SuppressWarnings("unchecked")
-        @SuppressFBWarnings(value="DLS_DEAD_LOCAL_STORE", justification="flags still not used but it must be forcefully read")
-        private Map<Comparable<Bytes>,Long> loadPage(long pageId, byte type) throws IOException {
+        @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "flags still not used but it must be forcefully read")
+        private Map<Comparable<Bytes>, Long> loadPage(long pageId, byte type) throws IOException {
 
             final byte[] data = dataStorageManager.readIndexPage(tableSpace, indexName, pageId);
 
-            try ( ByteArrayInputStream bis = new ByteArrayInputStream(data);
-                  ExtendedDataInputStream edis = new ExtendedDataInputStream(bis) ) {
+            try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
+                ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
 
                 /* flags for future implementations, actually unused */
                 @SuppressWarnings("unused")
@@ -592,19 +617,19 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 byte rtype = edis.readByte();
 
                 if (rtype != type) {
-                    throw new IOException("Wrong page type " + rtype + " expected " + type );
+                    throw new IOException("Wrong page type " + rtype + " expected " + type);
                 }
 
-                final Map<Comparable<Bytes>,Long> map = new HashMap<>();
+                final Map<Comparable<Bytes>, Long> map = new HashMap<>();
 
                 byte block;
-                while((block = edis.readByte()) != NODE_PAGE_END_BLOCK) {
+                while ((block = edis.readByte()) != NODE_PAGE_END_BLOCK) {
 
-                    switch(block) {
+                    switch (block) {
 
                         case NODE_PAGE_KEY_VALUE_BLOCK:
                             map.put(Bytes.from_array(edis.readArray()),
-                                    edis.readVLong());
+                                edis.readVLong());
                             break;
 
                         case NODE_PAGE_INF_BLOCK:
@@ -623,32 +648,30 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         @Override
-        public long createNodePage(Map<Comparable<Bytes>,Long> data) throws IOException {
+        public long createNodePage(Map<Comparable<Bytes>, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             return createPage(NEW_PAGE, data, INNER_NODE_PAGE);
         }
 
         @Override
-        public long createLeafPage(Map<Comparable<Bytes>,Long> data) throws IOException {
+        public long createLeafPage(Map<Comparable<Bytes>, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             return createPage(NEW_PAGE, data, LEAF_NODE_PAGE);
         }
 
-
         @Override
-        public void overwriteNodePage(long pageId, Map<Comparable<Bytes>,Long> data) throws IOException {
+        public void overwriteNodePage(long pageId, Map<Comparable<Bytes>, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             createPage(pageId, data, INNER_NODE_PAGE);
         }
 
         @Override
-        public void overwriteLeafPage(long pageId, Map<Comparable<Bytes>,Long> data) throws IOException {
+        public void overwriteLeafPage(long pageId, Map<Comparable<Bytes>, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             createPage(pageId, data, LEAF_NODE_PAGE);
         }
 
-
-        private long createPage(long pageId, Map<Comparable<Bytes>,Long> data, byte type) throws IOException {
+        private long createPage(long pageId, Map<Comparable<Bytes>, Long> data, byte type) throws IOException {
 
             final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
             try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
