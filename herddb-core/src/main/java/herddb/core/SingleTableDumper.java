@@ -19,6 +19,13 @@
  */
 package herddb.core;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+
 import herddb.core.stats.TableManagerStats;
 import herddb.model.Index;
 import herddb.model.Record;
@@ -28,12 +35,6 @@ import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 /**
  * Dumps data of a table

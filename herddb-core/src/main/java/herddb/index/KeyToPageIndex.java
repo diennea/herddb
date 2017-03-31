@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import herddb.core.AbstractIndexManager;
 import herddb.core.PostCheckpointAction;
 import herddb.log.LogSequenceNumber;
 import herddb.model.StatementEvaluationContext;
@@ -31,14 +32,32 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 
 /**
- * Index which maps every key of a table to the page which contains the key. Keys assigned to new pages are assigned to
- * a special NO_PAGE value
+ * Index which maps every key of a table to the page which contains the key.
  *
  * @author enrico.olivelli
  */
 public interface KeyToPageIndex extends AutoCloseable {
 
+    public long getUsedMemory();
+
+    public boolean requireLoadAtStartup();
+
     public long size();
+
+    void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+
+    @Override
+    public void close();
+
+    /**
+     * Ensures that all data is persisted to memory
+     */
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+
+    public void truncate();
+
+    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
+            TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException;
 
     public Long put(Bytes key, Long currentPage);
 
@@ -48,21 +67,4 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     public Long remove(Bytes key);
 
-    public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, herddb.core.AbstractIndexManager index) throws DataStorageManagerException;
-
-    @Override
-    public void close();
-
-    public void truncate();
-
-    public long getUsedMemory();
-
-    public boolean requireLoadAtStartup();
-
-    /**
-     * Ensures that all data is persisted from disk
-     */
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
-
-    void start() throws DataStorageManagerException;
 }

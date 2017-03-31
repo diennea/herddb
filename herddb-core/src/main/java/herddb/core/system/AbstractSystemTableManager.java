@@ -139,6 +139,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
+    public LogSequenceNumber getBootSequenceNumber() {
+        return LogSequenceNumber.START_OF_TIME;
+    }
+
+    @Override
     public void dropTableData() throws DataStorageManagerException {
         throw new DataStorageManagerException("no supported on system tables");
     }

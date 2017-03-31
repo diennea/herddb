@@ -260,19 +260,17 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public IndexStatus getLatestIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException {
-        try {
-            Path lastFile = getLastIndexCheckpointFile(tableSpace, indexName);
-            IndexStatus latestStatus;
-            if (lastFile == null) {
-                latestStatus = new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, 1, null, null);
-            } else {
-                latestStatus = readIndexStatusFromFile(lastFile);
-            }
-            return latestStatus;
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
+    public IndexStatus getIndexStatus(String tableSpace, String indexName, LogSequenceNumber sequenceNumber)
+            throws DataStorageManagerException {
+
+        Path dir = getIndexDirectory(tableSpace, indexName);
+        Path checkpointFile = getCheckPointsFile(dir, sequenceNumber);
+
+        if (!Files.exists(checkpointFile)) {
+            throw new DataStorageManagerException("no such index checkpoint: " + checkpointFile );
         }
+
+        return readIndexStatusFromFile(checkpointFile);
     }
 
     @Override

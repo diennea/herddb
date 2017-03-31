@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import herddb.core.MemoryManager;
+import herddb.log.LogSequenceNumber;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.utils.Bytes;
 
@@ -126,7 +127,7 @@ public class BlinkBench {
                 try (MemoryDataStorageManager ds = new MemoryDataStorageManager();
                         BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
 
-                    idx.start();
+                    idx.start(LogSequenceNumber.START_OF_TIME);
 
                     ExecutorService ex = Executors.newFixedThreadPool(threads);
 

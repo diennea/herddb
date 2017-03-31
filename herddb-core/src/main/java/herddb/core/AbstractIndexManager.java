@@ -19,6 +19,11 @@
  */
 package herddb.core;
 
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
 import herddb.index.IndexOperation;
 import herddb.index.KeyToPageIndex;
 import herddb.log.CommitLog;
@@ -32,10 +37,6 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import java.util.AbstractMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * Index runtime
@@ -78,10 +79,12 @@ public abstract class AbstractIndexManager implements AutoCloseable {
     /**
      * Boots the index, this method usually reload state from the DataStorageManager
      *
+     * @param sequenceNumber sequence number from which boot the index
+     *
      * @throws DataStorageManagerException
      * @see DataStorageManager#fullIndexScan(java.lang.String, java.lang.String, herddb.storage.FullIndexScanConsumer)
      */
-    public abstract void start() throws DataStorageManagerException;
+    public abstract void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     /**
      * Release resources. Do not drop data
@@ -139,7 +142,7 @@ public abstract class AbstractIndexManager implements AutoCloseable {
             if (idPage == null) {
                 return null;
             }
-            return (Map.Entry<Bytes, Long>) new AbstractMap.SimpleImmutableEntry<>(b, idPage);
+            return (Map.Entry<Bytes, Long>) new SimpleImmutableEntry<>(b, idPage);
         }).filter(p -> p != null);
     }
 

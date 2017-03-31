@@ -181,7 +181,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public void start() throws DataStorageManagerException {
+    public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         /* No work needed, this implementation require a full table scan at startup instead */
     }
 

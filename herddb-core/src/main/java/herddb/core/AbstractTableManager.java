@@ -47,30 +47,31 @@ import herddb.storage.FullTableScanConsumer;
  */
 public interface AbstractTableManager extends AutoCloseable {
 
-    StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException;
 
-    TableManagerStats getStats();
+    public TableManagerStats getStats();
 
-    Table getTable();
+    public Table getTable();
 
-    DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException;
+    long getCreatedInTransaction();
 
-    void start() throws DataStorageManagerException;
+    public List<Index> getAvailableIndexes();
+
+    public LogSequenceNumber getBootSequenceNumber();
+
+    public long getNextPrimaryKeyValue();
+
+    public boolean isSystemTable();
+
+    public void start() throws DataStorageManagerException;
 
     @Override
-    void close();
+    public void close();
 
-    void dropTableData() throws DataStorageManagerException;
+    public void flush() throws DataStorageManagerException;
 
-    void onTransactionRollback(Transaction transaction) throws DataStorageManagerException;
+    public void dump(FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
 
-    void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException;
-
-    void apply(CommitLogResult pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
-
-    void dump(FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
-
-    List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
 
     /**
      * Performs a full deep checkpoint cleaning as much space as possible.
@@ -79,21 +80,23 @@ public interface AbstractTableManager extends AutoCloseable {
      * can resolve to perform a normal checkpoint if they need for internal logic.
      * </p>
      */
-    List<PostCheckpointAction> fullCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    public List<PostCheckpointAction> fullCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
-    void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
-
-    void flush() throws DataStorageManagerException;
-
-    long getNextPrimaryKeyValue();
-
-    boolean isSystemTable();
+    public void dropTableData() throws DataStorageManagerException;
 
     public void tableAltered(Table table, Transaction transaction) throws DDLException;
 
-    long getCreatedInTransaction();
+    public void onTransactionRollback(Transaction transaction) throws DataStorageManagerException;
 
-    public List<Index> getAvailableIndexes();
+    public void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException;
+
+    public void apply(CommitLogResult pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
+
+    StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException;
+
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException;
+
+    public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
 
 }

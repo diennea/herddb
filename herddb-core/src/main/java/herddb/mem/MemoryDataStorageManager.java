@@ -149,24 +149,25 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public IndexStatus getLatestIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException {
+    public IndexStatus getIndexStatus(String tableSpace, String indexName, LogSequenceNumber sequenceNumber)
+            throws DataStorageManagerException {
 
-        byte[] data = indexStatuses.get(tableSpace + "." + indexName);
-        IndexStatus latestStatus;
+        final String checkPoint = checkpointName(tableSpace, indexName, sequenceNumber);
+        byte[] data = indexStatuses.get(checkPoint);
+
+
         if (data == null) {
-            latestStatus = new IndexStatus(indexName, LogSequenceNumber.START_OF_TIME, 1, null, null);
-        } else {
-            try {
-                try (InputStream input = new SimpleByteArrayInputStream(data);
-                    ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
-                    latestStatus = IndexStatus.deserialize(dataIn);
-                }
-            } catch (IOException err) {
-                throw new DataStorageManagerException(err);
-            }
+            throw new DataStorageManagerException("no such index checkpoint: " + checkPoint );
         }
 
-        return latestStatus;
+        try {
+            try (InputStream input = new SimpleByteArrayInputStream(data);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                return IndexStatus.deserialize(dataIn);
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
     @Override
@@ -275,6 +276,18 @@ public class MemoryDataStorageManager extends DataStorageManager {
             });
         }
 
+        for(String oldStatus : indexStatuses.keySet()) {
+            if ( oldStatus.startsWith(prefix) ) {
+                result.add(new PostCheckpointAction(indexName, "drop index checkpoint " + oldStatus) {
+                    @Override
+                    public void run() {
+                        // remove only after checkpoint completed
+                        indexStatuses.remove(oldStatus);
+                    }
+                });
+            }
+        }
+
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
             indexStatus.serialize(dataOutputKeys);
@@ -285,7 +298,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
         }
 
         /* Uses a copy to limit byte[] size at the min needed */
-        indexStatuses.put(tableSpace + "." + indexName, oo.toByteArray());
+        indexStatuses.put(checkpointName(tableSpace, indexName, indexStatus.sequenceNumber), oo.toByteArray());
 
         return result;
     }
@@ -432,6 +445,10 @@ public class MemoryDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+    }
+
+    private String checkpointName(String tableSpace, String name, LogSequenceNumber sequenceNumber) {
+        return tableSpace + "." + name + "_" + sequenceNumber.ledgerId + "." + sequenceNumber.offset;
     }
 
 }

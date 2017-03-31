@@ -160,16 +160,16 @@ public class BRINIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void start() throws DataStorageManagerException {
+    public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, " start index {0}", new Object[]{index.name});
-        bootSequenceNumber = log.getLastSequenceNumber();
+        bootSequenceNumber = sequenceNumber;
 
-        IndexStatus status = dataStorageManager.getLatestIndexStatus(tableSpaceUUID, index.name);
-        if (status.sequenceNumber == LogSequenceNumber.START_OF_TIME) {
-            /* Empty index */
+        if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
+            /* Empty index (booting from the start) */
             this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
         } else {
+            IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.name, sequenceNumber);
             try {
                 PageContents metadataBlock = PageContents.deserialize(status.indexData);
                 this.data.boot(new BlockRangeIndexMetadata<>(metadataBlock.metadata));

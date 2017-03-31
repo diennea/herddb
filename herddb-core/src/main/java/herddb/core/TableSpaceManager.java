@@ -1186,7 +1186,7 @@ public class TableSpaceManager {
             newList.putAll(b);
             return newList;
         });
-        indexManager.start();
+        indexManager.start(tableManager.getBootSequenceNumber());
         long _stop = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (_stop - _start) + ""});
         if (rebuild) {
@@ -1266,12 +1266,7 @@ public class TableSpaceManager {
                 actions.addAll(postCheckPointActions);
             }
 
-            for (AbstractIndexManager indexManager : indexes.values()) {
-                // same as for TableManagers
-                LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
-                List<PostCheckpointAction> postCheckPointActions = indexManager.checkpoint(sequenceNumber);
-                actions.addAll(postCheckPointActions);
-            }
+            /* Indexes checkpoint is handled by TableManagers */
 
             log.dropOldLedgers(logSequenceNumber);
 

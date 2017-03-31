@@ -35,6 +35,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import herddb.core.MemoryManager;
+import herddb.log.LogSequenceNumber;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.utils.Bytes;
 
@@ -127,7 +128,7 @@ public class BlinkRandomBench {
                 try (MemoryDataStorageManager ds = new MemoryDataStorageManager();
                         BLinkKeyToPageIndex idx = new BLinkKeyToPageIndex("tblspc", "tbl", mem, ds)) {
 
-                    idx.start();
+                    idx.start(LogSequenceNumber.START_OF_TIME);
 
                     long[] data = new long[(int) (maxID - minID)];
 

@@ -103,7 +103,14 @@ public abstract class DataStorageManager implements AutoCloseable {
 
     public abstract TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException;
 
-    public abstract IndexStatus getLatestIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException;
+//    public abstract IndexStatus getLatestIndexStatus(String tableSpace, String indexName) throws DataStorageManagerException;
+
+    /**
+     * Returns the {@link IndexStatus} relative to given sequence number.
+     *
+     * @throws DataStorageManagerException if no status exists for given data or it cannot be read
+     */
+    public abstract IndexStatus getIndexStatus(String tableSpace, String indexName, LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     /**
      * Boots the Storage Manager
