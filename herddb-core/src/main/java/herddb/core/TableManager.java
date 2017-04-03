@@ -742,7 +742,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
         byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
 
-        final long size = Record.estimateSize(key, value);
+        final long size = DataPage.estimateEntrySize(key, value);
         if (size > maxLogicalPageSize) {
             throw new RecordTooBigException("New record " + key + " is to big to be inserted: size " + size + ", max size " + maxLogicalPageSize);
         }
@@ -804,10 +804,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
 
-                final long size = Record.estimateSize(actual.key, newValue);
+                final long size = DataPage.estimateEntrySize(actual.key, newValue);
                 if (size > maxLogicalPageSize) {
                     throw new RecordTooBigException("New version of record " + actual.key
-                        + " is to big to be update: new size " + size + ", actual size " + actual.getEstimatedSize()
+                        + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
                         + ", max size " + maxLogicalPageSize);
                 }
 
@@ -1121,7 +1121,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         /* This could be a normal or a temporary modifiable page */
         final Long prevPageId = keyToPage.get(key);
-
         if (prevPageId == null) {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
@@ -1579,7 +1578,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         long estimatedPageSize = 0;
         for (Record r : page) {
             newPageMap.put(r.key, r);
-            estimatedPageSize += r.getEstimatedSize();
+            estimatedPageSize += DataPage.estimateEntrySize(r);
         }
         return buildImmutableDataPage(pageId, newPageMap, estimatedPageSize);
     }
@@ -1653,7 +1652,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @return
      * @throws DataStorageManagerException
      */
-    public TableCheckpoint checkpoint(double dirtyThreshold, double fillThreshold,
+    private TableCheckpoint checkpoint(double dirtyThreshold, double fillThreshold,
             long checkpointTargetTime, long compactionTargetTime, boolean pin) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
@@ -1758,7 +1757,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
                     /* Flush the page if it would exceed max page size */
-                    if (bufferPageSize + record.getEstimatedSize() > maxLogicalPageSize) {
+                    if (bufferPageSize + DataPage.estimateEntrySize(record) > maxLogicalPageSize) {
                         createImmutablePage(buffer, bufferPageSize);
                         flushedRecords += buffer.size();
                         bufferPageSize = 0;
@@ -1767,7 +1766,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
                     buffer.put(record.key, record);
-                    bufferPageSize += record.getEstimatedSize();
+                    bufferPageSize += DataPage.estimateEntrySize(record);
                 }
 
                 /* Do not continue if we have used up all configured checkpoint time */
@@ -1809,7 +1808,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 for (Record record : records) {
                     /* Flush the page if it would exceed max page size */
-                    if (bufferPageSize + record.getEstimatedSize() > maxLogicalPageSize) {
+                    if (bufferPageSize + DataPage.estimateEntrySize(record) > maxLogicalPageSize) {
                         createImmutablePage(buffer, bufferPageSize);
                         flushedRecords += buffer.size();
                         bufferPageSize = 0;
@@ -1818,7 +1817,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
                     buffer.put(record.key, record);
-                    bufferPageSize += record.getEstimatedSize();
+                    bufferPageSize += DataPage.estimateEntrySize(record);
                 }
 
                 final long now = System.currentTimeMillis();

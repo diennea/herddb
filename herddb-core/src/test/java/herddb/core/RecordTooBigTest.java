@@ -36,6 +36,7 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.RecordTooBigException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.RandomString;
 
 /**
  * Check if records too big are really handled or fail during page insertion
@@ -69,7 +70,7 @@ public class RecordTooBigTest {
     public void update() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
-            manager.setMaxLogicalPageSize(200);
+            manager.setMaxLogicalPageSize(160);
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
@@ -77,10 +78,15 @@ public class RecordTooBigTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string, s1 string, n1 int, primary key(k1))", Collections.emptyList());
 
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
+            try {
+                assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
+            } catch (Exception e) {
+                e.printStackTrace();
+                fail("Got an unexpected of exception, insertion failed!");
+            }
 
             try {
-                assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET s1 = ? WHERE k1 = ?", Arrays.asList("123456789012345678901234567890", "mykey")).getUpdateCount());
+                assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql SET s1 = ? WHERE k1 = ?", Arrays.asList(RandomString.getInstance().nextString(25), "mykey")).getUpdateCount());
             } catch (IllegalStateException e) {
                 e.printStackTrace();
                 fail("Got a wrong type of exception, record failed during page insertion!");

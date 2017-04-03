@@ -749,7 +749,7 @@ public class TableSpaceManager {
         CommitLogListener logDumpReceiver = new CommitLogListener() {
             @Override
             public void logEntry(LogSequenceNumber logPos, LogEntry data) {
-                // we are going to capture all the canges to the tablespace during the dump, in order to replay
+                // we are going to capture all the changes to the tablespace during the dump, in order to replay
                 // eventually 'missed' changes during the dump
                 txlogentries.add(new DumpedLogEntry(logPos, data.serialize()));
                 LOGGER.log(Level.SEVERE, "dumping entry " + logPos + ", " + data + " nentries: " + txlogentries.size());

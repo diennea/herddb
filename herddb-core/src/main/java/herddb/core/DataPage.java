@@ -35,6 +35,26 @@ import herddb.utils.Bytes;
  */
 public class DataPage extends Page<TableManager> {
 
+    /**
+     * Constant entry size take in account map entry nodes:
+     *
+     * <pre>
+     * COUNT       AVG       SUM   DESCRIPTION
+     *     1        32        32   java.util.HashMap$Node
+     * </pre>
+     * </pre>
+     */
+    public static final long CONSTANT_ENTRY_BYTE_SIZE = 32;
+
+    public static final long estimateEntrySize(Bytes key, byte[] value) {
+        return Record.estimateSize(key,value) + DataPage.CONSTANT_ENTRY_BYTE_SIZE;
+    }
+
+    public static final long estimateEntrySize(Record record) {
+        return record.getEstimatedSize() + DataPage.CONSTANT_ENTRY_BYTE_SIZE;
+    }
+
+
     public final long maxSize;
     public final boolean readonly;
 
@@ -62,7 +82,14 @@ public class DataPage extends Page<TableManager> {
         if (readonly) {
             throw new IllegalStateException("page " + pageId + " is readonly!");
         }
-        return data.remove(key);
+
+        final Record prev = data.remove(key);
+        if (prev != null) {
+            final long size = estimateEntrySize(prev);
+            usedMemory.addAndGet(-size);
+        }
+
+        return prev;
     }
 
     Record get(Bytes key) {
@@ -76,14 +103,14 @@ public class DataPage extends Page<TableManager> {
 
         final Record prev = data.put(record.key, record);
 
-        final long newSize = record.getEstimatedSize();
+        final long newSize = estimateEntrySize(record);
         if (newSize > maxSize) {
             throw new IllegalStateException(
                     "record too big to fit in any page " + newSize + " / " + maxSize + " bytes");
         }
 
         final long diff = prev == null ?
-                newSize : newSize - prev.getEstimatedSize();
+                newSize : newSize - estimateEntrySize(prev);
 
         final long target = maxSize - diff;
 

@@ -116,7 +116,7 @@ public final class PageSet {
         if(dirtyRecord == null) {
             setPageDirty(pageId);
         } else {
-            setPageDirty(pageId,dirtyRecord.getEstimatedSize());
+            setPageDirty(pageId,DataPage.estimateEntrySize(dirtyRecord));
         }
     }
 

@@ -19,10 +19,11 @@
  */
 package herddb.utils;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * A wrapper for byte[], in order to use it as keys on HashMaps
@@ -32,7 +33,19 @@ import java.util.Arrays;
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
-    private static final int CONSTANT_BYTE_SIZE = 36;
+    /**
+     * <pre>
+     * herddb.utils.Bytes object internals:
+     *  OFFSET  SIZE               TYPE DESCRIPTION                               VALUE
+     *       0    12                    (object header)                           N/A
+     *      12     4                int Bytes.hashCode                            N/A
+     *      16     4             byte[] Bytes.data                                N/A
+     *      20     4   java.lang.Object Bytes.deserialized                        N/A
+     * Instance size: 24 bytes
+     * Space losses: 0 bytes internal + 0 bytes external = 0 bytes total
+     * </pre>
+     */
+    private static final int CONSTANT_BYTE_SIZE = 24;
 
     public static final long estimateSize(byte[] value) {
         return value.length + CONSTANT_BYTE_SIZE;

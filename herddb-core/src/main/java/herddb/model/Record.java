@@ -36,7 +36,34 @@ import herddb.utils.SizeAwareObject;
  */
 public final class Record implements SizeAwareObject {
 
-    private static final long CONSTANT_BYTE_SIZE = 93;
+    /**
+     * Constant size is internal data plus weak reference size (Bytes size is accounted during live estimation):
+     *
+     * <pre>
+     * herddb.model.Record object internals:
+     *  OFFSET  SIZE                          TYPE DESCRIPTION                               VALUE
+     *       0    12                               (object header)                           N/A
+     *      12     4            herddb.utils.Bytes Record.key                                N/A
+     *      16     4            herddb.utils.Bytes Record.value                              N/A
+     *      20     4   java.lang.ref.WeakReference Record.cache                              N/A
+     * Instance size: 24 bytes
+     * Space losses: 0 bytes internal + 0 bytes external = 0 bytes total
+     * </pre>
+     *
+     * <pre>
+     * java.lang.ref.WeakReference object internals:
+     *  OFFSET  SIZE                           TYPE DESCRIPTION                               VALUE
+     *       0    12                                (object header)                           N/A
+     *      12     4               java.lang.Object Reference.referent                        N/A
+     *      16     4   java.lang.ref.ReferenceQueue Reference.queue                           N/A
+     *      20     4        java.lang.ref.Reference Reference.next                            N/A
+     *      24     4        java.lang.ref.Reference Reference.discovered                      N/A
+     *      28     4                                (loss due to the next object alignment)
+     * Instance size: 32 bytes
+     * Space losses: 0 bytes internal + 4 bytes external = 4 bytes total
+     * </pre>
+     */
+    private static final long CONSTANT_BYTE_SIZE = 24 + 32;
 
     public static final long estimateSize(Bytes key, byte[] value) {
         return key.getEstimatedSize() + Bytes.estimateSize(value) + CONSTANT_BYTE_SIZE;
