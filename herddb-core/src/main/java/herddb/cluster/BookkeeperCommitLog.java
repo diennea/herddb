@@ -123,6 +123,8 @@ public class BookkeeperCommitLog extends CommitLog {
                 return;
             }
             try {
+                LOGGER.log(Level.SEVERE, "Closing ledger " + out.getId() + ", with LastAddConfirmed=" + out.getLastAddConfirmed()
+                    + ", LastAddPushed=" + out.getLastAddPushed() + " length=" + out.getLength());
                 out.close();
             } catch (InterruptedException | BKException err) {
                 throw new LogNotAvailableException(err);
