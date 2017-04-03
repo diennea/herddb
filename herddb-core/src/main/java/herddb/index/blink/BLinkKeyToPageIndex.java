@@ -290,7 +290,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         dataStorageManager.unPinIndexCheckpoint(tableSpace, indexName, sequenceNumber);
     }
 
-    private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes,Long> {
+    private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes, Long> {
 
         /**
          * Siongleton INSTANCE

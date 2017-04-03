@@ -81,8 +81,7 @@ public final class PageSet {
             return '[' +
                     Long.toString(size) + ',' +
                     Long.toString(avgRecordSize)  + ',' +
-                    Long.toString(dirt.sum()) + ',' +
-                    ']';
+                    Long.toString(dirt.sum()) + ']';
         }
 
     }
