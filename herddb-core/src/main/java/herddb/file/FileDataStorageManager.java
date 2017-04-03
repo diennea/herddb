@@ -40,7 +40,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -83,6 +85,15 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path baseDirectory;
     private final Path tmpDirectory;
     private final int swapThreshold;
+
+    /* Map[tablespace_tablename,Map[pageid,pincounts] */
+    private final Map<String,Map<Long,Integer>> tablePagesPins = new ConcurrentHashMap<>();
+
+    /* Map[tablespace_tablename,Set[sequenceNumber]]  */
+    private final Map<String,Set<LogSequenceNumber>> tableCheckpointPins = new ConcurrentHashMap<>();
+
+    private final Map<String,Map<Long,Integer>> indexPagesPins = new ConcurrentHashMap<>();
+    private final Map<String,Set<LogSequenceNumber>> indexCheckpointPins = new ConcurrentHashMap<>();
 
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"), ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
@@ -231,26 +242,39 @@ public class FileDataStorageManager extends DataStorageManager {
     @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
         try {
-            TableStatus latestStatus = getLatestTableStatus(tableSpace, tableName);
-
-            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + latestStatus);
-            consumer.acceptTableStatus(latestStatus);
-            List<Long> activePages = new ArrayList<>(latestStatus.activePages.keySet());
-            activePages.sort(null);
-            for (long idpage : activePages) {
-                List<Record> records = readPage(tableSpace, tableName, idpage);
-                consumer.startPage(idpage);
-                LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
-                for (Record record : records) {
-                    consumer.acceptRecord(record);
-                }
-                consumer.endPage();
-            }
-            consumer.endTable();
+            TableStatus status = getLatestTableStatus(tableSpace, tableName);
+            fullTableScan(tableSpace, tableName, status, consumer);
         } catch (HerdDBInternalException err) {
             throw new DataStorageManagerException(err);
         }
 
+    }
+
+    @Override
+    public void fullTableScan(String tableSpace, String tableName, LogSequenceNumber sequenceNumber, FullTableScanConsumer consumer) throws DataStorageManagerException {
+        try {
+            TableStatus status = getTableStatus(tableSpace, tableName, sequenceNumber);
+            fullTableScan(tableSpace, tableName, status, consumer);
+        } catch (HerdDBInternalException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    private void fullTableScan(String tableSpace, String tableName, TableStatus status, FullTableScanConsumer consumer) {
+        LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + status);
+        consumer.acceptTableStatus(status);
+        List<Long> activePages = new ArrayList<>(status.activePages.keySet());
+        activePages.sort(null);
+        for (long idpage : activePages) {
+            List<Record> records = readPage(tableSpace, tableName, idpage);
+            consumer.startPage(idpage);
+            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
+            for (Record record : records) {
+                consumer.acceptRecord(record);
+            }
+            consumer.endPage();
+        }
+        consumer.endTable();
     }
 
     @Override
@@ -274,14 +298,32 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
+    public TableStatus getTableStatus(String tableSpace, String tableName, LogSequenceNumber sequenceNumber)
+            throws DataStorageManagerException {
+        try {
+
+            Path dir = getTableDirectory(tableSpace, tableName);
+            Path checkpointFile = getCheckPointsFile(dir, sequenceNumber);
+
+            if (!Files.exists(checkpointFile)) {
+                throw new DataStorageManagerException("no such table checkpoint: " + checkpointFile );
+            }
+
+            return readTableStatusFromFile(checkpointFile);
+
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    @Override
     public TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
         try {
             Path lastFile = getLastTableCheckpointFile(tableSpace, tableName);
             TableStatus latestStatus;
             if (lastFile == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                        Bytes.from_long(1).data, 1,
-                        Collections.emptyMap(), Collections.emptyMap());
+                        Bytes.from_long(1).data, 1, Collections.emptyMap());
             } else {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
@@ -298,12 +340,6 @@ public class FileDataStorageManager extends DataStorageManager {
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             return TableStatus.deserialize(dataIn);
         }
-    }
-
-    private Path getLastIndexCheckpointFile(String tableSpace, String indexName) throws IOException {
-        Path dir = getIndexDirectory(tableSpace, indexName);
-        Path result = getMostRecentCheckPointFile(dir);
-        return result;
     }
 
     private Path getLastTableCheckpointFile(String tableSpace, String tableName) throws IOException {
@@ -349,7 +385,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, boolean pin) throws DataStorageManagerException {
         LogSequenceNumber logPosition = tableStatus.sequenceNumber;
         Path dir = getTableDirectory(tableSpace, tableName);
         Path checkpointFile = getCheckPointsFile(dir, logPosition);
@@ -387,6 +423,13 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
+
+        /* Checkpoint pinning */
+
+        final Map<Long,Integer> pins = pinTableAndGetPages(tableSpace, tableName, tableStatus, pin);
+        final Set<LogSequenceNumber> checkpoints = pinTableAndGetCheckpoints(tableSpace, tableName, tableStatus, pin);
+
+
         long maxPageId = tableStatus.activePages.keySet().stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
         // we can drop old page files now
@@ -395,6 +438,7 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
+                && !pins.containsKey(pageId)
                 && !tableStatus.activePages.containsKey(pageId)
                 && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
@@ -411,11 +455,12 @@ public class FileDataStorageManager extends DataStorageManager {
                 });
             }
         }
+
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path p : stream) {
                 if (isCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     TableStatus status = readTableStatusFromFile(p);
-                    if (logPosition.after(status.sequenceNumber)) {
+                    if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                         result.add(new PostCheckpointAction(tableName, "delete checkpoint metadata file " + p.toAbsolutePath()) {
                             @Override
@@ -438,7 +483,7 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus) throws DataStorageManagerException {
+    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus, boolean pin) throws DataStorageManagerException {
         Path dir = getIndexDirectory(tableSpace, indexName);
         LogSequenceNumber logPosition = indexStatus.sequenceNumber;
         Path checkpointFile = getCheckPointsFile(dir, logPosition);
@@ -477,12 +522,43 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
+
+        /* Checkpoint pinning */
+
+        final Map<Long,Integer> pins = pinIndexAndGetPages(tableSpace, indexName, indexStatus, pin);
+        final Set<LogSequenceNumber> checkpoints = pinIndexAndGetCheckpoints(tableSpace, indexName, indexStatus, pin);
+
+        long maxPageId = indexStatus.activePages.stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
+        // we can drop old page files now
+        List<Path> pageFiles = getIndexPageFiles(tableSpace, indexName);
+        for (Path p : pageFiles) {
+            long pageId = getPageId(p);
+            LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
+            if (pageId > 0
+                && !pins.containsKey(pageId)
+                && !indexStatus.activePages.contains(pageId)
+                && pageId < maxPageId) {
+                LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
+                result.add(new PostCheckpointAction(indexName, "delete page " + pageId + " file " + p.toAbsolutePath()) {
+                    @Override
+                    public void run() {
+                        try {
+                            LOGGER.log(Level.SEVERE, "checkpoint index " + indexName + " file " + p.toAbsolutePath() + " delete pageId " + pageId);
+                            Files.deleteIfExists(p);
+                        } catch (IOException err) {
+                            LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
+                        }
+                    }
+                });
+            }
+        }
+
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path p : stream) {
                 if (isCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     IndexStatus status = readIndexStatusFromFile(p);
-                    if (logPosition.after(status.sequenceNumber)) {
+                    if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
                         result.add(new PostCheckpointAction(indexName, "delete checkpoint metadata file " + p.toAbsolutePath()) {
                             @Override
@@ -531,6 +607,29 @@ public class FileDataStorageManager extends DataStorageManager {
         }
 
         try (DirectoryStream<Path> files = Files.newDirectoryStream(tableDir, new DirectoryStream.Filter<Path>() {
+            @Override
+            public boolean accept(Path entry) throws IOException {
+                return isPageFile(entry);
+            }
+
+        })) {
+            List<Path> result = new ArrayList<>();
+            files.forEach(result::add);
+            return result;
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    public List<Path> getIndexPageFiles(String tableSpace, String indexName) throws DataStorageManagerException {
+        Path indexDir = getIndexDirectory(tableSpace, indexName);
+        try {
+            Files.createDirectories(indexDir);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+
+        try (DirectoryStream<Path> files = Files.newDirectoryStream(indexDir, new DirectoryStream.Filter<Path>() {
             @Override
             public boolean accept(Path entry) throws IOException {
                 return isPageFile(entry);

@@ -19,14 +19,15 @@
  */
 package herddb.core.system;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import herddb.codec.RecordSerializer;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Table Manager for the SYSTABLES virtual table

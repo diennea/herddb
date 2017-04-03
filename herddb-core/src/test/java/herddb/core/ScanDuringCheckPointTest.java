@@ -49,6 +49,7 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.utils.RandomString;
 
 /**
  *
@@ -59,7 +60,7 @@ public class ScanDuringCheckPointTest {
     @Test
 //    @Ignore
     public void bigTableScan() throws Exception {
-        int testSize = 5000;
+        int testSize = 10000;
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(),
             new MemoryCommitLogManager(), null, null);) {
@@ -85,13 +86,17 @@ public class ScanDuringCheckPointTest {
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             for (int i = 0; i < testSize / 2; i++) {
-                InsertStatement insert = new InsertStatement(table.tablespace, table.name, RecordSerializer.makeRecord(table, "id", "k" + i, "name", "testname" + i));
+                InsertStatement insert = new InsertStatement(table.tablespace, table.name,
+                        RecordSerializer.makeRecord(table, "id", "k" + i, "name",
+                                RandomString.getInstance().nextString(50, new StringBuilder().append("testname").append(i).append("_")).toString()));
                 assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
             }
             manager.checkpoint();
 
             for (int i = testSize / 2; i < testSize; i++) {
-                InsertStatement insert = new InsertStatement(table.tablespace, table.name, RecordSerializer.makeRecord(table, "id", "k" + i, "name", "testname" + i));
+                InsertStatement insert = new InsertStatement(table.tablespace, table.name,
+                        RecordSerializer.makeRecord(table, "id", "k" + i, "name",
+                                RandomString.getInstance().nextString(50, new StringBuilder().append("testname").append(i).append("_")).toString()));
                 assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
             }
             manager.checkpoint();

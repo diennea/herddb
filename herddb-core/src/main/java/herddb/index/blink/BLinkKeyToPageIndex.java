@@ -61,7 +61,6 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
-import java.util.function.Predicate;
 
 /**
  * Implementation of {@link KeyToPageIndex} with a backing {@link BLink} paged and stored to {@link DataStorageManager}.
@@ -255,7 +254,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException {
 
         try {
 
@@ -274,7 +273,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
             IndexStatus indexStatus = new IndexStatus(indexName, sequenceNumber, newPageId.get(), activePages, metaPage);
             List<PostCheckpointAction> result = new ArrayList<>();
-            result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus));
+            result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus, pin));
 
             LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} blocks, pages {2}", new Object[]{
                 indexName, Integer.toString(metadata.nodes.size()), activePages.toString()});
@@ -286,7 +285,12 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
     }
 
-    private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes, Long> {
+    @Override
+    public void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        dataStorageManager.unPinIndexCheckpoint(tableSpace, indexName, sequenceNumber);
+    }
+
+    private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes,Long> {
 
         /**
          * Siongleton INSTANCE

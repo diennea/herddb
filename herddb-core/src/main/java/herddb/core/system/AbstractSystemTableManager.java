@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 
 import herddb.core.AbstractTableManager;
 import herddb.core.MaterializedRecordSet;
-import herddb.core.PostCheckpointAction;
 import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
@@ -161,18 +160,23 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     }
 
     @Override
-    public void dump(FullTableScanConsumer dataReceiver) throws DataStorageManagerException {
+    public void dump(LogSequenceNumber sequenceNumber, FullTableScanConsumer receiver) throws DataStorageManagerException {
         throw new DataStorageManagerException("you cannot dump a system table!");
     }
 
     @Override
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-        return Collections.emptyList();
+    public TableCheckpoint checkpoint(boolean pin) throws DataStorageManagerException {
+        throw new DataStorageManagerException("you cannot checkpoint a system table!");
     }
 
     @Override
-    public List<PostCheckpointAction> fullCheckpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException {
-        return Collections.emptyList();
+    public TableCheckpoint fullCheckpoint(boolean pin) throws DataStorageManagerException {
+        throw new DataStorageManagerException("you cannot checkpoint a system table!");
+    }
+
+    @Override
+    public void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        throw new DataStorageManagerException("you cannot checkpoint a system table!");
     }
 
     @Override

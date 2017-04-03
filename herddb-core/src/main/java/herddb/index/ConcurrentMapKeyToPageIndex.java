@@ -218,9 +218,14 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException {
         /* No checkpoint, isn't persisted */
         return Collections.emptyList();
+    }
+
+    @Override
+    public void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        /* No checkpoint, isn't persisted */
     }
 
     @Override

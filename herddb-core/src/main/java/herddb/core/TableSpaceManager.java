@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -49,6 +50,7 @@ import herddb.client.ClientSideMetadataProviderException;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
+import herddb.core.AbstractTableManager.TableCheckpoint;
 import herddb.core.stats.TableManagerStats;
 import herddb.core.stats.TableSpaceManagerStats;
 import herddb.core.system.SysclientsTableManager;
@@ -260,7 +262,7 @@ public class TableSpaceManager {
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
         }
-        checkpoint();
+        checkpoint(false,false);
 
     }
 
@@ -688,7 +690,7 @@ public class TableSpaceManager {
             AbstractTableManager tableManager = tables.get(table);
             if (tableManager != null) {
                 try {
-                    tableManager.checkpoint(log.getLastSequenceNumber());
+                    tableManager.checkpoint(false);
                 } catch (DataStorageManagerException ex) {
                     LOGGER.log(Level.SEVERE, "Bad error on table checkpoint", ex);
                 }
@@ -739,8 +741,9 @@ public class TableSpaceManager {
 
     void dumpTableSpace(String dumpId, Channel _channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
 
-        checkpoint();
         LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize + ", includeLog:" + includeLog);
+
+        TableSpaceCheckpoint checkpoint;
 
         List<DumpedLogEntry> txlogentries = new CopyOnWriteArrayList<>();
         CommitLogListener logDumpReceiver = new CommitLogListener() {
@@ -752,11 +755,27 @@ public class TableSpaceManager {
                 LOGGER.log(Level.SEVERE, "dumping entry " + logPos + ", " + data + " nentries: " + txlogentries.size());
             }
         };
-        generalLock.readLock().lock();
+
+        generalLock.writeLock().lock();
+
         try {
+
             if (includeLog) {
                 log.attachCommitLogListener(logDumpReceiver);
             }
+
+            checkpoint = checkpoint(true,true);
+
+            /* Downgrade lock */
+            generalLock.readLock().lock();
+
+        } finally {
+            generalLock.writeLock().unlock();
+        }
+
+
+        try {
+
             final int timeout = 60000;
             Map<String, Object> startData = new HashMap<>();
             startData.put("command", "start");
@@ -782,13 +801,15 @@ public class TableSpaceManager {
                 sendTransactionsDump(batch, _channel, dumpId, timeout, response_to_start);
             }
 
-            for (AbstractTableManager tableManager : tables.values()) {
+            for (Entry<String,LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
+                final AbstractTableManager tableManager = tables.get(entry.getKey());
+                final LogSequenceNumber sequenceNumber = entry.getValue();
                 if (tableManager.isSystemTable()) {
                     continue;
                 }
                 try {
                     FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, _channel, dumpId, timeout, fetchSize);
-                    tableManager.dump(sink);
+                    tableManager.dump(sequenceNumber,sink);
                 } catch (DataStorageManagerException err) {
                     Map<String, Object> errorOnData = new HashMap<>();
                     errorOnData.put("command", "error");
@@ -817,8 +838,13 @@ public class TableSpaceManager {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId);
         } finally {
             generalLock.readLock().unlock();
+
             if (includeLog) {
                 log.removeCommitLogListener(logDumpReceiver);
+            }
+
+            for(Entry<String,LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
+                dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, entry.getKey(), entry.getValue());
             }
         }
 
@@ -859,7 +885,7 @@ public class TableSpaceManager {
     public void restoreFinished() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
         transactions.clear();
-        checkpoint();
+        checkpoint(false,false);
     }
 
     public boolean isVirtual() {
@@ -1230,7 +1256,19 @@ public class TableSpaceManager {
         }
     }
 
-    LogSequenceNumber checkpoint() throws DataStorageManagerException, LogNotAvailableException {
+    private static final class TableSpaceCheckpoint {
+        private final LogSequenceNumber sequenceNumber;
+        private final Map<String,LogSequenceNumber> tablesCheckpoints;
+
+        public TableSpaceCheckpoint(LogSequenceNumber sequenceNumber,
+                Map<String, LogSequenceNumber> tablesCheckpoints) {
+            super();
+            this.sequenceNumber = sequenceNumber;
+            this.tablesCheckpoints = tablesCheckpoints;
+        }
+    }
+
+    TableSpaceCheckpoint checkpoint(boolean full, boolean pin) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
             return null;
         }
@@ -1238,13 +1276,15 @@ public class TableSpaceManager {
         LogSequenceNumber logSequenceNumber;
         LogSequenceNumber _logSequenceNumber;
         List<PostCheckpointAction> actions = new ArrayList<>();
+        Map<String,LogSequenceNumber> checkpoints = new HashMap<>();
+
         generalLock.writeLock().lock();
         try {
             logSequenceNumber = log.getLastSequenceNumber();
 
             if (logSequenceNumber.isStartOfTime()) {
                 LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
-                return logSequenceNumber;
+                return new TableSpaceCheckpoint(logSequenceNumber,checkpoints);
             }
             LOGGER.log(Level.SEVERE, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
             if (actualLogSequenceNumber == null) {
@@ -1261,9 +1301,15 @@ public class TableSpaceManager {
             for (AbstractTableManager tableManager : tables.values()) {
                 // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
                 // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
-                LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
-                List<PostCheckpointAction> postCheckPointActions = tableManager.checkpoint(sequenceNumber);
-                actions.addAll(postCheckPointActions);
+
+                if (!tableManager.isSystemTable()) {
+                    TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
+
+                    if (checkpoint != null) {
+                        actions.addAll(checkpoint.actions);
+                        checkpoints.put(checkpoint.tableName, checkpoint.sequenceNumber);
+                    }
+                }
             }
 
             /* Indexes checkpoint is handled by TableManagers */
@@ -1288,7 +1334,7 @@ public class TableSpaceManager {
             + ", finished at " + _logSequenceNumber
             + ", total time " + (_stop - _start) + " ms");
 
-        return logSequenceNumber;
+        return new TableSpaceCheckpoint(logSequenceNumber,checkpoints);
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {

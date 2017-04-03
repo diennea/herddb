@@ -209,7 +209,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for index " + index.name + " skipped, this index is created on transaction " + createdInTransaction + " which is not committed");
             return Collections.emptyList();
@@ -237,9 +237,14 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         long pageId = newPageId.getAndIncrement();
         dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, data);
         IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), Collections.singleton(pageId), null);
-        result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus));
+        result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus, pin));
         LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries, page {2}", new Object[]{index.name, count + "", pageId + ""});
         return result;
+    }
+
+    @Override
+    public void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        dataStorageManager.unPinIndexCheckpoint(tableSpaceUUID, index.name, sequenceNumber);
     }
 
     @Override

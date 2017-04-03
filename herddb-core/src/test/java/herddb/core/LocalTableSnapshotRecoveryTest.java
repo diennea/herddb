@@ -81,7 +81,7 @@ public class LocalTableSnapshotRecoveryTest {
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             TestUtils.execute(manager, "INSERT INTO t1(id,name) values(?,?)", Arrays.asList("a", "b"));
-            manager.getTableSpaceManager(TableSpace.DEFAULT).checkpoint();
+            manager.getTableSpaceManager(TableSpace.DEFAULT).checkpoint(false,false);
             TestUtils.execute(manager, "INSERT INTO t1(id,name) values(?,?)", Arrays.asList("c", "d"));
             manager.getTableSpaceManager(TableSpace.DEFAULT).getTableManager("t1").flush();
             TestUtils.execute(manager, "INSERT INTO t1(id,name) values(?,?)", Arrays.asList("e", "f"));

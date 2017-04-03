@@ -52,7 +52,13 @@ public interface KeyToPageIndex extends AutoCloseable {
     /**
      * Ensures that all data is persisted to memory
      */
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException;
+
+    /**
+     * Unpin a previously pinned checkpont (see {@link #checkpoint(LogSequenceNumber, boolean)})
+     * @throws DataStorageManagerException
+     */
+    public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     public void truncate();
 

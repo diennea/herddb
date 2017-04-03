@@ -44,16 +44,14 @@ public class TableStatus {
     public final LogSequenceNumber sequenceNumber;
     public final byte[] nextPrimaryKeyValue;
     public final Map<Long,DataPageMetaData> activePages;
-    public final Map<Long,Long> dirtyPages;
     public final long nextPageId;
 
     public TableStatus(String tableName, LogSequenceNumber sequenceNumber, byte[] nextPrimaryKeyValue, long nextPageId,
-            Map<Long,DataPageMetaData> activePages, Map<Long,Long> dirtyPages) {
+            Map<Long,DataPageMetaData> activePages) {
         this.tableName = tableName;
         this.sequenceNumber = sequenceNumber;
         this.nextPrimaryKeyValue = nextPrimaryKeyValue;
         this.activePages = activePages;
-        this.dirtyPages = dirtyPages;
         this.nextPageId = nextPageId;
     }
 
@@ -71,14 +69,6 @@ public class TableStatus {
             /* metadata */
             active.getValue().serialize(output);
         }
-
-        output.writeVInt(dirtyPages.size());
-        for (Entry<Long,Long> dirty : dirtyPages.entrySet()) {
-            /* id */
-            output.writeVLong(dirty.getKey());
-            /* metadata */
-            output.writeVLong(dirty.getValue());
-        }
     }
 
     public static TableStatus deserialize(ExtendedDataInputStream in) throws IOException {
@@ -89,17 +79,11 @@ public class TableStatus {
         byte[] nextPrimaryKeyValue = in.readArray();
 
         int numActivePages = in.readVInt();
-        Map<Long,DataPageMetaData> activePages = new HashMap<>();
+        Map<Long,DataPageMetaData> activePages = new HashMap<>(numActivePages);
         for (int i = 0; i < numActivePages; i++) {
             activePages.put(in.readVLong(), DataPageMetaData.deserialize(in));
         }
-
-        int numDirtyPages = in.readVInt();
-        Map<Long,Long> dirtyPages = new HashMap<>();
-        for (int i = 0; i < numDirtyPages; i++) {
-            dirtyPages.put(in.readVLong(), in.readVLong());
-        }
-        return new TableStatus(tableName, new LogSequenceNumber(ledgerId, offset), nextPrimaryKeyValue, nextPageId, activePages, dirtyPages);
+        return new TableStatus(tableName, new LogSequenceNumber(ledgerId, offset), nextPrimaryKeyValue, nextPageId, activePages);
     }
 
     @Override
@@ -108,7 +92,6 @@ public class TableStatus {
                     ", sequenceNumber=" + sequenceNumber +
                     ", nextPageId=" + nextPageId +
                     ", activePages=" + activePages.keySet() +
-                    ", dirtyPages=" + dirtyPages.keySet() +
                     '}';
     }
 
@@ -119,7 +102,6 @@ public class TableStatus {
         hash = 23 * hash + Objects.hashCode(this.sequenceNumber);
         hash = 23 * hash + Arrays.hashCode(this.nextPrimaryKeyValue);
         hash = 23 * hash + Objects.hashCode(this.activePages);
-        hash = 23 * hash + Objects.hashCode(this.dirtyPages);
         hash = 23 * hash + (int) (this.nextPageId ^ (this.nextPageId >>> 32));
         return hash;
     }
@@ -149,9 +131,6 @@ public class TableStatus {
             return false;
         }
         if (!Objects.equals(this.activePages, other.activePages)) {
-            return false;
-        }
-        if (!Objects.equals(this.dirtyPages, other.dirtyPages)) {
             return false;
         }
         return true;

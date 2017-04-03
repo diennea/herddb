@@ -108,7 +108,13 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      * @return
      * @throws DataStorageManagerException
      */
-    public abstract List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    public abstract List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException;
+
+    /**
+     * Unpin a previously pinned checkpont (see {@link #checkpoint(LogSequenceNumber, boolean)})
+     * @throws DataStorageManagerException
+     */
+    public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     /**
      * Basic function of the index. The index returns the list of PKs of the table which match the predicate

@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
@@ -93,8 +94,9 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public int getActualNumberOfPages(String tableSpace, String tableName) throws DataStorageManagerException {
         int res = 0;
+        final String prefix = tableSpace + "." + tableName + "_";
         for (String key : pages.keySet()) {
-            if (key.startsWith(tableSpace + "." + tableName + "_")) {
+            if (key.startsWith(prefix)) {
                 res++;
             }
         }
@@ -128,24 +130,68 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
 
-        byte[] data = tableStatuses.get(tableSpace + "." + tableName);
-        TableStatus latestStatus;
-        if (data == null) {
-            latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                    Bytes.from_long(1).data, 1,
-                    Collections.emptyMap(), Collections.emptyMap());
-        } else {
-            try {
-                try (InputStream input = new SimpleByteArrayInputStream(data);
-                    ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
-                    latestStatus = TableStatus.deserialize(dataIn);
+        LogSequenceNumber max = null;
+        String prefix = tableSpace + "." + tableName + "_";
+        for(String status : tableStatuses.keySet()) {
+            if (status.startsWith(prefix)) {
+                final String[] logSequence = prefix.substring(0, prefix.length()).split(".");
+                if (logSequence.length == 2) {
+                    long ledgerId = Long.parseLong(logSequence[0]);
+                    long offset = Long.parseLong(logSequence[1]);
+
+                    LogSequenceNumber log = new LogSequenceNumber(ledgerId, offset);
+
+                    if (max == null || log.after(max)) {
+                        max = log;
+                    }
                 }
-            } catch (IOException err) {
-                throw new DataStorageManagerException(err);
+            }
+        }
+
+        TableStatus latestStatus;
+        if (max == null) {
+            latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
+                    Bytes.from_long(1).data, 1, Collections.emptyMap());
+        } else {
+            byte[] data = tableStatuses.get(checkpointName(tableSpace, tableName, max));
+            if (data == null) {
+                latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
+                        Bytes.from_long(1).data, 1, Collections.emptyMap());
+            } else {
+                try {
+                    try (InputStream input = new SimpleByteArrayInputStream(data);
+                        ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                        latestStatus = TableStatus.deserialize(dataIn);
+                    }
+                } catch (IOException err) {
+                    throw new DataStorageManagerException(err);
+                }
             }
         }
 
         return latestStatus;
+    }
+
+    @Override
+    public TableStatus getTableStatus(String tableSpace, String tableName, LogSequenceNumber sequenceNumber)
+            throws DataStorageManagerException {
+
+        final String checkPoint = checkpointName(tableSpace, tableName, sequenceNumber);
+        byte[] data = tableStatuses.get(checkPoint);
+
+
+        if (data == null) {
+            throw new DataStorageManagerException("no such tablee checkpoint: " + checkPoint );
+        }
+
+        try {
+            try (InputStream input = new SimpleByteArrayInputStream(data);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                return TableStatus.deserialize(dataIn);
+            }
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
     }
 
     @Override
@@ -172,10 +218,20 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public void fullTableScan(String tableSpace, String tableName, FullTableScanConsumer consumer) throws DataStorageManagerException {
-        TableStatus ts = getLatestTableStatus(tableSpace, tableName);
-        consumer.acceptTableStatus(ts);
+        TableStatus status = getLatestTableStatus(tableSpace, tableName);
+        fullTableScan(tableSpace, tableName, status, consumer);
+    }
 
-        List<Long> activePages = new ArrayList<>(ts.activePages.keySet());
+    @Override
+    public void fullTableScan(String tableSpace, String tableName, LogSequenceNumber sequenceNumber, FullTableScanConsumer consumer) throws DataStorageManagerException {
+        TableStatus status = getTableStatus(tableSpace, tableName, sequenceNumber);
+        fullTableScan(tableSpace, tableName, status, consumer);
+    }
+
+    private void fullTableScan(String tableSpace, String tableName, TableStatus status, FullTableScanConsumer consumer) {
+        consumer.acceptTableStatus(status);
+
+        List<Long> activePages = new ArrayList<>(status.activePages.keySet());
         activePages.sort(null);
         for (long idpage : activePages) {
             List<Record> records = readPage(tableSpace, tableName, idpage);
@@ -211,14 +267,21 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus) throws DataStorageManagerException {
+    public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, boolean pin) throws DataStorageManagerException {
+
+        /* Checkpoint pinning */
+
+        final Map<Long,Integer> pins = pinTableAndGetPages(tableSpace, tableName, tableStatus, pin);
+        final Set<LogSequenceNumber> checkpoints = pinTableAndGetCheckpoints(tableSpace, tableName, tableStatus, pin);
 
         List<Long> pagesForTable = new ArrayList<>();
         String prefix = tableSpace + "." + tableName + "_";
         for (String key : pages.keySet()) {
             if (key.startsWith(prefix)) {
                 long pageId = Long.parseLong(key.substring(prefix.length()));
-                pagesForTable.add(pageId);
+                if (!pins.containsKey(pageId)) {
+                    pagesForTable.add(pageId);
+                }
             }
         }
 
@@ -236,6 +299,32 @@ public class MemoryDataStorageManager extends DataStorageManager {
             });
         }
 
+        for(String oldStatus : tableStatuses.keySet()) {
+            if ( oldStatus.startsWith(prefix) ) {
+
+                final String[] logSequence = oldStatus.substring(0, prefix.length()).split(".");
+
+                /* Check for checkpoint skip only if match expected structure */
+                if (logSequence.length == 2) {
+                    long ledgerId = Long.parseLong(logSequence[0]);
+                    long offset = Long.parseLong(logSequence[1]);
+
+                    /* If is pinned skip this status*/
+                    if (checkpoints.contains(new LogSequenceNumber(ledgerId, offset))) {
+                        continue;
+                    }
+                }
+
+                result.add(new PostCheckpointAction(tableName, "drop table checkpoint " + oldStatus) {
+                    @Override
+                    public void run() {
+                        // remove only after checkpoint completed
+                        tableStatuses.remove(oldStatus);
+                    }
+                });
+            }
+        }
+
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
             tableStatus.serialize(dataOutputKeys);
@@ -246,20 +335,27 @@ public class MemoryDataStorageManager extends DataStorageManager {
         }
 
         /* Uses a copy to limit byte[] size at the min needed */
-        tableStatuses.put(tableSpace + "." + tableName, oo.toByteArray());
+        tableStatuses.put(checkpointName(tableSpace, tableName, tableStatus.sequenceNumber), oo.toByteArray());
 
         return result;
     }
 
     @Override
-    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus) throws DataStorageManagerException {
+    public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus, boolean pin) throws DataStorageManagerException {
+
+        /* Checkpoint pinning */
+
+        final Map<Long,Integer> pins = pinIndexAndGetPages(tableSpace, indexName, indexStatus, pin);
+        final Set<LogSequenceNumber> checkpoints = pinIndexAndGetCheckpoints(tableSpace, indexName, indexStatus, pin);
 
         List<Long> pagesForIndex = new ArrayList<>();
         String prefix = tableSpace + "." + indexName + "_";
         for (String key : indexpages.keySet()) {
             if (key.startsWith(prefix)) {
                 long pageId = Long.parseLong(key.substring(prefix.length()));
-                pagesForIndex.add(pageId);
+                if (!pins.containsKey(pageId)) {
+                    pagesForIndex.add(pageId);
+                }
             }
         }
 
@@ -278,6 +374,20 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
         for(String oldStatus : indexStatuses.keySet()) {
             if ( oldStatus.startsWith(prefix) ) {
+
+                final String[] logSequence = oldStatus.substring(0, prefix.length()).split(".");
+
+                /* Check for checkpoint skip only if match expected structure */
+                if (logSequence.length == 2) {
+                    long ledgerId = Long.parseLong(logSequence[0]);
+                    long offset = Long.parseLong(logSequence[1]);
+
+                    /* If is pinned skip this status*/
+                    if (checkpoints.contains(new LogSequenceNumber(ledgerId, offset))) {
+                        continue;
+                    }
+                }
+
                 result.add(new PostCheckpointAction(indexName, "drop index checkpoint " + oldStatus) {
                     @Override
                     public void run() {

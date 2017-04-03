@@ -839,7 +839,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
         for (TableSpaceManager man : tablesSpaces.values()) {
-            man.checkpoint();
+            man.checkpoint(false,false);
         }
     }
 

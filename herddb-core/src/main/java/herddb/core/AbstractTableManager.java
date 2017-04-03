@@ -69,9 +69,12 @@ public interface AbstractTableManager extends AutoCloseable {
 
     public void flush() throws DataStorageManagerException;
 
-    public void dump(FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
+    public void dump(LogSequenceNumber sequenceNumber, FullTableScanConsumer dataReceiver) throws DataStorageManagerException;
 
-    public List<PostCheckpointAction> checkpoint(LogSequenceNumber logSequenceNumber) throws DataStorageManagerException;
+    /**
+     * Perform a faster checkpoint
+     */
+    public TableCheckpoint checkpoint(boolean pin) throws DataStorageManagerException;
 
     /**
      * Performs a full deep checkpoint cleaning as much space as possible.
@@ -80,7 +83,13 @@ public interface AbstractTableManager extends AutoCloseable {
      * can resolve to perform a normal checkpoint if they need for internal logic.
      * </p>
      */
-    public List<PostCheckpointAction> fullCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    public TableCheckpoint fullCheckpoint(boolean pin) throws DataStorageManagerException;
+
+    /**
+     * Unpin a previously pinned checkpont (see {@link #checkpoint(boolean)})
+     * @throws DataStorageManagerException
+     */
+    public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     public void dropTableData() throws DataStorageManagerException;
 
@@ -98,5 +107,18 @@ public interface AbstractTableManager extends AutoCloseable {
 
     public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
+
+    static final class TableCheckpoint {
+        final String tableName;
+        final LogSequenceNumber sequenceNumber;
+        final List<PostCheckpointAction> actions;
+
+        public TableCheckpoint(String tableName, LogSequenceNumber sequenceNumber, List<PostCheckpointAction> actions) {
+            super();
+            this.tableName = tableName;
+            this.sequenceNumber = sequenceNumber;
+            this.actions = actions;
+        }
+    }
 
 }

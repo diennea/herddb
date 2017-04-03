@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.model.Record;
@@ -42,41 +41,48 @@ public final class PageSet {
 
     private static final Logger LOGGER = Logger.getLogger(PageSet.class.getName());
 
-    /** Dirty pages map (dirty/dirtysize)*/
-    private final Map<Long,LongAdder> dirtyPages = new ConcurrentHashMap<>();
-
-    /** Active stored pages (active/size+avg)*/
+    /** Active stored pages (active/size,average-record-size,dirt,hasDeletions)*/
     private final Map<Long,DataPageMetaData> activePages = new ConcurrentHashMap<>();
 
     public static final class DataPageMetaData {
 
         final long size;
         final long avgRecordSize;
-
-        public DataPageMetaData(long size, long avgRecordSize) {
-            super();
-            this.size = size;
-            this.avgRecordSize = avgRecordSize;
-        }
+        final LongAdder dirt;
 
         public DataPageMetaData(DataPage page) {
             super();
             this.size = page.getUsedMemory();
             this.avgRecordSize = size / page.data.size();
+            this.dirt = new LongAdder();
+        }
+
+
+        private DataPageMetaData(long size, long avgRecordSize, long dirt) {
+            super();
+            this.size = size;
+            this.avgRecordSize = avgRecordSize;
+            this.dirt = new LongAdder();
+            this.dirt.add(dirt);
         }
 
         public void serialize(ExtendedDataOutputStream output) throws IOException {
             output.writeVLong(size);
             output.writeVLong(avgRecordSize);
+            output.writeVLong(dirt.sum());
         }
 
         public static final DataPageMetaData deserialize(ExtendedDataInputStream input) throws IOException {
-            return new DataPageMetaData(input.readVLong(), input.readVLong());
+            return new DataPageMetaData(input.readVLong(), input.readVLong(), input.readVLong());
         }
 
         @Override
         public String toString() {
-            return '[' + Long.toString(size) + ',' + Long.toString(avgRecordSize) + ']';
+            return '[' +
+                    Long.toString(size) + ',' +
+                    Long.toString(avgRecordSize)  + ',' +
+                    Long.toString(dirt.sum()) + ',' +
+                    ']';
         }
 
     }
@@ -84,16 +90,6 @@ public final class PageSet {
         this.activePages.clear();
         this.activePages.putAll(activePagesAtBoot);
     }
-
-    void setDirtyPagesAtBoot(Map<Long,Long> dirtyPagesAtBoot) {
-        this.dirtyPages.clear();
-        dirtyPagesAtBoot.forEach((k,v) -> {
-            LongAdder dirtiness = new LongAdder();
-            dirtiness.add(v);
-            dirtyPages.put(k, dirtiness);
-        });
-    }
-
 
     Map<Long,DataPageMetaData> getActivePages() {
         return new HashMap<>(activePages);
@@ -104,21 +100,17 @@ public final class PageSet {
     }
 
     void truncate() {
-        dirtyPages.clear();
         activePages.clear();
     }
 
     void setPageDirty(Long pageId) {
         final DataPageMetaData metadata = activePages.get(pageId);
-        setPageDirty(pageId, metadata.avgRecordSize);
+        metadata.dirt.add(metadata.avgRecordSize);
     }
 
     void setPageDirty(Long pageId, long size) {
-        final LongAdder dirtiness = dirtyPages.computeIfAbsent(pageId, k -> {
-            LOGGER.log(Level.FINEST, "now page " + pageId + " is dirty");
-            return new LongAdder();
-        });
-        dirtiness.add(size);
+        final DataPageMetaData metadata = activePages.get(pageId);
+        metadata.dirt.add(size);
     }
 
     void setPageDirty(Long pageId, Record dirtyRecord) {
@@ -131,28 +123,19 @@ public final class PageSet {
 
     @Override
     public String toString() {
-        return "PageSet{" + "dirtyPages=" + dirtyPages + ", activePages=" + activePages + "}";
+        return "PageSet{" + activePages + "}";
     }
 
     int getDirtyPagesCount() {
-        return dirtyPages.size();
-    }
-
-    Map<Long,Long> getDirtyPages() {
-        Map<Long,Long> map = new HashMap<>();
-        dirtyPages.forEach((k,v) -> map.put(k,v.sum()));
-        return map;
+        return activePages.values().stream().mapToInt(meta -> meta.dirt.sum() > 0 ? 1 : 0).sum();
     }
 
     void pageCreated(Long pageId, DataPage page) {
         activePages.put(pageId, new DataPageMetaData(page));
     }
 
-    void checkpointDone(Collection<Long> dirtyPagesFlushed) {
-        activePages.keySet().removeAll(dirtyPagesFlushed);
-        dirtyPages.keySet().removeAll(dirtyPagesFlushed);
-        LOGGER.log(Level.SEVERE, "checkpointDone " + dirtyPagesFlushed.size() + ", now activePages:"
-                + activePages.size() + " dirty " + dirtyPages.size());
+    void checkpointDone(Collection<Long> pagesFlushed) {
+        activePages.keySet().removeAll(pagesFlushed);
     }
 
 }
