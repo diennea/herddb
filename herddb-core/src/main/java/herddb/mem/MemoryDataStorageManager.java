@@ -34,6 +34,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import herddb.core.MemoryManager;
 import herddb.core.PostCheckpointAction;
@@ -127,6 +129,26 @@ public class MemoryDataStorageManager extends DataStorageManager {
         return page.data;
     }
 
+    private static final Pattern LOG_SEQUENCE_PATTERN = Pattern.compile("(?<ledgerId>\\d+)\\.(?<offset>\\d+)");
+
+    private LogSequenceNumber evaluateLogSequenceNumber(String string) {
+
+        final Matcher matcher = LOG_SEQUENCE_PATTERN.matcher(string);
+
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        try {
+            long ledgerId = Long.parseLong(matcher.group("ledgerId"));
+            long offset = Long.parseLong(matcher.group("offset"));
+
+            return new LogSequenceNumber(ledgerId, offset);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     @Override
     public TableStatus getLatestTableStatus(String tableSpace, String tableName) throws DataStorageManagerException {
 
@@ -134,13 +156,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
         String prefix = tableSpace + "." + tableName + "_";
         for(String status : tableStatuses.keySet()) {
             if (status.startsWith(prefix)) {
-                final String[] logSequence = prefix.substring(0, prefix.length()).split(".");
-                if (logSequence.length == 2) {
-                    long ledgerId = Long.parseLong(logSequence[0]);
-                    long offset = Long.parseLong(logSequence[1]);
-
-                    LogSequenceNumber log = new LogSequenceNumber(ledgerId, offset);
-
+                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
+                if (log != null) {
                     if (max == null || log.after(max)) {
                         max = log;
                     }
@@ -302,15 +319,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
         for(String oldStatus : tableStatuses.keySet()) {
             if ( oldStatus.startsWith(prefix) ) {
 
-                final String[] logSequence = oldStatus.substring(0, prefix.length()).split(".");
-
                 /* Check for checkpoint skip only if match expected structure */
-                if (logSequence.length == 2) {
-                    long ledgerId = Long.parseLong(logSequence[0]);
-                    long offset = Long.parseLong(logSequence[1]);
-
+                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
+                if (log != null) {
                     /* If is pinned skip this status*/
-                    if (checkpoints.contains(new LogSequenceNumber(ledgerId, offset))) {
+                    if (checkpoints.contains(log)) {
                         continue;
                     }
                 }
@@ -375,15 +388,11 @@ public class MemoryDataStorageManager extends DataStorageManager {
         for(String oldStatus : indexStatuses.keySet()) {
             if ( oldStatus.startsWith(prefix) ) {
 
-                final String[] logSequence = oldStatus.substring(0, prefix.length()).split(".");
-
                 /* Check for checkpoint skip only if match expected structure */
-                if (logSequence.length == 2) {
-                    long ledgerId = Long.parseLong(logSequence[0]);
-                    long offset = Long.parseLong(logSequence[1]);
-
+                final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
+                if (log != null) {
                     /* If is pinned skip this status*/
-                    if (checkpoints.contains(new LogSequenceNumber(ledgerId, offset))) {
+                    if (checkpoints.contains(log)) {
                         continue;
                     }
                 }
