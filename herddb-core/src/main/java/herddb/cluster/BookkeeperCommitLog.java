@@ -88,6 +88,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
         private volatile LedgerHandle out;
         private final long ledgerId;
+        private volatile boolean errorOccurredDuringWrite;
 
         private CommitFileWriter() throws LogNotAvailableException {
             try {
@@ -110,6 +111,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 if (rc == BKException.Code.OK) {
                     res.complete(new LogSequenceNumber(lh.getId(), offset));
                 } else {
+                    errorOccurredDuringWrite = true;
                     res.completeExceptionally(BKException.create(rc));
                 }
             }, null);
@@ -123,9 +125,14 @@ public class BookkeeperCommitLog extends CommitLog {
                 return;
             }
             try {
-                LOGGER.log(Level.SEVERE, "Closing ledger " + out.getId() + ", with LastAddConfirmed=" + out.getLastAddConfirmed()
-                    + ", LastAddPushed=" + out.getLastAddPushed() + " length=" + out.getLength());
-                out.close();
+                LOGGER.log(Level.SEVERE, "Closing ledger " + out.getId()
+                    + ", with LastAddConfirmed=" + out.getLastAddConfirmed()
+                    + ", LastAddPushed=" + out.getLastAddPushed()
+                    + " length=" + out.getLength()
+                    + ", errorOccurred:" + errorOccurredDuringWrite);
+                if (!errorOccurredDuringWrite) {
+                    out.close();
+                }
             } catch (InterruptedException | BKException err) {
                 throw new LogNotAvailableException(err);
             } finally {
