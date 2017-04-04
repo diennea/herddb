@@ -19,6 +19,18 @@
  */
 package herddb.model;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.collections.map.HashedMap;
+
 import herddb.core.HerdDBInternalException;
 import herddb.log.CommitLogResult;
 import herddb.log.LogNotAvailableException;
@@ -30,17 +42,6 @@ import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import org.apache.commons.collections.map.HashedMap;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID semantics on a set of tables of the
@@ -299,14 +300,15 @@ public class Transaction {
     }
 
     public synchronized void serialize(ExtendedDataOutputStream out) throws IOException {
-        out.writeInt(0); // flags        
-        out.writeLong(transactionId);
+        out.writeVLong(1); // version
+        out.writeVLong(0); // flags for future implementations
+        out.writeZLong(transactionId);
         if (lastSequenceNumber != null) {
-            out.writeLong(lastSequenceNumber.ledgerId);
-            out.writeLong(lastSequenceNumber.offset);
+            out.writeZLong(lastSequenceNumber.ledgerId);
+            out.writeZLong(lastSequenceNumber.offset);
         } else {
-            out.writeLong(0);
-            out.writeLong(0);
+            out.writeZLong(0);
+            out.writeZLong(0);
         }
         out.writeVInt(changedRecords.size());
         for (Map.Entry<String, Map<Bytes, Record>> table : changedRecords.entrySet()) {
@@ -378,10 +380,14 @@ public class Transaction {
     }
 
     public static Transaction deserialize(String tableSpace, ExtendedDataInputStream in) throws IOException {
-        in.readInt(); // flags
-        long id = in.readLong();
-        long ledgerId = in.readLong();
-        long offset = in.readLong();
+        long version = in.readVLong(); // version
+        long flags = in.readVLong(); // flags for future implementations
+        if (version != 1 || flags != 0) {
+            throw new IOException("corrupted transaction file");
+        }
+        long id = in.readZLong();
+        long ledgerId = in.readZLong();
+        long offset = in.readZLong();
         LogSequenceNumber lastSequenceNumber = new LogSequenceNumber(ledgerId, offset);
         Transaction t = new Transaction(id, tableSpace, new CommitLogResult(lastSequenceNumber, false));
         int size = in.readVInt();

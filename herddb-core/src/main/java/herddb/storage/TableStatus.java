@@ -56,6 +56,8 @@ public class TableStatus {
     }
 
     public void serialize(ExtendedDataOutputStream output) throws IOException {
+        output.writeVLong(1); // version
+        output.writeVLong(0); // flags for future implementations
         output.writeUTF(tableName);
         output.writeLong(sequenceNumber.ledgerId);
         output.writeLong(sequenceNumber.offset);
@@ -72,6 +74,11 @@ public class TableStatus {
     }
 
     public static TableStatus deserialize(ExtendedDataInputStream in) throws IOException {
+        long version = in.readVLong(); // version
+        long flags = in.readVLong(); // flags for future implementations
+        if (version != 1 || flags != 0) {
+            throw new DataStorageManagerException("corrupted table status");
+        }
         String tableName = in.readUTF();
         long ledgerId = in.readLong();
         long offset = in.readLong();

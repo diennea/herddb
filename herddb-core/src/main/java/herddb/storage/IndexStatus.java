@@ -54,6 +54,8 @@ public class IndexStatus {
 
 
     public void serialize(ExtendedDataOutputStream output) throws IOException {
+        output.writeVLong(1); // version
+        output.writeVLong(0); // flags for future implementations
         output.writeUTF(indexName);
         output.writeLong(sequenceNumber.ledgerId);
         output.writeLong(sequenceNumber.offset);
@@ -67,6 +69,11 @@ public class IndexStatus {
     }
 
     public static IndexStatus deserialize(ExtendedDataInputStream in) throws IOException {
+        long version = in.readVLong(); // version
+        long flags = in.readVLong(); // flags for future implementations
+        if (version != 1 || flags != 0) {
+            throw new DataStorageManagerException("corrupted index status");
+        }
         String indexName = in.readUTF();
         long ledgerId = in.readLong();
         long offset = in.readLong();

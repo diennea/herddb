@@ -120,13 +120,19 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
+    public  <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader)
+            throws DataStorageManagerException {
         Bytes page = indexpages.get(tableSpace + "." + indexName + "_" + pageId);
         //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         if (page == null) {
             throw new DataStorageManagerException("No such page: " + tableSpace + "." + indexName + " page " + pageId);
         }
-        return page.data;
+        try (SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(page.data);
+             ExtendedDataInputStream ein = new ExtendedDataInputStream(in)){
+            return reader.read(ein);
+        } catch (IOException e) {
+            throw new DataStorageManagerException(e);
+        }
     }
 
     private static final Pattern LOG_SEQUENCE_PATTERN = Pattern.compile("(?<ledgerId>\\d+)\\.(?<offset>\\d+)");
@@ -270,16 +276,22 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page) throws DataStorageManagerException {
-        Bytes page_wrapper = Bytes.from_array(page);
-        indexpages.put(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
-    }
+    public void writeIndexPage(String tableSpace, String indexName,
+        long pageId, DataWriter writer) throws DataStorageManagerException {
 
-    @Override
-    public void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page, int offset, int len) throws DataStorageManagerException {
-        byte[] data = new byte[len];
-        System.arraycopy(page, offset, data, 0, len);
-        Bytes page_wrapper = Bytes.from_array(data);
+        Bytes page_wrapper;
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
+             ExtendedDataOutputStream eout = new ExtendedDataOutputStream(out)){
+
+            writer.write(eout);
+
+            eout.flush();
+
+            page_wrapper = Bytes.from_array(out.toByteArray());
+        } catch (IOException ex) {
+            throw new DataStorageManagerException(ex);
+        }
+
         indexpages.put(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
     }
 

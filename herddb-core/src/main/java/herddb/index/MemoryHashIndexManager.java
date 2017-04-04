@@ -19,10 +19,9 @@
  */
 package herddb.index;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +31,8 @@ import java.util.function.Predicate;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
+
+import javax.xml.ws.Holder;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
@@ -51,9 +52,6 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
 
 /**
  * HASH index. The index resides entirely in memory. It is serialized fully on the IndexStatus structure
@@ -85,27 +83,32 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.name, sequenceNumber);
 
             for(long pageId : status.activePages) {
-                byte[] pagedata = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId);
+                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", load " + pageId);
 
-                LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", load " + pageId + " pagedata size: " + pagedata.length);
+                Map<Bytes,List<Bytes>> read = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId, in -> {
+                    Map<Bytes,List<Bytes>> deserialized = new HashMap<>();
 
-                SimpleByteArrayInputStream indexData = new SimpleByteArrayInputStream(pagedata);
-                try (ExtendedDataInputStream oo = new ExtendedDataInputStream(indexData)) {
-                    int size = oo.readVIntNoEOFException();
+                    long version = in.readVLong(); // version
+                    long flags = in.readVLong(); // flags for future implementations
+                    if (version != 1 || flags != 0) {
+                        throw new DataStorageManagerException("corrupted index page");
+                    }
+                    int size = in.readVInt();
                     for (int i = 0; i < size; i++) {
-                        byte[] indexKey = oo.readArray();
-                        int entrySize = oo.readVInt();
+                        byte[] indexKey = in.readArray();
+                        int entrySize = in.readVInt();
                         List<Bytes> value = new ArrayList<>(entrySize);
                         for (int kk = 0; kk < entrySize; kk++) {
-                            byte[] tableKey = oo.readArray();
+                            byte[] tableKey = in.readArray();
                             value.add(Bytes.from_array(tableKey));
                         }
-                        data.put(Bytes.from_array(indexKey), value);
+                        deserialized.put(Bytes.from_array(indexKey), value);
                     }
-                } catch (IOException error) {
-                    throw new DataStorageManagerException(error);
-                }
 
+                    return deserialized;
+                });
+
+                data.putAll(read);
             }
 
             newPageId.set(status.newPageId);
@@ -217,25 +220,30 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         List<PostCheckpointAction> result = new ArrayList<>();
 
         LOGGER.log(Level.SEVERE, "flush index {0}", new Object[]{index.name});
-        ByteArrayOutputStream indexData = new ByteArrayOutputStream();
-        long count = 0;
-        try (ExtendedDataOutputStream oo = new ExtendedDataOutputStream(indexData)) {
-            oo.writeVInt(data.size());
+
+        long pageId = newPageId.getAndIncrement();
+        Holder<Long> count = new Holder<>();
+
+        dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, (out) -> {
+
+            long entries = 0;
+            out.writeVLong(1); // version
+            out.writeVLong(0); // flags for future implementations
+            out.writeVInt(data.size());
             for (Map.Entry<Bytes, List<Bytes>> entry : data.entrySet()) {
-                oo.writeArray(entry.getKey().data);
+                out.writeArray(entry.getKey().data);
                 List<Bytes> entrydata = entry.getValue();
-                oo.writeVInt(entrydata.size());
+                out.writeVInt(entrydata.size());
                 for (Bytes v : entrydata) {
-                    oo.writeArray(v.data);
-                    count++;
+                    out.writeArray(v.data);
+                    ++entries;
                 }
             }
-        } catch (IOException error) {
-            throw new DataStorageManagerException(error);
-        }
-        byte[] data = indexData.toByteArray();
-        long pageId = newPageId.getAndIncrement();
-        dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, data);
+
+            count.value = entries;
+
+        });
+
         IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), Collections.singleton(pageId), null);
         result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus, pin));
         LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries, page {2}", new Object[]{index.name, count + "", pageId + ""});

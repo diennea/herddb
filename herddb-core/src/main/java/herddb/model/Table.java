@@ -19,12 +19,6 @@
  */
 package herddb.model;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import herddb.model.commands.AlterTableStatement;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.model.commands.AlterTableStatement;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 
 /**
  * Table definition
@@ -93,6 +93,11 @@ public class Table implements ColumnsList {
         try {
             SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(data);
             ExtendedDataInputStream dii = new ExtendedDataInputStream(ii);
+            long tversion = dii.readVLong(); // version
+            long tflags = dii.readVLong(); // flags for future implementations
+            if (tversion != 1 || tflags != 0) {
+                throw new IOException("corrupted table file");
+            }
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
             boolean auto_increment = dii.readByte() > 0;
@@ -106,10 +111,14 @@ public class Table implements ColumnsList {
             int ncols = dii.readVInt();
             Column[] columns = new Column[ncols];
             for (int i = 0; i < ncols; i++) {
+                long cversion = dii.readVLong(); // version
+                long cflags = dii.readVLong(); // flags for future implementations
+                if (cversion != 1 || cflags != 0) {
+                    throw new IOException("corrupted table file");
+                }
                 String cname = dii.readUTF();
                 int type = dii.readVInt();
                 int serialPosition = dii.readVInt();
-                int flags = dii.readVInt(); // for future implementations
                 columns[i] = Column.column(cname, type, serialPosition);
             }
             return new Table(name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
@@ -121,6 +130,8 @@ public class Table implements ColumnsList {
     public byte[] serialize() {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo);) {
+            doo.writeVLong(1); // version
+            doo.writeVLong(0); // flags for future implementations
             doo.writeUTF(tablespace);
             doo.writeUTF(name);
             doo.writeByte(auto_increment ? 1 : 0);
@@ -132,10 +143,11 @@ public class Table implements ColumnsList {
             doo.writeVInt(0); // flags for future implementations
             doo.writeVInt(columns.length);
             for (Column c : columns) {
+                doo.writeVLong(1); // version
+                doo.writeVLong(0); // flags for future implementations
                 doo.writeUTF(c.name);
                 doo.writeVInt(c.type);
                 doo.writeVInt(c.serialPosition);
-                doo.writeVInt(0); // flags for future implementations
             }
         } catch (IOException ee) {
             throw new RuntimeException(ee);

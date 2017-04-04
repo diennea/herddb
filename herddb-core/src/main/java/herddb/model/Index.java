@@ -19,10 +19,6 @@
  */
 package herddb.model;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.SimpleByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +26,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 
 /**
  * Index definition
@@ -88,6 +89,11 @@ public class Index implements ColumnsList {
         try {
             SimpleByteArrayInputStream ii = new SimpleByteArrayInputStream(data);
             ExtendedDataInputStream dii = new ExtendedDataInputStream(ii);
+            long iversion = dii.readVLong(); // version
+            long iflags = dii.readVLong(); // flags for future implementations
+            if (iversion != 1 || iflags != 0) {
+                throw new IOException("corrupted index file");
+            }
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
             String table = dii.readUTF();
@@ -96,6 +102,11 @@ public class Index implements ColumnsList {
             int ncols = dii.readVInt();
             Column[] columns = new Column[ncols];
             for (int i = 0; i < ncols; i++) {
+                long cversion = dii.readVLong(); // version
+                long cflags = dii.readVLong(); // flags for future implementations
+                if (cversion != 1 || cflags != 0) {
+                    throw new IOException("corrupted index file");
+                }
                 String cname = dii.readUTF();
                 int ctype = dii.readVInt();
                 int serialPosition = dii.readVInt();
@@ -111,6 +122,8 @@ public class Index implements ColumnsList {
     public byte[] serialize() {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo);) {
+            doo.writeVLong(1); // version
+            doo.writeVLong(0); // flags for future implementations
             doo.writeUTF(tablespace);
             doo.writeUTF(name);
             doo.writeUTF(table);
@@ -118,6 +131,8 @@ public class Index implements ColumnsList {
             doo.writeUTF(type);
             doo.writeVInt(columns.length);
             for (Column c : columns) {
+                doo.writeVLong(1); // version
+                doo.writeVLong(0); // flags for future implementations
                 doo.writeUTF(c.name);
                 doo.writeVInt(c.type);
                 doo.writeVInt(c.serialPosition);

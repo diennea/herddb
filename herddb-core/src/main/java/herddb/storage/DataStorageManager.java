@@ -19,6 +19,7 @@
  */
 package herddb.storage;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -36,6 +37,8 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.Transaction;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 
 /**
  * Physical storage of data
@@ -55,7 +58,12 @@ public abstract class DataStorageManager implements AutoCloseable {
     public abstract List<Record> readPage(String tableSpace, String tableName, Long pageId)
             throws DataStorageManagerException, DataPageDoesNotExistException;
 
-    public abstract byte[] readIndexPage(String tableSpace, String indexName, Long pageId)
+    @FunctionalInterface
+    public static interface DataReader<X> {
+        public X read(ExtendedDataInputStream in) throws IOException;
+    }
+
+    public abstract <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader)
             throws DataStorageManagerException;
 
     /**
@@ -93,11 +101,12 @@ public abstract class DataStorageManager implements AutoCloseable {
     public abstract void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage)
             throws DataStorageManagerException;
 
-    public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page)
-            throws DataStorageManagerException;
+    @FunctionalInterface
+    public static interface DataWriter {
+        public void write(ExtendedDataOutputStream out) throws IOException;
+    }
 
-    public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, byte[] page, int offset,
-            int len) throws DataStorageManagerException;
+    public abstract void writeIndexPage(String tableSpace, String indexName, long pageId, DataWriter writer);
 
     /**
      * Write current table status. This operations mark the actual set of pages at a given log sequence number

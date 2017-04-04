@@ -19,21 +19,6 @@
  */
 package herddb.file;
 
-import herddb.metadata.MetadataStorageManager;
-import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.DDLException;
-import herddb.model.NodeMetadata;
-import herddb.model.TableSpace;
-import herddb.model.TableSpaceAlreadyExistsException;
-import herddb.model.TableSpaceDoesNotExistException;
-import herddb.model.TableSpaceReplicaState;
-import herddb.utils.ExtendedDataInputStream;
-import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.FileUtils;
-import herddb.utils.SimpleByteArrayInputStream;
-import herddb.utils.VisibleByteArrayOutputStream;
-import herddb.utils.XXHash64Utils;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryStream;
@@ -51,6 +36,21 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import herddb.metadata.MetadataStorageManager;
+import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.DDLException;
+import herddb.model.NodeMetadata;
+import herddb.model.TableSpace;
+import herddb.model.TableSpaceAlreadyExistsException;
+import herddb.model.TableSpaceDoesNotExistException;
+import herddb.model.TableSpaceReplicaState;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.FileUtils;
+import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.VisibleByteArrayOutputStream;
+import herddb.utils.XXHash64Utils;
 
 /**
  * Metadata on local files. Useful for single instance deplyments
@@ -205,6 +205,11 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         }
         try (InputStream in = new SimpleByteArrayInputStream(pageData);
             ExtendedDataInputStream iin = new ExtendedDataInputStream(in);) {
+            long version = iin.readVLong(); // version
+            long flags = iin.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
+                throw new IOException("corrupted data file " + p.toAbsolutePath());
+            }
             ts = TableSpace.deserialize(iin, 0);
         }
         return ts;
@@ -215,6 +220,8 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         Path file = baseDirectory.resolve(tableSpace.name + ".metadata");
         VisibleByteArrayOutputStream out = new VisibleByteArrayOutputStream(1024);
         try (ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+            dout.writeVLong(1); // version
+            dout.writeVLong(0); // flags for future implementations
             tableSpace.serialize(dout);
             dout.flush();
             out.write(out.xxhash64());

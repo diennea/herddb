@@ -20,8 +20,6 @@
 package herddb.file;
 
 import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -181,8 +179,9 @@ public class FileDataStorageManager extends DataStorageManager {
             BufferedInputStream buffer = new BufferedInputStream(input, 1024);
             XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
-            int flags = dataIn.readVInt(); // flags for future implementations
-            if (flags != 0) {
+            long version = dataIn.readVLong(); // version
+            long flags = dataIn.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
             int numRecords = dataIn.readInt();
@@ -209,22 +208,23 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public byte[] readIndexPage(String tableSpace, String indexName, Long pageId) throws DataStorageManagerException {
+    public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader) throws DataStorageManagerException {
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         Path pageFile = getPageFile(tableDir, pageId);
         long _start = System.currentTimeMillis();
-        byte[] pageData;
         long hashFromFile;
         long hashFromDigest;
+        X read;
         try (InputStream input = Files.newInputStream(pageFile);
             BufferedInputStream buffer = new BufferedInputStream(input, 1024);
             XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
-            int flags = dataIn.readVInt(); // flags for future implementations
-            if (flags != 0) {
+            long version = dataIn.readVLong(); // version
+            long flags = dataIn.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
                 throw new DataStorageManagerException("corrupted data file " + pageFile.toAbsolutePath());
             }
-            pageData = dataIn.readArray();
+            read = reader.read(dataIn);
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
         } catch (IOException err) {
@@ -236,7 +236,7 @@ public class FileDataStorageManager extends DataStorageManager {
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
         LOGGER.log(Level.FINE, "readIndexPage {0}.{1} {2} ms", new Object[]{tableSpace, indexName, delta + ""});
-        return pageData;
+        return read;
     }
 
     @Override
@@ -247,7 +247,6 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (HerdDBInternalException err) {
             throw new DataStorageManagerException(err);
         }
-
     }
 
     @Override
@@ -338,6 +337,11 @@ public class FileDataStorageManager extends DataStorageManager {
         XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
         try (InputStream input = new SimpleByteArrayInputStream(fileContent);
             ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+            long version = dataIn.readVLong(); // version
+            long flags = dataIn.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
+                throw new DataStorageManagerException("corrupted table status file " + checkpointsFile.toAbsolutePath());
+            }
             return TableStatus.deserialize(dataIn);
         }
     }
@@ -377,6 +381,11 @@ public class FileDataStorageManager extends DataStorageManager {
             XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
             try (InputStream input = new SimpleByteArrayInputStream(fileContent);
                 ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                long version = dataIn.readVLong(); // version
+                long flags = dataIn.readVLong(); // flags for future implementations
+                if (version != 1 || flags != 0) {
+                    throw new DataStorageManagerException("corrupted index status file " + checkpointsFile.toAbsolutePath());
+                }
                 return IndexStatus.deserialize(dataIn);
             }
         } catch (IOException err) {
@@ -410,6 +419,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+            dataOutputKeys.writeVLong(1); // version
+            dataOutputKeys.writeVLong(0); // flags for future implementations
             tableStatus.serialize(dataOutputKeys);
             dataOutputKeys.flush();
             oo.write(oo.xxhash64());
@@ -509,6 +520,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+            dataOutputKeys.writeVLong(1); // version
+            dataOutputKeys.writeVLong(0); // flags for future implementations
             indexStatus.serialize(dataOutputKeys);
             dataOutputKeys.flush();
             oo.write(oo.xxhash64());
@@ -679,7 +692,8 @@ public class FileDataStorageManager extends DataStorageManager {
             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(foo, 1024);
             XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
-            dataOutput.writeVInt(0); // flags for future implementations
+            dataOutput.writeVLong(1); // version
+            dataOutput.writeVLong(0); // flags for future implementations
             dataOutput.writeInt(newPage.size());
             for (Record record : newPage) {
                 dataOutput.writeArray(record.key.data);
@@ -701,14 +715,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public void writeIndexPage(String tableSpace, String indexName,
-        long pageId, byte[] page) throws DataStorageManagerException {
-        writeIndexPage(tableSpace, indexName, pageId, page, 0, page.length);
-    }
-
-    @Override
-    public void writeIndexPage(String tableSpace, String indexName,
-        long pageId, byte[] page, int offset, int len) throws DataStorageManagerException {
-        // synch on table is done by the TableManager
+        long pageId, DataWriter writer) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         try {
@@ -723,9 +730,14 @@ public class FileDataStorageManager extends DataStorageManager {
             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(foo, 1024);
             XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
-            dataOutput.writeVInt(0); // flags for future implementations
-            dataOutput.writeArray(page, offset, len);
+
+            dataOutput.writeVLong(1); // version
+            dataOutput.writeVLong(0); // flags for future implementations
+
             size = oo.size();
+            writer.write(dataOutput);
+            size = oo.size() - size;
+
             long digest = oo.hash();
             // footer
             dataOutput.writeLong(digest);
@@ -738,6 +750,7 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", (now - _start) + ""});
         }
     }
+
 
     @Override
     public List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
@@ -756,12 +769,17 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
                 ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                long version = din.readVLong(); // version
+                long flags = din.readVLong(); // flags for future implementations
+                if (version != 1 || flags != 0) {
+                    throw new DataStorageManagerException("corrupted table list file " + file.toAbsolutePath());
+                }
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
                 }
-                long ledgerId = din.readLong();
-                long offset = din.readLong();
+                long ledgerId = din.readZLong();
+                long offset = din.readZLong();
                 if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for sequence number " + sequenceNumber);
                 }
@@ -796,12 +814,17 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
                 ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                long version = din.readVLong(); // version
+                long flags = din.readVLong(); // flags for future implementations
+                if (version != 1 || flags != 0) {
+                    throw new DataStorageManagerException("corrupted index list file " + file.toAbsolutePath());
+                }
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
                 }
-                long ledgerId = din.readLong();
-                long offset = din.readLong();
+                long ledgerId = din.readZLong();
+                long offset = din.readZLong();
                 if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for sequence number " + sequenceNumber);
                 }
@@ -837,9 +860,11 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(file_tables, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                dout.writeVLong(1); // version
+                dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
-                dout.writeLong(sequenceNumber.ledgerId);
-                dout.writeLong(sequenceNumber.offset);
+                dout.writeZLong(sequenceNumber.ledgerId);
+                dout.writeZLong(sequenceNumber.offset);
                 dout.writeInt(tables.size());
                 for (Table t : tables) {
                     byte[] tableSerialized = t.serialize();
@@ -848,9 +873,11 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             try (OutputStream out = Files.newOutputStream(file_indexes, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                dout.writeVLong(1); // version
+                dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
-                dout.writeLong(sequenceNumber.ledgerId);
-                dout.writeLong(sequenceNumber.offset);
+                dout.writeZLong(sequenceNumber.ledgerId);
+                dout.writeZLong(sequenceNumber.offset);
                 if (indexlist != null) {
                     dout.writeInt(indexlist.size());
                     for (Index t : indexlist) {
@@ -879,10 +906,12 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             LOGGER.log(Level.SEVERE, "checkpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(checkPointFile, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                DataOutputStream dout = new DataOutputStream(out)) {
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                dout.writeVLong(1); // version
+                dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
-                dout.writeLong(sequenceNumber.ledgerId);
-                dout.writeLong(sequenceNumber.offset);
+                dout.writeZLong(sequenceNumber.ledgerId);
+                dout.writeZLong(sequenceNumber.offset);
             }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
@@ -922,13 +951,18 @@ public class FileDataStorageManager extends DataStorageManager {
                 return LogSequenceNumber.START_OF_TIME;
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(checkPointFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-                DataInputStream din = new DataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                long version = din.readVLong(); // version
+                long flags = din.readVLong(); // flags for future implementations
+                if (version != 1 || flags != 0) {
+                    throw new IOException("corrupted transaction file");
+                }
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + checkPointFile.toAbsolutePath() + " is not for spablespace " + tableSpace);
                 }
-                long ledgerId = din.readLong();
-                long offset = din.readLong();
+                long ledgerId = din.readZLong();
+                long offset = din.readZLong();
 
                 return new LogSequenceNumber(ledgerId, offset);
             }
@@ -996,12 +1030,17 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
                 ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                long version = din.readVLong(); // version
+                long flags = din.readVLong(); // flags for future implementations
+                if (version != 1 || flags != 0) {
+                    throw new DataStorageManagerException("corrupted transaction list file " + file.toAbsolutePath());
+                }
                 String readname = din.readUTF();
                 if (!readname.equals(tableSpace)) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
                 }
-                long ledgerId = din.readLong();
-                long offset = din.readLong();
+                long ledgerId = din.readZLong();
+                long offset = din.readZLong();
                 if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for sequence number " + sequenceNumber);
                 }
@@ -1032,9 +1071,11 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, file.toAbsolutePath().toString(), transactions.size()});
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+                dout.writeVLong(1); // version
+                dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
-                dout.writeLong(sequenceNumber.ledgerId);
-                dout.writeLong(sequenceNumber.offset);
+                dout.writeZLong(sequenceNumber.ledgerId);
+                dout.writeZLong(sequenceNumber.offset);
                 dout.writeInt(transactions.size());
                 for (Transaction t : transactions) {
                     t.serialize(dout);

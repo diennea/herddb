@@ -19,7 +19,6 @@
  */
 package herddb.index.blink;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.AbstractMap;
@@ -60,6 +59,7 @@ import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 
 /**
@@ -392,7 +392,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "flags still not used but it must be forcefully read")
         public BLinkMetadata<Bytes> read(byte[] data) throws IOException {
 
-            try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
+            try (SimpleByteArrayInputStream bis = new SimpleByteArrayInputStream(data);
                 ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
 
                 /* flags for future implementations, actually unused */
@@ -458,140 +458,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         }
     }
-//    private final class MetadataStorage {
-//
-//        public long write(BLinkMetadata<Bytes> metadata) throws IOException {
-//
-//            final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
-//            try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
-//
-//                /* flags for future implementations, actually unused */
-//                edos.writeVLong(0L);
-//                edos.writeByte(METADATA_PAGE);
-//
-//                edos.writeVLong(metadata.nextID);
-//
-//                edos.writeVLong(metadata.fast);
-//                edos.writeVInt(metadata.fastheight);
-//
-//                edos.writeVLong(metadata.top);
-//                edos.writeVInt(metadata.topheight);
-//
-//                edos.writeVLong(metadata.first);
-//                edos.writeVLong(metadata.values);
-//
-//                for (BLinkNodeMetadata<Bytes> node : metadata.nodes) {
-//
-//                    edos.writeVInt(METADATA_PAGE_NODE_BLOCK);
-//
-//                    edos.writeBoolean(node.leaf);
-//
-//                    edos.writeVLong(node.id);
-//                    edos.writeVLong(node.storeId);
-//
-//                    edos.writeBoolean(node.empty);
-//
-//                    edos.writeVInt(node.keys);
-//                    edos.writeVLong(node.bytes);
-//
-//                    edos.writeZLong(node.outlink);
-//                    edos.writeZLong(node.rightlink);
-//
-//
-//                    boolean hasInf = node.rightsep == EverBiggerKey.INSTANCE;
-//
-//                    edos.writeBoolean(hasInf);
-//
-//                    if (!hasInf) {
-//                        edos.writeArray(((Bytes) node.rightsep).to_array());
-//                    }
-//                }
-//
-//                edos.writeVInt(METADATA_PAGE_END_BLOCK);
-//
-//            }
-//
-//            long pageId = pageIDGenerator.incrementAndGet();
-//
-//            dataStorageManager.writeIndexPage(tableSpace, indexName, pageId, bos.getBuffer(), 0, bos.size());
-//
-//            return pageId;
-//
-//        }
-//
-//        @SuppressWarnings("unchecked")
-//        @SuppressFBWarnings(value="DLS_DEAD_LOCAL_STORE", justification="flags still not used but it must be forcefully read")
-//        public BLinkMetadata<Bytes> read(long pageId) throws IOException {
-//
-//
-//            byte[] data = dataStorageManager.readIndexPage(tableSpace, indexName, pageId);
-//
-//            try ( ByteArrayInputStream bis = new ByteArrayInputStream(data);
-//                  ExtendedDataInputStream edis = new ExtendedDataInputStream(bis) ) {
-//
-//                /* flags for future implementations, actually unused */
-//                @SuppressWarnings("unused")
-//                long flags = edis.readVLong();
-//                byte rtype = edis.readByte();
-//
-//                if (rtype != METADATA_PAGE) {
-//                    throw new IOException("Wrong page type " + rtype + " expected " + METADATA_PAGE );
-//                }
-//
-//                long nextID = edis.readVLong();
-//
-//                long fast = edis.readVLong();
-//                int fastheight = edis.readVInt();
-//
-//                long top = edis.readVLong();
-//                int topheight = edis.readVInt();
-//
-//                long first = edis.readVLong();
-//                long values = edis.readVLong();
-//
-//                List<BLinkNodeMetadata<Bytes>> nodes = new LinkedList<>();
-//
-//                int block;
-//
-//                while ((block = edis.readVInt()) != METADATA_PAGE_END_BLOCK) {
-//
-//                    if (block != METADATA_PAGE_NODE_BLOCK) {
-//                        throw new IOException("Wrong block type " + block);
-//                    }
-//
-//                    final boolean leaf = edis.readBoolean();
-//
-//                    long id = edis.readVLong();
-//                    long storeId = edis.readVLong();
-//
-//                    boolean empty = edis.readBoolean();
-//
-//                    int keys = edis.readVInt();
-//                    long bytes = edis.readVLong();
-//
-//                    long outlink = edis.readZLong();
-//                    long rightlink = edis.readZLong();
-//
-//                    boolean hasInf = edis.readBoolean();
-//
-//                    Comparable<Bytes> rightsep;
-//                    if (hasInf) {
-//                        rightsep = EverBiggerKey.INSTANCE;
-//                    } else {
-//                        rightsep = Bytes.from_array(edis.readArray());
-//                    }
-//
-//                    BLinkNodeMetadata<Bytes> node =
-//                            new BLinkNodeMetadata<>(leaf, id, storeId, empty, keys, bytes, outlink, rightlink, rightsep);
-//
-//                    nodes.add(node);
-//                }
-//
-//                return new BLinkMetadata<>(nextID, fast, fastheight, top, topheight, first, values, nodes);
-//            }
-//
-//        }
-//    }
 
     private final class BLinkIndexDataStorageImpl implements BLinkIndexDataStorage<Bytes, Long> {
 
@@ -606,18 +472,20 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         @SuppressWarnings("unchecked")
-        @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "flags still not used but it must be forcefully read")
         private Map<Comparable<Bytes>, Long> loadPage(long pageId, byte type) throws IOException {
 
-            final byte[] data = dataStorageManager.readIndexPage(tableSpace, indexName, pageId);
+            return dataStorageManager.readIndexPage(tableSpace, indexName, pageId, in -> {
 
-            try (ByteArrayInputStream bis = new ByteArrayInputStream(data);
-                ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
+                long version = in.readVLong();
 
                 /* flags for future implementations, actually unused */
-                @SuppressWarnings("unused")
-                long flags = edis.readVLong();
-                byte rtype = edis.readByte();
+                long flags = in.readVLong();
+
+                if (version != 1 || flags != 0) {
+                    throw new IOException("Corrupted index page " + pageId);
+                }
+
+                byte rtype = in.readByte();
 
                 if (rtype != type) {
                     throw new IOException("Wrong page type " + rtype + " expected " + type);
@@ -626,17 +494,17 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 final Map<Comparable<Bytes>, Long> map = new HashMap<>();
 
                 byte block;
-                while ((block = edis.readByte()) != NODE_PAGE_END_BLOCK) {
+                while ((block = in.readByte()) != NODE_PAGE_END_BLOCK) {
 
                     switch (block) {
 
                         case NODE_PAGE_KEY_VALUE_BLOCK:
-                            map.put(Bytes.from_array(edis.readArray()),
-                                edis.readVLong());
+                            map.put(Bytes.from_array(in.readArray()),
+                                in.readVLong());
                             break;
 
                         case NODE_PAGE_INF_BLOCK:
-                            map.put(EverBiggerKey.INSTANCE, edis.readVLong());
+                            map.put(EverBiggerKey.INSTANCE, in.readVLong());
                             break;
 
                         default:
@@ -646,7 +514,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 }
 
                 return map;
-            }
+
+            });
 
         }
 
@@ -675,39 +544,40 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         private long createPage(long pageId, Map<Comparable<Bytes>, Long> data, byte type) throws IOException {
+            /* Write/overwrite switch */
+            if (pageId == NEW_PAGE) {
+                pageId = newPageId.getAndIncrement();
+            }
 
-            final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
-            try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
+            dataStorageManager.writeIndexPage(tableSpace, indexName, pageId, out -> {
+
+                /* Data version */
+                out.writeVLong(1);
 
                 /* flags for future implementations, actually unused */
-                edos.writeVLong(0L);
-                edos.writeByte(type);
+                out.writeVLong(0);
+
+                out.writeByte(type);
 
                 data.forEach((x, y) -> {
                     try {
                         if (x == EverBiggerKey.INSTANCE) {
                             // Handle special case for +inf key
-                            edos.writeByte(NODE_PAGE_INF_BLOCK);
-                            edos.writeVLong(y);
+                            out.writeByte(NODE_PAGE_INF_BLOCK);
+                            out.writeVLong(y);
                         } else {
-                            edos.writeByte(NODE_PAGE_KEY_VALUE_BLOCK);
-                            edos.writeArray(((Bytes) x).to_array());
-                            edos.writeVLong(y);
+                            out.writeByte(NODE_PAGE_KEY_VALUE_BLOCK);
+                            out.writeArray(((Bytes) x).to_array());
+                            out.writeVLong(y);
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException("Unexpected IOException during node page write preparation", e);
                     }
                 });
 
-                edos.writeByte(NODE_PAGE_END_BLOCK);
-            }
+                out.writeByte(NODE_PAGE_END_BLOCK);
 
-            /* Write/overwrite switch */
-            if (pageId == NEW_PAGE) {
-                pageId = newPageId.getAndIncrement();
-            }
-
-            dataStorageManager.writeIndexPage(tableSpace, indexName, pageId, bos.getBuffer(), 0, bos.size());
+            });
 
             return pageId;
         }

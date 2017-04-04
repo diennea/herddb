@@ -19,15 +19,18 @@
  */
 package herddb.file;
 
-import herddb.model.Record;
-import herddb.utils.Bytes;
-import java.util.Arrays;
-import java.util.List;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.List;
+
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import herddb.model.Record;
+import herddb.utils.Bytes;
 
 /**
  * @author enrico.olivelli
@@ -52,8 +55,10 @@ public class FileDataStorageManagerTest {
     public void testReadWriteIndexPage() throws Exception {
         try (FileDataStorageManager man = new FileDataStorageManager(folder.newFolder().toPath());) {
             byte[] page = Bytes.from_int(1).data;
-            man.writeIndexPage("test1", "table1", 1L, page);
-            byte[] result = man.readIndexPage("test1", "table1", 1L);
+            man.writeIndexPage("test1", "table1", 1L, (out) -> {
+                out.writeArray(page);
+            });
+            byte[] result = man.readIndexPage("test1", "table1", 1L, in -> in.readArray());
             assertArrayEquals(result, page);
         }
     }

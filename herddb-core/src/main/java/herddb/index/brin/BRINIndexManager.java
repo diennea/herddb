@@ -21,7 +21,6 @@ package herddb.index.brin;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -94,67 +93,87 @@ public class BRINIndexManager extends AbstractIndexManager {
         private List<BlockRangeIndexMetadata.BlockMetadata<Bytes>> metadata;
 
         byte[] serialize() throws IOException {
-            ByteArrayOutputStream oo = new ByteArrayOutputStream();
-            try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo)) {
-                doo.writeVInt(this.type);
-                switch (type) {
-                    case TYPE_METADATA:
-                        doo.writeVInt(metadata.size());
-                        for (BlockRangeIndexMetadata.BlockMetadata<Bytes> md : metadata) {
-                            doo.writeArray(md.firstKey.data);
-                            doo.writeArray(md.lastKey.data);
-                            doo.writeVInt(md.blockId);
-                            doo.writeVLong(md.size);
-                            doo.writeVLong(md.pageId);
-                        }
-                        break;
-                    case TYPE_BLOCKDATA:
-                        doo.writeVInt(pageData.size());
-                        for (Map.Entry<Bytes, Bytes> entry : pageData) {
-                            doo.writeArray(entry.getKey().data);
-                            doo.writeArray(entry.getValue().data);
-                        }
-                        break;
-                    default:
-                        throw new IllegalStateException("bad index page type " + type);
-                }
+            try (ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
+                 ExtendedDataOutputStream eout = new ExtendedDataOutputStream(out)) {
+                 serialize(eout);
+
+                 eout.flush();
+
+                 return out.toByteArray();
             }
-            return oo.toByteArray();
+        }
+
+        void serialize(ExtendedDataOutputStream out) throws IOException {
+            out.writeVLong(1); // version
+            out.writeVLong(0); // flags for future implementations
+
+            out.writeVInt(this.type);
+            switch (type) {
+                case TYPE_METADATA:
+                    out.writeVInt(metadata.size());
+                    for (BlockRangeIndexMetadata.BlockMetadata<Bytes> md : metadata) {
+                        out.writeArray(md.firstKey.data);
+                        out.writeArray(md.lastKey.data);
+                        out.writeVInt(md.blockId);
+                        out.writeVLong(md.size);
+                        out.writeVLong(md.pageId);
+                    }
+                    break;
+                case TYPE_BLOCKDATA:
+                    out.writeVInt(pageData.size());
+                    for (Map.Entry<Bytes, Bytes> entry : pageData) {
+                        out.writeArray(entry.getKey().data);
+                        out.writeArray(entry.getValue().data);
+                    }
+                    break;
+                default:
+                    throw new IllegalStateException("bad index page type " + type);
+            }
+        }
+
+        static PageContents deserialize(ExtendedDataInputStream in) throws IOException {
+            long version = in.readVLong(); // version
+            long flags = in.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
+                throw new DataStorageManagerException("corrupted index page");
+            }
+
+            PageContents result = new PageContents();
+            result.type = in.readVInt();
+            switch (result.type) {
+                case TYPE_METADATA:
+                    int blocks = in.readVInt();
+                    result.metadata = new ArrayList<>();
+                    for (int i = 0; i < blocks; i++) {
+                        Bytes firstKey = Bytes.from_array(in.readArray());
+                        Bytes lastKey = Bytes.from_array(in.readArray());
+                        int blockId = in.readVInt();
+                        long size = in.readVLong();
+                        long pageId = in.readVLong();
+                        BlockRangeIndexMetadata.BlockMetadata<Bytes> md
+                            = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, lastKey, blockId, size, pageId);
+                        result.metadata.add(md);
+                    }
+                    break;
+                case TYPE_BLOCKDATA:
+                    int values = in.readVInt();
+                    result.pageData = new ArrayList<>(values);
+                    for (int i = 0; i < values; i++) {
+                        Bytes key = Bytes.from_array(in.readArray());
+                        Bytes value = Bytes.from_array(in.readArray());
+                        result.pageData.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
+                    }
+                    break;
+                default:
+                    throw new IOException("bad index page type " + result.type);
+            }
+            return result;
         }
 
         static PageContents deserialize(byte[] pagedata) throws IOException {
-            try (InputStream in = new SimpleByteArrayInputStream(pagedata);
+            try (SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(pagedata);
                 ExtendedDataInputStream ein = new ExtendedDataInputStream(in)) {
-                PageContents result = new PageContents();
-                result.type = ein.readVInt();
-                switch (result.type) {
-                    case TYPE_METADATA:
-                        int blocks = ein.readVInt();
-                        result.metadata = new ArrayList<>();
-                        for (int i = 0; i < blocks; i++) {
-                            Bytes firstKey = Bytes.from_array(ein.readArray());
-                            Bytes lastKey = Bytes.from_array(ein.readArray());
-                            int blockId = ein.readVInt();
-                            long size = ein.readVLong();
-                            long pageId = ein.readVLong();
-                            BlockRangeIndexMetadata.BlockMetadata<Bytes> md
-                                = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, lastKey, blockId, size, pageId);
-                            result.metadata.add(md);
-                        }
-                        break;
-                    case TYPE_BLOCKDATA:
-                        int values = ein.readVInt();
-                        result.pageData = new ArrayList<>(values);
-                        for (int i = 0; i < values; i++) {
-                            Bytes key = Bytes.from_array(ein.readArray());
-                            Bytes value = Bytes.from_array(ein.readArray());
-                            result.pageData.add(new AbstractMap.SimpleImmutableEntry<>(key, value));
-                        }
-                        break;
-                    default:
-                        throw new IOException("bad index page type " + result.type);
-                }
-                return result;
+                return deserialize(ein);
             }
         }
     }
@@ -302,8 +321,11 @@ public class BRINIndexManager extends AbstractIndexManager {
         @Override
         public List<Map.Entry<Bytes, Bytes>> loadDataPage(long pageId) throws IOException {
             try {
-                byte[] pageData = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId);
-                PageContents contents = PageContents.deserialize(pageData);
+
+                PageContents contents = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId, in -> {
+                    return PageContents.deserialize(in);
+                });
+
                 if (contents.type != PageContents.TYPE_BLOCKDATA) {
                     throw new IOException("page " + pageId + " does not contain blocks data");
                 }
@@ -319,9 +341,10 @@ public class BRINIndexManager extends AbstractIndexManager {
                 PageContents contents = new PageContents();
                 contents.type = PageContents.TYPE_BLOCKDATA;
                 contents.pageData = values;
-                byte[] serialized = contents.serialize();
+
                 long pageId = newPageId.getAndIncrement();
-                dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, serialized);
+                dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, (out) -> contents.serialize(out));
+
                 return pageId;
             } catch (DataStorageManagerException err) {
                 throw new IOException(err);

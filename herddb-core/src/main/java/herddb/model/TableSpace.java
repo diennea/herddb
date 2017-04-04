@@ -19,16 +19,16 @@
  */
 package herddb.model;
 
-import herddb.utils.SimpleByteArrayInputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.SimpleByteArrayInputStream;
 
 /**
  * A set of Tables. All tables in the same TableSpace are handled by the same server at once. All the operations on the
@@ -81,43 +81,48 @@ public class TableSpace {
     }
 
     public static TableSpace deserialize(byte[] data, Object metadataStorageVersion) throws IOException {
-        return deserialize(new DataInputStream(new SimpleByteArrayInputStream(data)), metadataStorageVersion);
+        return deserialize(new ExtendedDataInputStream(new SimpleByteArrayInputStream(data)), metadataStorageVersion);
     }
 
-    public static TableSpace deserialize(DataInputStream in, Object metadataStorageVersion) throws IOException {
+    public static TableSpace deserialize(ExtendedDataInputStream in, Object metadataStorageVersion) throws IOException {
+        long version = in.readVLong(); // version
+        long flags = in.readVLong(); // flags for future implementations
+        if (version != 1 || flags != 0) {
+            throw new IOException("corrupted tablespace file");
+        }
         String uuid = in.readUTF();
         String name = in.readUTF();
-        in.readInt(); // for future implementations        
         String leaderId = in.readUTF();
-        int expectedReplicaCount = in.readInt();
-        int numreplicas = in.readInt();
+        int expectedReplicaCount = in.readVInt();
+        int numreplicas = in.readVInt();
         Set<String> replicas = new HashSet<>();
         for (int i = 0; i < numreplicas; i++) {
             replicas.add(in.readUTF());
         }
-        long maxLeaderInactivityTime = in.readLong();
+        long maxLeaderInactivityTime = in.readVLong();
         return new TableSpace(uuid, name, leaderId, replicas, expectedReplicaCount, maxLeaderInactivityTime, metadataStorageVersion);
     }
 
     public byte[] serialize() throws IOException {
         ByteArrayOutputStream oo = new ByteArrayOutputStream();
-        try (DataOutputStream doo = new DataOutputStream(oo)) {
+        try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo)) {
             serialize(doo);
         }
         return oo.toByteArray();
     }
 
-    public void serialize(DataOutputStream out) throws IOException {
+    public void serialize(ExtendedDataOutputStream out) throws IOException {
+        out.writeVLong(1); // version
+        out.writeVLong(0); // flags for future implementations
         out.writeUTF(uuid);
         out.writeUTF(name);
-        out.writeInt(0); // for future implementations
         out.writeUTF(leaderId);
-        out.writeInt(expectedReplicaCount);
-        out.writeInt(replicas.size());
+        out.writeVInt(expectedReplicaCount);
+        out.writeVInt(replicas.size());
         for (String replica : replicas) {
             out.writeUTF(replica);
         }
-        out.writeLong(maxLeaderInactivityTime);
+        out.writeVLong(maxLeaderInactivityTime);
     }
 
     public static class Builder {
