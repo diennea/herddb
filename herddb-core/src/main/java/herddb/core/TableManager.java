@@ -1931,7 +1931,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         long end = System.currentTimeMillis();
         long delta = end - start;
-        if (delta > 0) {
+        if (delta > 1000) {
 
             long delta_lock = getlock - start;
             long delta_pageAnalysis = pageAnalysis - getlock;
