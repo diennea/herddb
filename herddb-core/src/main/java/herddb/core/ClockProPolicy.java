@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -97,9 +96,10 @@ public class ClockProPolicy implements PageReplacementPolicy {
         super();
 
         this.m = capacity;
+        this.mc = capacity;
 
         this.space = new HashMap<>(2 * capacity);
-       
+
     }
 
     @Override
@@ -299,6 +299,10 @@ public class ClockProPolicy implements PageReplacementPolicy {
             if (known.test) {
                 /* If a cold page is accessed during its test period, we increment Mc by 1. */
                 ++mc;
+                //LOTHRUIN
+                mc = Math.min(m, mc);
+                if (mc < 0 || mc > m)
+                    throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
 //                assertTrue(mc <= m);
             }
 
@@ -309,7 +313,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
         return unloaded;
 
     }
-    
+
     private boolean unsafeRemove(CPMetadata metadata) {
 
         /* Custom addition to CP algorithm, we need to drop pages too */
@@ -338,7 +342,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
                 break;
 
             default:
-                throw new IllegalStateException(known.warm+"");
+                throw new IllegalStateException("Unknown warm state " + known.warm);
 
         }
 
@@ -396,6 +400,11 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
                         /* If a cold page is accessed during its test period, we increment Mc by 1. */
                         ++mc;
+
+                        // LOTHRUIN
+                        mc = Math.min(m,mc);
+                        if (mc < 0 || mc > m)
+                            throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
 //                        assertTrue(mc <= m);
 
                         hotSweep();
@@ -437,6 +446,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         }
 
                     } else {
+
+                        // loop fin qui!
+                        unloading = handCold;
 
                         /* If not, we move it out of the clock. */
                         handCold = deleteAndStayStill(handCold);
@@ -550,7 +562,12 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
                     if (!handHot.reference) {
                         /* If a cold page passes its test period without a re-access, we decrement Mc by 1 */
+
                         --mc;
+                        //LOTHRUIN
+                        mc = Math.max(0, mc);
+                        if (mc < 0 || mc > m)
+                            throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
 //                        assertTrue(mc >= 0);
                     }
 
@@ -591,7 +608,14 @@ public class ClockProPolicy implements PageReplacementPolicy {
          * We also remove it from the clock if it is a non-resident page. Because the cold page has used up
          * its test period without a re-access and has no chance to turn into a hot page with its next access.
          * HANDtest then moves forward and stops at the next cold page.
+         *
+         * Note the aforementioned cold pages include resident and non-resident cold pages.
          */
+
+        /*
+         * We terminate the test period of the cold page pointed to by HANDtest.
+         */
+        handTest.test = false;
 
         if (handTest.warm == NON_RESIDENT_COLD) {
 
@@ -605,10 +629,21 @@ public class ClockProPolicy implements PageReplacementPolicy {
             --countNonResident;
 //            assertTrue(countNonResident >= 0);
 
+            --mc;
+            //LOTHRUIN
+            mc = Math.max(0, mc);
+            if (mc < 0 || mc > m)
+                throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
+//            assertTrue(mc >= 0);
+
         } else {
             /* If a cold page passes its test period without a re-access, we decrement Mc by 1 */
             if (!handTest.reference) {
                 --mc;
+                //LOTHRUIN
+                mc = Math.max(0, mc);
+                if (mc < 0 || mc > m)
+                    throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
 //                assertTrue(mc >= 0);
             }
         }
