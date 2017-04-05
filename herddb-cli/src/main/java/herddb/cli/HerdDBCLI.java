@@ -215,7 +215,7 @@ public class HerdDBCLI {
 
                                         if (countUnzipped != counter.count) {
                                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + "/min (UNZIPPED "+formatBytes(speedZipped)+"/min)");
+                                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speedZipped) + "/min (UNZIPPED "+formatBytes(speed)+"/min)");
                                         } else {
                                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
                                                 + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
