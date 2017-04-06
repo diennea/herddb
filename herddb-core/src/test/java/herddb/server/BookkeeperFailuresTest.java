@@ -43,7 +43,9 @@ import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.SimpleFormatter;
 import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.LedgerMetadata;
 import org.apache.bookkeeper.conf.ClientConfiguration;
 import org.junit.After;
 import org.junit.Assert;
@@ -362,6 +364,8 @@ public class BookkeeperFailuresTest {
                 .column("c", ColumnTypes.INTEGER)
                 .primaryKey("c")
                 .build();
+
+            // create table is done out of the transaction (this is very like autocommit=true)
             server.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             StatementExecutionResult executeStatement = server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
@@ -376,6 +380,7 @@ public class BookkeeperFailuresTest {
             assertTrue(ledgerId >= 1);
 
             Transaction transaction = tableSpaceManager.getTransactions().stream().filter(t -> t.transactionId == transactionId).findFirst().get();
+            // Transaction will synch, so every addEntry will be acked, but will not be "confirmed" yet
             transaction.synch();
 
             try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList(), new TransactionContext(transactionId));) {
@@ -395,9 +400,25 @@ public class BookkeeperFailuresTest {
             // transaction will continue and see the failure only the time of the commit
             try {
                 server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(transactionId));
-                server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(transactionId));
-                server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(transactionId));
+                System.out.println("Insert of c,4 OK"); // this will piggyback the LAC for the transaction
             } catch (StatementExecutionException expected) {
+                System.out.println("Insert of c,4 failed " + expected);
+                // in can happen that the log gets closed
+                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
+            }
+            try {
+                server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(transactionId));
+                System.out.println("Insert of c,5 OK");  // this will piggyback the LAC for the transaction
+            } catch (StatementExecutionException expected) {
+                System.out.println("Insert of c,5 failed " + expected);
+                // in can happen that the log gets closed
+                assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
+            }
+            try {
+                server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(transactionId));
+                System.out.println("Insert of c,6 OK");  // this will piggyback the LAC for the transaction
+            } catch (StatementExecutionException expected) {
+                System.out.println("Insert of c,6 failed " + expected);
                 // in can happen that the log gets closed
                 assertEquals(herddb.log.LogNotAvailableException.class, expected.getCause().getClass());
             }
@@ -407,6 +428,7 @@ public class BookkeeperFailuresTest {
                 // this will fail alweays
                 fail();
             } catch (StatementExecutionException expected) {
+                System.out.println("Commit failed as expected:" + expected);
             }
 
             testEnv.startBookie(false);
@@ -418,6 +440,18 @@ public class BookkeeperFailuresTest {
                 }
                 Thread.sleep(100);
             }
+
+            try (BookKeeper bk = createBookKeeper();
+                LedgerHandle handle = bk.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32, "herddb".getBytes(StandardCharsets.UTF_8))) {
+                BookKeeperAdmin admin = new BookKeeperAdmin(bk);
+                try {
+                    LedgerMetadata ledgerMetadata = admin.getLedgerMetadata(handle);
+                    System.out.println("current ledger metadata before recovery: " + ledgerMetadata);
+                } finally {
+                    admin.close();
+                }
+            }
+
             server.getManager().setActivatorPauseStatus(false);
             server.getManager().triggerActivator(ActivatorRunRequest.TABLESPACEMANAGEMENT);
 
@@ -437,6 +471,8 @@ public class BookkeeperFailuresTest {
             assertNotSame(tableSpaceManager_after_failure, tableSpaceManager);
             assertTrue(!tableSpaceManager_after_failure.isFailed());
 
+            
+            // the insert should succeed because the trasaction has been rolledback automatically
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             try (DataScanner scan = scan(server.getManager(), "select * from t1", Collections.emptyList());) {
