@@ -28,6 +28,7 @@ import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.List;
@@ -49,6 +50,7 @@ import org.apache.bookkeeper.client.BKException.Code;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
+import org.apache.bookkeeper.client.LedgerMetadata;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -295,6 +297,10 @@ public class BookkeeperCommitLog extends CommitLog {
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
                     LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
+                    LedgerMetadata ledgerMetadata = getLedgerMetadata(handle);
+                    if (ledgerMetadata != null) {
+                        LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", ledgerMetadata:" + ledgerMetadata);
+                    }
                     if (lastAddConfirmed <= 0) {
                         lastAddConfirmed = handle.readLastConfirmed();
                         LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " after readLastConfirmed lastAddConfirmed=" + lastAddConfirmed);
@@ -376,6 +382,17 @@ public class BookkeeperCommitLog extends CommitLog {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery", err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
+        }
+    }
+
+    private LedgerMetadata getLedgerMetadata(LedgerHandle handle) {
+        try {
+            Field metadataField = LedgerHandle.class.getDeclaredField("metadata");
+            metadataField.setAccessible(true);
+            return (LedgerMetadata) metadataField.get(handle);
+        } catch (IllegalAccessException | IllegalArgumentException | NoSuchFieldException | SecurityException err) {
+            LOGGER.log(Level.SEVERE, "Cannot access ledger metadata " + err);
+            return null;
         }
     }
 
