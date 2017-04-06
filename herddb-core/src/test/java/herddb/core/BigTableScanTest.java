@@ -56,7 +56,7 @@ public class BigTableScanTest {
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.setMaxMemoryReference(128 * 1024);
             manager.setMaxLogicalPageSize(32 * 1024);
-            manager.setMaxIndexUsedMemory(manager.getMaxLogicalPageSize()*2);
+            manager.setMaxPKUsedMemory(manager.getMaxLogicalPageSize()*2);
             
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);

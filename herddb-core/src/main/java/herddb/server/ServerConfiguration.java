@@ -149,9 +149,9 @@ public final class ServerConfiguration {
     public static final boolean PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT = false;
 
     /**
-     * Reference value for the calculation of {@link #PROPERTY_MAX_LIVE_MEMORY_THRESHOLD}. If 0 the system will try to
-     * use most of the RAM of the JVM. When you are embedding the server in another process use this property in order
-     * to limit the usage of resources by the database.
+     * Maximum memory usable by HerdDB. If 0 the system will try to use most of the RAM of the JVM. When you
+     * are embedding the server in another process use this property in order to limit the usage of resources
+     * by the database.
      */
     public static final String PROPERTY_MEMORY_LIMIT_REFERENCE = "server.memory.max.limit";
     public static final long PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT = 0L;
@@ -168,8 +168,8 @@ public final class ServerConfiguration {
     /**
      * Maximum amount of memory used for primary index pages
      */
-    public static final String PROPERTY_MAX_INDEX_MEMORY = "server.memory.index.limit";
-    public static final long PROPERTY_MAX_INDEX_MEMORY_DEFAULT = 0L;
+    public static final String PROPERTY_MAX_PK_MEMORY = "server.memory.pk.limit";
+    public static final long PROPERTY_MAX_PK_MEMORY_DEFAULT = 0L;
 
 
     public static final String PROPERTY_JMX_ENABLE = "server.jmx.enable";

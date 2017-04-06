@@ -38,16 +38,16 @@ public class MemoryManager {
         MemoryManager.class.getName() + ".pageReplacementPolicy", "cp").toLowerCase(Locale.US);
 
     private final long maxDataUsedMemory;
-    private final long maxIndexUsedMemory;
+    private final long maxPKUsedMemory;
     private final long maxLogicalPageSize;
 
     private final PageReplacementPolicy dataPageReplacementPolicy;
-    private final PageReplacementPolicy indexPageReplacementPolicy;
+    private final PageReplacementPolicy pkPageReplacementPolicy;
 
-    public MemoryManager(long maxDataUsedMemory, long maxIndexUsedMemory, long maxLogicalPageSize) {
+    public MemoryManager(long maxDataUsedMemory, long maxPKUsedMemory, long maxLogicalPageSize) {
 
         this.maxDataUsedMemory = maxDataUsedMemory;
-        this.maxIndexUsedMemory = maxIndexUsedMemory;
+        this.maxPKUsedMemory = maxPKUsedMemory;
         this.maxLogicalPageSize = maxLogicalPageSize;
 
         if (maxDataUsedMemory < maxLogicalPageSize) {
@@ -55,34 +55,34 @@ public class MemoryManager {
                 + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
         }
 
-        if (maxIndexUsedMemory < maxLogicalPageSize) {
-            throw new IllegalArgumentException("Max memory for index pages (" + maxIndexUsedMemory
+        if (maxPKUsedMemory < maxLogicalPageSize) {
+            throw new IllegalArgumentException("Max memory for primary key index pages (" + maxPKUsedMemory
                 + ") must be greater or equal than page size (" + maxLogicalPageSize + ")");
         }
 
         final int dataPages = (int) (maxDataUsedMemory / maxLogicalPageSize);
-        final int indexPages = (int) (maxIndexUsedMemory / maxLogicalPageSize);
+        final int pkPages = (int) (maxPKUsedMemory / maxLogicalPageSize);
 
         LOGGER.log(Level.INFO, "Maximum amount of memory for data and indexes {0}", (maxDataUsedMemory / (1024 * 1024)) + " MB");
-        LOGGER.log(Level.INFO, "Maximum amount of memory for primary key indexes {0}", (maxIndexUsedMemory / (1024 * 1024)) + " MB");
+        LOGGER.log(Level.INFO, "Maximum amount of memory for primary key indexes {0}", (maxPKUsedMemory / (1024 * 1024)) + " MB");
 
         LOGGER.log(Level.INFO, "Maximum number of loaded pages for data {0}"
-            + ", maximum number of loadedd pages for primary key indexes {1}", new Object[]{dataPages, indexPages});
+            + ", maximum number of loadedd pages for primary key indexes {1}", new Object[]{dataPages, pkPages});
         switch (PAGE_REPLACEMENT_POLICY) {
             case "random":
                 dataPageReplacementPolicy = new RandomPageReplacementPolicy(dataPages);
-                indexPageReplacementPolicy = new RandomPageReplacementPolicy(indexPages);
+                pkPageReplacementPolicy = new RandomPageReplacementPolicy(pkPages);
                 break;
 
             case "cp":
                 dataPageReplacementPolicy = new ClockProPolicy(dataPages);
-                indexPageReplacementPolicy = new ClockProPolicy(indexPages);
+                pkPageReplacementPolicy = new ClockProPolicy(pkPages);
                 break;
 
             case "car":
             default:
                 dataPageReplacementPolicy = new ClockAdaptiveReplacement(dataPages);
-                indexPageReplacementPolicy = new ClockAdaptiveReplacement(indexPages);
+                pkPageReplacementPolicy = new ClockAdaptiveReplacement(pkPages);
         }
 
     }
@@ -92,7 +92,7 @@ public class MemoryManager {
     }
 
     public long getMaxIndexUsedMemory() {
-        return maxIndexUsedMemory;
+        return maxPKUsedMemory;
     }
 
     public long getMaxLogicalPageSize() {
@@ -103,8 +103,8 @@ public class MemoryManager {
         return dataPageReplacementPolicy;
     }
 
-    public PageReplacementPolicy getIndexPageReplacementPolicy() {
-        return indexPageReplacementPolicy;
+    public PageReplacementPolicy getPKPageReplacementPolicy() {
+        return pkPageReplacementPolicy;
     }
 
 }

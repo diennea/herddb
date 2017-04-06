@@ -133,7 +133,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private long maxMemoryReference = ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT;
     private long maxLogicalPageSize = ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT;
     private long maxDataUsedMemory = ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_DEFAULT;
-    private long maxIndexUsedMemory = ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY_DEFAULT;
+    private long maxPKUsedMemory = ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT;
 
     private boolean clearAtBoot = false;
     private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT;
@@ -182,9 +182,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 ServerConfiguration.PROPERTY_MAX_DATA_MEMORY,
                 ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_DEFAULT);
 
-        this.maxIndexUsedMemory = configuration.getLong(
-                ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY,
-                ServerConfiguration.PROPERTY_MAX_INDEX_MEMORY_DEFAULT);
+        this.maxPKUsedMemory = configuration.getLong(
+                ServerConfiguration.PROPERTY_MAX_PK_MEMORY,
+                ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT);
 
     }
 
@@ -280,12 +280,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.maxDataUsedMemory = maxDataUsedMemory;
     }
 
-    public long getMaxIndexUsedMemory() {
-        return maxIndexUsedMemory;
+    public long getMaxPKUsedMemory() {
+        return maxPKUsedMemory;
     }
 
-    public void setMaxIndexUsedMemory(long maxIndexUsedMemory) {
-        this.maxIndexUsedMemory = maxIndexUsedMemory;
+    public void setMaxPKUsedMemory(long maxPKUsedMemory) {
+        this.maxPKUsedMemory = maxPKUsedMemory;
     }
 
     private final DBManagerStatsMXBean stats = new DBManagerStatsMXBean() {
@@ -333,23 +333,23 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
 
         /* If max index memory for pages isn't configured or is too high default it to 0.2 maxMemoryReference */
-        if (maxIndexUsedMemory == 0 || maxIndexUsedMemory > maxMemoryReference) {
-            maxIndexUsedMemory = (long) (0.2F * maxMemoryReference);
+        if (maxPKUsedMemory == 0 || maxPKUsedMemory > maxMemoryReference) {
+            maxPKUsedMemory = (long) (0.2F * maxMemoryReference);
         }
 
         /* If max used memory is too high lower index and data accordingly */
-        if (maxDataUsedMemory + maxIndexUsedMemory > maxMemoryReference) {
+        if (maxDataUsedMemory + maxPKUsedMemory > maxMemoryReference) {
 
             long data = (int) ((double) maxDataUsedMemory
-                / ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
-            long index = (int) ((double) maxIndexUsedMemory
-                / ((double) (maxDataUsedMemory + maxIndexUsedMemory)) * maxMemoryReference);
+                / ((double) (maxDataUsedMemory + maxPKUsedMemory)) * maxMemoryReference);
+            long pk = (int) ((double) maxPKUsedMemory
+                / ((double) (maxDataUsedMemory + maxPKUsedMemory)) * maxMemoryReference);
 
             maxDataUsedMemory = data;
-            maxIndexUsedMemory = index;
+            maxPKUsedMemory = pk;
         }
 
-        memoryManager = new MemoryManager(maxDataUsedMemory, maxIndexUsedMemory, maxLogicalPageSize);
+        memoryManager = new MemoryManager(maxDataUsedMemory, maxPKUsedMemory, maxLogicalPageSize);
 
         metadataStorageManager.start();
 

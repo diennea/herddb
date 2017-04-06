@@ -234,7 +234,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
-                memoryManager.getIndexPageReplacementPolicy(), indexDataStorage);
+                memoryManager.getPKPageReplacementPolicy(), indexDataStorage);
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{indexName});
         } else {
             IndexStatus status = dataStorageManager.getIndexStatus(tableSpace, indexName, sequenceNumber);
@@ -242,7 +242,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 BLinkMetadata<Bytes> metadata = MetadataSerializer.INSTANCE.read(status.indexData);
 
                 tree = new BLink<>(pageSize, SizeEvaluatorImpl.INSTANCE,
-                    memoryManager.getIndexPageReplacementPolicy(), indexDataStorage,
+                    memoryManager.getPKPageReplacementPolicy(), indexDataStorage,
                     metadata);
             } catch (IOException e) {
                 throw new DataStorageManagerException(e);
