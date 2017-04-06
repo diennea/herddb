@@ -123,18 +123,18 @@ public class BookkeeperCommitLog extends CommitLog {
 
         @Override
         public void close() throws LogNotAvailableException {
-            if (out == null) {
+            LedgerHandle _out = out;
+            if (_out == null) {
                 return;
             }
             try {
-                LOGGER.log(Level.SEVERE, "Closing ledger " + out.getId()
-                    + ", with LastAddConfirmed=" + out.getLastAddConfirmed()
-                    + ", LastAddPushed=" + out.getLastAddPushed()
-                    + " length=" + out.getLength()
+                LOGGER.log(Level.SEVERE, "Closing ledger " + _out.getId()
+                    + ", with LastAddConfirmed=" + _out.getLastAddConfirmed()
+                    + ", LastAddPushed=" + _out.getLastAddPushed()
+                    + " length=" + _out.getLength()
                     + ", errorOccurred:" + errorOccurredDuringWrite);
-                if (!errorOccurredDuringWrite) {
-                    out.close();
-                }
+
+                _out.close();
             } catch (InterruptedException | BKException err) {
                 throw new LogNotAvailableException(err);
             } finally {
