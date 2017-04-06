@@ -40,6 +40,9 @@ import herddb.utils.ZKTestEnv;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.SimpleFormatter;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.bookkeeper.conf.ClientConfiguration;
@@ -61,6 +64,26 @@ import org.junit.rules.TemporaryFolder;
  * @author enrico.olivelli
  */
 public class BookkeeperFailuresTest {
+
+    @Before
+    public void setupLogger() throws Exception {
+        Level level = Level.FINEST;
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
+                e.printStackTrace();
+            }
+        });
+        java.util.logging.LogManager.getLogManager().reset();
+        ConsoleHandler ch = new ConsoleHandler();
+        ch.setLevel(level);
+        SimpleFormatter f = new SimpleFormatter();
+        ch.setFormatter(f);
+        java.util.logging.Logger.getLogger("").setLevel(level);
+        java.util.logging.Logger.getLogger("").addHandler(ch);
+    }
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();

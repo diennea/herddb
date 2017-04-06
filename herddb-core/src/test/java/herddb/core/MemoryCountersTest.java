@@ -45,25 +45,25 @@ import org.junit.Test;
  */
 public class MemoryCountersTest {
 
-    @Before
-    public void setupLogger() throws Exception {
-        Level level = Level.FINEST;
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-
-            @Override
-            public void uncaughtException(Thread t, Throwable e) {
-                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
-                e.printStackTrace();
-            }
-        });
-        java.util.logging.LogManager.getLogManager().reset();
-        ConsoleHandler ch = new ConsoleHandler();
-        ch.setLevel(level);
-        SimpleFormatter f = new SimpleFormatter();
-        ch.setFormatter(f);
-        java.util.logging.Logger.getLogger("").setLevel(level);
-        java.util.logging.Logger.getLogger("").addHandler(ch);
-    }
+//    @Before
+//    public void setupLogger() throws Exception {
+//        Level level = Level.FINEST;
+//        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+//
+//            @Override
+//            public void uncaughtException(Thread t, Throwable e) {
+//                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
+//                e.printStackTrace();
+//            }
+//        });
+//        java.util.logging.LogManager.getLogManager().reset();
+//        ConsoleHandler ch = new ConsoleHandler();
+//        ch.setLevel(level);
+//        SimpleFormatter f = new SimpleFormatter();
+//        ch.setFormatter(f);
+//        java.util.logging.Logger.getLogger("").setLevel(level);
+//        java.util.logging.Logger.getLogger("").addHandler(ch);
+//    }
 
     @Test
     public void memoryCountersNotEmpty() throws Exception {
