@@ -62,6 +62,9 @@ public interface AbstractTableManager extends AutoCloseable {
 
     public boolean isSystemTable();
 
+    /** Check if the table manage has been fully started */
+    boolean isStarted();
+
     public void start() throws DataStorageManagerException;
 
     @Override

@@ -149,6 +149,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private final LocalLockManager locksManager = new LocalLockManager();
 
+    /** Set to {@code true} when this {@link TableManage} is fully started */
+    private volatile boolean started = false;
+
     private volatile boolean checkPointRunning = false;
 
     /**
@@ -456,6 +459,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         initNewPage();
         LOGGER.log(Level.SEVERE, "loaded {0} keys for table {1}, newPageId {2}, nextPrimaryKeyValue {3}, activePages {4}",
             new Object[]{keyToPage.size(), table.name, nextPageId, nextPrimaryKeyValue.get(), pageSet.getActivePages() + ""});
+
+        started = true;
     }
 
     @Override
@@ -2250,6 +2255,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public boolean isSystemTable() {
         return false;
+    }
+
+    @Override
+    public boolean isStarted() {
+        return started;
     }
 
     @Override

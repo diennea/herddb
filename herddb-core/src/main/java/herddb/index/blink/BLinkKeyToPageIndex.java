@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -92,7 +93,10 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     private final BLinkIndexDataStorage<Bytes, Long> indexDataStorage;
 
-    public BLink<Bytes, Long> tree;
+    private volatile BLink<Bytes, Long> tree;
+
+    private final AtomicBoolean closed;
+
 
     public BLinkKeyToPageIndex(String tableSpace, String tableName, MemoryManager memoryManager, DataStorageManager dataStorageManager) {
         super();
@@ -104,31 +108,33 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         this.newPageId = new AtomicLong(1);
         this.indexDataStorage = new BLinkIndexDataStorageImpl();
+
+        this.closed = new AtomicBoolean(false);
     }
 
     @Override
     public long size() {
-        return tree.size();
+        return getTree().size();
     }
 
     @Override
     public Long put(Bytes key, Long currentPage) {
-        return tree.insert(key, currentPage);
+        return getTree().insert(key, currentPage);
     }
 
     @Override
     public boolean containsKey(Bytes key) {
-        return tree.search(key) != null;
+        return getTree().search(key) != null;
     }
 
     @Override
     public Long get(Bytes key) {
-        return tree.search(key);
+        return getTree().search(key);
     }
 
     @Override
     public Long remove(Bytes key) {
-        return tree.delete(key);
+        return getTree().delete(key);
     }
 
     @Override
@@ -142,7 +148,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     return Stream.empty();
                 }
                 Bytes key = Bytes.from_array(seekValue);
-                Long pageId = tree.search(key);
+                Long pageId = getTree().search(key);
                 if (pageId == null) {
                     return Stream.empty();
                 }
@@ -160,7 +166,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             Bytes firstKey = Bytes.from_array(refvalue);
             Bytes lastKey = firstKey.next();
 
-            return tree.scan(firstKey, lastKey);
+            return getTree().scan(firstKey, lastKey);
         }
 
         // Remember that the IndexOperation can return more records
@@ -174,7 +180,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         if (operation == null) {
-            Stream<Map.Entry<Bytes, Long>> baseStream = tree.scan(null, null);
+            Stream<Map.Entry<Bytes, Long>> baseStream = getTree().scan(null, null);
             return baseStream;
         } else if (operation instanceof PrimaryIndexRangeScan) {
 
@@ -193,7 +199,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             } else {
                 refmaxvalue = null;
             }
-            return tree.scan(refminvalue, refmaxvalue, refmaxvalue != null);
+            return getTree().scan(refminvalue, refmaxvalue, refmaxvalue != null);
         }
 
         throw new DataStorageManagerException("operation " + operation + " not implemented on " + this.getClass());
@@ -201,17 +207,22 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public void close() {
-        final BLink<Bytes, Long> tree = this.tree;
-        this.tree = null;
-        if (tree != null) {
-            tree.close();
+    public void close() throws DataStorageManagerException {
+
+        if (closed.compareAndSet(false, true)) {
+            final BLink<Bytes, Long> tree = this.tree;
+            this.tree = null;
+            if (tree != null) {
+                tree.close();
+            }
+        } else {
+            throw new DataStorageManagerException("Index " + indexName + " already closed");
         }
     }
 
     @Override
     public void truncate() {
-        tree.truncate();
+        getTree().truncate();
     }
 
     @Override
@@ -226,6 +237,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+
         LOGGER.log(Level.SEVERE, " start index {0}", new Object[]{indexName});
 
         /* Actually the same size */
@@ -264,7 +276,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 return Collections.emptyList();
             }
 
-            BLinkMetadata<Bytes> metadata = tree.checkpoint();
+            BLinkMetadata<Bytes> metadata = getTree().checkpoint();
 
             byte[] metaPage = MetadataSerializer.INSTANCE.write(metadata);
 
@@ -288,6 +300,23 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     @Override
     public void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         dataStorageManager.unPinIndexCheckpoint(tableSpace, indexName, sequenceNumber);
+    }
+
+    /**
+     * Retrieve {@link BLink} tree checking the index status
+     */
+    private BLink<Bytes, Long> getTree() {
+        final BLink<Bytes,Long> tree = this.tree;
+
+        if (tree == null) {
+            if (closed.get()) {
+                throw new DataStorageManagerException("Index " + indexName + " already closed");
+            } else {
+                throw new DataStorageManagerException("Index " + indexName + " still not started");
+            }
+        }
+
+        return tree;
     }
 
     private static final class SizeEvaluatorImpl implements SizeEvaluator<Bytes, Long> {

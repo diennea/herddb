@@ -443,7 +443,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                     }
                 }
                 if (!checkLeader) {
-                    if (manager.getTableManager(table) != null) {
+                    AbstractTableManager tableManager = manager.getTableManager(table);
+                    if (tableManager != null && tableManager.isStarted()) {
                         return true;
                     }
                 }
