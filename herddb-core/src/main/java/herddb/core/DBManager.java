@@ -171,20 +171,20 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.activator.setDaemon(true);
 
         this.maxMemoryReference = configuration.getLong(
-                ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE,
-                ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT);
+            ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE,
+            ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT);
 
         this.maxLogicalPageSize = configuration.getLong(
-                ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE,
-                ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT);
+            ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE,
+            ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT);
 
-        this.maxDataUsedMemory  = configuration.getLong(
-                ServerConfiguration.PROPERTY_MAX_DATA_MEMORY,
-                ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_DEFAULT);
+        this.maxDataUsedMemory = configuration.getLong(
+            ServerConfiguration.PROPERTY_MAX_DATA_MEMORY,
+            ServerConfiguration.PROPERTY_MAX_DATA_MEMORY_DEFAULT);
 
         this.maxPKUsedMemory = configuration.getLong(
-                ServerConfiguration.PROPERTY_MAX_PK_MEMORY,
-                ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT);
+            ServerConfiguration.PROPERTY_MAX_PK_MEMORY,
+            ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT);
 
     }
 
@@ -326,6 +326,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         if (maxMemoryReference == 0 || maxMemoryReference > maxHeap) {
             maxMemoryReference = maxHeap;
         }
+        LOGGER.log(Level.INFO, ServerConfiguration.PROPERTY_MEMORY_LIMIT_REFERENCE + "= {0} bytes", Long.toString(maxMemoryReference));
 
         /* If max data memory for pages isn't configured or is too high default it to 0.3 maxMemoryReference */
         if (maxDataUsedMemory == 0 || maxDataUsedMemory > maxMemoryReference) {
@@ -840,7 +841,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
         for (TableSpaceManager man : tablesSpaces.values()) {
-            man.checkpoint(false,false);
+            man.checkpoint(false, false);
         }
     }
 
