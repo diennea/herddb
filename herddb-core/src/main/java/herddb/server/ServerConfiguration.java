@@ -36,28 +36,28 @@ public final class ServerConfiguration {
 
     private final Properties properties;
 
-    public static final String PROPERTY_NODEID = "server.nodeId";
+    public static final String PROPERTY_NODEID = "server.node.id";
     public static final String PROPERTY_MODE = "server.mode";
 
     /**
      * Accept requests only for TableSpaces for which the local server is leader
      */
-    public static final String PROPERTY_ENFORCE_LEADERSHIP = "server.enforceleadership";
+    public static final String PROPERTY_ENFORCE_LEADERSHIP = "server.enforce.leadership";
     public static final boolean PROPERTY_ENFORCE_LEADERSHIP_DEFAULT = true;
 
     public static final String PROPERTY_MODE_LOCAL = "local";
     public static final String PROPERTY_MODE_STANDALONE = "standalone";
     public static final String PROPERTY_MODE_CLUSTER = "cluster";
 
-    public static final String PROPERTY_BASEDIR = "server.baseDir";
+    public static final String PROPERTY_BASEDIR = "server.base.dir";
     public static final String PROPERTY_BASEDIR_DEFAULT = "dbdata";
-    public static final String PROPERTY_DATADIR = "server.dataDir";
+    public static final String PROPERTY_DATADIR = "server.data.dir";
     public static final String PROPERTY_DATADIR_DEFAULT = "data";
-    public static final String PROPERTY_LOGDIR = "server.logDir";
+    public static final String PROPERTY_LOGDIR = "server.log.dir";
     public static final String PROPERTY_LOGDIR_DEFAULT = "txlog";
-    public static final String PROPERTY_TMPDIR = "server.tmpDir";
+    public static final String PROPERTY_TMPDIR = "server.tmp.dir";
     public static final String PROPERTY_TMPDIR_DEFAULT = "tmp";
-    public static final String PROPERTY_METADATADIR = "server.metadataDir";
+    public static final String PROPERTY_METADATADIR = "server.metadata.dir";
     public static final String PROPERTY_METADATADIR_DEFAULT = "metadata";
     public static final String PROPERTY_ADVERTISED_HOST = "server.advertised.host";
     public static final String PROPERTY_ADVERTISED_PORT = "server.advertised.port";
@@ -68,7 +68,7 @@ public final class ServerConfiguration {
     public static final String PROPERTY_SSL = "server.ssl";
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
-    public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.sessiontimeout";
+    public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.session.timeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
 
     public static final String PROPERTY_BOOKKEEPER_START = "server.bookkeeper.start";
@@ -77,13 +77,13 @@ public final class ServerConfiguration {
     public static final String PROPERTY_BOOKKEEPER_BOOKIE_PORT = "server.bookkeeper.port";
     public static final int PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT = 3181;
 
-    public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble";
+    public static final String PROPERTY_BOOKKEEPER_ENSEMBLE = "server.bookkeeper.ensemble.size";
     public static final int PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT = 1;
-    public static final String PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE = "server.bookkeeper.writequorumsize";
+    public static final String PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE = "server.bookkeeper.write.quorum.size";
     public static final int PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT = 1;
-    public static final String PROPERTY_BOOKKEEPER_ACKQUORUMSIZE = "server.bookkeeper.ackquorumsize";
+    public static final String PROPERTY_BOOKKEEPER_ACKQUORUMSIZE = "server.bookkeeper.ack.quorum.size";
     public static final int PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
-    public static final String PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD = "server.bookkeeper.logretentionperiod";
+    public static final String PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD = "server.bookkeeper.log.retention.period";
 
     public static final String PROPERTY_LOG_RETENTION_PERIOD = "server.log.retention.period";
     public static final long PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;

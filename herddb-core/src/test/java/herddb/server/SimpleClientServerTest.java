@@ -125,7 +125,7 @@ public class SimpleClientServerTest {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
                         String name = (String) aa.get("name");
-                        assertEquals("server.baseDir", name);
+                        assertEquals("server.base.dir", name);
                         String value = (String) aa.get("value");
                         assertEquals(_baseDir, value);
                     }

@@ -47,9 +47,9 @@ public class ClientConfiguration {
     public static final String PROPERTY_CLIENT_PASSWORD = "password";
     public static final String PROPERTY_CLIENT_PASSWORD_DEFAULT = "hdb";
 
-    public static final String PROPERTY_BASEDIR = "client.baseDir";
+    public static final String PROPERTY_BASEDIR = "client.base.dir";
     public static final String PROPERTY_TIMEOUT = "client.timeout";
-    public static final String PROPERTY_CLIENTID = "client.clientId";
+    public static final String PROPERTY_CLIENTID = "client.client.id";
     public static final int PROPERTY_TIMEOUT_DEFAULT = 1000 * 60 * 5;
     public static final String PROPERTY_CLIENTID_DEFAULT = "localhost";
 
@@ -64,7 +64,7 @@ public class ClientConfiguration {
     public static final String PROPERTY_SERVER_SSL = "client.server.ssl";
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "client.zookeeper.address";
-    public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "client.zookeeper.sessiontimeout";
+    public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "client.zookeeper.session.timeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "client.zookeeper.path";
 
     public static final String PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT = "localhost:1281";
