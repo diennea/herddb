@@ -136,7 +136,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private long maxPKUsedMemory = ServerConfiguration.PROPERTY_MAX_PK_MEMORY_DEFAULT;
 
     private boolean clearAtBoot = false;
-    private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT;
+    private boolean haltOnTableSpaceBootError = ServerConfiguration.PROPERTY_HALT_ON_TABLESPACE_BOOT_ERROR_DEAULT;
     private Runnable haltProcedure = DefaultJVMHalt.INSTANCE;
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
 

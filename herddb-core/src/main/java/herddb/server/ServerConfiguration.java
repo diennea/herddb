@@ -145,8 +145,8 @@ public final class ServerConfiguration {
     public static final String PROPERTY_MAX_LOGICAL_PAGE_SIZE = "server.memory.page.size";
     public static final long PROPERTY_MAX_LOGICAL_PAGE_SIZE_DEFAULT = 1 * 1024 * 1024;
 
-    public static final String PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR = "server.haltontablespacebooterror";
-    public static final boolean PROPERTY_HALT_ON_TABLESPACEBOOT_ERROR_DEAULT = false;
+    public static final String PROPERTY_HALT_ON_TABLESPACE_BOOT_ERROR = "server.halt.on.tablespace.boot.error";
+    public static final boolean PROPERTY_HALT_ON_TABLESPACE_BOOT_ERROR_DEAULT = false;
 
     /**
      * Maximum memory usable by HerdDB. If 0 the system will try to use most of the RAM of the JVM. When you
