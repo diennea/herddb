@@ -49,13 +49,13 @@ import java.util.concurrent.locks.ReentrantLock;
 public class ClockProPolicy implements PageReplacementPolicy {
 
     /** Value for {@link CPMetadata#warm}: hot page */
-    private final static byte HOT = 0x00;
+    private final static byte HOT = 1;
 
     /** Value for {@link CPMetadata#warm}: cold page still loaded */
-    private final static byte COLD = 0x01;
+    private final static byte COLD = 2;
 
     /** Value for {@link CPMetadata#warm}: old cold page unloaded */
-    private final static byte NON_RESIDENT_COLD = 0x10;
+    private final static byte NON_RESIDENT_COLD = 4;
 
 
     /** Capacity */
@@ -294,16 +294,13 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
             ++countHot;
             --countNonResident;
-//            assertTrue(countNonResident >= 0);
 
             if (known.test) {
                 /* If a cold page is accessed during its test period, we increment Mc by 1. */
                 ++mc;
-                //LOTHRUIN
                 mc = Math.min(m, mc);
                 if (mc < 0 || mc > m)
-                    throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
-//                assertTrue(mc <= m);
+                    throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
             }
 
 
@@ -328,17 +325,14 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
             case HOT:
                 --countHot;
-//                assertTrue(countHot >= 0);
                 break;
 
             case COLD:
                 --countCold;
-//                assertTrue(countCold >= 0);
                 break;
 
             case NON_RESIDENT_COLD:
                 --countNonResident;
-//                assertTrue(countNonResident >= 0);
                 break;
 
             default:
@@ -348,7 +342,7 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
         delete(known);
 
-        return false;
+        return true;
 
     }
 
@@ -401,11 +395,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         /* If a cold page is accessed during its test period, we increment Mc by 1. */
                         ++mc;
 
-                        // LOTHRUIN
                         mc = Math.min(m,mc);
                         if (mc < 0 || mc > m)
-                            throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
-//                        assertTrue(mc <= m);
+                            throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
 
                         hotSweep();
                     }
@@ -564,11 +556,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         /* If a cold page passes its test period without a re-access, we decrement Mc by 1 */
 
                         --mc;
-                        //LOTHRUIN
                         mc = Math.max(0, mc);
                         if (mc < 0 || mc > m)
-                            throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
-//                        assertTrue(mc >= 0);
+                            throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
                     }
 
                 }
@@ -630,21 +620,17 @@ public class ClockProPolicy implements PageReplacementPolicy {
 //            assertTrue(countNonResident >= 0);
 
             --mc;
-            //LOTHRUIN
             mc = Math.max(0, mc);
             if (mc < 0 || mc > m)
-                throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
-//            assertTrue(mc >= 0);
+                throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
 
         } else {
             /* If a cold page passes its test period without a re-access, we decrement Mc by 1 */
             if (!handTest.reference) {
                 --mc;
-                //LOTHRUIN
                 mc = Math.max(0, mc);
                 if (mc < 0 || mc > m)
-                    throw new IllegalStateException("LOTHRUIN " + mc + " " + m);
-//                assertTrue(mc >= 0);
+                    throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
             }
         }
 

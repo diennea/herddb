@@ -7,7 +7,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 
-import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -21,35 +20,38 @@ public class PageReplacementPolicyTest {
     private static final int DEFAULT_CAPACITY = 300;
     private static final int DEFAULT_PAGES = 500;
     private static final int DEFAULT_ITERATIONS = 100000;
+
     @Parameters(name = "{0}")
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][] {
-                 {new ClockProPolicy(DEFAULT_CAPACITY),               DEFAULT_PAGES, DEFAULT_ITERATIONS},
-                 {new ClockAdaptiveReplacement(DEFAULT_CAPACITY),    DEFAULT_PAGES, DEFAULT_ITERATIONS},
-                 {new RandomPageReplacementPolicy(DEFAULT_CAPACITY), DEFAULT_PAGES, DEFAULT_ITERATIONS}
+                 {new ClockProPolicy(DEFAULT_CAPACITY),              DEFAULT_PAGES, DEFAULT_ITERATIONS, false},
+                 {new ClockAdaptiveReplacement(DEFAULT_CAPACITY),    DEFAULT_PAGES, DEFAULT_ITERATIONS, false},
+                 {new RandomPageReplacementPolicy(DEFAULT_CAPACITY), DEFAULT_PAGES, DEFAULT_ITERATIONS, false}
            });
     }
 
     private final PageReplacementPolicy policy;
     private final int pages;
     private final int iterations;
+    private final boolean stable;
 
-    public PageReplacementPolicyTest(PageReplacementPolicy policy, int pages, int iterations) {
+    public PageReplacementPolicyTest(PageReplacementPolicy policy, int pages, int iterations, boolean stable) {
         super();
         this.policy = policy;
         this.pages = pages;
         this.iterations = iterations;
+        this.stable = stable;
     }
 
     @Test
     public void test() {
-        test(pages, iterations, policy);
+        test(pages, iterations, policy, stable);
     }
 
-    private void test(int pages, int iterations, PageReplacementPolicy policy) {
-        Assert.assertTrue(policy.capacity() < pages);
+    private void test(int pages, int iterations, PageReplacementPolicy policy, boolean stable) {
+//        Assert.assertTrue(policy.capacity() < pages);
 
-        MyOwner owner = new MyOwner(pages, policy, new Random(0));
+        MyOwner owner = new MyOwner(pages, policy, stable ? new Random(0) : new Random(System.nanoTime()));
         for(int i = 0; i < iterations; ++i){
             owner.loadRandom();
         }
@@ -62,7 +64,7 @@ public class PageReplacementPolicyTest {
         Map<Long,MyPage> existing;
 
         PageReplacementPolicy policy;
-        Random random = new Random(0);
+        Random random;
 
         int nextId;
         int pages;
@@ -138,9 +140,19 @@ public class PageReplacementPolicyTest {
 
                 } else {
 
-                    /* una pagina è stata distrutta */
-                    throw new IllegalStateException();
+                    /* Pagine massime minori della capacità */
 
+                    MyPage page = getRandom(inPolicy, random);
+
+                    if (inPolicy.remove(page.pageId) == null)
+                        throw new IllegalStateException();
+
+                    if (existing.remove(page.pageId) == null)
+                        throw new IllegalStateException();
+
+                    if (!policy.remove(page)) {
+                        throw new IllegalStateException();
+                    }
                 }
 
             } else {
@@ -173,7 +185,8 @@ public class PageReplacementPolicyTest {
 
                     if (remove) {
 
-                        int maxrem = inPolicy.size() / 5;
+//                        int maxrem = inPolicy.size() / 5;
+                        int maxrem = inPolicy.size();
                         if ( maxrem > 0) {
                             int rems = random.nextInt(maxrem);
                             /* Aggiunge qualche page/hit casuale */
@@ -186,7 +199,9 @@ public class PageReplacementPolicyTest {
                                 if (existing.remove(page.pageId) == null)
                                     throw new IllegalStateException();
 
-                                policy.remove(page);
+                                if (!policy.remove(page)) {
+                                    throw new IllegalStateException();
+                                }
                             }
                         }
 
@@ -218,6 +233,11 @@ public class PageReplacementPolicyTest {
                 }
 
             }
+        }
+
+        @Override
+        public String toString() {
+            return "MyOwner";
         }
 
     }
