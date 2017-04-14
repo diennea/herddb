@@ -607,6 +607,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * </p>
      */
     private void initNewPage() {
+
         final Long newId = nextPageId++;
         final DataPage newPage = new DataPage(this, newId, maxLogicalPageSize, 0, new ConcurrentHashMap<>(), false);
 
@@ -627,7 +628,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             unloadedPagesCount.increment();
             LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             if (!remove.readonly) {
-                flushNewPage(remove);
+                flushNewPage(remove, Collections.emptyMap());
+
                 LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
                     new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             } else {
@@ -635,13 +637,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
             return null;
         });
-    }
-
-    /**
-     * Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk
-     */
-    private void flushNewPage(DataPage page) {
-        flushNewPage(page, Collections.emptyMap());
     }
 
     /**
@@ -893,7 +888,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         }
 
-        pageReplacementPolicy.remove(pages.values());
+        /* Do not unload the current working page not known to replacement policy */
+        final long currentDirtyPageId = currentDirtyRecordsPage.get();
+        final List<DataPage> unload = pages.values().stream()
+                .filter(page -> page.pageId != currentDirtyPageId)
+                .collect(Collectors.toList());
+
+        pageReplacementPolicy.remove(unload);
 
         pageSet.truncate();
 
@@ -1913,7 +1914,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* Remove flushed pages handled */
             for (Long pageId : flushedPages) {
                 final DataPage page = pages.remove(pageId);
-                if (page != null) {
+                /* Current dirty record page isn't known to page replacement policy */
+                if (page != null && currentDirtyRecordsPage.get() != page.pageId) {
                     pageReplacementPolicy.remove(page);
                 }
             }
@@ -1923,7 +1925,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * unloaded) due do a deletion: all pages will be removed and no page will remain alive.
              */
             if (newPages.isEmpty()) {
-                initNewPage();
+                /* Allocate live handles the correct policy load/unload of last dirty page */
+                allocateLivePage(currentDirtyRecordsPage.get());
             }
 
             checkPointRunning = false;
