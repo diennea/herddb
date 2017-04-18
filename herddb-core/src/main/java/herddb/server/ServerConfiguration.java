@@ -83,10 +83,8 @@ public final class ServerConfiguration {
     public static final int PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_ACKQUORUMSIZE = "server.bookkeeper.ack.quorum.size";
     public static final int PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
-    public static final String PROPERTY_BOOKKEEPER_LOGRETENTION_PERIOD = "server.bookkeeper.log.retention.period";
-
-    public static final String PROPERTY_LOG_RETENTION_PERIOD = "server.log.retention.period";
-    public static final long PROPERTY_LOG_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
+    public static final String PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD = "server.bookkeeper.ledgers.retention.period";
+    public static final long PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
 
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
