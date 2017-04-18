@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Basic implementation of ClockPro algorithm.
@@ -47,6 +49,15 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author diego.salvi
  */
 public class ClockProPolicy implements PageReplacementPolicy {
+
+    /** Class logger */
+    private static final Logger LOGGER = Logger.getLogger(ClockProPolicy.class.getName());
+
+    /**
+     * This <i>constants</i> rules out unecessary and expensive logs at compile level if set to {@code true}.
+     * Note: it <b>must</b> be static final to succesfully work.
+     */
+    private static final boolean COMPILE_EXPENSIVE_LOGS = false;
 
     /** Value for {@link CPMetadata#warm}: hot page */
     private final static byte HOT = 1;
@@ -215,6 +226,13 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
     private CPMetadata unsafeAdd(Page<?> page, boolean freespace) {
 
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Status[add started]: "
+                    + "m = {0}, mc = {1}, countHot = {2}, countCold = {3}, countNonResident = {4}, "
+                    + "handHot = {5}, handCold = {6}, handTest = {7}, "
+                    + "freeingspace = {8}, adding {9}",
+                    new Object[] {m, mc, countHot, countCold, countNonResident, handHot, handCold, handTest, freespace, page});
+
         /*
          * When there is a page fault, the faulted page must be a cold page.
          *
@@ -246,6 +264,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
         if (known == null) {
 
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Inserting unknown page {0}", page);
+
             /*
              * If the faulted cold page is not in the list, its reuse distance is highly likely to be larger
              * than the recency of hot pages.
@@ -268,6 +289,10 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
             ++countCold;
 
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Inserted unknown page {0}: "
+                        + "m = {1}, mc = {2}, countCold = {3}, countNonResident = {4}",
+                        new Object[] {page, m, mc, countCold, countNonResident});
 
             /* If the number of cold pages is larger than the threshold (Mc + M), we run HANDtest. */
             if (countCold + countNonResident > mc + m ) {
@@ -276,11 +301,13 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
         } else {
 
-//            assertEquals(NON_RESIDENT_COLD,known.warm);
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Inserting known page {0}", page);
 
             if (known.warm != NON_RESIDENT_COLD) {
                 throw new IllegalArgumentException("Added a page twice: " + page);
             }
+
 
             /*
              * If the cold page is in the list, the faulted page turns into a hot page and is placed at the
@@ -301,11 +328,27 @@ public class ClockProPolicy implements PageReplacementPolicy {
                 mc = Math.min(m, mc);
                 if (mc < 0 || mc > m)
                     throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
+
+                if (COMPILE_EXPENSIVE_LOGS)
+                    LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Inserted known page during test {0}: mc = {1}",
+                            new Object[] {page, mc});
             }
 
 
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Inserted known page {0}: "
+                        + "m = {0}, mc = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {page, m, mc, countCold, countNonResident});
+
             hotSweep();
         }
+
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Status[add completed]: "
+                    + "m = {0}, mc = {1}, countHot = {2}, countCold = {3}, countNonResident = {4}, "
+                    + "handHot = {5}, handCold = {6}, handTest = {7}, "
+                    + "replaced {8}",
+                    new Object[] {m, mc, countHot, countCold, countNonResident, handHot, handCold, handTest, unloaded});
 
         return unloaded;
 
@@ -313,11 +356,27 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
     private boolean unsafeRemove(CPMetadata metadata) {
 
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Status[remove started]: "
+                    + "m = {0}, mc = {1}, countHot = {2}, countCold = {3}, countNonResident = {4}, "
+                    + "handHot = {5}, handCold = {6}, handTest = {7}, "
+                    + "removing {8}",
+                    new Object[] {m, mc, countHot, countCold, countNonResident, handHot, handCold, handTest, metadata.pageId});
+
+
         /* Custom addition to CP algorithm, we need to drop pages too */
 
         final CPMetadata known = space.remove(metadata);
 
         if (known == null) {
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Status[remove ended] unknown page: "
+                        + "m = {0}, mc = {1}, countHot = {2}, countCold = {3}, countNonResident = {4}, "
+                        + "handHot = {5}, handCold = {6}, handTest = {7}, "
+                        + "removing {8}",
+                        new Object[] {m, mc, countHot, countCold, countNonResident, handHot, handCold, handTest, metadata.pageId});
+
             return false;
         }
 
@@ -342,6 +401,13 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
         delete(known);
 
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Status[remove ended]: "
+                    + "m = {0}, mc = {1}, countHot = {2}, countCold = {3}, countNonResident = {4}, "
+                    + "handHot = {5}, handCold = {6}, handTest = {7}, "
+                    + "removing {8}",
+                    new Object[] {m, mc, countHot, countCold, countNonResident, handHot, handCold, handTest, metadata.pageId});
+
         return true;
 
     }
@@ -349,8 +415,18 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
     private CPMetadata coldSweep() {
 
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: starting: "
+                    + "mc = {0}, countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {mc, countHot, countCold, countNonResident});
+
         CPMetadata unloading = null;
         while(unloading == null) {
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: checking handCold {0} warm {1}",
+                        new Object[] {handCold.pageId, handCold.warm});
+
 
             if (handCold.warm == COLD) {
                 /*
@@ -374,9 +450,10 @@ public class ClockProPolicy implements PageReplacementPolicy {
                  * replacement, and stops at the next resident cold page
                  */
 
-//                assertEquals(COLD, handCold.item.warm);
-
                 if (handCold.reference) {
+
+                    if (COMPILE_EXPENSIVE_LOGS)
+                        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: testing cold referenced {0}", handCold.pageId);
 
                     if (handCold.test) {
 
@@ -389,7 +466,6 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         handCold.warm = HOT;
 
                         --countCold;
-//                        assertTrue(countCold >= 0);
                         ++countHot;
 
                         /* If a cold page is accessed during its test period, we increment Mc by 1. */
@@ -398,6 +474,11 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         mc = Math.min(m,mc);
                         if (mc < 0 || mc > m)
                             throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
+
+                        if (COMPILE_EXPENSIVE_LOGS)
+                            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: referenced cold {0} promoted to hot: "
+                                    + "mc = {1}, countHot = {2}, countCold = {3}",
+                                    new Object[] {handCold.pageId, mc, countHot, countCold});
 
                         hotSweep();
                     }
@@ -411,6 +492,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
                      */
 
                 } else {
+
+                    if (COMPILE_EXPENSIVE_LOGS)
+                        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: testing cold not referenced {0}", handCold.pageId);
 
                     /*
                      * If the reference bit of the cold page currently pointed to by HANDcold is unset, we replace the
@@ -430,8 +514,12 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         unloading = handCold;
 
                         --countCold;
-//                        assertTrue(countCold >= 0);
                         ++countNonResident;
+
+                        if (COMPILE_EXPENSIVE_LOGS)
+                            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: not referenced cold {0} downgraded to non resident (but kept): "
+                                    + "mc = {1}, countCold = {2}, countNonResident = {3}",
+                                    new Object[] {handCold.pageId, mc, countCold, countNonResident});
 
                         while (countNonResident > m) {
                             testSweep();
@@ -442,24 +530,53 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         // loop fin qui!
                         unloading = handCold;
 
+                        --countCold;
+
+                        if (COMPILE_EXPENSIVE_LOGS)
+                            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: referenced cold {0} deleted: countCold = {1}",
+                                    new Object[] {handCold.pageId, countCold});
+
                         /* If not, we move it out of the clock. */
                         handCold = deleteAndStayStill(handCold);
 
-                        --countCold;
-//                        assertTrue(countCold >= 0);
+                        if (COMPILE_EXPENSIVE_LOGS)
+                            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: backward handCold after delete to {0}:",
+                                    handCold.pageId);
+
                     }
                 }
             }
 
             handCold = handCold.next;
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: advanced handCold to {0}:", handCold.pageId);
         }
 
         /* The hand will keep moving until ... and stops at the next resident cold page */
         if (countCold > 0) {
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: final not cold skip start:"
+                        + "countHot = {0}, countCold = {1}, countNonResident = {2}",
+                        new Object[] {countHot, countCold, countNonResident});
+
+            int notcoldskip = 0;
             while(handCold.warm != COLD) {
                 handCold = handCold.next;
+                if (COMPILE_EXPENSIVE_LOGS) ++notcoldskip;
             }
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: final not cold skip end {0}:"
+                        + "countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {notcoldskip, countHot, countCold, countNonResident});
         }
+
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Cold Sweep: exiting: "
+                    + "mc = {0}, countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {mc, countHot, countCold, countNonResident});
 
         return unloading;
 
@@ -467,8 +584,19 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
     private void hotSweep() {
 
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: starting: "
+                    + "mc = {0}, countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {mc, countHot, countCold, countNonResident});
+
         /* Do not sweep, there is still space for hot pages */
         if (countHot < m - mc) {
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: skipping due to still available space: "
+                        + "m = {0}, mc = {1}, countHot = {2}",
+                            new Object[] {m, mc, countHot});
+
             return;
         }
 
@@ -506,9 +634,16 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
         while(true) {
 
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: checking handHot {0} warm {1}",
+                        new Object[] {handHot.pageId, handHot.warm});
+
             if (handHot.warm == HOT) {
 
                 if (handHot.reference) {
+
+                    if (COMPILE_EXPENSIVE_LOGS)
+                        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: testing hot referenced {0}", handHot.pageId);
 
                     /*
                      * However, if the bit is set, which indicates the page has been re-accessed, we spare this page,
@@ -519,6 +654,9 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
                 } else {
 
+                    if (COMPILE_EXPENSIVE_LOGS)
+                        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: testing hot not referenced {0}", handHot.pageId);
+
                     /*
                      * Then the hot page turns into a cold page. Note that moving HANDhot forward is
                      * equivalent to leaving the page it moves by at the list head.
@@ -527,7 +665,11 @@ public class ClockProPolicy implements PageReplacementPolicy {
                     handHot.warm = COLD;
                     ++countCold;
                     --countHot;
-//                    assertTrue(countHot >= 0);
+
+                    if (COMPILE_EXPENSIVE_LOGS)
+                        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: not referenced hot {0} downgraded to cold (but kept): "
+                                + "mc = {1}, countHot = {2}, countCold = {3}",
+                                new Object[] {handHot.pageId, mc, countHot, countCold});
 
                     break;
 
@@ -546,9 +688,17 @@ public class ClockProPolicy implements PageReplacementPolicy {
                 if (handHot.warm == NON_RESIDENT_COLD) {
 
                     --countNonResident;
-//                    assertTrue(countNonResident >= 0);
 
-                    deleteAndStayStill(handHot);
+                    if (COMPILE_EXPENSIVE_LOGS)
+                        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: non resident {0} deleted: countNonResident = {1}",
+                                new Object[] {handHot.pageId, countNonResident});
+
+                    /* If not, we move it out of the clock. */
+                    handHot = deleteAndStayStill(handHot);
+
+                    if (COMPILE_EXPENSIVE_LOGS)
+                        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: backward handHot after delete to {0}:",
+                                handHot.pageId);
 
                 } else {
 
@@ -559,6 +709,10 @@ public class ClockProPolicy implements PageReplacementPolicy {
                         mc = Math.max(0, mc);
                         if (mc < 0 || mc > m)
                             throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
+
+                        if (COMPILE_EXPENSIVE_LOGS)
+                            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: checked cold not referenced {0}: mc = {1}",
+                                    new Object[] {handHot.pageId, mc});
                     }
 
                 }
@@ -570,24 +724,57 @@ public class ClockProPolicy implements PageReplacementPolicy {
              */
             handHot = handHot.next;
 
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: advanced handHot to {0}:", handHot.pageId);
+
         }
 
         /* Finally the hand stops at a hot page. */
         if (countHot > 0) {
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: final not hot skip start:"
+                        + "countHot = {0}, countCold = {1}, countNonResident = {2}",
+                        new Object[] {countHot, countCold, countNonResident});
+
+            int nothotskip = 0;
+
             do {
                 handHot = handHot.next;
+                if (COMPILE_EXPENSIVE_LOGS) ++nothotskip;
             } while(handHot.warm != HOT);
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: final not hot skip end {0}:"
+                        + "countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {nothotskip, countHot, countCold, countNonResident});
         }
 
-
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Hot Sweep: exiting: "
+                    + "mc = {0}, countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {mc, countHot, countCold, countNonResident});
 
     }
 
     private void testSweep() {
 
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: starting: "
+                    + "mc = {0}, countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {mc, countHot, countCold, countNonResident});
+
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: initial hot skip start: countHot = {0}", new Object[] {countHot});
+
+        int hotskip = 0;
         while(handTest.warm == HOT) {
             handTest = handTest.next;
+            if (COMPILE_EXPENSIVE_LOGS) ++hotskip;
         }
+
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: initial hot skip end {0}: countHot = {1}", new Object[] {hotskip, countHot});
 
         /*
          * We keep track of the number of non-resident cold pages.
@@ -607,49 +794,72 @@ public class ClockProPolicy implements PageReplacementPolicy {
          */
         handTest.test = false;
 
+        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: checking handTest {0} warm {1}",
+                new Object[] {handTest.pageId, handTest.warm});
+
         if (handTest.warm == NON_RESIDENT_COLD) {
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: deleting non resident {0}", handTest.pageId);
 
             /*
              * We also remove it from the clock if it is a non-resident page. Because the cold page has used
              * up its test period without a re-access and has no chance to turn into a hot page with its next
              * access.
              */
-            handTest = deleteAndAdvance(handTest);
+            handTest = deleteAndStayStill(handTest);
 
             --countNonResident;
-//            assertTrue(countNonResident >= 0);
 
             --mc;
             mc = Math.max(0, mc);
             if (mc < 0 || mc > m)
                 throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
 
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: advanced handTest after delete to {0}: mc = {1}, countNonResident = {2}",
+                        new Object[] {handTest.pageId, mc, countNonResident});
+
         } else {
+
+            if (COMPILE_EXPENSIVE_LOGS)
+                LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: checking cold resident {0}", handTest.pageId);
+
             /* If a cold page passes its test period without a re-access, we decrement Mc by 1 */
             if (!handTest.reference) {
                 --mc;
                 mc = Math.max(0, mc);
                 if (mc < 0 || mc > m)
                     throw new IllegalStateException("Mc doens't match 0 <= mc <= m: mc " + mc + " m " + m);
+
+                if (COMPILE_EXPENSIVE_LOGS)
+                    LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: unreferenced cold resident {0}: mc = {1}",
+                            new Object[] {handTest.pageId, mc});
             }
+
         }
+
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: final hot skip start: countHot = {0}", new Object[] {countHot});
+
+        /* Advance */
+        handTest = handTest.next;
 
         /* HANDtest then moves forward and stops at the next cold page. */
+        hotskip = 0;
         while (handTest.warm == HOT) {
             handTest = handTest.next;
+            if (COMPILE_EXPENSIVE_LOGS) ++hotskip;
         }
 
-    }
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: final hot skip end {0}: countHot = {1}", new Object[] {hotskip, countHot});
 
-    /**
-     * Delete given node from both linked list and node space and returns next node.
-     */
-    private CPMetadata deleteAndAdvance(CPMetadata node) {
-        final CPMetadata next = node.next;
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: exiting: "
+                    + "mc = {0}, countHot = {1}, countCold = {2}, countNonResident = {3}",
+                        new Object[] {mc, countHot, countCold, countNonResident});
 
-        delete(node);
-
-        return next;
     }
 
     /**
