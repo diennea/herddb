@@ -4,7 +4,7 @@
     <parent>
         <groupId>org.herddb</groupId>
         <artifactId>herddb-parent</artifactId>
-        <version>0.0.7-ALPHA16</version>
+        <version>0.0.7-ALPHA17</version>
     </parent>
     <artifactId>herddb-website</artifactId>
     <packaging>jar</packaging>
