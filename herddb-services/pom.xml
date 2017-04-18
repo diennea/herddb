@@ -3,17 +3,59 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>herddb-parent</artifactId>
         <groupId>org.herddb</groupId>
+        <artifactId>herddb-parent</artifactId>
         <version>0.0.7-ALPHA17</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Services</name>
     <artifactId>herddb-services</artifactId>   
+    <packaging>jar</packaging>
     <properties>
         <buildTimestamp>${maven.build.timestamp}</buildTimestamp>
     </properties>
+    <dependencies>       
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-cli</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-jdbc</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+            <classifier>uber</classifier>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>     
+        </dependency>   
+        <dependency>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.bookkeeper</groupId>
+            <artifactId>bookkeeper-server</artifactId>       
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-jdk14</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>curator-test</artifactId>
+            <scope>test</scope>
+        </dependency>              
+    </dependencies>
     <build>        
         <resources>
             <resource>
@@ -77,58 +119,4 @@
       
         </plugins>
     </build>
-    <dependencies>       
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-cli</artifactId>
-            <version>${project.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-jdbc</artifactId>
-            <version>${project.version}</version>
-            <scope>runtime</scope>
-            <classifier>uber</classifier>
-        </dependency>
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>2.4</version>            
-        </dependency>   
-        <dependency>
-            <groupId>commons-logging</groupId>
-            <artifactId>commons-logging</artifactId>
-            <version>1.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.bookkeeper</groupId>
-            <artifactId>bookkeeper-server</artifactId>
-            <version>${libs.bookkeeper}</version>
-            <scope>compile</scope>  
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-log4j12</artifactId>                        
-                </exclusion>
-            </exclusions>         
-        </dependency>
-        <dependency>
-            <groupId>org.apache.curator</groupId>
-            <artifactId>curator-test</artifactId>
-            <version>2.11.1</version>
-            <scope>test</scope>
-        </dependency>              
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-jdk14</artifactId>
-            <version>1.6.4</version>
-        </dependency>
-    </dependencies>
-
 </project>

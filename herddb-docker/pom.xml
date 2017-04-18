@@ -3,14 +3,24 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>herddb-parent</artifactId>
         <groupId>org.herddb</groupId>
-        <version>0.0.7-ALPHA16</version>
-        <relativePath>../pom.xml</relativePath>
+        <artifactId>herddb-parent</artifactId>
+        <version>0.0.7-ALPHA17</version>
+        <relativePath>..</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Docker</name>
     <artifactId>herddb-docker</artifactId>
+    <dependencies>       
+        <!--
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-services</artifactId>
+            <version>${project.version}</version>            
+            <type>zip</type>                  
+        </dependency>
+        -->
+    </dependencies>
     <build>
         <resources>
             <resource>
@@ -83,13 +93,4 @@
            
         </plugins>
     </build>
-    <dependencies>       
-        <!--        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-services</artifactId>
-            <version>${project.version}</version>            
-            <type>zip</type>                  
-        </dependency>-->
-        
-    </dependencies>
 </project>

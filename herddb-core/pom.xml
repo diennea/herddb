@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
-    <modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <groupId>org.herddb</groupId>
+        <artifactId>herddb-parent</artifactId>
         <version>0.0.7-ALPHA17</version>
         <relativePath>..</relativePath>
-        <artifactId>herddb-parent</artifactId>
     </parent>
-    <artifactId>herddb-core</artifactId>
+    <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Core</name>
+    <artifactId>herddb-core</artifactId>
     <packaging>jar</packaging>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <buildNumber>${maven.build.timestamp}</buildNumber>
+    </properties>
     <dependencies>        
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -20,56 +25,27 @@
         <dependency>
             <groupId>com.github.jsqlparser</groupId>
             <artifactId>jsqlparser</artifactId>
-            <version>${libs.jsqlparser}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
-            <version>${libs.zookeeper}</version>
-            <exclusions>
-                <exclusion>
-                    <artifactId>jms</artifactId>
-                    <groupId>javax.jms</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>jmxtools</artifactId>
-                    <groupId>com.sun.jdmk</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>jmxri</artifactId>
-                    <groupId>com.sun.jmx</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>slf4j-log4j12</artifactId>
-                    <groupId>org.slf4j</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>jline</artifactId>
-                    <groupId>jline</groupId>
-                </exclusion>                
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
-            <version>${libs.slf4j}</version>
         </dependency>  
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-jdk14</artifactId>
-            <version>${libs.slf4j}</version>
             <scope>test</scope>
         </dependency>     
         <dependency>
             <groupId>net.jpountz.lz4</groupId>
             <artifactId>lz4</artifactId>
-            <version>${libs.lz4}</version>
-            <type>jar</type>
         </dependency>   
         <dependency>
             <groupId>org.apache.curator</groupId>
-            <artifactId>curator-test</artifactId>
-            <version>${libs.curator}</version>            
+            <artifactId>curator-test</artifactId>         
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -80,49 +56,10 @@
         <dependency>
             <groupId>org.apache.bookkeeper.stats</groupId>
             <artifactId>codahale-metrics-provider</artifactId>
-            <version>${libs.bookkeeper}</version> 
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-log4j12</artifactId>                    
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.bookkeeper</groupId>
             <artifactId>bookkeeper-server</artifactId>
-            <version>${libs.bookkeeper}</version>
-            <scope>compile</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-log4j12</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>netty</groupId>
-                    <artifactId>io.netty</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>commons-logging</groupId>
-                    <artifactId>commons-logging</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>commons-digester</groupId>
-                    <artifactId>commons-digester</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>commons-beanutils-core</groupId>
-                    <artifactId>commons-beanutils</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>commons-cli</groupId>
-                    <artifactId>commons-cli</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>jna</groupId>
-                    <artifactId>net.java.dev.jna</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>             
             <groupId>commons-logging</groupId>
@@ -139,25 +76,16 @@
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-minikdc</artifactId>
-            <version>2.7.3</version>
             <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-log4j12</artifactId>                    
-                </exclusion>
-            </exclusions>
         </dependency>   
         <dependency>
             <groupId>commons-io</groupId>
             <artifactId>commons-io</artifactId>
-            <version>2.4</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>com.esotericsoftware</groupId>
-            <artifactId>kryo</artifactId>
-            <version>4.0.0</version>            
+            <artifactId>kryo</artifactId>      
         </dependency>
     </dependencies>
     <build>
@@ -202,8 +130,4 @@
             </plugin>
         </plugins>
     </build>
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <buildNumber>${maven.build.timestamp}</buildNumber>
-    </properties>
 </project>

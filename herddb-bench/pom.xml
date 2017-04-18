@@ -3,10 +3,10 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>herddb-parent</artifactId>
         <groupId>org.herddb</groupId>
+        <artifactId>herddb-parent</artifactId>
         <version>0.0.7-ALPHA17</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>..</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Benchmarks</name>
@@ -20,7 +20,6 @@
         <dependency>
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-test</artifactId>
-            <version>3.2.1</version>
             <scope>test</scope>
         </dependency>       
     </dependencies>

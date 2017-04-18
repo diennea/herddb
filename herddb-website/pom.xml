@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <groupId>org.herddb</groupId>
         <artifactId>herddb-parent</artifactId>
         <version>0.0.7-ALPHA17</version>
+        <relativePath>..</relativePath>
     </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <name>HerdDB Website</name>
     <artifactId>herddb-website</artifactId>
     <packaging>jar</packaging>
-    <name>HerdDB Website</name>
     <build>               
         <plugins>
             <plugin>
