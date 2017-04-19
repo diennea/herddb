@@ -297,17 +297,9 @@ public class BookkeeperCommitLog extends CommitLog {
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
                     LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
-                    LedgerMetadata ledgerMetadata = getLedgerMetadata(handle);
-                    if (ledgerMetadata != null) {
-                        LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", ledgerMetadata:" + ledgerMetadata);
-                    }
-                    if (lastAddConfirmed <= 0) {
-                        lastAddConfirmed = handle.readLastConfirmed();
-                        LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " after readLastConfirmed lastAddConfirmed=" + lastAddConfirmed);
-                    }
-
+                   
                     final int BATCH_SIZE = 10000;
-                    if (lastAddConfirmed > 0) {
+                    if (lastAddConfirmed >= 0) {
 
                         for (long b = first; b <= lastAddConfirmed;) {
                             long start = b;
@@ -384,17 +376,7 @@ public class BookkeeperCommitLog extends CommitLog {
             throw new LogNotAvailableException(err);
         }
     }
-
-    private LedgerMetadata getLedgerMetadata(LedgerHandle handle) {
-        try {
-            Field metadataField = LedgerHandle.class.getDeclaredField("metadata");
-            metadataField.setAccessible(true);
-            return (LedgerMetadata) metadataField.get(handle);
-        } catch (IllegalAccessException | IllegalArgumentException | NoSuchFieldException | SecurityException err) {
-            LOGGER.log(Level.SEVERE, "Cannot access ledger metadata " + err);
-            return null;
-        }
-    }
+    
 
     @Override
     public void startWriting() throws LogNotAvailableException {
