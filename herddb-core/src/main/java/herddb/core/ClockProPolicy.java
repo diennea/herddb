@@ -794,7 +794,8 @@ public class ClockProPolicy implements PageReplacementPolicy {
          */
         handTest.test = false;
 
-        LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: checking handTest {0} warm {1}",
+        if (COMPILE_EXPENSIVE_LOGS)
+            LOGGER.log(Level.SEVERE, System.identityHashCode(this) + " m " + m + " Test Sweep: checking handTest {0} warm {1}",
                 new Object[] {handTest.pageId, handTest.warm});
 
         if (handTest.warm == NON_RESIDENT_COLD) {
