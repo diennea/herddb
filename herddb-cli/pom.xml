@@ -29,7 +29,11 @@
         <dependency>
             <groupId>org.jline</groupId>
             <artifactId>jline</artifactId>
-        </dependency>       
+        </dependency>               
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-jdk14</artifactId>            
+        </dependency>
     </dependencies>
     <build>
         <plugins>            
@@ -44,16 +48,7 @@
                             <goal>shade</goal>
                         </goals>                        
                     </execution>
-                </executions>
-                <!--                <configuration>
-                    <configuration>                        
-                        <transformers>
-                            <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                <mainClass>herddb.cli.HerdDBCLI</mainClass>
-                            </transformer>
-                        </transformers>
-                    </configuration>
-                </configuration>-->
+                </executions>         
             </plugin>
             <plugin>
                 <artifactId>maven-jar-plugin</artifactId>
