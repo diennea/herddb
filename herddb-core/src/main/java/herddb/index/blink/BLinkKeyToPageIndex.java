@@ -138,6 +138,11 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
+    public boolean isSortedAscending() {
+        return true;
+    }
+
+    @Override
     public Stream<Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
         TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException {
         if (operation instanceof PrimaryIndexSeek) {

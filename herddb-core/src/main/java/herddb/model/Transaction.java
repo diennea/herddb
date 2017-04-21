@@ -42,6 +42,7 @@ import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
+import java.util.Collection;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID semantics on a set of tables of the
@@ -239,7 +240,7 @@ public class Transaction {
 
     }
 
-    public Iterable<Record> getNewRecordsForTable(String tableName) {
+    public Collection<Record> getNewRecordsForTable(String tableName) {
         Map<Bytes, Record> inserted = newRecords.get(tableName);
         if (inserted == null) {
             return Collections.emptyList();

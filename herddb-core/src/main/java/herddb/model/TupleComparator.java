@@ -30,4 +30,8 @@ import java.util.Comparator;
  */
 public interface TupleComparator extends Comparator<DataAccessor>, Serializable {
 
+    public default boolean isOnlyPrimaryKeyAndAscending() {
+        return false;
+    }
+
 }

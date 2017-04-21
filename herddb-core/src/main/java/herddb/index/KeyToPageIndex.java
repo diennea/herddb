@@ -73,4 +73,6 @@ public interface KeyToPageIndex extends AutoCloseable {
 
     public Long remove(Bytes key);
 
+    public boolean isSortedAscending();
+
 }

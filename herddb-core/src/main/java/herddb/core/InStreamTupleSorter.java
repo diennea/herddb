@@ -73,8 +73,7 @@ public final class InStreamTupleSorter {
 
         try {
             tuples[idx] = tuple;
-        } catch (ArrayStoreException err) {
-            System.out.println("ERROR ON INSERT OF a "+tuple.getClass()+" into a "+tuples.getClass());
+        } catch (ArrayStoreException err) {            
             throw err;
         }
 

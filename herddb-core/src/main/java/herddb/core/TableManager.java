@@ -149,7 +149,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private final LocalLockManager locksManager = new LocalLockManager();
 
-    /** Set to {@code true} when this {@link TableManage} is fully started */
+    /**
+     * Set to {@code true} when this {@link TableManage} is fully started
+     */
     private volatile boolean started = false;
 
     private volatile boolean checkPointRunning = false;
@@ -193,16 +195,24 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private long createdInTransaction;
 
-    /** Default dirty threshold for page rebuild during checkpoints */
+    /**
+     * Default dirty threshold for page rebuild during checkpoints
+     */
     private final double dirtyThreshold;
 
-    /** Default fill threshold for page rebuild during checkpoints */
+    /**
+     * Default fill threshold for page rebuild during checkpoints
+     */
     private final double fillThreshold;
 
-    /** Checkpoint target max milliseconds */
+    /**
+     * Checkpoint target max milliseconds
+     */
     private final long checkpointTargetTime;
 
-    /** Compaction (small pages) target max milliseconds */
+    /**
+     * Compaction (small pages) target max milliseconds
+     */
     private final long compactionTargetTime;
 
     private final TableManagerStats stats;
@@ -306,22 +316,22 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         this.newPages = new ConcurrentHashMap<>();
 
         this.dirtyThreshold = tableSpaceManager.getDbmanager().getServerConfiguration().getDouble(
-                ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD,
-                ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD_DEFAULT);
+            ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD,
+            ServerConfiguration.PROPERTY_DIRTY_PAGE_THRESHOLD_DEFAULT);
 
         this.fillThreshold = tableSpaceManager.getDbmanager().getServerConfiguration().getDouble(
-                ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD,
-                ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD_DEFAULT);
+            ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD,
+            ServerConfiguration.PROPERTY_FILL_PAGE_THRESHOLD_DEFAULT);
 
         long checkpointTargetTime = tableSpaceManager.getDbmanager().getServerConfiguration().getLong(
-                ServerConfiguration.PROPERTY_CHECKPOINT_DURATION,
-                ServerConfiguration.PROPERTY_CHECKPOINT_DURATION_DEFAULT);
+            ServerConfiguration.PROPERTY_CHECKPOINT_DURATION,
+            ServerConfiguration.PROPERTY_CHECKPOINT_DURATION_DEFAULT);
 
         this.checkpointTargetTime = checkpointTargetTime < 0 ? Long.MAX_VALUE : checkpointTargetTime;
 
         long compactionTargetTime = tableSpaceManager.getDbmanager().getServerConfiguration().getLong(
-                ServerConfiguration.PROPERTY_COMPACTION_DURATION,
-                ServerConfiguration.PROPERTY_COMPACTION_DURATION_DEFAULT);
+            ServerConfiguration.PROPERTY_COMPACTION_DURATION,
+            ServerConfiguration.PROPERTY_COMPACTION_DURATION_DEFAULT);
 
         this.compactionTargetTime = compactionTargetTime < 0 ? Long.MAX_VALUE : compactionTargetTime;
     }
@@ -396,7 +406,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public void start() throws DataStorageManagerException {
 
-        Map<Long,DataPageMetaData> activePagesAtBoot = new HashMap<>();
+        Map<Long, DataPageMetaData> activePagesAtBoot = new HashMap<>();
 
         bootSequenceNumber = LogSequenceNumber.START_OF_TIME;
         boolean requireLoadAtStartup = keyToPage.requireLoadAtStartup();
@@ -437,7 +447,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
 
                 @Override
-                public void endTable() {}
+                public void endTable() {
+                }
 
             });
         } else {
@@ -571,7 +582,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 pages.put(newId, newPage);
 
                 /* From this moment on the page has been published */
-                /* The lock is needed to block other threads up to this point */
+ /* The lock is needed to block other threads up to this point */
                 currentDirtyRecordsPage.set(newId);
 
                 /*
@@ -618,7 +629,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         pages.put(newId, newPage);
 
         /* From this moment on the page has been published */
-        /* The lock is needed to block other threads up to this point */
+ /* The lock is needed to block other threads up to this point */
         currentDirtyRecordsPage.set(newId);
     }
 
@@ -642,15 +653,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk
      * <p>
-     * Add as much spare data as possible to fillup the page. If added must change key to page pointers too
-     * for spare data
+     * Add as much spare data as possible to fillup the page. If added must change key to page pointers too for spare
+     * data
      * </p>
      *
-     * @param page      new page to flush
+     * @param page new page to flush
      * @param spareData old spare data to fit in the new page if possible
      * @return spare memory size used (and removed)
      */
-    private long flushNewPage(DataPage page, Map<Bytes,Record> spareData) {
+    private long flushNewPage(DataPage page, Map<Bytes, Record> spareData) {
 
         /* Set the new page as a fully active page */
         pageSet.pageCreated(page.pageId, page);
@@ -675,7 +686,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* Flag to enable spare data addition to currently flushed page */
         boolean add = true;
         final Iterator<Record> records = spareData.values().iterator();
-        while(add && records.hasNext()) {
+        while (add && records.hasNext()) {
             Record record = records.next();
             add = page.put(record);
             if (add) {
@@ -754,12 +765,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     // OK, INSERT on a DELETED record inside this transaction
                 } else if (transaction.recordInserted(table.name, key) != null) {
                     // ERROR, INSERT on a INSERTED record inside this transaction
-                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as "+RecordSerializer.deserializePrimaryKey(key.data, table)+", already exists in table " + table.name+" inside transaction "+transaction.transactionId);
+                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId);
                 } else if (keyToPage.containsKey(key)) {
-                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as "+RecordSerializer.deserializePrimaryKey(key.data, table)+", already exists in table " + table.name+" during transaction "+transaction.transactionId);
+                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId);
                 }
             } else if (keyToPage.containsKey(key)) {
-                throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as "+RecordSerializer.deserializePrimaryKey(key.data, table)+", already exists in table " + table.name);
+                throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name);
             }
             LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
@@ -776,11 +787,21 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @SuppressWarnings("serial")
     private static class ExitLoop extends RuntimeException {
+
+        private final boolean continueWithTransactionData;
+
+        public ExitLoop(boolean continueWithTransactionData) {
+            this.continueWithTransactionData = continueWithTransactionData;
+        }
+
     }
 
     private static class ScanResultOperation {
 
         public void accept(Record record) throws StatementExecutionException, DataStorageManagerException, LogNotAvailableException {
+        }
+
+        public void beginNewRecordsInTransactionBlock() {
         }
     }
 
@@ -891,8 +912,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* Do not unload the current working page not known to replacement policy */
         final long currentDirtyPageId = currentDirtyRecordsPage.get();
         final List<DataPage> unload = pages.values().stream()
-                .filter(page -> page.pageId != currentDirtyPageId)
-                .collect(Collectors.toList());
+            .filter(page -> page.pageId != currentDirtyPageId)
+            .collect(Collectors.toList());
 
         pageReplacementPolicy.remove(unload);
 
@@ -1621,8 +1642,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private static final class WeightedPage {
-        public static final Comparator<WeightedPage> ASCENDING_ORDER  = (a,b) -> Long.compare(a.weight, b.weight);
-        public static final Comparator<WeightedPage> DESCENDING_ORDER = (a,b) -> Long.compare(b.weight, a.weight);
+
+        public static final Comparator<WeightedPage> ASCENDING_ORDER = (a, b) -> Long.compare(a.weight, b.weight);
+        public static final Comparator<WeightedPage> DESCENDING_ORDER = (a, b) -> Long.compare(b.weight, a.weight);
 
         private final Long pageId;
         private final long weight;
@@ -1659,14 +1681,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @throws DataStorageManagerException
      */
     private TableCheckpoint checkpoint(double dirtyThreshold, double fillThreshold,
-            long checkpointTargetTime, long compactionTargetTime, boolean pin) throws DataStorageManagerException {
+        long checkpointTargetTime, long compactionTargetTime, boolean pin) throws DataStorageManagerException {
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
                 + "this table is created on transaction " + createdInTransaction + " which is not committed");
             return null;
         }
 
-        final long fillPageThreshold  = (long) (fillThreshold * maxLogicalPageSize);
+        final long fillPageThreshold = (long) (fillThreshold * maxLogicalPageSize);
         final long dirtyPageThreshold = (long) (dirtyThreshold * maxLogicalPageSize);
 
         long start = System.currentTimeMillis();
@@ -1690,14 +1712,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             getlock = System.currentTimeMillis();
             checkPointRunning = true;
 
-            final long checkpointLimitInstant = sumOverflowWise(getlock,checkpointTargetTime);
+            final long checkpointLimitInstant = sumOverflowWise(getlock, checkpointTargetTime);
 
-            final Map<Long,DataPageMetaData> activePages = pageSet.getActivePages();
+            final Map<Long, DataPageMetaData> activePages = pageSet.getActivePages();
 
             Map<Bytes, Record> buffer = new HashMap<>();
             long bufferPageSize = 0;
             long flushedRecords = 0;
-
 
             final List<WeightedPage> flushingDirtyPages = new ArrayList<>();
             final List<WeightedPage> flushingSmallPages = new ArrayList<>();
@@ -1706,7 +1727,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             int flushedDirtyPages = 0;
             int flushedSmallPages = 0;
 
-            for (Entry<Long,DataPageMetaData> ref : activePages.entrySet()) {
+            for (Entry<Long, DataPageMetaData> ref : activePages.entrySet()) {
 
                 final Long pageId = ref.getKey();
                 final DataPageMetaData metadata = ref.getValue();
@@ -1724,7 +1745,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
                 /* Check emptiness (with a really dirty check to avoid to rewrite an unfillable page) */
                 if (metadata.size <= fillPageThreshold
-                        && maxLogicalPageSize - metadata.avgRecordSize >= fillPageThreshold) {
+                    && maxLogicalPageSize - metadata.avgRecordSize >= fillPageThreshold) {
                     flushingSmallPages.add(new WeightedPage(pageId, metadata.size));
                     continue;
                 }
@@ -1787,7 +1808,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * If there is only one without additional data to add
              * rebuilding the page make no sense: is too probable to rebuild an identical page!
              */
-            if (flushingSmallPages.size() == 1 && buffer.isEmpty()){
+            if (flushingSmallPages.size() == 1 && buffer.isEmpty()) {
                 boolean hasNewPagesData = newPages.values().stream().filter(p -> !p.isEmpty()).findAny().isPresent();
                 if (!hasNewPagesData) {
                     flushingSmallPages.clear();
@@ -1850,9 +1871,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * New empty pages won't be written
              */
             long flushedNewPages = 0;
-            for(DataPage dataPage : newPages.values()) {
+            for (DataPage dataPage : newPages.values()) {
                 if (!dataPage.isEmpty()) {
-                    bufferPageSize -= flushNewPage(dataPage,buffer);
+                    bufferPageSize -= flushNewPage(dataPage, buffer);
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
                 }
@@ -1872,7 +1893,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 new Object[]{table.name, sequenceNumber, flushedDirtyPages, flushedSmallPages, flushedNewPages, flushedRecords});
 
             if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed pages: {2}" ,
+                LOGGER.log(Level.FINE, "checkpoint {0}, logpos {1}, flushed pages: {2}",
                     new Object[]{table.name, sequenceNumber, flushedPages.toString()});
             }
 
@@ -1894,15 +1915,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pageSet.checkpointDone(flushedPages);
 
             TableStatus tableStatus = new TableStatus(table.name, sequenceNumber,
-                    Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId,
-                    pageSet.getActivePages());
+                Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId,
+                pageSet.getActivePages());
 
             actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus, pin));
             tablecheckpoint = System.currentTimeMillis();
 
-
             LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, flushed {4} records",
-                    new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(), pageSet.getDirtyPagesCount(), flushedRecords});
+                new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(), pageSet.getDirtyPagesCount(), flushedRecords});
 
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
@@ -1911,7 +1931,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             /* Writes done! Unloading and removing not needed pages and keys */
 
-            /* Remove flushed pages handled */
+ /* Remove flushed pages handled */
             for (Long pageId : flushedPages) {
                 final DataPage page = pages.remove(pageId);
                 /* Current dirty record page isn't known to page replacement policy */
@@ -1969,6 +1989,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
         boolean sorted = statement.getComparator() != null;
+        boolean sortedByClusteredIndex = statement.getComparator() != null
+            && statement.getComparator().isOnlyPrimaryKeyAndAscending()
+            && keyToPage.isSortedAscending();
         final Projection projection = statement.getProjection();
         boolean applyProjectionDuringScan = !sorted && projection != null;
         MaterializedRecordSet recordSet;
@@ -1981,10 +2004,49 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         ScanLimits limits = statement.getLimits();
         int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
+        int offset = limits == null ? 0 : limits.getOffset();
         boolean sortDone = false;
         if (maxRows > 0) {
-            if (sorted) {
-                InStreamTupleSorter sorter = new InStreamTupleSorter(limits.getOffset() + maxRows, statement.getComparator());
+            if (sortedByClusteredIndex) {                
+                // leverage the sorted nature of the clustered primary key index
+                AtomicInteger remaining = new AtomicInteger(maxRows);
+                if (offset > 0) {
+                    remaining.getAndAdd(offset);
+                }
+                accessTableData(statement, context, new ScanResultOperation() {
+
+                    private boolean inTransactionData;
+
+                    @Override
+                    public void beginNewRecordsInTransactionBlock() {
+                        inTransactionData = true;
+                    }
+
+                    @Override
+                    public void accept(Record record) throws StatementExecutionException {                        
+                        if (applyProjectionDuringScan) {
+                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                            recordSet.add(tuple);
+                        } else {
+                            recordSet.add(record.getDataAccessor(table));
+                        }
+                        if (!inTransactionData) {
+                            // we have scanned the table and kept top K record already sorted by the PK
+                            // we can exit now from the loop on the primary key
+                            // we have to keep all data from the transaction buffer, because it is not sorted
+                            // in the same order as the clustered index
+                            if (remaining.decrementAndGet() == 0) {
+                                // we want to receive transaction data uncommitted records too
+                                throw new ExitLoop(true);
+                            }
+                        }
+
+                    }
+                }, transaction, false, false);
+                // we have to sort data any way, because accessTableData will return partially sorted data
+                sortDone = false;
+            } else if (sorted) {
+                InStreamTupleSorter sorter = new InStreamTupleSorter(offset + maxRows, statement.getComparator());
                 accessTableData(statement, context, new ScanResultOperation() {
                     @Override
                     public void accept(Record record) throws StatementExecutionException {
@@ -2000,10 +2062,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 sortDone = true;
             } else {
                 // if no sort is present the limits can be applying during the scan and perform an early exit
-                AtomicInteger remaining = new AtomicInteger(limits.computeMaxRows(context));
+                AtomicInteger remaining = new AtomicInteger(maxRows);
 
-                if (limits.getOffset() > 0) {
-                    remaining.getAndAdd(limits.getOffset());
+                if (offset > 0) {
+                    remaining.getAndAdd(offset);
                 }
                 accessTableData(statement, context, new ScanResultOperation() {
                     @Override
@@ -2015,7 +2077,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             recordSet.add(record.getDataAccessor(table));
                         }
                         if (remaining.decrementAndGet() == 0) {
-                            throw new ExitLoop();
+                            throw new ExitLoop(false);
                         }
                     }
                 }, transaction, false, false);
@@ -2124,7 +2186,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 scanner.forEach(executor);
                 executor.finish();
             } catch (ExitLoop exitLoop) {
-                exit = true;
+                exit = !exitLoop.continueWithTransactionData;
                 LOGGER.log(Level.SEVERE, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
             } catch (final HerdDBInternalException error) {
                 LOGGER.log(Level.SEVERE, "error during scan", error);
@@ -2142,7 +2204,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             if (!exit && transaction != null) {
-                for (Record record : transaction.getNewRecordsForTable(table.name)) {
+                consumer.beginNewRecordsInTransactionBlock();
+                Collection<Record> newRecordsForTable = transaction.getNewRecordsForTable(table.name);
+                for (Record record : newRecordsForTable) {
                     if (!transaction.recordDeleted(table.name, record.key)
                         && (predicate == null || predicate.evaluate(record, context))) {
                         consumer.accept(record);
@@ -2185,13 +2249,18 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             .collect(Collectors.toList());
     }
 
+    @Override
+    public KeyToPageIndex getKeyToPageIndex() {
+        return keyToPage;
+    }
+
     private Record fetchRecord(Bytes key, Long pageId, LocalScanPageCache localScanPageCache) throws StatementExecutionException, DataStorageManagerException {
         int maxTrials = 2;
         while (true) {
 
             DataPage dataPage = fetchDataPage(pageId, localScanPageCache);
 
-            if (dataPage != null){
+            if (dataPage != null) {
                 Record record = dataPage.get(key);
                 if (record != null) {
                     return record;

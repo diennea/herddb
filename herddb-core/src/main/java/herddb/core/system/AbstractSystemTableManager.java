@@ -28,6 +28,7 @@ import herddb.core.MaterializedRecordSet;
 import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
 import herddb.core.stats.TableManagerStats;
+import herddb.index.KeyToPageIndex;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogSequenceNumber;
@@ -234,6 +235,11 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     @Override
     public List<Index> getAvailableIndexes() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public KeyToPageIndex getKeyToPageIndex() {
+        return null;
     }
 
 }

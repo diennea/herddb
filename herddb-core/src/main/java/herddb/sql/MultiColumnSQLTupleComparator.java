@@ -87,4 +87,9 @@ public class MultiColumnSQLTupleComparator implements TupleComparator {
         return 0;
     }
 
+    @Override
+    public boolean isOnlyPrimaryKeyAndAscending() {
+        return false;
+    }
+
 }

@@ -757,7 +757,6 @@ public class SQLPlanner {
                 }
             }
             if (rangeMin != null || rangeMax != null) {
-                System.out.println("HERE PrimaryIndexRangeScan: rangeMin:" + rangeMin + " & rangeMax:" + rangeMax);
                 result = new PrimaryIndexRangeScan(table.primaryKey, rangeMin, rangeMax);
             }
         }
@@ -1237,9 +1236,12 @@ public class SQLPlanner {
                 TupleComparator comparatorOnPlan = null;
                 if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
                     if (aggregator != null) {
-                        comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias, selectBody.getOrderByElements());;
+                        comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias,
+                            selectBody.getOrderByElements(), null);
                     } else {
-                        comparatorOnScan = SingleColumnSQLTupleComparator.make(mainTableAlias, selectBody.getOrderByElements());
+                        comparatorOnScan = SingleColumnSQLTupleComparator.make(mainTableAlias,
+                            selectBody.getOrderByElements(),
+                            table.primaryKey);
                     }
                 }
 
@@ -1407,7 +1409,8 @@ public class SQLPlanner {
                 }
                 TupleComparator comparatorOnPlan = null;
                 if (selectBody.getOrderByElements() != null && !selectBody.getOrderByElements().isEmpty()) {
-                    comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias, selectBody.getOrderByElements());;
+                    comparatorOnPlan = SingleColumnSQLTupleComparator.make(mainTableAlias,
+                        selectBody.getOrderByElements(), null);
                 }
 
                 try {

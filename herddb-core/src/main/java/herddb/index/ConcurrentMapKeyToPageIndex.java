@@ -101,6 +101,11 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
+    public boolean isSortedAscending() {
+        return false;
+    }
+
+    @Override
     public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, herddb.core.AbstractIndexManager index) throws DataStorageManagerException {
 
         if (operation instanceof PrimaryIndexSeek) {
@@ -148,7 +153,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
             Stream<Map.Entry<Bytes, Long>> baseStream = map.entrySet().stream();
             return baseStream.filter(predicate);
         } else if (operation instanceof PrimaryIndexRangeScan) {
-            
+
             byte[] refminvalue;
             PrimaryIndexRangeScan sis = (PrimaryIndexRangeScan) operation;
             SQLRecordKeyFunction minKey = sis.minValue;

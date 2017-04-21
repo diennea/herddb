@@ -36,16 +36,18 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
     private static final long serialVersionUID = 007;
     private final String columnName;
     private final boolean asc;
+    private final boolean primarykey;
 
-    static TupleComparator make(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {
+    static TupleComparator make(String tableAlias, List<OrderByElement> orderByElements, String[] primaryKey) throws StatementExecutionException {
         if (orderByElements.size() == 1) {
-            return new SingleColumnSQLTupleComparator(tableAlias, orderByElements);
+            return new SingleColumnSQLTupleComparator(tableAlias, orderByElements, primaryKey);
         } else {
             return new MultiColumnSQLTupleComparator(tableAlias, orderByElements);
         }
     }
 
-    SingleColumnSQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements) throws StatementExecutionException {
+    private SingleColumnSQLTupleComparator(String tableAlias, List<OrderByElement> orderByElements, String[] primarykey) throws StatementExecutionException {
+        
         if (tableAlias != null) {
             for (OrderByElement element : orderByElements) {
                 net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) element.getExpression();
@@ -58,6 +60,9 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
         net.sf.jsqlparser.schema.Column column = (net.sf.jsqlparser.schema.Column) element.getExpression();
         this.columnName = column.getColumnName();
         this.asc = element.isAsc();
+        this.primarykey = primarykey != null
+            && primarykey.length == 1
+            && primarykey[0].equals(this.columnName);
 
     }
 
@@ -75,6 +80,11 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
             }
         }
         return 0;
+    }
+
+    @Override
+    public boolean isOnlyPrimaryKeyAndAscending() {
+        return primarykey && asc;
     }
 
 }

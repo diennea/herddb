@@ -22,32 +22,32 @@ package herddb.core;
 import herddb.file.FileDataStorageManager;
 import herddb.index.PrimaryIndexRangeScan;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 
 import org.junit.Test;
 
-import herddb.index.SecondaryIndexPrefixScan;
-import herddb.index.SecondaryIndexRangeScan;
-import herddb.index.SecondaryIndexSeek;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
+import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
-import herddb.model.Index;
+import herddb.model.DataScannerException;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
-import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.sql.TranslatedQuery;
+import herddb.utils.DataAccessor;
 import java.nio.file.Path;
+import java.util.List;
+import static org.junit.Assert.assertFalse;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
@@ -92,51 +92,9 @@ public class PrimaryIndexScanRangeTest {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('d',4,7,'n2')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('e',5,5,'n2')", Collections.emptyList());
 
-            {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
-                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(3, scan1.consume().size());
-                }
-            }
-            {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>2 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
-                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(2, scan1.consume().size());
-                }
-            }
-            {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1<3 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
-                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(2, scan1.consume().size());
-                }
-            }
-            {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1<=3 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
-                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(3, scan1.consume().size());
-                }
-            }
+            performBasicPlannerTests(manager);
 
+            assertFalse(manager.getTableSpaceManager("tblspace1").getTableManager("t1").getKeyToPageIndex().isSortedAscending());
         }
 
     }
@@ -170,56 +128,525 @@ public class PrimaryIndexScanRangeTest {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('c',3,6,'n2')", Collections.emptyList());
-            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('d',4,7,'n2')", Collections.emptyList());
-            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('e',5,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('d',5,7,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('e',6,5,'n2')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('f',7,7,'n2')", Collections.emptyList());
+
+            performBasicPlannerTests(manager);
+
+            assertTrue(manager.getTableSpaceManager("tblspace1").getTableManager("t1").getKeyToPageIndex().isSortedAscending());
 
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
                     + "FROM tblspace1.t1 "
                     + "WHERE n1>=2 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "and n2<=6 "
+                    + "order by n1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(3, scan1.consume().size());
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(3, tuples.size());
+                    assertEquals(2, tuples.get(0).get("n1"));
+                    assertEquals(3, tuples.get(1).get("n1"));
+                    assertEquals(6, tuples.get(2).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1 "
+                    + "limit 2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(2, tuples.get(0).get("n1"));
+                    assertEquals(3, tuples.get(1).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1 "
+                    + "limit 1,3", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(3, tuples.get(0).get("n1"));
+                    assertEquals(6, tuples.get(1).get("n1"));
                 }
             }
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
                     + "FROM tblspace1.t1 "
-                    + "WHERE n1>2 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 1,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(2, scan1.consume().size());
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(3, tuples.get(0).get("n1"));
+                    assertEquals(5, tuples.get(1).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 3,2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(6, tuples.get(0).get("n1"));
+                    assertEquals(7, tuples.get(1).get("n1"));
                 }
             }
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
                     + "FROM tblspace1.t1 "
-                    + "WHERE n1<3 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 4,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(2, scan1.consume().size());
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(1, tuples.size());
+                    assertEquals(7, tuples.get(0).get("n1"));
+                }
+            }
+
+            // add a record in the middle of the sorted recordset
+            DMLStatementExecutionResult res = TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('g',4,6,'n2')", Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            long tx = res.transactionId;
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(4, tuples.size());
+                    assertEquals(2, tuples.get(0).get("n1"));
+                    assertEquals(3, tuples.get(1).get("n1"));
+                    assertEquals(4, tuples.get(2).get("n1"));
+                    assertEquals(6, tuples.get(3).get("n1"));
                 }
             }
             {
-                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
                     + "FROM tblspace1.t1 "
-                    + "WHERE n1<=3 "
-                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-                    assertEquals(3, scan1.consume().size());
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(6, tuples.size());
+                    assertEquals(2, tuples.get(0).get("n1"));
+                    assertEquals(3, tuples.get(1).get("n1"));
+                    assertEquals(4, tuples.get(2).get("n1"));
+                    assertEquals(5, tuples.get(3).get("n1"));
+                    assertEquals(6, tuples.get(4).get("n1"));
+                    assertEquals(7, tuples.get(5).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1 "
+                    + "limit 2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(2, tuples.get(0).get("n1"));
+                    assertEquals(3, tuples.get(1).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 1,3", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(3, tuples.size());
+                    assertEquals(3, tuples.get(0).get("n1"));
+                    assertEquals(4, tuples.get(1).get("n1"));
+                    assertEquals(5, tuples.get(2).get("n1"));
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1 "
+                    + "limit 1,3", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(3, tuples.size());
+                    assertEquals(3, tuples.get(0).get("n1"));
+                    assertEquals(4, tuples.get(1).get("n1"));
+                    assertEquals(6, tuples.get(2).get("n1"));
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 1,2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(3, tuples.get(0).get("n1"));
+                    assertEquals(4, tuples.get(1).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 3,2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(5, tuples.get(0).get("n1"));
+                    assertEquals(6, tuples.get(1).get("n1"));
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 4,2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                    assertEquals(6, tuples.get(0).get("n1"));
+                    assertEquals(7, tuples.get(1).get("n1"));
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 5,2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(1, tuples.size());
+                    assertEquals(7, tuples.get(0).get("n1"));
+                }
+            }
+
+            // add other records in the context of the transaction
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('g',8,6,'n3')", Collections.emptyList(), new TransactionContext(tx));
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('g',9,6,'n3')", Collections.emptyList(), new TransactionContext(tx));
+            TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('g',10,6,'n3')", Collections.emptyList(), new TransactionContext(tx));
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 ", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(9, tuples.size());
+                    assertEquals(2, tuples.get(0).get("n1"));
+                    assertEquals(3, tuples.get(1).get("n1"));
+                    assertEquals(4, tuples.get(2).get("n1"));
+                    assertEquals(5, tuples.get(3).get("n1"));
+                    assertEquals(6, tuples.get(4).get("n1"));
+                    assertEquals(7, tuples.get(5).get("n1"));
+                    assertEquals(8, tuples.get(6).get("n1"));
+                    assertEquals(9, tuples.get(7).get("n1"));
+                    assertEquals(10, tuples.get(8).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=7 "
+                    + "order by n1 "
+                    + "limit 7", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(7, tuples.size());
+                    assertEquals(2, tuples.get(0).get("n1"));
+                    assertEquals(3, tuples.get(1).get("n1"));
+                    assertEquals(4, tuples.get(2).get("n1"));
+                    assertEquals(5, tuples.get(3).get("n1"));
+                    assertEquals(6, tuples.get(4).get("n1"));
+                    assertEquals(7, tuples.get(5).get("n1"));
+                    assertEquals(8, tuples.get(6).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and name='n3' "
+                    + "order by n1 "
+                    + "limit 200", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    tuples.forEach(t -> {
+                        System.out.println("OK sortedByClusteredIndex tuple " + t.toMap());
+                    });
+                    assertEquals(3, tuples.size());
+                    assertEquals(8, tuples.get(0).get("n1"));
+                    assertEquals(9, tuples.get(1).get("n1"));
+                    assertEquals(10, tuples.get(2).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and name='n3' "
+                    + "order by n1 ", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    tuples.forEach(t -> {
+                        System.out.println("OK sortedByClusteredIndex tuple " + t.toMap());
+                    });
+                    assertEquals(3, tuples.size());
+                    assertEquals(8, tuples.get(0).get("n1"));
+                    assertEquals(9, tuples.get(1).get("n1"));
+                    assertEquals(10, tuples.get(2).get("n1"));
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and name='n3' "
+                    + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    tuples.forEach(t -> {
+                        System.out.println("OK sortedByClusteredIndex tuple " + t.toMap());
+                    });
+                    assertEquals(3, tuples.size());
+                    assertEquals(10, tuples.get(0).get("n1"));
+
+                    assertEquals(9, tuples.get(1).get("n1"));
+                    assertEquals(8, tuples.get(2).get("n1"));
+
+                }
+            }
+
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and name='n3' "
+                    + "order by n1 "
+                    + "limit 2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    tuples.forEach(t -> {
+                        System.out.println("OK sortedByClusteredIndex tuple " + t.toMap());
+                    });
+                    assertEquals(2, tuples.size());
+                    assertEquals(8, tuples.get(0).get("n1"));
+                    assertEquals(9, tuples.get(1).get("n1"));                    
                 }
             }
 
         }
 
+    }
+
+    private void performBasicPlannerTests(final DBManager manager) throws StatementExecutionException, DataScannerException {
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1>=2 "
+                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1>2 "
+                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(2, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1<3 "
+                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(2, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1<=3 "
+                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1>=2 "
+                + "and n2<=6 "
+                + "order by n1", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1>=2 "
+                + "and n2<=6 "
+                + "order by N1", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1>=2 "
+                + "and n2<=6 "
+                + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                + "FROM tblspace1.t1 "
+                + "WHERE n1>=2 "
+                + "and n2<=6 "
+                + "order by n1 asc, n2", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+        }
     }
 
 }

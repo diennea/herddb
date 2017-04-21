@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import herddb.core.stats.TableManagerStats;
+import herddb.index.KeyToPageIndex;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogSequenceNumber;
@@ -55,6 +56,8 @@ public interface AbstractTableManager extends AutoCloseable {
     long getCreatedInTransaction();
 
     public List<Index> getAvailableIndexes();
+
+    public KeyToPageIndex getKeyToPageIndex();
 
     public LogSequenceNumber getBootSequenceNumber();
 

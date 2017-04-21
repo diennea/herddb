@@ -258,6 +258,7 @@ public abstract class RecordSetSuite {
                 public int compare(DataAccessor o1, DataAccessor o2) {
                     return ((Integer) o2.get(("n1"))).compareTo((Integer) o1.get("n1"));
                 }
+
             });
 
             int last = Integer.MAX_VALUE;
