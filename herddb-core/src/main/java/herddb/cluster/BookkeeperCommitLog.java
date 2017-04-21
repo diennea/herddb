@@ -188,23 +188,27 @@ public class BookkeeperCommitLog extends CommitLog {
             synch = true;
         }
         CommitFileWriter _writer = writer;
+        CompletableFuture<LogSequenceNumber> res;
         if (closed || _writer == null) {
-            throw new LogNotAvailableException(new Exception("this commitlog has been closed"));
-        }
-
-        CompletableFuture<LogSequenceNumber> res = _writer.writeEntry(edit);
-        res.handleAsync((pos, error) -> {
-            if (error != null) {
-                handleBookKeeperAsyncFailure(error, edit);
-            } else if (pos != null) {
-                if (lastLedgerId == pos.ledgerId) {
-                    lastSequenceNumber.accumulateAndGet(pos.offset,
-                        EnsureLongIncrementAccumulator.INSTANCE);
+            res = new CompletableFuture();
+            res.completeExceptionally(
+                new LogNotAvailableException(new Exception("this commitlog has been closed"))
+                    .fillInStackTrace());
+        } else {
+            res = _writer.writeEntry(edit);
+            res.handleAsync((pos, error) -> {
+                if (error != null) {
+                    handleBookKeeperAsyncFailure(error, edit);
+                } else if (pos != null) {
+                    if (lastLedgerId == pos.ledgerId) {
+                        lastSequenceNumber.accumulateAndGet(pos.offset,
+                            EnsureLongIncrementAccumulator.INSTANCE);
+                    }
                 }
+                return null;
             }
-            return null;
+            );
         }
-        );
 
         if (synch) {
             try {
@@ -216,7 +220,11 @@ public class BookkeeperCommitLog extends CommitLog {
                 notifyListeners(logPos, edit);
             } catch (ExecutionException errorOnSynch) {
                 Throwable cause = errorOnSynch.getCause();
-                throw new LogNotAvailableException(cause);
+                if (cause instanceof LogNotAvailableException) {
+                    throw (LogNotAvailableException) cause;
+                } else {
+                    throw new LogNotAvailableException(cause);
+                }
             } catch (InterruptedException cause) {
                 LOGGER.log(Level.SEVERE, "bookkeeper client interrupted", cause);
                 throw new LogNotAvailableException(cause);
@@ -297,7 +305,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
                     LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
-                   
+
                     final int BATCH_SIZE = 10000;
                     if (lastAddConfirmed >= 0) {
 
@@ -376,7 +384,6 @@ public class BookkeeperCommitLog extends CommitLog {
             throw new LogNotAvailableException(err);
         }
     }
-    
 
     @Override
     public void startWriting() throws LogNotAvailableException {
