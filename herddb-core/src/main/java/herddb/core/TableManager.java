@@ -2007,7 +2007,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         int offset = limits == null ? 0 : limits.getOffset();
         boolean sortDone = false;
         if (maxRows > 0) {
-            if (sortedByClusteredIndex) {                
+            if (sortedByClusteredIndex) {
                 // leverage the sorted nature of the clustered primary key index
                 AtomicInteger remaining = new AtomicInteger(maxRows);
                 if (offset > 0) {
@@ -2023,7 +2023,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
                     @Override
-                    public void accept(Record record) throws StatementExecutionException {                        
+                    public void accept(Record record) throws StatementExecutionException {
                         if (applyProjectionDuringScan) {
                             DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
                             recordSet.add(tuple);
@@ -2187,7 +2187,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 executor.finish();
             } catch (ExitLoop exitLoop) {
                 exit = !exitLoop.continueWithTransactionData;
-                LOGGER.log(Level.SEVERE, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
+                if (LOGGER.isLoggable(Level.FINEST)) {
+                    LOGGER.log(Level.FINEST, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
+                }
             } catch (final HerdDBInternalException error) {
                 LOGGER.log(Level.SEVERE, "error during scan", error);
                 if (error.getCause() instanceof StatementExecutionException) {
@@ -2215,7 +2217,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
         } catch (ExitLoop exitLoop) {
-            LOGGER.log(Level.SEVERE, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
+            if (LOGGER.isLoggable(Level.FINEST)) {
+                LOGGER.log(Level.FINEST, "exit loop during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), exitLoop.toString()});
+            }
         } catch (StatementExecutionException err) {
             LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
             throw err;
