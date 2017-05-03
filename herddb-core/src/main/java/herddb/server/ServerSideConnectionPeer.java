@@ -19,6 +19,19 @@
  */
 package herddb.server;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+
 import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
 import herddb.core.TableManager;
@@ -44,34 +57,17 @@ import herddb.model.TableAwareStatement;
 import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
-import herddb.model.Tuple;
-import herddb.model.commands.BeginTransactionStatement;
-import herddb.model.commands.CommitTransactionStatement;
-import herddb.model.commands.InsertStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.KeyValue;
 import herddb.network.Message;
-import static herddb.network.Message.TYPE_RESTORE_FINISHED;
 import herddb.network.ServerSideConnection;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 /**
  * Handles a client Connection
@@ -615,14 +611,20 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             } else {
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
             }
-        } catch (StatementExecutionException err) {
-            if (!(err instanceof DuplicatePrimaryKeyException)) {
-                LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ": err", err);
-            }
+        } catch (DuplicatePrimaryKeyException err) {
+            LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ": err", err);
             Message error = Message.ERROR(null, err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
+            _channel.sendReplyMessage(message, error);
+        } catch (NotLeaderException err) {
+            Message error = Message.ERROR(null, err);
+            error.setParameter("notLeader", "true");
+            _channel.sendReplyMessage(message, error);
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            _channel.sendReplyMessage(message, error);
+        } catch (RuntimeException err) {
+            LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ": err", err);
+            Message error = Message.ERROR(null, err);
             _channel.sendReplyMessage(message, error);
         }
     }
