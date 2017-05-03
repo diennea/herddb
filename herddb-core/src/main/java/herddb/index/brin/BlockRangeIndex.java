@@ -665,7 +665,9 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
              */
             Block block = new Block(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size, blockData.pageId);
             blocks.put(block.key, block);
-            LOG.severe("boot block at " + block.key + " " + block.minKey + " - " + block.maxKey);
+            if (LOG.isLoggable(Level.FINE)) {
+                LOG.fine("boot block at " + block.key + " " + block.minKey + " - " + block.maxKey);
+            }
             blockIdGenerator.accumulateAndGet(block.key.blockId, EnsureIntegerIncrementAccumulator.INSTANCE);
         }
     }
