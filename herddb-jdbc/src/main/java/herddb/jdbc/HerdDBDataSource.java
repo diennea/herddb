@@ -19,8 +19,6 @@
  */
 package herddb.jdbc;
 
-import herddb.client.ClientConfiguration;
-import herddb.client.HDBClient;
 import java.sql.SQLException;
 import java.util.logging.Logger;
 
@@ -31,9 +29,13 @@ import java.util.logging.Logger;
  */
 public class HerdDBDataSource extends BasicHerdDBDataSource {
 
-    private static final Logger LOGGER = Logger.getLogger(HerdDBDataSource.class.getName());
-
     public HerdDBDataSource() {
+    }
+
+    @Override
+    protected synchronized void ensureClient() throws SQLException {
+        super.ensureClient();
+        doWaitForTableSpace();
     }
 
 }

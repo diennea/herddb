@@ -20,8 +20,10 @@
 package herddb.client;
 
 import herddb.client.impl.RetryRequestException;
+import herddb.model.TransactionContext;
 import static herddb.utils.QueryUtils.discoverTablespace;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +92,44 @@ public class HDBConnection implements AutoCloseable {
         } finally {
             routesLock.unlock();
         }
+    }
+
+    public boolean waitForTableSpace(String tableSpace, int timeout) throws HDBException {
+        long start = System.currentTimeMillis();
+        while (!closed) {
+            try {
+                RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
+                try (ScanResultSet result = route.executeScan(tableSpace,
+                    "select * "
+                    + "from systablespaces "
+                    + "where tablespace_name=?",
+                    Arrays.asList(tableSpace), TransactionContext.NOTRANSACTION_ID,
+                    1,
+                    1);) {
+                    boolean ok = result.hasNext();
+                    if (ok) {
+                        LOGGER.log(Level.INFO, "table space {0} is up now: info {1}", new Object[]{tableSpace,
+                            result
+                            .consume()
+                            .get(0)});
+                        return true;
+                    }
+                }
+            } catch (ClientSideMetadataProviderException | HDBException retry) {
+                long now = System.currentTimeMillis();
+                if (now - start > timeout) {
+                    return false;
+                }
+                LOGGER.log(Level.FINE, "error " + retry, retry);
+                sleepOnRetry();
+            }
+
+            long now = System.currentTimeMillis();
+            if (now - start > timeout) {
+                return false;
+            }
+        }
+        return false;
     }
 
     public long beginTransaction(String tableSpace) throws ClientSideMetadataProviderException, HDBException {

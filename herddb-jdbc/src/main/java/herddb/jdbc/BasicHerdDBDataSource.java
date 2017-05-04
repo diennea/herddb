@@ -22,6 +22,7 @@ package herddb.jdbc;
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
+import herddb.client.HDBException;
 import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.model.TableSpace;
 import java.io.PrintWriter;
@@ -53,6 +54,24 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected String url;
     protected String defaultSchema = TableSpace.DEFAULT;
     private GenericObjectPool<HDBConnection> pool;
+    private String waitForTableSpace = "";
+    private int waitForTableSpaceTimeout = 60000;
+
+    public synchronized int getWaitForTableSpaceTimeout() {
+        return waitForTableSpaceTimeout;
+    }
+
+    public synchronized void setWaitForTableSpaceTimeout(int waitForTableSpaceTimeout) {
+        this.waitForTableSpaceTimeout = waitForTableSpaceTimeout;
+    }
+
+    public synchronized String getWaitForTableSpace() {
+        return waitForTableSpace;
+    }
+
+    public synchronized void setWaitForTableSpace(String waitForTableSpace) {
+        this.waitForTableSpace = waitForTableSpace;
+    }
 
     protected BasicHerdDBDataSource() {
     }
@@ -152,6 +171,16 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         public void passivateObject(PooledObject<HDBConnection> po) throws Exception {
         }
 
+    }
+
+    protected synchronized void doWaitForTableSpace() throws SQLException {
+        if (waitForTableSpaceTimeout > 0 && !waitForTableSpace.isEmpty()) {
+            try (HDBConnection con = client.openConnection();) {
+                con.waitForTableSpace(waitForTableSpace, waitForTableSpaceTimeout);
+            } catch (HDBException err) {
+                throw new SQLException(err);
+            }
+        }
     }
 
     protected synchronized void ensureClient() throws SQLException {

@@ -40,6 +40,8 @@ import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Basic server/client boot test
@@ -77,10 +79,14 @@ public class SimpleClientServerTest {
         String _baseDir = baseDir.toString();
         try (Server server = new Server(new ServerConfiguration(baseDir))) {
             server.start();
+            server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
                 HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, 100));
+                assertFalse(connection.waitForTableSpace("bad-tablespace", 100));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                     "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;

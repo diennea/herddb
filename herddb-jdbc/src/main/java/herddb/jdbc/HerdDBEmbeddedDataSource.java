@@ -19,7 +19,8 @@
  */
 package herddb.jdbc;
 
-import herddb.model.TableSpace;
+import herddb.client.HDBConnection;
+import herddb.client.HDBException;
 import herddb.server.StaticClientSideMetadataProvider;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
@@ -41,24 +42,6 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
     private volatile boolean serverInitialized;
 
     private boolean startServer;
-    private String waitForTableSpace = "";
-    private int waitForTableSpaceTimeout = 60000;
-
-    public synchronized int getWaitForTableSpaceTimeout() {
-        return waitForTableSpaceTimeout;
-    }
-
-    public synchronized void setWaitForTableSpaceTimeout(int waitForTableSpaceTimeout) {
-        this.waitForTableSpaceTimeout = waitForTableSpaceTimeout;
-    }
-
-    public synchronized String getWaitForTableSpace() {
-        return waitForTableSpace;
-    }
-
-    public synchronized void setWaitForTableSpace(String waitForTableSpace) {
-        this.waitForTableSpace = waitForTableSpace;
-    }
 
     public synchronized boolean isStartServer() {
         return startServer;
@@ -84,6 +67,13 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
 
         super.ensureClient();
 
+        startEmbeddedServer();
+
+        doWaitForTableSpace();
+
+    }
+
+    private void startEmbeddedServer() throws SQLException {
         if (!serverInitialized) {
             ServerConfiguration serverConfiguration = new ServerConfiguration(properties);
             serverConfiguration.readJdbcUrl(url);
@@ -94,30 +84,17 @@ public class HerdDBEmbeddedDataSource extends BasicHerdDBDataSource {
                 server = new Server(serverConfiguration);
                 try {
                     server.start();
-                    // single machine, local mode, boot the 'default' tablespace
-                    if (waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
-                        server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
+                    int waitForTableSpaceTimeout = getWaitForTableSpaceTimeout();
+                    if (waitForTableSpaceTimeout > 0) {
+                        server.waitForBootOfLocalTablespaces(waitForTableSpaceTimeout);
                     }
-                    server.waitForBootOfLocalTablespaces(waitForTableSpaceTimeout);
                     client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 } catch (Exception ex) {
                     throw new SQLException("Cannot boot embedded server " + ex, ex);
                 }
             }
-            if (server != null && waitForTableSpace != null && !waitForTableSpace.isEmpty()) {
-                try {
-                    LOGGER.log(Level.INFO, "Waiting for boot of tablespace " + waitForTableSpace + ". Waiting at max " + waitForTableSpaceTimeout + " ms");
-                    if (!waitForTableSpace.isEmpty()) {
-                        server.waitForTableSpaceBoot(waitForTableSpace, waitForTableSpaceTimeout, true);
-                    }
-                    server.waitForBootOfLocalTablespaces(waitForTableSpaceTimeout);
-                } catch (Exception ex) {
-                    throw new SQLException("Cannot wait for tableSpace " + defaultSchema + " to boot: " + ex, ex);
-                }
-            }
             serverInitialized = true;
         }
-
     }
 
     @Override

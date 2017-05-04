@@ -24,32 +24,40 @@ import java.util.logging.Logger;
 
 import herddb.client.HDBClient;
 import herddb.server.Server;
+import java.sql.SQLException;
 
 /**
  * A simple {@link DataSource} wrapping around {@link HDBClient} and an optional {@link Server}.
  * <p>
- * It can be used instead of {@link HerdDBEmbeddedDataSource} when a direct configuration of {@link HDBClient}
- * and/or {@link Server} is needed.
+ * It can be used instead of {@link HerdDBEmbeddedDataSource} when a direct configuration of {@link HDBClient} and/or
+ * {@link Server} is needed.
  * </p>
- * 
+ *
  * @author diego.salvi
  */
 public class HerdDBWrappingDataSource extends BasicHerdDBDataSource {
 
     private static final Logger LOGGER = Logger.getLogger(HerdDBWrappingDataSource.class.getName());
-    
+
     private Server server;
-    
+
     public HerdDBWrappingDataSource(HDBClient client) {
         super(client);
     }
 
     public HerdDBWrappingDataSource(HDBClient client, Server server) {
         super(client);
-        
+
         this.server = server;
     }
-    
+
+    @Override
+    protected synchronized void ensureClient() throws SQLException {
+        super.ensureClient();
+        
+        doWaitForTableSpace();
+    }
+
     @Override
     public synchronized void close() {
         super.close();
@@ -63,5 +71,5 @@ public class HerdDBWrappingDataSource extends BasicHerdDBDataSource {
             server = null;
         }
     }
-    
+
 }
