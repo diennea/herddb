@@ -413,7 +413,9 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 throw new IllegalStateException("Split on a non overflowing block");
             }
 
-            LOG.log(Level.INFO, "Split: FK {0}", new Object[] {key});
+            if (LOG.isLoggable(Level.FINE)) {
+                LOG.log(Level.FINE, "Split: FK " + key, new Object[] {key});
+            }
             NavigableMap<K, List<V>> keep_values = new TreeMap<>();
             NavigableMap<K, List<V>> other_values = new TreeMap<>();
 
@@ -480,7 +482,9 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 });
 
                 long newPageId = dataStorage.createDataPage(result);
-                LOG.severe("checkpoint block " + key + ": newpage -> " + newPageId + " with " + values.size() + " entries x " + result.size() + " pointers");
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.fine("checkpoint block " + key + ": newpage -> " + newPageId + " with " + values.size() + " entries x " + result.size() + " pointers");
+                }
                 this.dirty = false;
                 this.pageId = newPageId;
 
@@ -557,10 +561,12 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
         for (Block block : blocks.values()) {
             BlockRangeIndexMetadata.BlockMetadata<K> metadata = block.checkpoint();
             if (metadata.size != 0) {
-                LOG.severe("block " + block.key + " has " + metadata.size + " records at checkpoint");
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.fine("block " + block.key + " has " + metadata.size + " records at checkpoint");
+                }
                 blocksMetadata.add(metadata);
             } else {
-                LOG.severe("block " + block.key + " is empty at checkpoint. discarding");
+                LOG.info("block " + block.key + " is empty at checkpoint. discarding");
             }
         }
         return new BlockRangeIndexMetadata<>(blocksMetadata);
@@ -664,7 +670,6 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
              * bigger until a split occurs.
              */
             Block block = new Block(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size, blockData.pageId);
-            blocks.put(block.key, block);
             if (LOG.isLoggable(Level.FINE)) {
                 LOG.fine("boot block at " + block.key + " " + block.minKey + " - " + block.maxKey);
             }
