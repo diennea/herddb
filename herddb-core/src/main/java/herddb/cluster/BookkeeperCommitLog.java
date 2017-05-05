@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -317,55 +318,34 @@ public class BookkeeperCommitLog extends CommitLog {
                             }
                             b = end + 1;
                             double percent = ((start - first) * 100.0 / (lastAddConfirmed + 1));
-                            int entriesToRead = (int) (end - start);
+                            int entriesToRead = (int) (1 + end - start);
                             LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %)", new Object[]{start, end, percent});
                             long _start = System.currentTimeMillis();
-                            CountDownLatch latch = new CountDownLatch(entriesToRead);
-                            Holder<Throwable> error = new Holder<>();
-                            long size = end - start;
-                            handle.asyncReadEntries(start, end, new AsyncCallback.ReadCallback() {
-                                @Override
-                                public void readComplete(int code, LedgerHandle lh, Enumeration<LedgerEntry> seq, Object o) {
-                                    try {
-                                        LOGGER.log(Level.SEVERE, "readComplete " + code + " " + lh);
-                                        if (code != Code.OK) {
-                                            error.value = BKException.create(code);
-                                            LOGGER.log(Level.SEVERE, "readComplete error:" + error);
-                                            for (long k = 0; k < size; k++) {
-                                                latch.countDown();
-                                            }
-                                            return;
-                                        }
-                                        int localEntryCount = 0;
-                                        while (seq.hasMoreElements()) {
-                                            LedgerEntry entry = seq.nextElement();
-                                            long entryId = entry.getEntryId();
-                                            LogSequenceNumber number = new LogSequenceNumber(ledgerId, entryId);
-                                            LogEntry statusEdit = LogEntry.deserialize(entry.getEntry());
-                                            lastLedgerId = ledgerId;
-                                            currentLedgerId = ledgerId;
-                                            lastSequenceNumber.set(entryId);
-                                            if (number.after(snapshotSequenceNumber)) {
-                                                LOGGER.log(Level.FINEST, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}", new Object[]{number, statusEdit});
-                                                consumer.accept(number, statusEdit);
-                                            } else {
-                                                LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
-                                            }
-                                            latch.countDown();
-                                            localEntryCount++;
-                                        }
-                                        LOGGER.log(Level.SEVERE, "read " + localEntryCount + " entries from ledger " + ledgerId + ", expected " + entriesToRead);
-                                    } catch (Throwable t) {
-                                        LOGGER.log(Level.SEVERE, "error while processing data: " + t, t);
-                                        error.value = t;
-                                    }
+
+                            Enumeration<LedgerEntry> entries = handle.readEntries(start, end);
+                            int localEntryCount = 0;
+                            while (entries.hasMoreElements()) {
+
+                                LedgerEntry entry = entries.nextElement();
+                                long entryId = entry.getEntryId();
+                                LogSequenceNumber number = new LogSequenceNumber(ledgerId, entryId);
+                                LogEntry statusEdit = LogEntry.deserialize(entry.getEntry());
+                                lastLedgerId = ledgerId;
+                                currentLedgerId = ledgerId;
+                                lastSequenceNumber.set(entryId);
+                                if (number.after(snapshotSequenceNumber)) {
+                                    LOGGER.log(Level.FINEST, "RECOVER ENTRY #" + localEntryCount + " {0}, {1}", new Object[]{number, statusEdit});
+                                    consumer.accept(number, statusEdit);
+                                } else {
+                                    LOGGER.log(Level.FINEST, "SKIP ENTRY #" + localEntryCount + " {0}<{1}, {2}", new Object[]{number, snapshotSequenceNumber, statusEdit});
                                 }
-                            }, null);
-                            LOGGER.log(Level.SEVERE, "waiting for " + entriesToRead + " entries to be read from ledger " + ledgerId);
-                            latch.await();
+                                localEntryCount++;
+                            }
+                            LOGGER.log(Level.SEVERE, "read " + localEntryCount + " entries from ledger " + ledgerId + ", expected " + entriesToRead);
+
                             LOGGER.log(Level.SEVERE, "finished waiting for " + entriesToRead + " entries to be read from ledger " + ledgerId);
-                            if (error.value != null) {
-                                throw new RuntimeException(error.value);
+                            if (localEntryCount != entriesToRead) {
+                                throw new LogNotAvailableException("Read " + localEntryCount + " entries, expected " + entriesToRead);
                             }
                             lastLedgerId = ledgerId;
                             lastSequenceNumber.set(end);
