@@ -414,7 +414,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             }
 
             if (LOG.isLoggable(Level.FINE)) {
-                LOG.log(Level.FINE, "Split: FK " + key, new Object[] {key});
+                LOG.log(Level.FINE, "Split: FK " + key, new Object[]{key});
             }
             NavigableMap<K, List<V>> keep_values = new TreeMap<>();
             NavigableMap<K, List<V>> other_values = new TreeMap<>();
@@ -670,6 +670,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
              * bigger until a split occurs.
              */
             Block block = new Block(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size, blockData.pageId);
+            blocks.put(block.key, block);
             if (LOG.isLoggable(Level.FINE)) {
                 LOG.fine("boot block at " + block.key + " " + block.minKey + " - " + block.maxKey);
             }
