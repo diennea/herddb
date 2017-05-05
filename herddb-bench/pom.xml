@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.herddb</groupId>
         <artifactId>herddb-parent</artifactId>
-        <version>0.0.7-BETA3</version>
+        <version>0.0.7-BETA4</version>
         <relativePath>..</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
