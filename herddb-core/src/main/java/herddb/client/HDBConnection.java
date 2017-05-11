@@ -48,6 +48,9 @@ public class HDBConnection implements AutoCloseable {
     private boolean discoverTablespaceFromSql = true;
 
     public HDBConnection(HDBClient client) {
+        if (client == null) {
+            throw new NullPointerException();
+        }
         this.client = client;
     }
 

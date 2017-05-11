@@ -77,6 +77,9 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     }
 
     public BasicHerdDBDataSource(HDBClient client) {
+        if (client == null) {
+            throw new NullPointerException();
+        }
         this.client = client;
     }
 

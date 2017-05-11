@@ -63,7 +63,10 @@ public class HerdDBConnection implements java.sql.Connection {
     private String tableSpace;
     private final BasicHerdDBDataSource datasource;
 
-    public HerdDBConnection(BasicHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
+    HerdDBConnection(BasicHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
+        if (connection == null) {
+            throw new NullPointerException();
+        }
         this.tableSpace = defaultTablespace;
         this.connection = connection;
         this.datasource = datasource;

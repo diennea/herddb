@@ -76,7 +76,6 @@ public class HDBClient implements AutoCloseable {
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
-                break;
             case ClientConfiguration.PROPERTY_MODE_STANDALONE:
                 this.clientSideMetadataProvider = new StaticClientSideMetadataProvider(
                     configuration.getString(ClientConfiguration.PROPERTY_SERVER_ADDRESS, ClientConfiguration.PROPERTY_SERVER_ADDRESS_DEFAULT),
