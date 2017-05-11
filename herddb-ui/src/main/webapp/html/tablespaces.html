@@ -1,0 +1,222 @@
+<div class="wrapper " style="display: none" id="div-all" >
+    <div ng-include="'html/main-decorator.html'" onload="selectActiveLiById('home-li')"></div>
+    <div class="main-panel">
+
+        <div class="content" >
+            <div class="container-fluid" >
+                <div class="row">
+                    <nav class="navbar navbar-default">
+                        <div class="container-fluid">
+                            <div class="collapse navbar-collapse">
+                                <ul class="nav navbar-nav navbar-right">
+                                    <li>
+                                        <a  class="dropdown-toggle animated flipInX" data-toggle="dropdown">
+                                            <label>Default tablespace</label>
+                                            <input type="text" class=" form-control border-input default-tablespace" placeholder="Default tablespace.."  ng-model="defaultTablespace"  >
+                                            <i alt="ciao" class="ti-reload refresh-icon" ng-click="refresh()"></i>
+                                        </a>
+                                    </li>
+                                </ul>
+                                <div class="breadcrumbs" id="breadcrumb">
+                                    <a class="navbar-brand maincrumb" href="" ng-click="refresh('tablespaces')">Tablespaces</a>
+                                </div>
+                            </div>
+                    </nav>
+                </div>
+
+                <!--All tablespaces-->
+                <div class="row row-div" id="div-tablespaces">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="header">
+                                <h4 class="title">Table spaces</h4>
+
+                                <div class="content table-responsive table-full-width">
+                                    <table id="table-tablespaces" class="display table cell-border" >
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!--Single tablespace page-->
+                <div id="div-tablespace" class="row-div" style="display: none">
+                    <div class="row" >
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Replication status</h4>
+
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-tablespace-replication" class="display table table-striped tablespace-table" >
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+                    <div class="row">
+                        <div class="col-lg-4 col-sm-4">
+                            <div class="card">
+                                <div class="content">
+                                    <div class="row">
+                                        <div class="col-xs-5">
+                                            <div class="icon-big icon-warning text-center">
+                                                <i class="ti-server"></i>
+                                            </div>
+                                        </div>
+                                        <div class="col-xs-7">
+                                            <div class="numbers">
+                                                Transactions
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="footer show-tablespace-advanced" ng-click="showTransactions(actualTableSpace)">
+                                        <hr />
+                                        <div class="stats" >
+                                            <i class="ti-download"></i> Show transactions
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-sm-4">
+                            <div class="card">
+                                <div class="content">
+                                    <div class="row">
+                                        <div class="col-xs-5">
+                                            <div class="icon-big icon-success text-center">
+                                                <i class="ti-pulse"></i>
+                                            </div>
+                                        </div>
+                                        <div class="col-xs-7">
+                                            <div class="numbers">
+                                                Stats
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="footer show-tablespace-advanced" ng-click="showStats()">
+                                        <hr />
+                                        <div class="stats" >
+                                            <i class="ti-download"></i> See stats
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-sm-4">
+                            <div class="card">
+                                <div class="content">
+                                    <div class="row">
+                                        <div class="col-xs-5">
+                                            <div class="icon-big icon-danger text-center">
+                                                <i class="ti-view-list-alt"></i>
+                                            </div>
+                                        </div>
+                                        <div class="col-xs-7">
+                                            <div class="numbers">
+                                                Tables
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="footer show-tablespace-advanced" ng-click="showTables()">
+                                        <hr />
+                                        <div class="stats" >
+                                            <i class="ti-download"></i> Show {{actualTableSpace}} tables
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="row div-tablespace-hiddendata" id="div-tablespace-stats" style="display: none">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Stats</h4>
+
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-tablespace-stats" class="display table table-striped tablespace-table" >
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="row div-tablespace-hiddendata" id="div-tablespace-tables" style="display: none">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Tables</h4>
+
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-tablespace-tables" class="display table table-striped tablespace-table" >
+                                            <thead>
+                                                <tr>
+                                                    <th>Table</th>
+                                                </tr>
+                                            </thead>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row div-tablespace-hiddendata" id="div-tablespace-transactions" style="display: none">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+
+                                    <h4 class="title">Transactions</h4>
+
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-tablespace-transactions" class="display table table-striped tablespace-table" >
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!--Single table-->
+                <div  id="div-table" class="row-div" style="display: none">
+                    <div class="row" >
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Metadata</h4>
+
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-table-metadata" class="display table cell-border" >
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" >
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Data</h4>
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-table-indexes" class="display table cell-border" ></table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div ng-include="'html/main-footer.html'"></div>
+    </div>
+</div>

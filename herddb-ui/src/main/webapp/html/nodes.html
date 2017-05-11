@@ -1,0 +1,65 @@
+<div class="wrapper" style="display: none" id="div-all" >
+    <div ng-include="'html/main-decorator.html'" ></div>
+    <div class="main-panel">
+        <div class="content">
+            <div class="row">
+                <nav class="navbar navbar-default">
+                    <div class="container-fluid">
+                        <div class="collapse navbar-collapse">
+                            <ul class="nav navbar-nav navbar-right">
+                                <li>
+                                    <a  class="dropdown-toggle animated pulse" data-toggle="dropdown">
+                                        <label>Default tablespace</label>
+                                        <input type="text" class=" form-control border-input default-tablespace" placeholder="Default tablespace.." ng-model="defaultTablespace"  >
+                                        <i class="ti-reload " ng-click="refresh()"></i>
+                                    </a>
+                                </li>
+                            </ul>
+
+                            <div class="navbar-header" id="breadcrumb">
+                                <a class="navbar-brand maincrumb" href="" ng-click="refresh('nodes')">Nodes</a>
+                            </div>
+                        </div>
+                </nav>
+            </div>
+
+            <div id="div-nodes">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Nodes </h4>
+
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-nodes" class="display table table-striped " >
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="div-node">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Node {{actualNode}}</h4>
+
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-node" class="display table table-striped " >
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div ng-include="'html/main-footer.html'"></div>
+    </div>
+</div>

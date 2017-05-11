@@ -510,5 +510,8 @@
                 <module>herddb-website</module>                
             </modules>
         </profile>
-    </profiles>    
+    </profiles>
+  <modules>
+    <module>herddb-ui</module>
+  </modules>
 </project>

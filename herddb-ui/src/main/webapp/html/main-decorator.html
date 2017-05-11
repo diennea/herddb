@@ -1,0 +1,27 @@
+<div class="sidebar" data-background-color="white" data-active-color="danger">
+    <div class="sidebar-wrapper">
+        <div class="logo">
+            <a  class="simple-text herddb">
+                HERDDB
+            </a>
+        </div>
+
+        <ul class="nav">
+            <li id="tablespaces-li" onclick="selectActiveLi(this)">
+                <a href="#home">
+                    <p>TABLESPACES</p>
+                </a>
+            </li>
+            <li id="nodes-li" onclick="selectActiveLi(this)">
+                <a href="#pag2" >
+                    <p>NODES</p>
+                </a>
+            </li>
+            <li  class="active-pro">
+                <div class="text-center">
+                    <button ng-controller="logoutController" ng-click="logout()" type="submit" class="btn btn-info btn-fill btn-wd btn-submit">Logout</button>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
