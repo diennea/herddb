@@ -21,8 +21,9 @@ package herddb.sql;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.utils.RawString;
+import java.util.HashMap;
 import java.util.List;
-import org.jboss.netty.util.internal.ConcurrentIdentityHashMap;
+import java.util.Map;
 
 /**
  * Instance of StatementEvaluationContext for SQL/JDBC
@@ -33,7 +34,7 @@ public class SQLStatementEvaluationContext extends StatementEvaluationContext {
 
     public final String query;
     public final List<Object> jdbcParameters;
-    public ConcurrentIdentityHashMap<Object, Object> constants = new ConcurrentIdentityHashMap<>();
+    public final Map<Object, Object> constants = new HashMap<>();
 
     @Override
     public List<Object> getJdbcParameters() {
