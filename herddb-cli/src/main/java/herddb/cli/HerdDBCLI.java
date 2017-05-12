@@ -142,6 +142,7 @@ public class HerdDBCLI {
             
             options.addOption("ar", "add-replica", false, "Add a replica to the tablespace (needs -s and -r options)");
             options.addOption("rr", "remove-replica", false, "Remove a replica from the tablespace (needs -s and -r options)");
+            options.addOption("adt", "create-tablespace", false, "Create a tablespace (needs -ns and -nl options)");
             options.addOption("at", "alter-tablespace", false, "Alter a tablespace (needs -s, -param and --values options)");
             
             org.apache.commons.cli.CommandLine commandLine;
@@ -202,7 +203,19 @@ public class HerdDBCLI {
                 }
             }
             
-            
+            boolean createTablespace = commandLine.hasOption("create-tablespace");
+            if (createTablespace) {
+                if (newschema.equals("")) {
+                    println("Specify the tablespace name (--newschema <schema>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                if (leader.equals("")) {
+                    println("Specify the leader node (--newleader <nodeid>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+            }
             boolean alterTablespace = commandLine.hasOption("alter-tablespace");
             if (alterTablespace) {
                 if (commandLine.getOptionValue("schema",null) == null) {
@@ -284,6 +297,8 @@ public class HerdDBCLI {
                         changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.ADD);
                     } else if (removeReplica) {
                         changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.REMOVE);
+                    } else if (createTablespace) {
+                        createTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, newschema, leader);
                     } else if (alterTablespace) {
                         alterTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, schema, param, values);
                     } else {
@@ -305,6 +320,30 @@ public class HerdDBCLI {
         }
     }
     
+    private static boolean checkNodeExistence(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, 
+        String nodeId) throws SQLException, ScriptException {
+        
+        ExecuteStatementResult check = executeStatement(verbose, ignoreerrors, false, false, "select * from sysnodes where nodeid='"+nodeId+"'", statement, tableSpaceMapper, true, false);
+        return !check.results.isEmpty();
+    }
+    
+    private static void createTablespace(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, 
+        String newschema, String leader) throws SQLException, ScriptException {
+    
+        if (!checkNodeExistence(verbose, ignoreerrors, statement, tableSpaceMapper, leader)) {
+            println("Unknown node "+leader);
+            exitCode = 1;
+            System.exit(exitCode);
+        }
+        
+        ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false, 
+            "CREATE TABLESPACE '" + newschema + "','leader:" + leader + "'" , statement, tableSpaceMapper, true, false);
+        
+        if (res != null && res.updateCount > 0) {
+            println("Successfully created " + newschema + " tablespace");
+        }
+    }
+    
     private static void alterTablespace(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, 
         String schema, String param, String values) throws SQLException, ScriptException {
     
@@ -323,6 +362,12 @@ public class HerdDBCLI {
     private static void changeReplica(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, 
         String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
     
+        if (!checkNodeExistence(verbose, ignoreerrors, statement, tableSpaceMapper, nodeId)) {
+            println("Unknown node "+nodeId);
+            exitCode = 1;
+            System.exit(exitCode);
+        }
+        
         ExecuteStatementResult replicaNodes = executeStatement(verbose, ignoreerrors, false, false, 
             "select * from systablespaces where tablespace_name='"+schema+"'", statement, tableSpaceMapper, true, false);
         
@@ -333,14 +378,16 @@ public class HerdDBCLI {
             case ADD:
                 if (nodes.contains(nodeId)) {
                     println("Node " + nodeId + " is already a replica for tablespace " + schema);
-                    return;
+                    exitCode = 1;
+                    System.exit(exitCode);
                 }
                 nodes.add(nodeId);
                 break;
             case REMOVE:
                 if (!nodes.contains(nodeId)) {
                     println("Node " + nodeId + " is not a replica for tablespace " + schema);
-                    return;
+                    exitCode = 1;
+                    System.exit(exitCode);
                 }
                 nodes.remove(nodeId);
                 break;
