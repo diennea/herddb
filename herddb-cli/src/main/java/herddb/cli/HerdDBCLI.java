@@ -53,21 +53,21 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.logging.Level;
 import java.util.logging.LogManager;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
 import javax.script.ScriptException;
 import net.sf.jsqlparser.expression.DoubleValue;
 import net.sf.jsqlparser.expression.Expression;
@@ -103,6 +103,8 @@ import org.jline.terminal.TerminalBuilder;
 public class HerdDBCLI {
 
     static volatile int exitCode = 0;
+    
+    static final boolean PRETTY_PRINT = true;
 
     public static void main(String... args) throws IOException {
         try {
@@ -127,8 +129,21 @@ public class HerdDBCLI {
             options.addOption("nl", "newleader", true, "Leader for new restored tablespace");
             options.addOption("ns", "newschema", true, "Name for new restored tablespace");
             options.addOption("tsm", "tablespacemapper", true, "Path to groovy script with a custom functin to map table names to tablespaces");
-            options.addOption("dfs", "dumpfetchsize", true, "Fetch size for dump operations."
-                + "Defaults to chunks of 100000 records");
+            options.addOption("dfs", "dumpfetchsize", true, "Fetch size for dump operations. Defaults to chunks of 100000 records");
+            options.addOption("n", "nodeid", true, "Node id");
+            options.addOption("t", "table", true, "Table name");
+            options.addOption("p", "param", true, "Parameter name");
+            options.addOption("val", "values", true, "Parameter values");
+            options.addOption("lts", "list-tablespaces", false, "List available tablespaces");
+            options.addOption("ln", "list-nodes", false, "List available nodes");
+            options.addOption("sts", "show-tablespace", false, "Show full informations about a tablespace (needs -s option)");
+            options.addOption("lt", "list-tables", false, "List tablespace tables (needs -s option)");
+            options.addOption("st", "show-table", false, "Show full informations about a table (needs -s and -t options)");
+            
+            options.addOption("ar", "add-replica", false, "Add a replica to the tablespace (needs -s and -r options)");
+            options.addOption("rr", "remove-replica", false, "Remove a replica from the tablespace (needs -s and -r options)");
+            options.addOption("at", "alter-tablespace", false, "Alter a tablespace (needs -s, -param and --values options)");
+            
             org.apache.commons.cli.CommandLine commandLine;
             try {
                 commandLine = parser.parse(options, args);
@@ -168,6 +183,72 @@ public class HerdDBCLI {
             if (!autotransaction) {
                 autotransactionbatchsize = 0;
             }
+            
+            String nodeId = commandLine.getOptionValue("nodeid", "");
+            String table = commandLine.getOptionValue("table", "");
+            String param = commandLine.getOptionValue("param", "");
+            String values = commandLine.getOptionValue("values", "");
+            
+            boolean listTablespaces = commandLine.hasOption("list-tablespaces");
+            boolean listNodes = commandLine.hasOption("list-nodes");
+            boolean showTablespace = commandLine.hasOption("show-tablespace");
+            boolean listTables = commandLine.hasOption("list-tables");
+            boolean showTable = commandLine.hasOption("show-table");
+            if (showTable) {
+                if (table.equals("")) {
+                    println("Specify the table (-t <table>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+            }
+            
+            
+            boolean alterTablespace = commandLine.hasOption("alter-tablespace");
+            if (alterTablespace) {
+                if (commandLine.getOptionValue("schema",null) == null) {
+                    println("Cowardly refusing to assume the default schema in an alter command. Explicitly use \"-s " + TableSpace.DEFAULT + "\" instead");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                if (param.equals("")) {
+                    println("Specify the parameter (--param <par>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                if (values.equals("")) {
+                    println("Specify values (--values <vals>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                
+            }
+            boolean addReplica = commandLine.hasOption("add-replica");
+            if (addReplica) {
+                if (commandLine.getOptionValue("schema",null) == null) {
+                    println("Cowardly refusing to assume the default schema in an alter command. Explicitly use \"-s " + TableSpace.DEFAULT + "\" instead");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                if (nodeId.equals("")) {
+                    println("Specify the node (-n <nodeid>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+            }
+            boolean removeReplica = commandLine.hasOption("remove-replica");
+            if (removeReplica) {
+                if (commandLine.getOptionValue("schema",null) == null) {
+                    println("Cowardly refusing to assume the default schema in an alter command. Explicitly use \"-s " + TableSpace.DEFAULT + "\" instead");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+                if (nodeId.equals("")) {
+                    println("Specify the node (-n <nodeid>)");
+                    exitCode = 1;
+                    System.exit(exitCode);
+                }
+            }
+            
             TableSpaceMapper tableSpaceMapper = buildTableSpaceMapper(tablespacemapperfile);
             try (HerdDBDataSource datasource = new HerdDBDataSource()) {
                 datasource.setUrl(url);
@@ -178,17 +259,33 @@ public class HerdDBCLI {
                     Statement statement = connection.createStatement()) {
                     connection.setSchema(schema);
                     if (sqlconsole) {
-                        runSqlConsole(connection, statement);
+                        runSqlConsole(connection, statement, PRETTY_PRINT);
                     } else if (backup) {
                         performBackup(statement, schema, file, options, connection, dumpfetchsize);
                     } else if (restore) {
                         performRestore(file, leader, newschema, options, statement, connection);
                     } else if (!query.isEmpty()) {
-                        executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper);
+                        executeStatement(verbose, ignoreerrors, false, false, query, statement, tableSpaceMapper, false, PRETTY_PRINT);
                     } else if (!file.isEmpty()) {
-                        executeSqlFile(autotransactionbatchsize, connection, file, verbose, ignoreerrors, frommysqldump, rewritestatements, statement, tableSpaceMapper);
+                        executeSqlFile(autotransactionbatchsize, connection, file, verbose, ignoreerrors, frommysqldump, rewritestatements, statement, tableSpaceMapper, PRETTY_PRINT);
                     } else if (!script.isEmpty()) {
                         executeScript(connection, datasource, statement, script);
+                    } else if (listTablespaces) {
+                        printTableSpaces(verbose, ignoreerrors, statement, tableSpaceMapper);
+                    } else if (listNodes) {
+                        printNodes(verbose, ignoreerrors, statement, tableSpaceMapper);
+                    } else if (showTablespace) {
+                        printTableSpaceInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema);
+                    } else if (listTables) {
+                        listTables(verbose, ignoreerrors, statement, tableSpaceMapper, schema);
+                    } else if (showTable) {
+                        printTableInfos(verbose, ignoreerrors, statement, tableSpaceMapper, schema, table);
+                    } else if (addReplica) {
+                        changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.ADD);
+                    } else if (removeReplica) {
+                        changeReplica(verbose, ignoreerrors, statement, tableSpaceMapper, schema, nodeId, ChangeReplicaAction.REMOVE);
+                    } else if (alterTablespace) {
+                        alterTablespace(verbose, ignoreerrors, statement, tableSpaceMapper, schema, param, values);
                     } else {
                         failAndPrintHelp(options);
                         return;
@@ -207,7 +304,176 @@ public class HerdDBCLI {
             System.exit(exitCode);
         }
     }
+    
+    private static void alterTablespace(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, 
+        String schema, String param, String values) throws SQLException, ScriptException {
+    
+        ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false, 
+            "EXECUTE ALTERTABLESPACE '"+schema+"','"+param+":"+values+"'" , statement, tableSpaceMapper, true, false);
+        
+        if (res != null && res.updateCount > 0) {
+            println("Successfully altered "+schema+" tablespace");
+        }
+    }
+    
+    private enum ChangeReplicaAction {
+        ADD, REMOVE
+    }
+    
+    private static void changeReplica(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, 
+        String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
+    
+        ExecuteStatementResult replicaNodes = executeStatement(verbose, ignoreerrors, false, false, 
+            "select * from systablespaces where tablespace_name='"+schema+"'", statement, tableSpaceMapper, true, false);
+        
+        String replicaNodesStr = (String) replicaNodes.results.get(0).get("replica");
+        List<String> nodes = new ArrayList<>(Arrays.asList(replicaNodesStr.split(",")));
+        
+        switch (action) {
+            case ADD:
+                if (nodes.contains(nodeId)) {
+                    println("Node " + nodeId + " is already a replica for tablespace " + schema);
+                    return;
+                }
+                nodes.add(nodeId);
+                break;
+            case REMOVE:
+                if (!nodes.contains(nodeId)) {
+                    println("Node " + nodeId + " is not a replica for tablespace " + schema);
+                    return;
+                }
+                nodes.remove(nodeId);
+                break;
+        }
+        
+        replicaNodesStr = nodes.stream().collect(Collectors.joining(","));
+        
+        ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false, 
+            "EXECUTE ALTERTABLESPACE '"+schema+"','replica:"+replicaNodesStr+"'" , statement, tableSpaceMapper, true, false);
+        
+        if (res != null && res.updateCount > 0) {
+            println("Successfully altered "+schema+" tablespace");
+        }
+    }
+    
+    private static void printTableSpaces(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper) throws SQLException, ScriptException {
+        
+        ExecuteStatementResult tablespaces = executeStatement(verbose, ignoreerrors, false, false, "select * from systablespaces", statement, tableSpaceMapper, true, false);
+        
+        println("");
+        if (tablespaces == null || tablespaces.results.isEmpty()) {
+            throw new RuntimeException("Impossibile");
+        }
+        println(" Tablespaces:");
+        println("");
+        for (Map<String,Object> row: tablespaces.results) {
+            println("   " + row.get("tablespace_name"));
+        }
+        println("");
+        
+    }
+    
+    private static void printNodes(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper) throws SQLException, ScriptException {
+        
+        ExecuteStatementResult nodes = executeStatement(verbose, ignoreerrors, false, false, "select * from sysnodes", statement, tableSpaceMapper, true, false);
+        
+        println("");
+        println(" Nodes:");
+        println("");
+        if (nodes.results.isEmpty()) {
+            println("   No nodes to show");
+        }
+        for (Map<String,Object> row: nodes.results) {
+            println("   Node: " + row.get("nodeid"));
+            println("   Address: " + row.get("address"));
+            println("   SSL: " + row.get("ssl"));
+            println("");
+        }
+        
+    }
+    
+    
+    private static void printTableSpaceInfos(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema) throws SQLException, ScriptException {
+        
+        ExecuteStatementResult tablespace = executeStatement(verbose, ignoreerrors, false, false, "select * from systablespaces where tablespace_name='"+schema+"'", statement, tableSpaceMapper, true, false);
+        ExecuteStatementResult nodes = executeStatement(verbose, ignoreerrors, false, false, "select * from systablespacereplicastate where tablespace_name='"+schema+"'", statement, tableSpaceMapper, true, false);
+        // no tablespace where neeeded in this query
+        ExecuteStatementResult ntables = executeStatement(verbose, ignoreerrors, false, false, "select count(*) ntables from systables where systemtable=false", statement, tableSpaceMapper, true, false);
+        if (tablespace.results.isEmpty()) {
+            println("Unknown tablespace "+schema);
+            exitCode = 1;
+            System.exit(exitCode);
+        }
+        
+        println("");
+        
+        Map<String,Object> ts = tablespace.results.get(0);
+        println(" Tablespace: " + ts.get("tablespace_name"));
+        println(" User tables: " + ntables.results.get(0).get("ntables"));
+        println(" Leader node: " + ts.get("leader"));
+        println(" Replication nodes: " + ts.get("replica"));
+        println(" Expected replica count: " + ts.get("expectedreplicacount"));
+        println(" Max leader inactivity time: " + (Float.valueOf((String) ts.get("maxleaderinactivitytime"))/1000) + "s");
+        println(" UUID: " + ts.get("uuid"));
+        
+        if (nodes != null) {
+            
+            println("");
+            println(" Replication nodes:");
+            
+            if (nodes.results.isEmpty()) {
+                println("");
+                println("   No nodes to show");
+            }
+            for (Map<String,Object> node: nodes.results) {
+                println("");
+                println("   Node ID: " + node.get("nodeid"));
+                println("   Mode: " + node.get("mode"));
+                println("   Last activity: " + node.get("timestamp"));
+                println("   Inactivity time: " + (Float.valueOf((String) node.get("inactivitytime"))/1000) + "s");
+                println("   Max leader inactivity time: " + (Float.valueOf((String) node.get("maxleaderinactivitytime"))/1000) + "s");
+            }
+        }
+        
+        println("");
+        
+    }
+    
+    private static void listTables(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema) throws SQLException, ScriptException {
+        
+        println("");
+        println(" Tables in tablespace " + schema + ":");
+        ExecuteStatementResult tables = executeStatement(verbose, ignoreerrors, false, false, "select * from systablestats", statement, tableSpaceMapper, true, false);
+        if (tables.results.isEmpty()) {
+            println("");
+            println("   No tables found");
+        } else {
+            executeStatement(verbose, ignoreerrors, false, false, "select * from systablestats", statement, tableSpaceMapper, false, true);
+        }
+        println("");
+        
+    }
 
+    private static void printTableInfos(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper, String schema, String table) throws SQLException, ScriptException {
+        ExecuteStatementResult stats = executeStatement(verbose, ignoreerrors, false, false, "select * from systablestats where table_name = '" + table + "'", statement, tableSpaceMapper, true, false);
+        
+        if (stats.results.isEmpty()) {
+            println("\n No table " + table + " in tablespace " + schema + "\n");
+            return;
+        }
+        
+        println("");
+        println(" Table "+ schema + "." + table + ":");
+        println("");
+        for (Entry<String,Object> entry: stats.results.get(0).entrySet()) {
+            println("    " + entry.getKey() + ": " + entry.getValue());
+        }
+        println("");
+        println(" Columns: ");
+        executeStatement(verbose, ignoreerrors, false, false, "select * from syscolumns where table_name = '" + table + "'", statement, tableSpaceMapper, false, true);
+        
+    }
+    
     private static void executeScript(final Connection connection, final HerdDBDataSource datasource, final Statement statement, String script) throws IOException, CompilationFailedException {
         Map<String, Object> variables = new HashMap<>();
         variables.put("connection", connection);
@@ -217,7 +483,7 @@ public class HerdDBCLI {
         shell.evaluate(new File(script));
     }
 
-    private static void executeSqlFile(int autotransactionbatchsize, final Connection connection, String file, final boolean verbose, final boolean ignoreerrors, final boolean frommysqldump, final boolean rewritestatements, final Statement statement, TableSpaceMapper tableSpaceMapper) throws Exception, SQLException {
+    private static void executeSqlFile(int autotransactionbatchsize, final Connection connection, String file, final boolean verbose, final boolean ignoreerrors, final boolean frommysqldump, final boolean rewritestatements, final Statement statement, TableSpaceMapper tableSpaceMapper, boolean pretty) throws Exception, SQLException {
         if (autotransactionbatchsize > 0) {
             connection.setAutoCommit(false);
         }
@@ -235,7 +501,8 @@ public class HerdDBCLI {
             int _autotransactionbatchsize = autotransactionbatchsize;
             SQLFileParser.parseSQLFile(ii, (st) -> {
                 if (!st.comment) {
-                    int count = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper);
+                    ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper, true, pretty);
+                    int count = res.updateCount;
                     doneCount.value += count;
                     totalDoneCount.value += count;
                     if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
@@ -374,13 +641,14 @@ public class HerdDBCLI {
         println("Backup finished for tablespace " + schema);
     }
 
-    private static int executeStatement(boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement,
-        final TableSpaceMapper tableSpaceMapper) throws SQLException, ScriptException {
+    private static ExecuteStatementResult executeStatement(
+        boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement,
+        final TableSpaceMapper tableSpaceMapper, boolean getResults, boolean prettyPrint) throws SQLException, ScriptException {
         query = query.trim();
 
         if (query.isEmpty()
             || query.startsWith("--")) {
-            return 0;
+            return null;
         }
         String formattedQuery = query.toLowerCase();
         if (formattedQuery.endsWith(";")) {
@@ -393,7 +661,7 @@ public class HerdDBCLI {
         }
         if (frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables"))) {
             // mysqldump
-            return 0;
+            return null;
         }
         Boolean setAutoCommit = null;
         if (formattedQuery.startsWith("autocommit=")) {
@@ -410,7 +678,7 @@ public class HerdDBCLI {
                     break;
                 default:
                     System.out.println("No valid value for autocommit. Only true and false allowed.");
-                    return 0;
+                    return null;
             }
         }
         if (verbose) {
@@ -420,17 +688,17 @@ public class HerdDBCLI {
             if (setAutoCommit != null) {
                 statement.getConnection().setAutoCommit(setAutoCommit);
                 System.out.println("Set autocommit=" + setAutoCommit + " executed.");
-                return 0;
+                return null;
             }
             if (formattedQuery.equals("commit")) {
                 statement.getConnection().commit();
                 System.out.println("Commit executed.");
-                return 0;
+                return null;
             }
             if (formattedQuery.equals("rollback")) {
                 statement.getConnection().rollback();
                 System.out.println("Rollback executed.");
-                return 0;
+                return null;
             }
 
             QueryWithParameters rewritten = null;
@@ -450,34 +718,62 @@ public class HerdDBCLI {
                         ps.setObject(i++, o);
                     }
                     boolean resultSet = ps.execute();
-                    return reallyExecuteStatement(ps, resultSet, verbose);
+                    return reallyExecuteStatement(ps, resultSet, verbose, getResults, prettyPrint);
                 }
             } else {
                 boolean resultSet = statement.execute(query);
-                return reallyExecuteStatement(statement, resultSet, verbose);
+                return reallyExecuteStatement(statement, resultSet, verbose, getResults, prettyPrint);
             }
         } catch (SQLException err) {
             if (ignoreerrors) {
                 println("ERROR:" + err);
-                return 0;
+                return null;
             } else {
                 throw err;
             }
         }
     }
 
-    private static int reallyExecuteStatement(final Statement statement, boolean resultSet, boolean verbose) throws SQLException {
+    private static class ExecuteStatementResult {
+        public final boolean update;
+        public final int updateCount;
+        public final List<Map<String,Object>> results;
+
+        public ExecuteStatementResult(int updateCount) {
+            this.update = true;
+            this.updateCount = updateCount;
+            this.results = null;
+        }
+        
+        public ExecuteStatementResult(List<Map<String,Object>> results) {
+            this.update = false;
+            this.updateCount = 0;
+            this.results = results;
+        }
+    }
+    
+    private static ExecuteStatementResult reallyExecuteStatement(final Statement statement, boolean resultSet, boolean verbose, boolean getResults, boolean prettyPrint) throws SQLException {
 
         if (resultSet) {
             try (ResultSet rs = statement.getResultSet()) {
+                List<Map<String,Object>> results = new ArrayList<>();
+                TextTableBuilder tb = new TextTableBuilder();
+                
                 ResultSetMetaData md = rs.getMetaData();
                 List<String> columns = new ArrayList<>();
                 int ccount = md.getColumnCount();
                 for (int i = 1; i <= ccount; i++) {
                     columns.add(md.getColumnName(i));
                 }
-                System.out.println(columns.stream().collect(Collectors.joining(";")));
-
+                
+                if (!getResults) {
+                    if (prettyPrint) {
+                        tb.addIntestation(columns);
+                    } else {
+                        System.out.println(columns.stream().collect(Collectors.joining(";")));
+                    }
+                }
+                
                 while (rs.next()) {
                     List<String> values = new ArrayList<>();
                     for (int i = 1; i <= ccount; i++) {
@@ -487,16 +783,37 @@ public class HerdDBCLI {
                         }
                         values.add(value);
                     }
-                    System.out.println(values.stream().collect(Collectors.joining(";")));
+                    
+                    if (getResults) {
+                        Map<String,Object> row = new LinkedHashMap<>(); // Preserving order
+                        int i = 0;
+                        for (String col: columns) {
+                            row.put(col, values.get(i++));
+                        }
+                        results.add(row);
+                    } else {
+                        if (prettyPrint) {
+                            tb.addRow(values);
+                        } else {
+                            System.out.println(values.stream().collect(Collectors.joining(";")));
+                        }
+                    }
                 }
+                
+                if (getResults) {
+                    return new ExecuteStatementResult(results);
+                }
+                if (prettyPrint) {
+                    System.out.println("\n"+tb.toString());
+                }
+                return null;
             }
-            return 0;
         } else {
             int updateCount = statement.getUpdateCount();
             if (verbose) {
                 System.out.println("UPDATE COUNT: " + updateCount);
             }
-            return updateCount >= 0 ? updateCount : 0;
+            return new ExecuteStatementResult(updateCount >= 0 ? updateCount : 0);
         }
     }
 
@@ -504,7 +821,7 @@ public class HerdDBCLI {
         System.out.println(msg);
     }
 
-    private static void runSqlConsole(Connection connection, Statement statement) throws IOException {
+    private static void runSqlConsole(Connection connection, Statement statement, boolean pretty) throws IOException {
         Terminal terminal = TerminalBuilder.builder()
             .system(true)
             .build();
@@ -520,7 +837,7 @@ public class HerdDBCLI {
                 if (line == null) {
                     return;
                 }
-                executeStatement(true, true, false, false, line, statement, null);
+                executeStatement(true, true, false, false, line, statement, null, false, pretty);
             } catch (UserInterruptException | EndOfFileException e) {
                 return;
             } catch (Exception e) {
