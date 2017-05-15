@@ -262,7 +262,7 @@ public class TableSpaceManager {
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
         }
-        checkpoint(false,false);
+        checkpoint(false, false);
 
     }
 
@@ -764,7 +764,7 @@ public class TableSpaceManager {
                 log.attachCommitLogListener(logDumpReceiver);
             }
 
-            checkpoint = checkpoint(true,true);
+            checkpoint = checkpoint(true, true);
 
             /* Downgrade lock */
             generalLock.readLock().lock();
@@ -772,7 +772,6 @@ public class TableSpaceManager {
         } finally {
             generalLock.writeLock().unlock();
         }
-
 
         try {
 
@@ -801,7 +800,7 @@ public class TableSpaceManager {
                 sendTransactionsDump(batch, _channel, dumpId, timeout, response_to_start);
             }
 
-            for (Entry<String,LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
+            for (Entry<String, LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
                 final AbstractTableManager tableManager = tables.get(entry.getKey());
                 final LogSequenceNumber sequenceNumber = entry.getValue();
                 if (tableManager.isSystemTable()) {
@@ -809,7 +808,7 @@ public class TableSpaceManager {
                 }
                 try {
                     FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, _channel, dumpId, timeout, fetchSize);
-                    tableManager.dump(sequenceNumber,sink);
+                    tableManager.dump(sequenceNumber, sink);
                 } catch (DataStorageManagerException err) {
                     Map<String, Object> errorOnData = new HashMap<>();
                     errorOnData.put("command", "error");
@@ -843,7 +842,7 @@ public class TableSpaceManager {
                 log.removeCommitLogListener(logDumpReceiver);
             }
 
-            for(Entry<String,LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
+            for (Entry<String, LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
                 dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, entry.getKey(), entry.getValue());
             }
         }
@@ -885,7 +884,7 @@ public class TableSpaceManager {
     public void restoreFinished() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
         transactions.clear();
-        checkpoint(false,false);
+        checkpoint(false, false);
     }
 
     public boolean isVirtual() {
@@ -1166,12 +1165,11 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
         TableManager tableManager = new TableManager(
-                table, log, dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID, transaction);
+            table, log, dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID, transaction);
         if (dbmanager.getServerConfiguration().getBoolean(
-                ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
+            ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
             JMXUtils.registerTableManagerStatsMXBean(tableSpaceName, table.name, tableManager.getStats());
         }
-
 
         if (dumpLogSequenceNumber != null) {
             tableManager.prepareForRestore(dumpLogSequenceNumber);
@@ -1185,7 +1183,7 @@ public class TableSpaceManager {
 
     private AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2}.{3}", new Object[]{nodeId, tableSpaceName, index.table, index.name});
+        LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2}.{3} uuid {4}", new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid});
         if (indexes.containsKey(index.name)) {
             throw new DataStorageManagerException("Index" + index.name + " already present in tableSpace " + tableSpaceName);
         }
@@ -1224,9 +1222,24 @@ public class TableSpaceManager {
     }
 
     private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {
-        LOGGER.log(Level.SEVERE, "alterTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
-        AbstractTableManager tableManager = tables.get(table.name);
+        LOGGER.log(Level.SEVERE, "alterTable {0} {1}.{2} uuid {3}", new Object[]{nodeId, tableSpaceName, table.name,
+            table.uuid});
+        AbstractTableManager tableManager = null;
+        String oldTableName = null;
+        for (AbstractTableManager tm : tables.values()) {
+            if (tm.getTable().uuid.equals(table.uuid)) {
+                tableManager = tm;
+                oldTableName = tm.getTable().name;
+            }
+        }
+        if (tableManager == null || oldTableName == null) {
+            throw new TableDoesNotExistException("Cannot find table " + table.name + " with uuid " + table.uuid);
+        }
         tableManager.tableAltered(table, transaction);
+        if (!oldTableName.equalsIgnoreCase(table.name)) {
+            tables.remove(oldTableName);
+            tables.put(table.name, tableManager);
+        }
         return tableManager;
     }
 
@@ -1257,11 +1270,12 @@ public class TableSpaceManager {
     }
 
     private static final class TableSpaceCheckpoint {
+
         private final LogSequenceNumber sequenceNumber;
-        private final Map<String,LogSequenceNumber> tablesCheckpoints;
+        private final Map<String, LogSequenceNumber> tablesCheckpoints;
 
         public TableSpaceCheckpoint(LogSequenceNumber sequenceNumber,
-                Map<String, LogSequenceNumber> tablesCheckpoints) {
+            Map<String, LogSequenceNumber> tablesCheckpoints) {
             super();
             this.sequenceNumber = sequenceNumber;
             this.tablesCheckpoints = tablesCheckpoints;
@@ -1276,7 +1290,7 @@ public class TableSpaceManager {
         LogSequenceNumber logSequenceNumber;
         LogSequenceNumber _logSequenceNumber;
         List<PostCheckpointAction> actions = new ArrayList<>();
-        Map<String,LogSequenceNumber> checkpoints = new HashMap<>();
+        Map<String, LogSequenceNumber> checkpoints = new HashMap<>();
 
         generalLock.writeLock().lock();
         try {
@@ -1284,7 +1298,7 @@ public class TableSpaceManager {
 
             if (logSequenceNumber.isStartOfTime()) {
                 LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
-                return new TableSpaceCheckpoint(logSequenceNumber,checkpoints);
+                return new TableSpaceCheckpoint(logSequenceNumber, checkpoints);
             }
             LOGGER.log(Level.SEVERE, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
             if (actualLogSequenceNumber == null) {
@@ -1313,7 +1327,6 @@ public class TableSpaceManager {
             }
 
             /* Indexes checkpoint is handled by TableManagers */
-
             log.dropOldLedgers(logSequenceNumber);
 
             _logSequenceNumber = log.getLastSequenceNumber();
@@ -1334,7 +1347,7 @@ public class TableSpaceManager {
             + ", finished at " + _logSequenceNumber
             + ", total time " + (_stop - _start) + " ms");
 
-        return new TableSpaceCheckpoint(logSequenceNumber,checkpoints);
+        return new TableSpaceCheckpoint(logSequenceNumber, checkpoints);
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {

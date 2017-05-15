@@ -101,8 +101,9 @@ public class SimpleClusterTest extends BaseTestcase {
         }
         assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        String tableUuid = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable().uuid;
+        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableUuid, 1L));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -110,7 +111,7 @@ public class SimpleClusterTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("5"));
@@ -120,7 +121,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
         // a new page must be allocated
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("6"));
@@ -134,7 +135,7 @@ public class SimpleClusterTest extends BaseTestcase {
         }
         // only a new page must be allocated, not two more
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
@@ -145,7 +146,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
         // a delete does not trigger new pages in this case
         manager.checkpoint();
-        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key2"), Bytes.from_string("50"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
@@ -153,17 +154,17 @@ public class SimpleClusterTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key2"), null);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
         // a new page, containg the key3 record is needed
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         Holder<TableStatus> _tableStatus = new Holder<>();
-        dataStorageManager.fullTableScan(tableSpaceUUID, tableName, new FullTableScanConsumer() {
+        dataStorageManager.fullTableScan(tableSpaceUUID, tableUuid, new FullTableScanConsumer() {
             @Override
             public void acceptTableStatus(TableStatus tableStatus) {
                 _tableStatus.value = tableStatus;
@@ -189,7 +190,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
         });
         for (long pageId : _tableStatus.value.activePages.keySet()) {
-            List<Record> records = dataStorageManager.readPage(tableSpaceUUID, tableName, pageId);
+            List<Record> records = dataStorageManager.readPage(tableSpaceUUID, tableUuid, pageId);
             System.out.println("PAGE #" + pageId + " records :" + records);
         }
 

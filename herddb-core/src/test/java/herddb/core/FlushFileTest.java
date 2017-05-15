@@ -87,10 +87,12 @@ public class FlushFileTest extends BaseTestcase {
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
         }
 
-        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        String tableUuid = manager.getTableSpaceManager(tableSpace).getTableManager(tableName).getTable().uuid;
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
         manager.checkpoint();
-        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableName, 1L));
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+
+        assertNotNull(dataStorageManager.readPage(tableSpaceUUID, tableUuid, 1L));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             GetResult result = manager.get(new GetStatement(tableSpace, tableName, Bytes.from_string("key1"), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -98,7 +100,7 @@ public class FlushFileTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("5"));
@@ -108,7 +110,7 @@ public class FlushFileTest extends BaseTestcase {
 
         // a new page must be allocated, but the first will be dropped, as it does not contain any useful record
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             Record record = new Record(Bytes.from_string("key1"), Bytes.from_string("6"));
@@ -122,7 +124,7 @@ public class FlushFileTest extends BaseTestcase {
         }
         // only a new page must be allocated, not two more, but the prev page will be dropped, as it does not contain any useful record
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key1"), null);
@@ -133,7 +135,7 @@ public class FlushFileTest extends BaseTestcase {
 
         // a delete does not trigger new pages in this case, no more record will lead to no more active page
         manager.checkpoint();
-        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(0, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
         {
             assertEquals(1, manager.executeUpdate(new InsertStatement(tableSpace, tableName, new Record(Bytes.from_string("key2"), Bytes.from_string("50"))), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
@@ -141,7 +143,7 @@ public class FlushFileTest extends BaseTestcase {
         }
 
         manager.checkpoint();
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
         {
             DeleteStatement st = new DeleteStatement(tableSpace, tableName, Bytes.from_string("key2"), null);
             assertEquals(1, manager.executeUpdate(st, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).getUpdateCount());
@@ -149,7 +151,7 @@ public class FlushFileTest extends BaseTestcase {
         // a new page, containg the key3 record is needed
         manager.checkpoint();
 
-        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableName));
+        assertEquals(1, dataStorageManager.getActualNumberOfPages(tableSpaceUUID, tableUuid));
 
     }
 }

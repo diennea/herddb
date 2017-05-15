@@ -31,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import java.util.UUID;
 
 /**
  * Index definition
@@ -44,6 +45,7 @@ public class Index implements ColumnsList {
     public static final String TYPE_BRIN = "brin";
 
     public final String name;
+    public final String uuid;
     public final String table;
     public final String type;
     public final String tablespace;
@@ -56,8 +58,10 @@ public class Index implements ColumnsList {
         return columnNames;
     }
 
-    private Index(String name, String table, String tablespace, String type, Column[] columns) {
+    private Index(String uuid,
+        String name, String table, String tablespace, String type, Column[] columns) {
         this.name = name;
+        this.uuid = uuid;
         this.table = table;
         this.tablespace = tablespace;
         this.columns = columns;
@@ -96,6 +100,7 @@ public class Index implements ColumnsList {
             }
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
+            String uuid = dii.readUTF();
             String table = dii.readUTF();
             dii.readVInt(); // for future implementations
             String type = dii.readUTF();
@@ -113,7 +118,7 @@ public class Index implements ColumnsList {
                 dii.readVInt(); // for future implementations
                 columns[i] = Column.column(cname, ctype, serialPosition);
             }
-            return new Index(name, table, tablespace, type, columns);
+            return new Index(uuid, name, table, tablespace, type, columns);
         } catch (IOException err) {
             throw new IllegalArgumentException(err);
         }
@@ -126,6 +131,7 @@ public class Index implements ColumnsList {
             doo.writeVLong(0); // flags for future implementations
             doo.writeUTF(tablespace);
             doo.writeUTF(name);
+            doo.writeUTF(uuid);
             doo.writeUTF(table);
             doo.writeVInt(0); // for future implementation
             doo.writeUTF(type);
@@ -148,6 +154,7 @@ public class Index implements ColumnsList {
 
         private final List<Column> columns = new ArrayList<>();
         private String name;
+        private String uuid;
         private String table;
         private String type = TYPE_HASH;
         private String tablespace = TableSpace.DEFAULT;
@@ -163,6 +170,11 @@ public class Index implements ColumnsList {
 
         public Builder name(String name) {
             this.name = name;
+            return this;
+        }
+
+        public Builder uuid(String uuid) {
+            this.uuid = uuid;
             return this;
         }
 
@@ -205,8 +217,11 @@ public class Index implements ColumnsList {
             if (name == null || name.isEmpty()) {
                 name = table + "_" + columns.stream().map(s -> s.name.toLowerCase()).collect(Collectors.joining("_"));
             }
+            if (uuid == null || uuid.isEmpty()) {
+                uuid = UUID.randomUUID().toString();
+            }
 
-            return new Index(name, table, tablespace, type, columns.toArray(new Column[columns.size()]));
+            return new Index(uuid, name, table, tablespace, type, columns.toArray(new Column[columns.size()]));
         }
 
     }

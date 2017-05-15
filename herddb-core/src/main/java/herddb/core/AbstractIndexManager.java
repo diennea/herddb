@@ -164,7 +164,7 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      * @throws DataStorageManagerException
      */
     public void dropIndexData() throws DataStorageManagerException {
-        dataStorageManager.dropIndex(tableSpaceUUID, index.name);
+        dataStorageManager.dropIndex(tableSpaceUUID, index.uuid);
     }
 
     final void onTransactionCommit(Transaction transaction, boolean recovery) throws DataStorageManagerException {

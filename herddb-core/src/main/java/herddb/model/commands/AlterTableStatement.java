@@ -35,6 +35,7 @@ public class AlterTableStatement extends DDLStatement {
     private final List<String> dropColumns;
     private final String table;
     private final Boolean changeAutoIncrement;
+    private final String newTableName;
 
     public AlterTableStatement(
         List<Column> addColumns,
@@ -42,13 +43,19 @@ public class AlterTableStatement extends DDLStatement {
         List<String> dropColumns,
         Boolean changeAutoIncrement,
         String table,
-        String tableSpace) {
+        String tableSpace,
+        String newTableName) {
         super(tableSpace);
         this.table = table;
         this.addColumns = addColumns;
         this.modifyColumns = modifyColumns;
         this.dropColumns = dropColumns;
         this.changeAutoIncrement = changeAutoIncrement;
+        this.newTableName = newTableName;
+    }
+
+    public String getNewTableName() {
+        return newTableName;
     }
 
     public Boolean getChangeAutoIncrement() {

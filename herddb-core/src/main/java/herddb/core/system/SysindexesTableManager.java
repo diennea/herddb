@@ -42,6 +42,7 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
         .column("tablespace", ColumnTypes.STRING)
         .column("table_name", ColumnTypes.STRING)
         .column("index_name", ColumnTypes.STRING)
+        .column("index_uuid", ColumnTypes.STRING)
         .column("index_type", ColumnTypes.STRING)
         .primaryKey("table_name", false)
         .primaryKey("index_name", false)
@@ -68,6 +69,7 @@ public class SysindexesTableManager extends AbstractSystemTableManager {
                 "tablespace", r.tablespace,
                 "table_name", r.table,
                 "index_name", r.name,
+                "index_uuid", r.uuid,
                 "index_type", r.type
             ))
             .collect(Collectors.toList());

@@ -309,7 +309,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         this.tableSpaceUUID = tableSpaceUUID;
         this.tableContext = buildTableContext();
         this.maxLogicalPageSize = memoryManager.getMaxLogicalPageSize();
-        this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.name, memoryManager);
+        this.keyToPage = dataStorageManager.createKeyToPageMap(tableSpaceUUID, table.uuid, memoryManager);
 
         this.pageReplacementPolicy = memoryManager.getDataPageReplacementPolicy();
         this.pages = new ConcurrentHashMap<>();
@@ -414,7 +414,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (requireLoadAtStartup) {
             // non persistent primary key index, we need a full table scan
             LOGGER.log(Level.SEVERE, "loading in memory all the keys for table {0}", new Object[]{table.name});
-            dataStorageManager.fullTableScan(tableSpaceUUID, table.name,
+            dataStorageManager.fullTableScan(tableSpaceUUID, table.uuid,
                 new FullTableScanConsumer() {
 
                 Long currentPage;
@@ -452,8 +452,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             });
         } else {
-            LOGGER.log(Level.SEVERE, "loading table {0}", new Object[]{table.name});
-            TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.name);
+            LOGGER.log(Level.SEVERE, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
+            TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
             LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
             nextPageId = tableStatus.nextPageId;
@@ -463,7 +463,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         keyToPage.start(bootSequenceNumber);
 
-        dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.name, activePagesAtBoot.keySet());
+        dataStorageManager.cleanupAfterBoot(tableSpaceUUID, table.uuid, activePagesAtBoot.keySet());
 
         pageSet.setActivePagesAtBoot(activePagesAtBoot);
 
@@ -529,7 +529,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
             new Object[]{table.name, pageId, newPage.size(), newPageSize});
-        dataStorageManager.writePage(tableSpaceUUID, table.name, pageId, newPage.values());
+        dataStorageManager.writePage(tableSpaceUUID, table.uuid, pageId, newPage.values());
         pageSet.pageCreated(pageId, dataPage);
         pages.put(pageId, dataPage);
 
@@ -697,7 +697,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         long spareUsedMemory = page.getUsedMemory() - usedMemory;
 
-        dataStorageManager.writePage(tableSpaceUUID, table.name, page.pageId, page.data.values());
+        dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
 
         return spareUsedMemory;
     }
@@ -1259,7 +1259,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void dropTableData() throws DataStorageManagerException {
-        dataStorageManager.dropTable(tableSpaceUUID, table.name);
+        dataStorageManager.dropTable(tableSpaceUUID, table.uuid);
     }
 
     @Override
@@ -1289,7 +1289,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void dump(LogSequenceNumber sequenceNumber, FullTableScanConsumer receiver) throws DataStorageManagerException {
-        dataStorageManager.fullTableScan(tableSpaceUUID, table.name, sequenceNumber, receiver);
+        dataStorageManager.fullTableScan(tableSpaceUUID, table.uuid, sequenceNumber, receiver);
     }
 
     public void writeFromDump(List<Record> record) throws DataStorageManagerException {
@@ -1485,7 +1485,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void close() {
-        dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.name, keyToPage);
+        dataStorageManager.releaseKeyToPageMap(tableSpaceUUID, table.uuid, keyToPage);
     }
 
     private StatementExecutionResult executeGet(GetStatement get, Transaction transaction,
@@ -1538,7 +1538,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         List<Record> page;
         maxCurrentPagesLoads.acquireUninterruptibly();
         try {
-            page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+            page = dataStorageManager.readPage(tableSpaceUUID, table.uuid, pageId);
         } catch (DataPageDoesNotExistException ex) {
             return null;
         } finally {
@@ -1574,7 +1574,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     List<Record> page;
                     maxCurrentPagesLoads.acquireUninterruptibly();
                     try {
-                        page = dataStorageManager.readPage(tableSpaceUUID, table.name, pageId);
+                        page = dataStorageManager.readPage(tableSpaceUUID, table.uuid, pageId);
                     } finally {
                         maxCurrentPagesLoads.release();
                     }
@@ -1657,7 +1657,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         keyToPage.unpinCheckpoint(sequenceNumber);
 
-        dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, table.name, sequenceNumber);
+        dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, table.uuid, sequenceNumber);
     }
 
     private static final class WeightedPage {
@@ -1789,7 +1789,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 final DataPage dataPage = pages.get(weighted.pageId);
                 final Collection<Record> records;
                 if (dataPage == null) {
-                    records = dataStorageManager.readPage(tableSpaceUUID, table.name, weighted.pageId);
+                    records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, weighted.pageId);
                     LOGGER.log(Level.FINEST, "loaded dirty page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
                 } else {
                     records = dataPage.data.values();
@@ -1846,7 +1846,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 final DataPage dataPage = pages.get(weighted.pageId);
                 final Collection<Record> records;
                 if (dataPage == null) {
-                    records = dataStorageManager.readPage(tableSpaceUUID, table.name, weighted.pageId);
+                    records = dataStorageManager.readPage(tableSpaceUUID, table.uuid, weighted.pageId);
                     LOGGER.log(Level.FINEST, "loaded small page {0} on tmp buffer: {1} records", new Object[]{weighted.pageId, records.size()});
                 } else {
                     records = dataPage.data.values();
@@ -1937,7 +1937,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 Bytes.from_long(nextPrimaryKeyValue.get()).data, nextPageId,
                 pageSet.getActivePages());
 
-            actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.name, tableStatus, pin));
+            actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.uuid, tableStatus, pin));
             tablecheckpoint = System.currentTimeMillis();
 
             LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, flushed {4} records",

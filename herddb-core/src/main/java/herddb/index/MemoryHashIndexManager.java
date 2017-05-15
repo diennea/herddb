@@ -80,12 +80,12 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             /* Empty index (booting from the start) */
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
         } else {
-            IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.name, sequenceNumber);
+            IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
 
             for(long pageId : status.activePages) {
                 LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", load " + pageId);
 
-                Map<Bytes,List<Bytes>> read = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId, in -> {
+                Map<Bytes,List<Bytes>> read = dataStorageManager.readIndexPage(tableSpaceUUID, index.uuid, pageId, in -> {
                     Map<Bytes,List<Bytes>> deserialized = new HashMap<>();
 
                     long version = in.readVLong(); // version
@@ -224,7 +224,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         long pageId = newPageId.getAndIncrement();
         Holder<Long> count = new Holder<>();
 
-        dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, (out) -> {
+        dataStorageManager.writeIndexPage(tableSpaceUUID, index.uuid, pageId, (out) -> {
 
             long entries = 0;
             out.writeVLong(1); // version
@@ -245,14 +245,14 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         });
 
         IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), Collections.singleton(pageId), null);
-        result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus, pin));
+        result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.uuid, indexStatus, pin));
         LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries, page {2}", new Object[]{index.name, count + "", pageId + ""});
         return result;
     }
 
     @Override
     public void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        dataStorageManager.unPinIndexCheckpoint(tableSpaceUUID, index.name, sequenceNumber);
+        dataStorageManager.unPinIndexCheckpoint(tableSpaceUUID, index.uuid, sequenceNumber);
     }
 
     @Override

@@ -84,6 +84,7 @@ import herddb.utils.SQLUtils;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.UUID;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
@@ -294,7 +295,10 @@ public class SQLPlanner {
         }
         try {
             boolean foundPk = false;
-            Table.Builder tablebuilder = Table.builder().name(tableName).tablespace(tableSpace);
+            Table.Builder tablebuilder = Table.builder()
+                .uuid(UUID.randomUUID().toString())
+                .name(tableName)
+                .tablespace(tableSpace);
             Set<String> primaryKey = new HashSet<>();
 
             if (s.getIndexes() != null) {
@@ -350,6 +354,7 @@ public class SQLPlanner {
                             .builder()
                             .name(indexName)
                             .type(indexType)
+                            .uuid(UUID.randomUUID().toString())
                             .table(tableName)
                             .tablespace(tableSpace);
 
@@ -415,6 +420,7 @@ public class SQLPlanner {
             herddb.model.Index.Builder builder = herddb.model.Index
                 .builder()
                 .name(indexName)
+                .uuid(UUID.randomUUID().toString())
                 .type(indexType)
                 .table(tableName)
                 .tablespace(tableSpace);
@@ -1712,6 +1718,25 @@ public class SQLPlanner {
                     throw new StatementExecutionException(err);
                 }
             }
+            case "RENAMETABLE": {
+                if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
+                    throw new StatementExecutionException("RENAMETABLE syntax (EXECUTE RENAMETABLE 'tableSpaceName','tablename','nametablename')");
+                }
+                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
+                String oldTableName = (String) resolveValue(execute.getExprList().getExpressions().get(1));
+                String newTableName = (String) resolveValue(execute.getExprList().getExpressions().get(2));
+                try {
+                    TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
+                    if (tableSpace == null) {
+                        throw new TableSpaceDoesNotExistException(tableSpaceName);
+                    }
+                    return new AlterTableStatement(Collections.emptyList(),
+                        Collections.emptyList(), Collections.emptyList(),
+                        null, oldTableName, tableSpaceName, newTableName);
+                } catch (MetadataStorageManagerException err) {
+                    throw new StatementExecutionException(err);
+                }
+            }
             default:
                 throw new StatementExecutionException("Unsupported command " + execute.getName());
         }
@@ -1755,7 +1780,7 @@ public class SQLPlanner {
                 if (tableSpaceManager == null) {
                     throw new StatementExecutionException("bad tablespace '" + tableSpace + "'");
                 }
-                AbstractTableManager tableManager = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
+                AbstractTableManager tableManager = tableSpaceManager.getTableManager(tableName);
                 if (tableManager == null) {
                     throw new StatementExecutionException("bad table " + tableName + " in tablespace '" + tableSpace + "'");
                 }
@@ -1766,6 +1791,18 @@ public class SQLPlanner {
                     Column oldColumn = table.getColumn(columnName);
                     if (oldColumn == null) {
                         throw new StatementExecutionException("bad column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                    }
+                    Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(tableName);
+                    if (indexes != null) {
+                        for (AbstractIndexManager am : indexes.values()) {
+                            for (String indexedColumn : am.getColumnNames()) {
+                                if (indexedColumn.equalsIgnoreCase(oldColumn.name)) {
+                                    throw new StatementExecutionException(
+                                        "cannot alter indexed " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "',"
+                                        + "index name is " + am.getIndexName());
+                                }
+                            }
+                        }
                     }
                     int newType = sqlDataTypeToColumnType(
                         cl.getColDataType().getDataType(),
@@ -1788,7 +1825,6 @@ public class SQLPlanner {
                         }
                     }
                     String renameTo = decodeRenameTo(columnSpecs);
-                    System.out.println("detected renameTo " + renameTo);
                     if (renameTo != null) {
                         columnName = renameTo;
                     }
@@ -1801,7 +1837,7 @@ public class SQLPlanner {
                 throw new StatementExecutionException("supported alter operation '" + alter + "'");
         }
         return new AlterTableStatement(addColumns, modifyColumns, dropColumns,
-            changeAutoIncrement, tableName, tableSpace);
+            changeAutoIncrement, tableName, tableSpace, null);
     }
 
     private Statement buildDropStatement(String defaultTableSpace, Drop drop) throws StatementExecutionException {

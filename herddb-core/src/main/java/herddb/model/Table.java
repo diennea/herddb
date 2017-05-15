@@ -37,6 +37,7 @@ import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import java.util.Comparator;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -48,6 +49,7 @@ import java.util.stream.Stream;
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class Table implements ColumnsList {
 
+    public final String uuid;
     public final String name;
     public final String tablespace;
     public final Column[] columns;
@@ -59,7 +61,8 @@ public class Table implements ColumnsList {
     private final Set<String> primaryKeyColumns;
     public final int maxSerialPosition;
 
-    private Table(String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment, int maxSerialPosition) {
+    private Table(String uuid, String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment, int maxSerialPosition) {
+        this.uuid = uuid;
         this.name = name;
         this.columns = columns;
         this.maxSerialPosition = maxSerialPosition;
@@ -103,6 +106,7 @@ public class Table implements ColumnsList {
             }
             String tablespace = dii.readUTF();
             String name = dii.readUTF();
+            String uuid = dii.readUTF();
             boolean auto_increment = dii.readByte() > 0;
             int maxSerialPosition = dii.readVInt();
             byte pkcols = dii.readByte();
@@ -124,7 +128,7 @@ public class Table implements ColumnsList {
                 int serialPosition = dii.readVInt();
                 columns[i] = Column.column(cname, type, serialPosition);
             }
-            return new Table(name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
+            return new Table(uuid, name, columns, primaryKey, tablespace, auto_increment, maxSerialPosition);
         } catch (IOException err) {
             throw new IllegalArgumentException(err);
         }
@@ -137,6 +141,7 @@ public class Table implements ColumnsList {
             doo.writeVLong(0); // flags for future implementations
             doo.writeUTF(tablespace);
             doo.writeUTF(name);
+            doo.writeUTF(uuid);
             doo.writeByte(auto_increment ? 1 : 0);
             doo.writeVInt(maxSerialPosition);
             doo.writeByte(primaryKey.length);
@@ -175,9 +180,14 @@ public class Table implements ColumnsList {
 
     public Table applyAlterTable(AlterTableStatement alterTableStatement) {
         int new_maxSerialPosition = this.maxSerialPosition;
+        String newTableName = alterTableStatement.getNewTableName() != null ? alterTableStatement.getNewTableName().toLowerCase()
+            : this.name;
+
         Builder builder = builder()
-            .name(this.name)
+            .name(newTableName)
+            .uuid(this.uuid)
             .tablespace(this.tablespace);
+        
         List<String> dropColumns = alterTableStatement.getDropColumns().stream().map(String::toLowerCase)
             .collect(Collectors.toList());
         for (String dropColumn : dropColumns) {
@@ -264,12 +274,18 @@ public class Table implements ColumnsList {
 
         private final List<Column> columns = new ArrayList<>();
         private String name;
+        private String uuid;
         private final List<String> primaryKey = new ArrayList<>();
         private String tablespace = TableSpace.DEFAULT;
         private boolean auto_increment;
         private int maxSerialPosition = 0;
 
         private Builder() {
+        }
+
+        public Builder uuid(String uuid) {
+            this.uuid = uuid.toLowerCase();
+            return this;
         }
 
         public Builder name(String name) {
@@ -336,6 +352,9 @@ public class Table implements ColumnsList {
             if (name == null || name.isEmpty()) {
                 throw new IllegalArgumentException("name is not defined");
             }
+            if (uuid == null || uuid.isEmpty()) {
+                uuid = UUID.randomUUID().toString();
+            }
             if (primaryKey.isEmpty()) {
                 throw new IllegalArgumentException("primary key is not defined");
             }
@@ -353,13 +372,16 @@ public class Table implements ColumnsList {
             }
 
             columns.sort((Column o1, Column o2) -> o1.serialPosition - o2.serialPosition);
-            
-            return new Table(name, columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]), tablespace, auto_increment, maxSerialPosition);
+
+            return new Table(uuid, name,
+                columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]),
+                tablespace, auto_increment, maxSerialPosition);
         }
 
         public Builder cloning(Table tableSchema) {
             this.columns.addAll(Arrays.asList(tableSchema.columns));
             this.name = tableSchema.name;
+            this.uuid = tableSchema.uuid;
             this.primaryKey.addAll(Arrays.asList(tableSchema.primaryKey));
             this.tablespace = tableSchema.tablespace;
             this.auto_increment = tableSchema.auto_increment;

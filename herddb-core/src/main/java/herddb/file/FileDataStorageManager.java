@@ -241,24 +241,24 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void fullTableScan(String tableSpace, String tableName, LogSequenceNumber sequenceNumber, FullTableScanConsumer consumer) throws DataStorageManagerException {
+    public void fullTableScan(String tableSpace, String tableUuid, LogSequenceNumber sequenceNumber, FullTableScanConsumer consumer) throws DataStorageManagerException {
         try {
-            TableStatus status = getTableStatus(tableSpace, tableName, sequenceNumber);
-            fullTableScan(tableSpace, tableName, status, consumer);
+            TableStatus status = getTableStatus(tableSpace, tableUuid, sequenceNumber);
+            fullTableScan(tableSpace, tableUuid, status, consumer);
         } catch (HerdDBInternalException err) {
             throw new DataStorageManagerException(err);
         }
     }
 
-    private void fullTableScan(String tableSpace, String tableName, TableStatus status, FullTableScanConsumer consumer) {
-        LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", status: " + status);
+    private void fullTableScan(String tableSpace, String tableUuid, TableStatus status, FullTableScanConsumer consumer) {
+        LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableUuid + ", status: " + status);
         consumer.acceptTableStatus(status);
         List<Long> activePages = new ArrayList<>(status.activePages.keySet());
         activePages.sort(null);
         for (long idpage : activePages) {
-            List<Record> records = readPage(tableSpace, tableName, idpage);
+            List<Record> records = readPage(tableSpace, tableUuid, idpage);
             consumer.startPage(idpage);
-            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableName + ", page " + idpage + ", contains " + records.size() + " records");
+            LOGGER.log(Level.FINER, "fullTableScan table " + tableSpace + "." + tableUuid + ", page " + idpage + ", contains " + records.size() + " records");
             for (Record record : records) {
                 consumer.acceptRecord(record);
             }
@@ -288,11 +288,11 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public TableStatus getTableStatus(String tableSpace, String tableName, LogSequenceNumber sequenceNumber)
+    public TableStatus getTableStatus(String tableSpace, String tableUuid, LogSequenceNumber sequenceNumber)
         throws DataStorageManagerException {
         try {
 
-            Path dir = getTableDirectory(tableSpace, tableName);
+            Path dir = getTableDirectory(tableSpace, tableUuid);
             Path checkpointFile = getCheckPointsFile(dir, sequenceNumber);
 
             if (!Files.exists(checkpointFile)) {

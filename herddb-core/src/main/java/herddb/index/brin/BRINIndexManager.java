@@ -180,7 +180,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, " start index {0}", new Object[]{index.name});
+        LOGGER.log(Level.SEVERE, " start index {0} uuid {1}", new Object[]{index.name, index.uuid});
         bootSequenceNumber = sequenceNumber;
 
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
@@ -188,7 +188,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
         } else {
-            IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.name, sequenceNumber);
+            IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
             try {
                 PageContents metadataBlock = PageContents.deserialize(status.indexData);
                 this.data.boot(new BlockRangeIndexMetadata<>(metadataBlock.metadata));
@@ -230,7 +230,7 @@ public class BRINIndexManager extends AbstractIndexManager {
             });
             IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), activePages, contents);
             List<PostCheckpointAction> result = new ArrayList<>();
-            result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.name, indexStatus, pin));
+            result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.uuid, indexStatus, pin));
             LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} blocks, pages {2}", new Object[]{index.name, page.metadata.size() + "", activePages + ""});
             return result;
         } catch (IOException err) {
@@ -240,7 +240,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-        dataStorageManager.unPinIndexCheckpoint(tableSpaceUUID, index.name, sequenceNumber);
+        dataStorageManager.unPinIndexCheckpoint(tableSpaceUUID, index.uuid, sequenceNumber);
     }
 
     @Override
@@ -322,7 +322,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         public List<Map.Entry<Bytes, Bytes>> loadDataPage(long pageId) throws IOException {
             try {
 
-                PageContents contents = dataStorageManager.readIndexPage(tableSpaceUUID, index.name, pageId, in -> {
+                PageContents contents = dataStorageManager.readIndexPage(tableSpaceUUID, index.uuid, pageId, in -> {
                     return PageContents.deserialize(in);
                 });
 
@@ -343,7 +343,7 @@ public class BRINIndexManager extends AbstractIndexManager {
                 contents.pageData = values;
 
                 long pageId = newPageId.getAndIncrement();
-                dataStorageManager.writeIndexPage(tableSpaceUUID, index.name, pageId, (out) -> contents.serialize(out));
+                dataStorageManager.writeIndexPage(tableSpaceUUID, index.uuid, pageId, (out) -> contents.serialize(out));
 
                 return pageId;
             } catch (DataStorageManagerException err) {

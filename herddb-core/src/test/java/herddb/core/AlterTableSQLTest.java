@@ -143,7 +143,7 @@ public class AlterTableSQLTest {
     }
 
     @Test
-    public void toggleAutoIncrement() throws Exception {
+    public void modifyColumn() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
@@ -211,6 +211,32 @@ public class AlterTableSQLTest {
                 assertEquals("l2", tuples.get(0).getFieldNames()[0]);
                 assertEquals("n1", tuples.get(0).getFieldNames()[1]);
                 assertEquals("s1", tuples.get(0).getFieldNames()[2]);
+            }
+
+        }
+    }
+
+    @Test
+    public void renameTable() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 int primary key auto_increment,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.tsql (n1,s1) values(1,'b')", Collections.emptyList());
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=1", Collections.emptyList()).consume();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+            }
+            execute(manager, "EXECUTE RENAMETABLE 'tblspace1','tsql','tsql2'", Collections.emptyList());
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql2 where k1=1", Collections.emptyList()).consume();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
             }
 
         }

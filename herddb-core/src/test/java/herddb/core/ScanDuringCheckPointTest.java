@@ -101,7 +101,7 @@ public class ScanDuringCheckPointTest {
             }
             manager.checkpoint();
 
-            assertTrue(manager.getDataStorageManager().getActualNumberOfPages(tableSpaceUUID, table.name) > 1);
+            assertTrue(manager.getDataStorageManager().getActualNumberOfPages(tableSpaceUUID, table.uuid) > 1);
 
             TableManagerStats stats = manager.getTableSpaceManager(table.tablespace).getTableManager(table.name).getStats();
             assertEquals(testSize, stats.getTablesize());

@@ -224,7 +224,8 @@ public class CheckpointTest {
             manager.checkpoint();
 
             String uuid = manager.getMetadataStorageManager().describeTableSpace("tblspace1").uuid;
-            originalPages = manager.getDataStorageManager().getActualNumberOfPages(uuid, "tsql");
+            String tableUuid = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().uuid;
+            originalPages = manager.getDataStorageManager().getActualNumberOfPages(uuid, tableUuid);
             assertTrue(originalPages > 10);
 
         }
@@ -245,8 +246,9 @@ public class CheckpointTest {
 
             manager.checkpoint();
 
+            String tableUuid = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().uuid;
             String uuid = manager.getMetadataStorageManager().describeTableSpace("tblspace1").uuid;
-            int pages = manager.getDataStorageManager().getActualNumberOfPages(uuid, "tsql");
+            int pages = manager.getDataStorageManager().getActualNumberOfPages(uuid, tableUuid);
 
             /* There are at least half pages! */
             assertTrue(pages <= (originalPages / 2) + (originalPages % 2));
