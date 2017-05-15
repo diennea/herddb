@@ -84,15 +84,6 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path tmpDirectory;
     private final int swapThreshold;
 
-    /* Map[tablespace_tablename,Map[pageid,pincounts] */
-    private final Map<String,Map<Long,Integer>> tablePagesPins = new ConcurrentHashMap<>();
-
-    /* Map[tablespace_tablename,Set[sequenceNumber]]  */
-    private final Map<String,Set<LogSequenceNumber>> tableCheckpointPins = new ConcurrentHashMap<>();
-
-    private final Map<String,Map<Long,Integer>> indexPagesPins = new ConcurrentHashMap<>();
-    private final Map<String,Set<LogSequenceNumber>> indexCheckpointPins = new ConcurrentHashMap<>();
-
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"), ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
     }
@@ -194,7 +185,7 @@ public class FileDataStorageManager extends DataStorageManager {
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
         } catch (NoSuchFileException nsfe) {
-            throw new DataPageDoesNotExistException("No such page: " + tableSpace +"_" + tableName + "." + pageId, nsfe);
+            throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId, nsfe);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
@@ -284,13 +275,13 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public IndexStatus getIndexStatus(String tableSpace, String indexName, LogSequenceNumber sequenceNumber)
-            throws DataStorageManagerException {
+        throws DataStorageManagerException {
 
         Path dir = getIndexDirectory(tableSpace, indexName);
         Path checkpointFile = getCheckPointsFile(dir, sequenceNumber);
 
         if (!Files.exists(checkpointFile)) {
-            throw new DataStorageManagerException("no such index checkpoint: " + checkpointFile );
+            throw new DataStorageManagerException("no such index checkpoint: " + checkpointFile);
         }
 
         return readIndexStatusFromFile(checkpointFile);
@@ -298,14 +289,14 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public TableStatus getTableStatus(String tableSpace, String tableName, LogSequenceNumber sequenceNumber)
-            throws DataStorageManagerException {
+        throws DataStorageManagerException {
         try {
 
             Path dir = getTableDirectory(tableSpace, tableName);
             Path checkpointFile = getCheckPointsFile(dir, sequenceNumber);
 
             if (!Files.exists(checkpointFile)) {
-                throw new DataStorageManagerException("no such table checkpoint: " + checkpointFile );
+                throw new DataStorageManagerException("no such table checkpoint: " + checkpointFile);
             }
 
             return readTableStatusFromFile(checkpointFile);
@@ -322,7 +313,7 @@ public class FileDataStorageManager extends DataStorageManager {
             TableStatus latestStatus;
             if (lastFile == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                        Bytes.from_long(1).data, 1, Collections.emptyMap());
+                    Bytes.from_long(1).data, 1, Collections.emptyMap());
             } else {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
@@ -436,10 +427,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
 
         /* Checkpoint pinning */
-
-        final Map<Long,Integer> pins = pinTableAndGetPages(tableSpace, tableName, tableStatus, pin);
+        final Map<Long, Integer> pins = pinTableAndGetPages(tableSpace, tableName, tableStatus, pin);
         final Set<LogSequenceNumber> checkpoints = pinTableAndGetCheckpoints(tableSpace, tableName, tableStatus, pin);
-
 
         long maxPageId = tableStatus.activePages.keySet().stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
         List<PostCheckpointAction> result = new ArrayList<>();
@@ -537,8 +526,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
 
         /* Checkpoint pinning */
-
-        final Map<Long,Integer> pins = pinIndexAndGetPages(tableSpace, indexName, indexStatus, pin);
+        final Map<Long, Integer> pins = pinIndexAndGetPages(tableSpace, indexName, indexStatus, pin);
         final Set<LogSequenceNumber> checkpoints = pinIndexAndGetCheckpoints(tableSpace, indexName, indexStatus, pin);
 
         long maxPageId = indexStatus.activePages.stream().max(Comparator.naturalOrder()).orElse(Long.MAX_VALUE);
@@ -750,7 +738,6 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", (now - _start) + ""});
         }
     }
-
 
     @Override
     public List<Table> loadTables(LogSequenceNumber sequenceNumber, String tableSpace) throws DataStorageManagerException {
