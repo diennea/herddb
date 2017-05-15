@@ -37,10 +37,11 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
+import java.util.Arrays;
+import static org.junit.Assert.assertFalse;
 
 /**
  * Tests on table creation
@@ -136,6 +137,80 @@ public class AlterTableSQLTest {
                 fail();
             } catch (StatementExecutionException error) {
                 assertTrue(error.getMessage().contains("column k1 cannot be dropped because is part of the primary key"));
+            }
+
+        }
+    }
+
+    @Test
+    public void toggleAutoIncrement() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 int primary key auto_increment,n1 int,s1 string)", Collections.emptyList());
+            assertTrue(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().auto_increment);
+            Table table = manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable();
+            assertEquals(0, table.getColumn("k1").serialPosition);
+            assertEquals(1, table.getColumn("n1").serialPosition);
+            assertEquals(2, table.getColumn("s1").serialPosition);
+            execute(manager, "INSERT INTO tblspace1.tsql (n1,s1) values(1,'b')", Collections.emptyList());
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=1", Collections.emptyList()).consume();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+            }
+            execute(manager, "ALTER TABLE tblspace1.tsql modify column k1 int", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1,s1) values(2, 2,'b')", Collections.emptyList());
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                assertEquals(2, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+            }
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql where k1=2", Collections.emptyList()).consume();
+                assertEquals(1, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+            }
+            assertFalse(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().auto_increment);
+            execute(manager, "ALTER TABLE tblspace1.tsql modify column k1 int auto_increment", Collections.emptyList());
+            assertTrue(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().auto_increment);
+            execute(manager, "INSERT INTO tblspace1.tsql (n1,s1) values(1,'b')", Collections.emptyList());
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
+                assertEquals(3, tuples.size());
+                assertEquals(3, tuples.get(0).getFieldNames().length);
+            }
+
+            try {
+                execute(manager, "ALTER TABLE tblspace1.tsql modify column k1 string", Collections.emptyList());
+                fail();
+            } catch (StatementExecutionException error) {
+                assertTrue(error.getMessage().contains("cannot change datatype"));
+            }
+
+            try {
+                execute(manager, "ALTER TABLE tblspace1.tsql modify column badcol string", Collections.emptyList());
+                fail();
+            } catch (StatementExecutionException error) {
+                assertTrue(error.getMessage().contains("bad column badcol in table tsql"));
+            }
+
+            execute(manager, "ALTER TABLE tblspace1.tsql MODIFY COLUMN k1 int RENAME TO l2", Collections.emptyList());
+
+            assertFalse(manager.getTableSpaceManager("tblspace1").getTableManager("tsql").getTable().auto_increment);
+
+            {
+                List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql "
+                    + "where l2=1", Collections.emptyList()).consume();
+                assertEquals(1, tuples.size());
+                assertEquals(Arrays.toString(tuples.get(0).getFieldNames()), 3, tuples.get(0).getFieldNames().length);
+                assertEquals("l2", tuples.get(0).getFieldNames()[0]);
+                assertEquals("n1", tuples.get(0).getFieldNames()[1]);
+                assertEquals("s1", tuples.get(0).getFieldNames()[2]);
             }
 
         }

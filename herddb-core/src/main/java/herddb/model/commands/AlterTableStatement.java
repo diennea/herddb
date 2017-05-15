@@ -31,14 +31,28 @@ import java.util.List;
 public class AlterTableStatement extends DDLStatement {
 
     private final List<Column> addColumns;
+    private final List<Column> modifyColumns;
     private final List<String> dropColumns;
     private final String table;
+    private final Boolean changeAutoIncrement;
 
-    public AlterTableStatement(List<Column> addColumns, List<String> dropColumns, String table, String tableSpace) {
+    public AlterTableStatement(
+        List<Column> addColumns,
+        List<Column> modifyColumns,
+        List<String> dropColumns,
+        Boolean changeAutoIncrement,
+        String table,
+        String tableSpace) {
         super(tableSpace);
         this.table = table;
         this.addColumns = addColumns;
+        this.modifyColumns = modifyColumns;
         this.dropColumns = dropColumns;
+        this.changeAutoIncrement = changeAutoIncrement;
+    }
+
+    public Boolean getChangeAutoIncrement() {
+        return changeAutoIncrement;
     }
 
     public String getTable() {
@@ -51,6 +65,10 @@ public class AlterTableStatement extends DDLStatement {
 
     public List<String> getDropColumns() {
         return dropColumns;
+    }
+
+    public List<Column> getModifyColumns() {
+        return modifyColumns;
     }
 
 }

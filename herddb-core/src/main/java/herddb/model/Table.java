@@ -36,6 +36,9 @@ import herddb.model.commands.AlterTableStatement;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import java.util.Comparator;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Table definition
@@ -185,8 +188,31 @@ public class Table implements ColumnsList {
                 throw new IllegalArgumentException("column " + dropColumn + " cannot be dropped because is part of the primary key of table " + this.name);
             }
         }
+        Set<String> changedColumns = new HashSet<>();
+        Map<Integer, Column> realStructure
+            = Stream
+                .of(columns)
+                .collect(
+                    Collectors.toMap(
+                        t -> t.serialPosition,
+                        Function.identity()
+                    ));
+        if (alterTableStatement.getModifyColumns() != null) {
+            for (Column newColumn : alterTableStatement.getModifyColumns()) {
+                Column oldColumn = realStructure.get(newColumn.serialPosition);
+                if (oldColumn == null) {
+                    if (oldColumn == null) {
+                        throw new IllegalArgumentException("column " + newColumn.name + " not found int table " + this.name
+                            + ", looking for serialPosition = " + newColumn.serialPosition);
+                    }
+                }
+                changedColumns.add(oldColumn.name);
+            }
+        }
+
         for (Column c : this.columns) {
-            if (!dropColumns.contains(c.name.toLowerCase())) {
+            if (!dropColumns.contains(c.name.toLowerCase())
+                && !changedColumns.contains(c.name.toLowerCase())) {
                 builder.column(c.name, c.type, c.serialPosition);
             }
             new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);
@@ -195,13 +221,35 @@ public class Table implements ColumnsList {
         if (alterTableStatement.getAddColumns() != null) {
             for (Column c : alterTableStatement.getAddColumns()) {
                 if (getColumn(c.name) != null) {
-                    throw new IllegalArgumentException("column " + c.name + " not found int table " + this.name);
+                    throw new IllegalArgumentException("column " + c.name + " already found int table " + this.name);
                 }
                 builder.column(c.name, c.type, ++new_maxSerialPosition);
             }
         }
-        for (String pk : this.primaryKey) {
-            builder.primaryKey(pk, this.auto_increment);
+        String[] newPrimaryKey = new String[primaryKey.length];
+        System.arraycopy(primaryKey, 0, newPrimaryKey, 0, primaryKey.length);
+        if (alterTableStatement.getModifyColumns() != null) {
+            for (Column c : alterTableStatement.getModifyColumns()) {
+
+                builder.column(c.name, c.type, c.serialPosition);
+                new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);
+
+                // RENAME PK
+                Column oldcolumn = realStructure.get(c.serialPosition);
+                if (isPrimaryKeyColumn(oldcolumn.name)) {
+                    for (int i = 0; i < newPrimaryKey.length; i++) {
+                        if (newPrimaryKey[i].equals(oldcolumn.name)) {
+                            newPrimaryKey[i] = c.name;
+                        }
+                    }
+                }
+            }
+        }
+        boolean new_auto_increment = alterTableStatement.getChangeAutoIncrement() != null
+            ? alterTableStatement.getChangeAutoIncrement()
+            : this.auto_increment;
+        for (String pk : newPrimaryKey) {
+            builder.primaryKey(pk, new_auto_increment);
         }
         builder.maxSerialPosition(new_maxSerialPosition);
         return builder.build();
@@ -304,6 +352,8 @@ public class Table implements ColumnsList {
                 }
             }
 
+            columns.sort((Column o1, Column o2) -> o1.serialPosition - o2.serialPosition);
+            
             return new Table(name, columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]), tablespace, auto_increment, maxSerialPosition);
         }
 

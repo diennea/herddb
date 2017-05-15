@@ -1304,6 +1304,25 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
     }
 
+    private void rebuildNextPrimaryKeyValue() throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "rebuildNextPrimaryKeyValue");
+        Stream<Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
+            StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+            tableContext,
+            null);
+        scanner.forEach((Entry<Bytes, Long> t) -> {
+            Bytes key = t.getKey();
+            long pk_logical_value;
+            if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+                pk_logical_value = key.to_int();
+            } else {
+                pk_logical_value = key.to_long();
+            }
+            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
+        });
+        LOGGER.log(Level.SEVERE, "rebuildNextPrimaryKeyValue, newPkValue : " + nextPrimaryKeyValue.get());
+    }
+
     private void applyInsert(Bytes key, Bytes value, boolean onTransaction) throws DataStorageManagerException {
         if (table.auto_increment) {
             // the next auto_increment value MUST be greater than every other explict value
@@ -2354,6 +2373,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             pages.values().forEach(p -> {
                 p.data.values().forEach(r -> r.clearCache());
             });
+        }
+
+        if (this.table.auto_increment) {
+            rebuildNextPrimaryKeyValue();
         }
     }
 

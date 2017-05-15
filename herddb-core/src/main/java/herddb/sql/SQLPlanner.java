@@ -40,6 +40,7 @@ import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
+import herddb.model.AlterFailedException;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
@@ -318,8 +319,8 @@ public class SQLPlanner {
                 tablebuilder.column(columnName, type, position++);
 
                 if (cf.getColumnSpecStrings() != null) {
-                    List<String> columnSpecs = cf.getColumnSpecStrings().stream().map(String::toUpperCase).collect(Collectors.toList());
-                    boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
+                    List<String> columnSpecs = decodeColumnSpecs(cf.getColumnSpecStrings());
+                    boolean auto_increment = decodeAutoIncrement(columnSpecs);
                     if (columnSpecs.contains("PRIMARY")) {
                         foundPk = true;
                         tablebuilder.primaryKey(columnName, auto_increment);
@@ -371,6 +372,33 @@ public class SQLPlanner {
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException("bad table definition: " + err.getMessage(), err);
         }
+    }
+
+    private boolean decodeAutoIncrement(List<String> columnSpecs) {
+        boolean auto_increment = columnSpecs.contains("AUTO_INCREMENT");
+        return auto_increment;
+    }
+
+    private String decodeRenameTo(List<String> columnSpecs) {
+        if (columnSpecs.size() != 3) {
+            return null;
+        }
+        if (!"RENAME".equals(columnSpecs.get(0))) {
+            return null;
+        }
+        if (!"TO".equals(columnSpecs.get(1))) {
+            return null;
+        }
+        return columnSpecs.get(2).toLowerCase();
+
+    }
+
+    private List<String> decodeColumnSpecs(List<String> columnSpecs) {
+        if (columnSpecs == null || columnSpecs.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> columnSpecsDecoded = columnSpecs.stream().map(String::toUpperCase).collect(Collectors.toList());
+        return columnSpecsDecoded;
     }
 
     private Statement buildCreateIndexStatement(String defaultTableSpace, CreateIndex s) throws StatementExecutionException {
@@ -1698,6 +1726,7 @@ public class SQLPlanner {
             tableSpace = defaultTableSpace;
         }
         List<Column> addColumns = new ArrayList<>();
+        List<Column> modifyColumns = new ArrayList<>();
         List<String> dropColumns = new ArrayList<>();
         String tableName = alter.getTable().getName();
         if (alter.getAlterExpressions() == null || alter.getAlterExpressions().size() != 1) {
@@ -1705,8 +1734,9 @@ public class SQLPlanner {
         }
         AlterExpression alterExpression = alter.getAlterExpressions().get(0);
         AlterOperation operation = alterExpression.getOperation();
+        Boolean changeAutoIncrement = null;
         switch (operation) {
-            case ADD:
+            case ADD: {
                 List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
                 for (AlterExpression.ColumnDataType cl : cols) {
                     Column newColumn = Column.column(cl.getColumnName(), sqlDataTypeToColumnType(
@@ -1715,14 +1745,63 @@ public class SQLPlanner {
                     ));
                     addColumns.add(newColumn);
                 }
-                break;
+            }
+            break;
             case DROP:
                 dropColumns.add(alterExpression.getColumnName());
                 break;
+            case MODIFY: {
+                TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+                if (tableSpaceManager == null) {
+                    throw new StatementExecutionException("bad tablespace '" + tableSpace + "'");
+                }
+                AbstractTableManager tableManager = manager.getTableSpaceManager(tableSpace).getTableManager(tableName);
+                if (tableManager == null) {
+                    throw new StatementExecutionException("bad table " + tableName + " in tablespace '" + tableSpace + "'");
+                }
+                Table table = tableManager.getTable();
+                List<AlterExpression.ColumnDataType> cols = alterExpression.getColDataTypeList();
+                for (AlterExpression.ColumnDataType cl : cols) {
+                    String columnName = cl.getColumnName().toLowerCase();
+                    Column oldColumn = table.getColumn(columnName);
+                    if (oldColumn == null) {
+                        throw new StatementExecutionException("bad column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                    }
+                    int newType = sqlDataTypeToColumnType(
+                        cl.getColDataType().getDataType(),
+                        cl.getColDataType().getArgumentsStringList()
+                    );
+
+                    if (oldColumn.type != newType) {
+                        throw new StatementExecutionException("cannot change datatype to " + cl.getColDataType().getDataType()
+                            + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                    }
+                    List<String> columnSpecs = decodeColumnSpecs(cl.getColumnSpecs());
+                    if (table.isPrimaryKeyColumn(columnName)) {
+                        boolean new_auto_increment = decodeAutoIncrement(columnSpecs);
+                        if (new_auto_increment && table.primaryKey.length > 1) {
+                            throw new StatementExecutionException("cannot add auto_increment flag to " + cl.getColDataType().getDataType()
+                                + " for column " + columnName + " in table " + tableName + " in tablespace '" + tableSpace + "'");
+                        }
+                        if (table.auto_increment != new_auto_increment) {
+                            changeAutoIncrement = new_auto_increment;
+                        }
+                    }
+                    String renameTo = decodeRenameTo(columnSpecs);
+                    System.out.println("detected renameTo " + renameTo);
+                    if (renameTo != null) {
+                        columnName = renameTo;
+                    }
+                    Column newColumnDef = Column.column(columnName, newType, oldColumn.serialPosition);
+                    modifyColumns.add(newColumnDef);
+                }
+            }
+            break;
             default:
                 throw new StatementExecutionException("supported alter operation '" + alter + "'");
         }
-        return new AlterTableStatement(addColumns, dropColumns, tableName, tableSpace);
+        return new AlterTableStatement(addColumns, modifyColumns, dropColumns,
+            changeAutoIncrement, tableName, tableSpace);
     }
 
     private Statement buildDropStatement(String defaultTableSpace, Drop drop) throws StatementExecutionException {
