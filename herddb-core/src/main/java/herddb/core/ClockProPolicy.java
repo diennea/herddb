@@ -43,9 +43,9 @@ import java.util.logging.Logger;
  * Los Alamos, NM 87545, USA                     Williamsburg, VA 23187, USA
  * sjiang@lanl.gov                               fchen@cs.wm.edu, zhang@cs.wm.edu
  * </pre>
- * </p>
  *
- * @see http://web.cse.ohio-state.edu/hpcs/WWW/HTML/publications/papers/TR-05-3.pdf
+ * See http://web.cse.ohio-state.edu/hpcs/WWW/HTML/publications/papers/TR-05-3.pdf
+ * 
  * @author diego.salvi
  */
 public class ClockProPolicy implements PageReplacementPolicy {

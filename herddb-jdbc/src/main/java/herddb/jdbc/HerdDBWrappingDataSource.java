@@ -27,7 +27,7 @@ import herddb.server.Server;
 import java.sql.SQLException;
 
 /**
- * A simple {@link DataSource} wrapping around {@link HDBClient} and an optional {@link Server}.
+ * A simple DataSource wrapping around {@link HDBClient} and an optional {@link Server}.
  * <p>
  * It can be used instead of {@link HerdDBEmbeddedDataSource} when a direct configuration of {@link HDBClient} and/or
  * {@link Server} is needed.

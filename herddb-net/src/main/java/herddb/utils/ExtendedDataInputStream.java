@@ -20,7 +20,6 @@
 package herddb.utils;
 
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -40,10 +39,9 @@ public class ExtendedDataInputStream extends DataInputStream {
     /**
      * Reads an int stored in variable-length format. Reads between one and five bytes. Smaller values take fewer bytes.
      * Negative numbers are not supported.
-     * <p>
-     * The format is described further in {@link DataOutput#writeVInt(int)}.
      *
-     * @see DataOutput#writeVInt(int)
+     * @return
+     * @throws java.io.IOException
      */
     public int readVInt() throws IOException {
         byte b = readByte();
@@ -92,10 +90,9 @@ public class ExtendedDataInputStream extends DataInputStream {
     /**
      * Reads a long stored in variable-length format. Reads between one and nine bytes. Smaller values take fewer bytes.
      * Negative numbers are not supported.
-     * <p>
-     * The format is described further in {@link DataOutput#writeVInt(int)}.
      *
-     * @see DataOutput#writeVLong(long)
+     * @return
+     * @throws java.io.IOException
      */
     public long readVLong() throws IOException {
         return readVLong(false);

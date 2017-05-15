@@ -72,7 +72,6 @@ import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
  * In: Proceedings of 1986 ACM Fall joint computer conference.
  * IEEE Computer Society Press, 1986. p. 380-389
  * </pre>
- * </p>
  *
  * @author diego.salvi
  */

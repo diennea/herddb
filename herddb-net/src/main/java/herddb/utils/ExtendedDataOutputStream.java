@@ -19,8 +19,6 @@
  */
 package herddb.utils;
 
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -46,13 +44,11 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
     }
 
     /**
-     * Writes an long in a variable-length format. Writes between one and nine
-     * bytes. Smaller values take fewer bytes. Negative numbers are not
-     * supported.
-     * <p>
-     * The format is described further in {@link DataOutput#writeVInt(int)}.
+     * Writes an long in a variable-length format. Writes between one and nine bytes. Smaller values take fewer bytes.
+     * Negative numbers are not supported.
      *
-     * @see DataInput#readVLong()
+     * @param i
+     * @throws java.io.IOException
      */
     public final void writeVLong(long i) throws IOException {
         if (i < 0) {
@@ -85,7 +81,7 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
 
     public void writeArray(byte[] data, int offset, int len) throws IOException {
         writeVInt(len);
-        write(data, offset ,len);
+        write(data, offset, len);
     }
 
 }

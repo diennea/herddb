@@ -760,7 +760,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      * Utility method for DML/DDL statements
      *
      * @param statement
-     * @param transaction
+     * @param context
+     * @param transactionContext
      * @return
      * @throws herddb.model.StatementExecutionException
      */

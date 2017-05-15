@@ -137,8 +137,9 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     /**
      * Let (embedded) brokers read actual list of ledgers used. in order to perform extrernal clean ups
      *
-     * @param zk
+     * @param zooKeeper
      * @param ledgersPath
+     * @param tableSpaceUUID
      * @return
      * @throws LogNotAvailableException
      */

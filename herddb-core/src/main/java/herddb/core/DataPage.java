@@ -42,7 +42,6 @@ public class DataPage extends Page<TableManager> {
      * COUNT       AVG       SUM   DESCRIPTION
      *     1        32        32   java.util.HashMap$Node
      * </pre>
-     * </pre>
      */
     public static final long CONSTANT_ENTRY_BYTE_SIZE = 32;
 

@@ -82,7 +82,6 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      * @param sequenceNumber sequence number from which boot the index
      *
      * @throws DataStorageManagerException
-     * @see DataStorageManager#fullIndexScan(java.lang.String, java.lang.String, herddb.storage.FullIndexScanConsumer)
      */
     public abstract void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
@@ -112,6 +111,7 @@ public abstract class AbstractIndexManager implements AutoCloseable {
 
     /**
      * Unpin a previously pinned checkpont (see {@link #checkpoint(LogSequenceNumber, boolean)})
+     *
      * @throws DataStorageManagerException
      */
     public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;

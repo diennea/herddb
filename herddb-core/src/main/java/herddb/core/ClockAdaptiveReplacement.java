@@ -21,10 +21,9 @@ import herddb.utils.ListWithMap;
  *
  * †Stanford University,
  * ‡IBM Almaden Research Center
- * </pre>
- * </p>
+ * </pre> 
  *
- * @see http://www-cs.stanford.edu/~sbansal/pubs/fast04.pdf
+ * See http://www-cs.stanford.edu/~sbansal/pubs/fast04.pdf
  * @author diego.salvi
  */
 public class ClockAdaptiveReplacement implements PageReplacementPolicy {
