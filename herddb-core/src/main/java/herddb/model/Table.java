@@ -187,7 +187,7 @@ public class Table implements ColumnsList {
             .name(newTableName)
             .uuid(this.uuid)
             .tablespace(this.tablespace);
-        
+
         List<String> dropColumns = alterTableStatement.getDropColumns().stream().map(String::toLowerCase)
             .collect(Collectors.toList());
         for (String dropColumn : dropColumns) {
@@ -211,10 +211,9 @@ public class Table implements ColumnsList {
             for (Column newColumn : alterTableStatement.getModifyColumns()) {
                 Column oldColumn = realStructure.get(newColumn.serialPosition);
                 if (oldColumn == null) {
-                    if (oldColumn == null) {
-                        throw new IllegalArgumentException("column " + newColumn.name + " not found int table " + this.name
-                            + ", looking for serialPosition = " + newColumn.serialPosition);
-                    }
+                    throw new IllegalArgumentException("column " + newColumn.name + " not found int table " + this.name
+                        + ", looking for serialPosition = " + newColumn.serialPosition);
+
                 }
                 changedColumns.add(oldColumn.name);
             }
