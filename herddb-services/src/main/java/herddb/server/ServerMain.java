@@ -199,12 +199,12 @@ public class ServerMain implements AutoCloseable {
             }
             uiurl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/ui/#/login";
             System.out.println("Listening for client (http) connections on " + httphost + ":" + httpport);
-            System.out.println("Web Interface: " + uiurl);
             httpserver.start();
         }
 
         System.out.println("HerdDB server starter. Node id " + server.getNodeId());
         System.out.println("JDBC URL: " + server.getJdbcUrl());
+        System.out.println("Web Interface: " + uiurl);
         started = true;
     }
 
