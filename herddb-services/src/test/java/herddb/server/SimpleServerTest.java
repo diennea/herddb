@@ -27,6 +27,7 @@ import herddb.model.TableSpace;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.Collections;
 import java.util.Properties;
 import org.junit.Rule;
@@ -78,6 +79,9 @@ public class SimpleServerTest {
                     }
                 }
             }
+            URL url = new URL(ServerMain.getRunningInstance().getUiurl());
+            url.getContent();
+
             ServerMain.getRunningInstance().close();
         } finally {
             if (ServerMain.getRunningInstance() != null) {

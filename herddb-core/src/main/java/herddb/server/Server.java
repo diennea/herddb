@@ -78,6 +78,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final Map<Long, ServerSideConnectionPeer> connections = new ConcurrentHashMap<>();
     private final String mode;
     private final MetadataStorageManager metadataStorageManager;
+    private String jdbcUrl;
     private UserManager userManager;
     private EmbeddedBookie embeddedBookie;
 
@@ -217,20 +218,27 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
+                jdbcUrl = "jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort();
                 LOGGER.severe("JDBC URL is not available. This server will not be accessible outside the JVM");
                 break;
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
-                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this server: jdbc:herddb:server:{0}:{1}", new Object[]{serverHostData.getHost(), Integer.toString(serverHostData.getPort())});
+                jdbcUrl = "jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort();
+                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this server: {0}", new Object[]{jdbcUrl});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration);
-                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this HerdDB cluster: jdbc:herddb:zookeeper:{0}{1}", new Object[]{configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT), configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)});
+                jdbcUrl = "jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT);
+                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
                 break;
             default:
                 throw new IllegalStateException("invalid " + ServerConfiguration.PROPERTY_MODE + "=" + mode);
         }
         LOGGER.log(Level.INFO, "HerdDB version {0}", new Object[]{Version.getVERSION()});
         LOGGER.log(Level.INFO, "Local " + ServerConfiguration.PROPERTY_NODEID + " is {0}", new Object[]{nodeId});
+    }
+
+    public String getJdbcUrl() {
+        return jdbcUrl;
     }
 
     private NettyChannelAcceptor buildChannelAcceptor() {

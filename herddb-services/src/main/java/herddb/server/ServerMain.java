@@ -20,7 +20,6 @@
 package herddb.server;
 
 import java.io.File;
-import java.io.FileReader;
 import java.nio.file.Paths;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -29,8 +28,11 @@ import java.util.logging.Logger;
 import herddb.daemons.PidFileLocker;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.LogManager;
+import org.eclipse.jetty.server.handler.ContextHandlerCollection;
+import org.eclipse.jetty.webapp.WebAppContext;
 
 /**
  * Created by enrico.olivelli on 23/03/2015.
@@ -40,7 +42,9 @@ public class ServerMain implements AutoCloseable {
     private final Properties configuration;
     private final PidFileLocker pidFileLocker;
     private Server server;
+    private org.eclipse.jetty.server.Server httpserver;
     private boolean started;
+    private String uiurl;
 
     private static ServerMain runningInstance;
 
@@ -59,6 +63,15 @@ public class ServerMain implements AutoCloseable {
                 Logger.getLogger(ServerMain.class.getName()).log(Level.SEVERE, null, ex);
             } finally {
                 server = null;
+            }
+        }
+        if (httpserver != null) {
+            try {
+                httpserver.stop();
+            } catch (Exception ex) {
+                Logger.getLogger(ServerMain.class.getName()).log(Level.SEVERE, null, ex);
+            } finally {
+                httpserver = null;
             }
         }
         pidFileLocker.close();
@@ -167,8 +180,36 @@ public class ServerMain implements AutoCloseable {
         server = new Server(config);
         server.start();
 
+        boolean httpEnabled = config.getBoolean("http.enable", true);
+        if (httpEnabled) {
+            String httphost = config.getString("http.host", server.getNetworkServer().getHost());
+            String httpadvertisedhost = config.getString("http.advertised.host", server.getServerHostData().getHost());
+            int httpport = config.getInt("http.port", 9845);
+            int httpadvertisedport = config.getInt("http.advertised.port", 9845);
+
+            httpserver = new org.eclipse.jetty.server.Server(new InetSocketAddress(httphost, httpport));
+            ContextHandlerCollection contexts = new ContextHandlerCollection();
+            httpserver.setHandler(contexts);
+            File webUi = new File("web/ui");
+            if (webUi.isDirectory()) {
+                WebAppContext webApp = new WebAppContext(new File("web/ui").getAbsolutePath(), "/ui");
+                contexts.addHandler(webApp);
+            } else {
+                System.out.println("Cannot find " + webUi.getAbsolutePath() + " directory. Web UI will not be deployed");
+            }
+            uiurl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/ui/#/home";
+            System.out.println("Listening for client (http) connections on " + httphost + ":" + httpport);
+            System.out.println("Web Interface: " + uiurl);
+            httpserver.start();
+        }
+
         System.out.println("HerdDB server starter. Node id " + server.getNodeId());
+        System.out.println("JDBC URL: " + server.getJdbcUrl());
         started = true;
+    }
+
+    public String getUiurl() {
+        return uiurl;
     }
 
 }

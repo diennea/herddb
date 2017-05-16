@@ -14,7 +14,8 @@
     <packaging>jar</packaging>
     <properties>
         <buildTimestamp>${maven.build.timestamp}</buildTimestamp>
-    </properties>
+        <jetty.version>9.4.1.v20170120</jetty.version>
+    </properties>    
     <dependencies>       
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -33,6 +34,26 @@
             <version>${project.version}</version>
             <scope>runtime</scope>
             <classifier>uber</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-server</artifactId>
+            <version>${jetty.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-webapp</artifactId>
+            <version>${jetty.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-servlet</artifactId>
+            <version>${jetty.version}</version>
+        </dependency>        
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-util</artifactId>
+            <version>${jetty.version}</version>
         </dependency>
         <dependency>
             <groupId>commons-io</groupId>
