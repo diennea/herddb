@@ -30,6 +30,13 @@
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-ui</artifactId>
+            <version>${project.version}</version>            
+            <scope>runtime</scope>
+            <type>war</type>
+        </dependency>       
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>herddb-jdbc</artifactId>
             <version>${project.version}</version>
             <scope>runtime</scope>
@@ -70,7 +77,7 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-jdk14</artifactId>
-        </dependency>
+        </dependency>        
         <dependency>
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-test</artifactId>

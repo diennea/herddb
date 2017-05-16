@@ -292,9 +292,10 @@
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
+                <module>herddb-ui</module>
                 <module>herddb-services</module>
                 <module>herddb-cli</module>
-                <module>herddb-bench</module>
+                <module>herddb-bench</module>                
             </modules>
             <distributionManagement>        
                 <!--                <repository>                                
@@ -511,7 +512,7 @@
             </modules>
         </profile>
     </profiles>
-  <modules>
-    <module>herddb-ui</module>
-  </modules>
+    <modules>
+        <module>herddb-ui</module>
+    </modules>
 </project>

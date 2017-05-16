@@ -25,11 +25,13 @@ import herddb.client.HDBConnection;
 import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Collections;
 import java.util.Properties;
+import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -80,7 +82,12 @@ public class SimpleServerTest {
                 }
             }
             URL url = new URL(ServerMain.getRunningInstance().getUiurl());
-            url.getContent();
+            try {
+                url.getContent();
+                fail();
+            } catch (FileNotFoundException ok) {
+                // OK for "file not found", we want just to check that jetty is up
+            }
 
             ServerMain.getRunningInstance().close();
         } finally {

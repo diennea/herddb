@@ -64,6 +64,15 @@
             <outputDirectory>.</outputDirectory>
             <outputFileNameMapping>herddb-jdbc-${project.version}.jar</outputFileNameMapping>
         </dependencySet>
+        <dependencySet>
+            <useProjectArtifact>true</useProjectArtifact>
+            <useStrictFiltering>true</useStrictFiltering>
+            <unpack>true</unpack>           
+            <includes>
+                <include>org.herddb:herddb-ui:war</include>                                
+            </includes>                        
+            <outputDirectory>web/ui</outputDirectory>
+        </dependencySet> 
     </dependencySets>
 
 </assembly>
