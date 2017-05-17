@@ -20,26 +20,26 @@
 package org.herddb.ui;
 
 import herddb.jdbc.HerdDBDataSource;
-import herddb.jdbc.HerdDBEmbeddedDataSource;
+import io.netty.handler.logging.LogLevel;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.annotation.WebListener;
-import javax.sql.DataSource;
 
 @WebListener
 public class Initializer implements ServletContextListener {
 
+    private static final Logger LOG = Logger.getLogger(Initializer.class.getName());
+
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        HerdDBDataSource datasource = new HerdDBDataSource();
-        System.out.println("Initializing datasource " + datasource.getUrl());
-        sce.getServletContext().setAttribute("datasource", datasource);
     }
 
     @Override
     public void contextDestroyed(ServletContextEvent sce) {
         AutoCloseable datasource = (AutoCloseable) sce.getServletContext().getAttribute("datasource");
-        System.out.println("Closing datasource " + datasource);
+        LOG.log(Level.INFO, "Closing datasource {0}", datasource);
         if (datasource != null) {
             try {
                 datasource.close();

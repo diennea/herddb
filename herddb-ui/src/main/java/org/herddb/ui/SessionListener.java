@@ -38,7 +38,7 @@ public class SessionListener implements HttpSessionListener {
 
     @Override
     public void sessionDestroyed(HttpSessionEvent se) {
-        LOG.info("Destroyed session from " + se.getSource());
+        LOG.log(Level.INFO, "Destroyed session");
         HttpSession session = se.getSession();
         AutoCloseable ds = (AutoCloseable) session.getAttribute("datasource");
         if (ds != null) {
@@ -52,6 +52,6 @@ public class SessionListener implements HttpSessionListener {
 
     @Override
     public void sessionCreated(HttpSessionEvent se) {
-        LOG.info("Created session from " + se.getSource());
+        LOG.log(Level.INFO, "Created session");
     }
 }

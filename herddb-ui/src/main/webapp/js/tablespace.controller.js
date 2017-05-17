@@ -19,7 +19,6 @@
  */
 
 modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $route, $timeout, $location, $sharedTablespace) {
-    console.log('initializing')
     $scope.actualPosition = 'tablespaces';
     $scope.lastAdvancedTablespaceTable = '';
 
@@ -33,6 +32,12 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         selectActiveLiById('tablespaces-li');
     });
 
+    $scope.$on('refresh', function (event, mass) {
+        if (mass == 'tablespaces') {
+            $scope.refresh('tablespaces');
+        }
+    });
+
 
     $scope.go = function (path) {
         $location.path(path);
@@ -44,29 +49,34 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         onClickTablespace(path);
     };
     $scope.refresh = function (forceValue, first) {
+        if (!$scope.JDBCURL) {
+            $http.get(getApplicationPath() + '/jdbcurl').success(function (data) {
+                $scope.JDBCURL = data.url;
+            });
+        }
+
         if (!$scope.defaultTablespace || first) {
             $scope.defaultTablespace = $sharedTablespace.default;
-            console.log('1');
         }
         if (!$scope.defaultTablespace) {
-            console.log('2');
-            $http.get('http://localhost:8086/herddb-ui/webresources/api/defaultts').success(function (data) {
-                console.log('3');
+            $http.get(getApplicationPath() + '/defaultts').success(function (data) {
                 $scope.defaultTablespace = data.default;
                 $sharedTablespace.actual = $scope.defaultTablespace;
                 doRefreshThings(forceValue);
             });
         } else {
-            console.log('4');
             doRefreshThings(forceValue);
         }
-    }
+    };
+    $scope.refreshFromKeyUp = function (e) {
+        if (e.keyCode == '13') {
+            $scope.refresh();
+        }
+    };
 
 
     function doRefreshThings(forceValue) {
-        console.log('dorefthinfs' + $scope.actualTableSpace);
         var value = forceValue ? forceValue : $scope.actualPosition;
-        console.log('val' + value);
         if (value == 'tablespaces') {
             onClickTablespaces();
         } else if (value == 'tablespace') {
@@ -85,104 +95,97 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
 
     $scope.requestTableSpaces = function () {
         var url = "http://localhost:8086/herddb-ui/webresources/api/tablespaces?defaultts=" + encodeURIComponent($scope.defaultTablespace);
+        var $table = $('#table-tablespaces');
+        if ($.fn.dataTable.isDataTable($table)) {
+            $table.empty();
+            $table.DataTable().destroy();
+        }
         $http.get(url).
                 success(function (data, status, headers, config) {
-                    var $table = $('#table-tablespaces');
-                    if ($.fn.dataTable.isDataTable($table)) {
-                        $table.empty();
-                        $table.DataTable().destroy();
-                    }
+
                     var opt = getCommonDatableOptions();
                     opt.data = data;
                     opt.columns = [{title: 'name'}, {title: 'UUID'}, {title: 'Leader'}, {title: 'Replica'}, {title: 'expectedreplicacount'}, {title: 'maxleaderinactivitytime'}];
                     var table = $table.DataTable(opt);
-
+                    stopProgressBar();
                     $('#table-tablespaces').find('td').click(function () {
                         var clicked = $('#table-tablespaces').DataTable().row(this).data()[0];
                         onClickTablespace(clicked);
                     });
                 }).
                 error(function (data, status, headers, config) {
-                    console.error('error');
                     showErrorNotify('Error on retrieving data from ' + url);
                 });
     };
 
     $scope.showTables = function () {
+        startProgressBar();
         $scope.lastAdvancedTablespaceTable = 'tables';
         $('.div-tablespace-hiddendata').hide();
         var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/tables?ts=" + encodeURIComponent($scope.actualTableSpace);
+        var $table_tables = $('#table-tablespace-tables');
+        if ($.fn.dataTable.isDataTable($table_tables)) {
+            $table_tables.empty();
+            $table_tables.DataTable().destroy();
+        }
         $http.get(url).
                 success(function (data, status, headers, config) {
-
-                    var $table_tables = $('#table-tablespace-tables');
-                    if ($.fn.dataTable.isDataTable($table_tables)) {
-                        $table_tables.empty();
-                        $table_tables.DataTable().destroy();
-                    }
                     var opt_tables = getCommonDatableOptions();
                     opt_tables['data'] = data.tables;
                     opt_tables['columns'] = [{title: 'Table name'}];
                     $('#div-tablespace-tables').fadeIn(100);
                     $table_tables.DataTable(opt_tables);
-
+                    stopProgressBar();
                     $table_tables.find('td').click(function () {
                         var clicked = $table_tables.DataTable().row(this).data()[0];
                         onClickTable(clicked);
                     });
 
-
-
                 }).
                 error(function (data, status, headers, config) {
-                    console.error('error');
                     showErrorNotify('Error on retrieving data from ' + url);
                 });
     }
     $scope.showTransactions = function (a) {
-        console.log(a);
+        startProgressBar();
         $scope.lastAdvancedTablespaceTable = 'transactions';
         $('.div-tablespace-hiddendata').hide();
         var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/transactions?ts=" + encodeURIComponent($scope.actualTableSpace);
+        var $table = $('#table-tablespace-transactions');
+        if ($.fn.dataTable.isDataTable($table)) {
+            $table.empty();
+            $table.DataTable().destroy();
+        }
         $http.get(url).
                 success(function (data, status, headers, config) {
-
-                    var $table = $('#table-tablespace-transactions');
-                    if ($.fn.dataTable.isDataTable($table)) {
-                        $table.empty();
-                        $table.DataTable().destroy();
-                    }
                     var opt = getCommonDatableOptions();
                     opt['data'] = data.transactions;
                     opt.columns = [{title: 'Transaction ID'}, {title: 'Creation date'}];
                     $('#div-tablespace-transactions').fadeIn(300);
                     $table.DataTable(opt);
-
+                    stopProgressBar();
                 }).
                 error(function (data, status, headers, config) {
-                    console.error('error');
                     showErrorNotify('Error on retrieving data from ' + url);
                 });
     }
     $scope.showStats = function () {
-        console.log('from stat' + $scope.actualTableSpace);
-        console.log($scope);
+        startProgressBar();
         $scope.lastAdvancedTablespaceTable = 'stats';
         $('.div-tablespace-hiddendata').hide();
         var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/stats?ts=" + encodeURIComponent($scope.actualTableSpace);
+        var $table_stats = $('#table-tablespace-stats');
+        if ($.fn.dataTable.isDataTable($table_stats)) {
+            $table_stats.empty();
+            $table_stats.DataTable().destroy();
+        }
         $http.get(url).
                 success(function (data, status, headers, config) {
-                    var $table_stats = $('#table-tablespace-stats');
-                    if ($.fn.dataTable.isDataTable($table_stats)) {
-                        $table_stats.empty();
-                        $table_stats.DataTable().destroy();
-                    }
                     var opt_stats = getCommonDatableOptions();
                     opt_stats['data'] = data.stats;
                     opt_stats.columns = [{title: 'Table Name'},
                         {title: 'System Table'},
-                        {title: 'Replica'},
-                        {title: 'TableSize'},
+                        {title: 'Table size'},
                         {title: 'Loaded Pages'},
                         {title: 'Unloaded Pages'},
                         {title: 'Dirty Pages'},
@@ -190,14 +193,18 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
                         {title: 'Max logical page size'},
                         {title: 'Keys memory'},
                         {title: 'Buffers memory'},
-                        {title: 'Dirty Memory'}, ];
+                        {title: 'Dirty Memory'}];
                     $('#div-tablespace-stats').fadeIn(300);
 
                     $table_stats.DataTable(opt_stats);
+                    stopProgressBar();
+                    $table_stats.find('td').click(function () {
+                        var clicked = $table_stats.DataTable().row(this).data()[0];
+                        onClickTable(clicked);
+                    });
 
                 }).
                 error(function (data, status, headers, config) {
-                    console.error('error');
                     showErrorNotify('Error on retrieving data from ' + url);
                 });
     }
@@ -206,14 +213,13 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         $('.div-tablespace-hiddendata').hide();
         var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/replicastate?ts=" + encodeURIComponent(ts);
         $scope.actualTableSpace = ts;
-        console.log($scope.actualTableSpace)
+        var $table_repl = $('#table-tablespace-replication');
+        if ($.fn.dataTable.isDataTable($table_repl)) {
+            $table_repl.empty();
+            $table_repl.DataTable().destroy();
+        }
         $http.get(url).
                 success(function (data, status, headers, config) {
-                    var $table_repl = $('#table-tablespace-replication');
-                    if ($.fn.dataTable.isDataTable($table_repl)) {
-                        $table_repl.empty();
-                        $table_repl.DataTable().destroy();
-                    }
                     var opt_repl = getCommonDatableOptions();
                     opt_repl['data'] = data.replication;
                     opt_repl.columns = [{title: 'UUID'},
@@ -223,10 +229,10 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
                         {title: 'Max leader inactivity time'},
                         {title: 'Inactivity time'}];
                     $table_repl.DataTable(opt_repl);
+                    stopProgressBar();
 
                 }).
                 error(function (data, status, headers, config) {
-                    console.error('error');
                     showErrorNotify('Error on retrieving data from ' + url);
                 });
     };
@@ -240,6 +246,16 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
                         $table.empty();
                         $table.DataTable().destroy();
                     }
+                    var $table_indexes = $('#table-table-indexes');
+                    if ($.fn.dataTable.isDataTable($table_indexes)) {
+                        $table_indexes.empty();
+                        $table_indexes.DataTable().destroy();
+                    }
+                    var $table_stats = $('#table-table-stats');
+                    if ($.fn.dataTable.isDataTable($table_stats)) {
+                        $table_stats.empty();
+                        $table_stats.DataTable().destroy();
+                    }
                     var opt = getCommonDatableOptions();
                     opt['data'] = data.metadata;
                     opt.columns = [{title: 'Column name'},
@@ -249,27 +265,37 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
                         {title: 'Auto increment'}];
                     $table.DataTable(opt);
 
-                    var $table_data = $('#table-table-indexes');
-                    if ($.fn.dataTable.isDataTable($table_data)) {
-                        $table_data.empty();
-                        $table_data.DataTable().destroy();
-                    }
-                    var opt = getCommonDatableOptions();
-                    opt['data'] = data.indexes;
-                    opt.columns = [{title: 'Index name'},
+                    var opt_indexes = getCommonDatableOptions();
+                    opt_indexes['data'] = data.indexes;
+                    opt_indexes.columns = [{title: 'Index name'},
                         {title: 'Index type'}];
 
-                    $table_data.DataTable(opt);
+                    $table_indexes.DataTable(opt_indexes);
+
+                    var opt_stats = getCommonDatableOptions();
+                    opt_stats['data'] = data.stats;
+                    opt_stats.columns = [{title: 'Table size'},
+                        {title: 'Loaded Pages'},
+                        {title: 'Unloaded Pages'},
+                        {title: 'Dirty Pages'},
+                        {title: 'Dirty Records'},
+                        {title: 'Max logical page size'},
+                        {title: 'Keys memory'},
+                        {title: 'Buffers memory'},
+                        {title: 'Dirty Memory'}];
+
+                    $table_stats.DataTable(opt_stats);
+                    stopProgressBar();
 
                 }).
                 error(function (data, status, headers, config) {
-                    console.error('error');
                     showErrorNotify('Error on retrieving data from ' + url);
                 });
     };
 
     function onClickTable(table) {
-        addBread(table, 'table-crumb');
+        startProgressBar();
+        addCrumb(table, 'table-crumb');
         $scope.requestTable(table);
         $('#div-tablespaces').hide();
         $('#div-tablespace').hide();
@@ -277,8 +303,9 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         $scope.actualPosition = 'table';
     }
     function onClickTablespace(ts) {
-        removeBread('table-crumb');
-        addBread(ts, 'tablespace-crumb');
+        startProgressBar();
+        removeCrumb('table-crumb');
+        addCrumb(ts, 'tablespace-crumb');
         $scope.requestTableSpace(ts);
         $('#div-tablespaces').hide();
         $('#div-table').hide();
@@ -286,7 +313,8 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         $scope.actualPosition = 'tablespace';
     }
     function onClickTablespaces() {
-        removeAllBreads();
+        startProgressBar();
+        removeAllCrumbs();
         $scope.requestTableSpaces();
         $('#div-tablespace').hide();
         $('#div-table').hide();
@@ -294,10 +322,13 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         $scope.actualPosition = 'tablespaces';
     }
 
-    function addBread(text, clazz) {
+    function addCrumb(text, clazz) {
         if ($('.' + clazz).length == 0) {
+            $('.maincrumb, .crumbs').removeClass('active');
             var span = $('<span />').addClass('ti-arrow-circle-right navbar-brand crumb-right-arrow').addClass(clazz);
-            var crumb = $('<a />').addClass('navbar-brand crumbs').addClass(clazz).click(function () {
+            var crumb = $('<a />').addClass('navbar-brand crumbs active').addClass(clazz).click(function () {
+                $('.maincrumb, .crumbs').removeClass('active');
+                crumb.addClass('active');
                 if (crumb.hasClass('tablespace-crumb')) {
                     onClickTablespace(text);
                 } else if (crumb.hasClass('table-crumb')) {
@@ -308,30 +339,30 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
             $('#breadcrumb').append(span).append(crumb);
         }
     }
-    function removeAllBreads() {
+    function removeAllCrumbs() {
         $('#breadcrumb').children(':not(.maincrumb)').remove();
+        $('.maincrumb').addClass('active');
     }
-    function removeBread(clazz) {
+    function removeCrumb(clazz) {
         $('#breadcrumb').children('.' + clazz).remove();
     }
     $scope.checkLogin = function () {
-        $http.get('http://localhost:8086/herddb-ui/webresources/api/checklogin').success(function (data) {
-            console.log(data);
+        $http.get(getApplicationPath() + '/checklogin').success(function (data) {
             if (data == false) {
                 $scope.go('/login');
                 return false;
             } else {
+                $('#div-all').fadeIn(200);
                 $scope.refresh('tablespaces', true);
             }
         }).error(function () {
-            console.log('errot on check login');
             $scope.go('/login');
             return false;
         });
     }
 
     $(document).ready(function () {
-        $('#div-all').fadeIn(200);
+        $scope.JDBCURL = $sharedTablespace.jdbcurl;
         $scope.checkLogin();
     });
 });

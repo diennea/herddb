@@ -24,6 +24,7 @@ modulo.factory('$sharedTablespace', function () {
     var tablespace = {};
     tablespace.default;
     tablespace.actual;
+    tablespace.jdbcurl;
     return tablespace;
 });
 
@@ -64,15 +65,7 @@ function getCommonDatableOptions() {
         info: false,
     }
 }
-function logout() {
-    $.ajax({url: "http://localhost:8086/herddb-ui/webresources/api/logout",
-        type: 'GET',
-        success: function (res) {
-            return true;
-        }, error: function (result) {
-            return false;
-        }});
-}
+
 function checkLogin() {
     $.ajax({url: "http://localhost:8086/herddb-ui/webresources/api/checklogin",
         type: 'GET',
@@ -85,21 +78,41 @@ function checkLogin() {
             return false;
         }});
 }
-function showErrorNotify(msg) {
+
+function showErrorNotify(msg, sqlerror) {
+    var message = '<span>' + msg + '</span>';
+    if (sqlerror) {
+        message = '<span>' + msg + "</span><br><button class='btn btn-danger btn-fill btn-xs' onclick='showDetails(this)'>Details</button><br><span id='show-details-span' style='display: none'>" + sqlerror + '<span>'
+    }
     $.notify({
         icon: "ti-na",
-        message: msg
+        message: message
 
     }, {
         type: 'danger',
-        delay: 2000,
+        mouse_over: 'pause',
         placement: {
             from: 'top',
-            align: 'center'
+            align: 'left'
         }
-        , animate: {
-            enter: 'animated fadeInDown',
-            exit: 'animated fadeOutUp'
-        },
+
     });
+
+}
+
+function showDetails(a) {
+    $(a).parent().find('#show-details-span').toggle();
+}
+function getApplicationPath() {
+    return "http://localhost:8086/herddb-ui/webresources/api";
+}
+function startProgressBar() {
+    $('.progress-span').show();
+    var $progress = $('.progress-bar');
+    $progress.css('width', '100%').attr('aria-valuenow', 100);
+
+}
+function stopProgressBar() {
+    $('.progress-span').hide();
+    $('.progress-bar').css('width', '0%').attr('aria-valuenow', 0);
 }

@@ -6,20 +6,20 @@
             </a>
         </div>
 
-        <ul class="nav">
-            <li id="tablespaces-li" onclick="selectActiveLi(this)">
+        <ul class="nav" ng-controller="refreshController">
+            <li id="tablespaces-li" onclick="selectActiveLi(this)" ng-click="sendRefresh('tablespaces')">
                 <a href="#home">
                     <p>TABLESPACES</p>
                 </a>
             </li>
-            <li id="nodes-li" onclick="selectActiveLi(this)">
+            <li id="nodes-li" onclick="selectActiveLi(this)" ng-click="sendRefresh('nodes')">
                 <a href="#pag2" >
                     <p>NODES</p>
                 </a>
             </li>
             <li  class="active-pro">
                 <div class="text-center">
-                    <button ng-controller="logoutController" ng-click="logout()" type="submit" class="btn btn-info btn-fill btn-wd btn-submit">Logout</button>
+                    <button ng-controller="logoutController" ng-click="logout()" type="submit" class="btn btn-danger btn-wd btn-submit btn-herddb">Logout</button>
                 </div>
             </li>
         </ul>

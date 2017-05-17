@@ -16,7 +16,7 @@
  specific language governing permissions and limitations
  under the License.
 
- */
+*/
 
 @media (min-width: 992px){
     .typo-line{
@@ -1245,24 +1245,29 @@ textarea.form-control {
 .navbar .navbar-brand.maincrumb{
     font-weight: 300;
     margin: 5px 0px;
-    padding: 20px 0px;
+    padding: 0px 0px;
     font-size: 20px; }
+.navbar .navbar-brand.maincrumb.active{
+    color: #e65c00;  }
 .navbar .navbar-brand.crumbs{
     font-weight: 300;
     margin: 5px 0 5px 10px;
-    padding: 20px 0px;
+    padding: 0px 0px;
     font-size: 20px; 
     cursor: pointer}
+.navbar .navbar-brand.crumbs.active{
+    color: #e65c00;
+}
 .navbar .navbar-brand.crumb-right-arrow{
     font-weight: 100;
     margin: 10px 0px 5px 10px;
-    padding: 20px 0px;
+    padding: 0px 0px;
     font-size: 10px;
 }
 .navbar .navbar-nav > li > a {
     line-height: 1.42857;
-    margin: 15px 0px;
-    padding: 10px 15px; }
+    margin: 0px 0px;
+    padding: 0px 15px; }
 .navbar .navbar-nav > li > a i,
 .navbar .navbar-nav > li > a p {
     display: inline-block;
@@ -1287,16 +1292,16 @@ textarea.form-control {
 
 .navbar-default {
     background-color: #f4f3ef;
-    }
+}
 .navbar-default .brand {
     color: #66615b !important; }
 .navbar-default .navbar-nav > li > a:not(.btn) {
     color: #9A9A9A; }
-.navbar-default .navbar-nav > .active > a,
-.navbar-default .navbar-nav > .active > a:not(.btn):hover,
-.navbar-default .navbar-nav > .active > a:not(.btn):focus,
-.navbar-default .navbar-nav > li > a:not(.btn):hover,
-.navbar-default .navbar-nav > li > a:not(.btn):focus {
+.navbar-default .navbar-nav > .active > a > i,
+.navbar-default .navbar-nav > .active > a:not(.btn) > i:hover,
+.navbar-default .navbar-nav > .active > a:not(.btn) > i:focus,
+.navbar-default .navbar-nav > li > a:not(.btn) > i:hover,
+.navbar-default .navbar-nav > li > a:not(.btn) >i :focus {
     background-color: transparent;
     border-radius: 3px;
     color: #68B3C8;
@@ -2886,4 +2891,30 @@ table td:hover {
 }
 .refresh-icon {
     cursor: pointer
+}
+.navbar .navbar-nav > li > a.btn-info:hover, .navbar .navbar-nav > li > a.btn-info:focus, .navbar .navbar-nav > li > a.btn-info:active, .navbar .navbar-nav > li > a.btn-info.active, .open > .navbar .navbar-nav > li > a.btn-info.dropdown-toggle, .btn-info:hover, .btn-info:focus, .btn-info:active, .btn-info.active, .open > .btn-info.dropdown-toggle .btn-herddb {
+    background-color: #e65c00; border-color: #e65c00;
+}
+.navbar .navbar-nav > li > a.btn-info, .btn-info {
+    border-color: #e65c00; color: #e65c00;
+}
+.navbar-default .navbar-nav > .active > a, 
+.navbar-default .navbar-nav > .active > a:not(.btn):hover, 
+.navbar-default .navbar-nav > .active > a:not(.btn):focus, 
+.navbar-default .navbar-nav > li > a:not(.btn):hover > i, 
+.navbar-default .navbar-nav > li > a:not(.btn):focus {
+    color: #e65c00;  
+}
+.config {
+    margin-top: 20px; margin-bottom: -10px;margin-left: 5px;text-align: right;
+}
+.progress.http-request-status{
+    margin-top: 20px; 
+    margin-bottom: 0px; 
+}
+.panel-last-request {
+    margin-top: 10px;margin-bottom: 0px;
+}
+.progress-bar-herddb {
+    background-color: #e65c00;
 }

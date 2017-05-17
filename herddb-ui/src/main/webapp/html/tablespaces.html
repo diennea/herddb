@@ -1,9 +1,10 @@
 <div class="wrapper " style="display: none" id="div-all" >
-    <div ng-include="'html/main-decorator.html'" onload="selectActiveLiById('home-li')"></div>
+    <div ng-include="'html/main-decorator.html'" ></div>
     <div class="main-panel">
 
         <div class="content" >
             <div class="container-fluid" >
+                <div ng-include="'html/main-topbar.html'" ></div>
                 <div class="row">
                     <nav class="navbar navbar-default">
                         <div class="container-fluid">
@@ -11,14 +12,14 @@
                                 <ul class="nav navbar-nav navbar-right">
                                     <li>
                                         <a  class="dropdown-toggle animated flipInX" data-toggle="dropdown">
-                                            <label>Default tablespace</label>
-                                            <input type="text" class=" form-control border-input default-tablespace" placeholder="Default tablespace.."  ng-model="defaultTablespace"  >
+                                            <label >Default tablespace</label>
+                                            <input type="text" class=" form-control border-input default-tablespace" placeholder="Default tablespace.."  ng-model="defaultTablespace"  ng-keyup="refreshFromKeyUp($event)">
                                             <i alt="ciao" class="ti-reload refresh-icon" ng-click="refresh()"></i>
                                         </a>
                                     </li>
                                 </ul>
                                 <div class="breadcrumbs" id="breadcrumb">
-                                    <a class="navbar-brand maincrumb" href="" ng-click="refresh('tablespaces')">Tablespaces</a>
+                                    <a class="navbar-brand maincrumb active" href="" ng-click="refresh('tablespaces')">Tablespaces</a>
                                 </div>
                             </div>
                     </nav>
@@ -32,7 +33,7 @@
                                 <h4 class="title">Table spaces</h4>
 
                                 <div class="content table-responsive table-full-width">
-                                    <table id="table-tablespaces" class="display table cell-border" >
+                                    <table id="table-tablespaces" class="display table" >
                                     </table>
                                 </div>
                             </div>
@@ -134,6 +135,9 @@
                         </div>
 
                     </div>
+                    
+                    
+                    
                     <div class="row div-tablespace-hiddendata" id="div-tablespace-stats" style="display: none">
                         <div class="col-md-12">
                             <div class="card">
@@ -147,7 +151,6 @@
                                 </div>
                             </div>
                         </div>
-
                     </div>
                     <div class="row div-tablespace-hiddendata" id="div-tablespace-tables" style="display: none">
                         <div class="col-md-12">
@@ -206,9 +209,21 @@
                         <div class="col-md-12">
                             <div class="card">
                                 <div class="header">
-                                    <h4 class="title">Data</h4>
+                                    <h4 class="title">Indexes</h4>
                                     <div class="content table-responsive table-full-width">
                                         <table id="table-table-indexes" class="display table cell-border" ></table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" >
+                        <div class="col-md-12">
+                            <div class="card">
+                                <div class="header">
+                                    <h4 class="title">Stats</h4>
+                                    <div class="content table-responsive table-full-width">
+                                        <table id="table-table-stats" class="display table cell-border" ></table>
                                     </div>
                                 </div>
                             </div>

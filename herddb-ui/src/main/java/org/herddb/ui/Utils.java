@@ -24,7 +24,40 @@ public class Utils {
 
     public final static String TS_DEFAULT_PARAM = "defaultts";
 
+    private static String getBoolean(boolean bool) {
+        if (bool) {
+            return "<span><i class='ti-check' style='color: green'></i></span>";
+        } else {
+            return "<span><i class='ti-close' style='color: red'></i></span>";
+        }
+    }
     public static Object formatValue(Object obj) {
+        return formatValue(obj, false);
+    }
+    public static Object formatValue(Object obj, boolean isboolean) {
+        if (isboolean) {
+            if (obj instanceof Integer) {
+                Integer bj = (Integer) obj;
+                if (bj == 0) {
+                    return getBoolean(false);
+                } else if (bj == 1){
+                    return getBoolean(true);
+                }
+            }
+            if (obj instanceof Boolean) {
+                Boolean bj = (Boolean) obj;
+                return getBoolean(bj);
+            }
+            if (obj instanceof String) {
+                String bj = (String) obj;
+                if (bj.equalsIgnoreCase("true")) {
+                    return getBoolean(true);
+                } else
+                    if (bj.equalsIgnoreCase("false")) {
+                    return getBoolean(false);
+                }
+            }
+        }
         if (obj instanceof java.sql.Date || obj instanceof java.sql.Timestamp) {
             return obj.toString();
         }

@@ -27,9 +27,14 @@ modulo.controller('loginController', function ($scope, $http, $route, $timeout, 
     $scope.go = function (path, defaultts) {
         $location.path(path);
     };
+    $scope.loginFromKeyUp = function (event) {
+        if (event.keycode == '13') {
+            $scope.login();
+        }
+    };
     $scope.login = function () {
-
-        $.ajax({url: "http://localhost:8086/herddb-ui/webresources/api/login",
+        var url = getApplicationPath() + "/login";
+        $.ajax({url: url,
             type: 'POST',
             data: {datasource: $scope.datasource,
                 username: $scope.username,
@@ -37,20 +42,24 @@ modulo.controller('loginController', function ($scope, $http, $route, $timeout, 
                 defaultts: $scope.defaultts},
             async: false,
             success: function (result) {
-                console.log(result)
                 if (result.ok) {
+                    $.notifyClose();
                     $sharedTablespace.default = result.defaultts;
+                    $sharedTablespace.jdbcurl = $scope.datasource;
                     $scope.go('/home', result.defaultts);
                 } else {
-                    console.log('error on login')
-                    showErrorNotify('The credentials are not correct');
+                    if (!result.errormessage) {
+                        showErrorNotify('Error on login', result.sqlerror);
+                    } else {
+                        showErrorNotify(result.errormessage, result.sqlerror);
+                    }
                 }
             }, error: function (result) {
-                console.log('error on login')
-                showErrorNotify('The credentials are not correct');
+                showErrorNotify('Error on retrieving data from url ' +url );
             }});
-    }
+    };
     
     $(document).ready(function () {
-    })
+        $('.wrapper').fadeIn(200);
+    });
 });
