@@ -40,7 +40,7 @@ modulo.config(function ($routeProvider) {
 
 modulo.controller('logoutController', function ($http, $scope, $location) {
     $scope.logout = function () {
-        $http.get('http://localhost:8086/herddb-ui/webresources/api/logout').success(function (data) {
+        $http.get('webresources/api/logout').success(function (data) {
             $location.path('/login');
         });
     };
@@ -67,7 +67,7 @@ function getCommonDatableOptions() {
 }
 
 function checkLogin() {
-    $.ajax({url: "http://localhost:8086/herddb-ui/webresources/api/checklogin",
+    $.ajax({url: "webresources/api/checklogin",
         type: 'GET',
         success: function (res) {
             if (res == "true")
@@ -104,7 +104,7 @@ function showDetails(a) {
     $(a).parent().find('#show-details-span').toggle();
 }
 function getApplicationPath() {
-    return "http://localhost:8086/herddb-ui/webresources/api";
+    return "webresources/api";
 }
 function startProgressBar() {
     $('.progress-span').show();

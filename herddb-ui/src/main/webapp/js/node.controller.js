@@ -76,7 +76,7 @@ modulo.controller('nodeController', function ($scope, $http, $route, $timeout, $
 
 
     $scope.requestNodes = function () {
-        var url = "http://localhost:8086/herddb-ui/webresources/api/nodes?defaultts=" + encodeURIComponent($scope.defaultTablespace);
+        var url = "webresources/api/nodes?defaultts=" + encodeURIComponent($scope.defaultTablespace);
         var $table = $('#table-nodes');
         if ($.fn.dataTable.isDataTable($table)) {
             $table.empty();
@@ -103,7 +103,7 @@ modulo.controller('nodeController', function ($scope, $http, $route, $timeout, $
 
     $scope.requestNode = function (node) {
         $scope.actualNode = node;
-        var url = "http://localhost:8086/herddb-ui/webresources/api/node?nd=" + encodeURIComponent(node) + "&defaultts=" + encodeURIComponent($scope.defaultTablespace);
+        var url = "webresources/api/node?nd=" + encodeURIComponent(node) + "&defaultts=" + encodeURIComponent($scope.defaultTablespace);
         var $table = $('#table-node');
         if ($.fn.dataTable.isDataTable($table)) {
             $table.empty();

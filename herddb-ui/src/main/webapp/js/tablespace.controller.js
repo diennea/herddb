@@ -94,7 +94,7 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
     }
 
     $scope.requestTableSpaces = function () {
-        var url = "http://localhost:8086/herddb-ui/webresources/api/tablespaces?defaultts=" + encodeURIComponent($scope.defaultTablespace);
+        var url = "webresources/api/tablespaces?defaultts=" + encodeURIComponent($scope.defaultTablespace);
         var $table = $('#table-tablespaces');
         if ($.fn.dataTable.isDataTable($table)) {
             $table.empty();
@@ -122,7 +122,7 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         startProgressBar();
         $scope.lastAdvancedTablespaceTable = 'tables';
         $('.div-tablespace-hiddendata').hide();
-        var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/tables?ts=" + encodeURIComponent($scope.actualTableSpace);
+        var url = "webresources/api/tablespace/tables?ts=" + encodeURIComponent($scope.actualTableSpace);
         var $table_tables = $('#table-tablespace-tables');
         if ($.fn.dataTable.isDataTable($table_tables)) {
             $table_tables.empty();
@@ -150,7 +150,7 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         startProgressBar();
         $scope.lastAdvancedTablespaceTable = 'transactions';
         $('.div-tablespace-hiddendata').hide();
-        var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/transactions?ts=" + encodeURIComponent($scope.actualTableSpace);
+        var url = "webresources/api/tablespace/transactions?ts=" + encodeURIComponent($scope.actualTableSpace);
         var $table = $('#table-tablespace-transactions');
         if ($.fn.dataTable.isDataTable($table)) {
             $table.empty();
@@ -173,7 +173,7 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
         startProgressBar();
         $scope.lastAdvancedTablespaceTable = 'stats';
         $('.div-tablespace-hiddendata').hide();
-        var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/stats?ts=" + encodeURIComponent($scope.actualTableSpace);
+        var url = "webresources/api/tablespace/stats?ts=" + encodeURIComponent($scope.actualTableSpace);
         var $table_stats = $('#table-tablespace-stats');
         if ($.fn.dataTable.isDataTable($table_stats)) {
             $table_stats.empty();
@@ -211,7 +211,7 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
 
     $scope.requestTableSpace = function (ts) {
         $('.div-tablespace-hiddendata').hide();
-        var url = "http://localhost:8086/herddb-ui/webresources/api/tablespace/replicastate?ts=" + encodeURIComponent(ts);
+        var url = "webresources/api/tablespace/replicastate?ts=" + encodeURIComponent(ts);
         $scope.actualTableSpace = ts;
         var $table_repl = $('#table-tablespace-replication');
         if ($.fn.dataTable.isDataTable($table_repl)) {
@@ -237,7 +237,7 @@ modulo.controller('tablespaceController', function ($rootScope, $scope, $http, $
                 });
     };
     $scope.requestTable = function (table) {
-        var url = "http://localhost:8086/herddb-ui/webresources/api/table?tb=" + encodeURIComponent(table) + "&ts=" + encodeURIComponent($scope.actualTableSpace);
+        var url = "webresources/api/table?tb=" + encodeURIComponent(table) + "&ts=" + encodeURIComponent($scope.actualTableSpace);
         $scope.actualTable = table;
         $http.get(url).
                 success(function (data, status, headers, config) {
