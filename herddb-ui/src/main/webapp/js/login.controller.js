@@ -19,7 +19,7 @@
  */
 
 modulo.controller('loginController', function ($scope, $http, $route, $timeout, $location, $sharedTablespace) {
-    $scope.datasource = 'jdbc:herddb:server:localhost';
+    $scope.datasource = $location.search().url || 'jdbc:herddb:server:localhost';
     $scope.username = 'sa';
     $scope.pwd = 'hdb';
     $scope.defaultts = 'default';
