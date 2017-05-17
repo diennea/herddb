@@ -197,7 +197,7 @@ public class ServerMain implements AutoCloseable {
             } else {
                 System.out.println("Cannot find " + webUi.getAbsolutePath() + " directory. Web UI will not be deployed");
             }
-            uiurl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/ui/#/login";
+            uiurl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/ui/#/login?url=" + server.getJdbcUrl();
             System.out.println("Listening for client (http) connections on " + httphost + ":" + httpport);
             httpserver.start();
         }
