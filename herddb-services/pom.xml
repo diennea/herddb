@@ -28,13 +28,7 @@
             <version>${project.version}</version>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-ui</artifactId>
-            <version>${project.version}</version>            
-            <scope>runtime</scope>
-            <type>war</type>
-        </dependency>       
+        
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-jdbc</artifactId>
@@ -82,7 +76,43 @@
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-test</artifactId>
             <scope>test</scope>
-        </dependency>              
+        </dependency>  
+        
+             
+        <!-- web ui -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-ui</artifactId>
+            <version>${project.version}</version>            
+            <scope>runtime</scope>
+            <type>war</type>
+            <classifier>war-no-libs</classifier>
+        </dependency> 
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-jdbc</artifactId>
+            <version>${project.version}</version>            
+            <scope>runtime</scope>            
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-ui</artifactId>
+            <version>${project.version}</version>            
+            <scope>runtime</scope>
+            <type>jar</type>
+            <classifier>classes</classifier>
+        </dependency>       
+        <dependency>
+            <groupId>org.glassfish.jersey.containers</groupId>
+            <artifactId>jersey-container-servlet</artifactId>
+            <version>${libs.jersey}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-json-jackson</artifactId>
+            <version>${libs.jersey}</version>
+        </dependency>
+                                                        
     </dependencies>
     <build>        
         <resources>

@@ -17,7 +17,7 @@
     <properties>
         <endorsed.dir>${project.build.directory}/endorsed</endorsed.dir>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jersey.version>2.26-b01</jersey.version>
+        
     </properties>
     
     <dependencies>
@@ -35,12 +35,12 @@
         <dependency>
             <groupId>org.glassfish.jersey.containers</groupId>
             <artifactId>jersey-container-servlet</artifactId>
-            <version>${jersey.version}</version>
+            <version>${libs.jersey}</version>
         </dependency>
         <dependency>
             <groupId>org.glassfish.jersey.media</groupId>
             <artifactId>jersey-media-json-jackson</artifactId>
-            <version>${jersey.version}</version>
+            <version>${libs.jersey}</version>
         </dependency>
     </dependencies>
 
@@ -58,11 +58,23 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-war-plugin</artifactId>
-                <version>2.3</version>
-                <configuration>
-                    <failOnMissingWebXml>false</failOnMissingWebXml>
-                </configuration>
-            </plugin>          
+                <version>3.1.0</version>
+                
+                <executions>
+                    <execution>
+                        <id>create-war-no-libs</id>
+                        <goals>
+                            <goal>war</goal>                            
+                        </goals>
+                        <configuration>
+                            <packagingExcludes>WEB-INF/lib/*.jar,WEB-INF/classes/**/*</packagingExcludes>                            
+                            <attachClasses>true</attachClasses>
+                            <classifier>war-no-libs</classifier>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>  
+                        
         </plugins>
     </build>
 

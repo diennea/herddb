@@ -39,8 +39,7 @@
             <useStrictFiltering>true</useStrictFiltering>
             <unpack>false</unpack>                       
             <excludes>
-                <exclude>org.herddb:herddb-cli:*</exclude>                
-                <exclude>org.herddb:herddb-jdbc:*</exclude>                
+                <exclude>org.herddb:herddb-cli:*</exclude>                                
             </excludes>
             <outputDirectory>lib</outputDirectory>
         </dependencySet>         
@@ -69,7 +68,7 @@
             <useStrictFiltering>true</useStrictFiltering>
             <unpack>true</unpack>           
             <includes>
-                <include>org.herddb:herddb-ui:war</include>                                
+                <include>org.herddb:herddb-ui:war:war-no-libs</include>                                
             </includes>                        
             <outputDirectory>web/ui</outputDirectory>
         </dependencySet> 
