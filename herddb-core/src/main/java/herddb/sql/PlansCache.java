@@ -26,6 +26,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalNotification;
 import herddb.model.ExecutionPlan;
 import herddb.utils.IntHolder;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,6 +44,20 @@ public class PlansCache {
 
     private final Cache<String, ExecutionPlanContainer> cache;
 
+    private static final boolean KRYO_AVAILABLE;
+
+    static {
+        boolean _KRYO_AVAILABLE;
+        try {
+            new Kryo().writeObject(new Output(new ByteArrayOutputStream()), "");
+            _KRYO_AVAILABLE = true;
+        } catch (Throwable t) {
+            LOG.log(Level.SEVERE, "Kryo is not available", t);
+            _KRYO_AVAILABLE = false;
+        }
+        KRYO_AVAILABLE = _KRYO_AVAILABLE;
+    }
+
     private static final class ExecutionPlanContainer {
 
         private final ExecutionPlan plan;
@@ -54,6 +69,11 @@ public class PlansCache {
         }
 
         private int computeWeigth(ExecutionPlan plan) {
+            
+            if (!KRYO_AVAILABLE) {
+                return 1;
+            }
+
             final Kryo kryo = new Kryo();
             IntHolder res = new IntHolder();
             try (Output oo = new Output(new OutputStream() {
