@@ -24,6 +24,7 @@ import herddb.log.CommitLogManager;
 import herddb.log.LogNotAvailableException;
 import herddb.server.ServerConfiguration;
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
@@ -49,15 +50,24 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration) {
         config = new ClientConfiguration();
         config.setThrottleValue(0);
-        config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
+        LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
+        if (serverConfiguration.getBoolean("bookie.preferlocalbookie", true)) {
+            config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
+        }
+
         for (String key : serverConfiguration.keys()) {
             if (key.startsWith("bookie.")) {
                 String _key = key.substring("bookie.".length());
                 String value = serverConfiguration.getString(key, null);
-                LOG.log(Level.SEVERE, "Setting BookKeeper client configuration: {0}={1}", new Object[]{_key, value});
+                LOG.log(Level.CONFIG, "Setting BookKeeper client configuration: {0}={1}", new Object[]{_key, value});
                 config.setProperty(_key, value);
             }
 
+        }
+        LOG.config("BookKeeper client configuration:");
+        for (Iterator e = config.getKeys(); e.hasNext();) {
+            Object key = e.next();
+            LOG.log(Level.CONFIG, "{0}={1}", new Object[]{key, config.getProperty(key + "")});
         }
         this.metadataStorageManager = metadataStorageManager;
     }
