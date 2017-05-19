@@ -67,6 +67,9 @@ public final class ServerConfiguration {
     public static final String PROPERTY_PORT = "server.port";
     public static final String PROPERTY_SSL = "server.ssl";
 
+    public static final String PROPERTY_NETWORK_ENABLED = "server.network.enabled";
+    public static final boolean PROPERTY_NETWORK_ENABLED_DEFAULT = true;
+
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.session.timeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
@@ -90,34 +93,34 @@ public final class ServerConfiguration {
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
 
     /**
-     * Maximum dirty bytes percentage at which a pages will be considered for rebuild during a checkpoint.
-     * This value must be between 0 and 1.0. By default, the value is 0.25.
+     * Maximum dirty bytes percentage at which a pages will be considered for rebuild during a checkpoint. This value
+     * must be between 0 and 1.0. By default, the value is 0.25.
      */
     public static final String PROPERTY_DIRTY_PAGE_THRESHOLD = "server.checkpoint.page.dirty.max.threshold";
     public static final double PROPERTY_DIRTY_PAGE_THRESHOLD_DEFAULT = 0.25D;
 
     /**
-     * Minimum byte fill percentage at which a pages will be considered for rebuild during a checkpoint.
-     * This value must be between 0 and 1.0. By default, the value is 0.75D.
+     * Minimum byte fill percentage at which a pages will be considered for rebuild during a checkpoint. This value must
+     * be between 0 and 1.0. By default, the value is 0.75D.
      */
     public static final String PROPERTY_FILL_PAGE_THRESHOLD = "server.checkpoint.page.fill.min.threshold";
     public static final double PROPERTY_FILL_PAGE_THRESHOLD_DEFAULT = 0.75D;
 
     /**
-     * Maximum target time in milliseconds to spend during standard checkpoint operations. Checkpoint duration
-     * could be longer than this to complete pages flush. If set to -1 checkpoints won't have a time limit. Be
-     * aware that configuring this parameter to small values could impact performances on the long run
-     * increasing pages pollution with dirty not reclaimed records: in many cases is safer to configure a
-     * wider dirty page threshold. By default, the value is -1.
+     * Maximum target time in milliseconds to spend during standard checkpoint operations. Checkpoint duration could be
+     * longer than this to complete pages flush. If set to -1 checkpoints won't have a time limit. Be aware that
+     * configuring this parameter to small values could impact performances on the long run increasing pages pollution
+     * with dirty not reclaimed records: in many cases is safer to configure a wider dirty page threshold. By default,
+     * the value is -1.
      */
     public static final String PROPERTY_CHECKPOINT_DURATION = "server.checkpoint.duration";
     public static final long PROPERTY_CHECKPOINT_DURATION_DEFAULT = -1;
 
     /**
-     * Maximum target time in milliseconds to spend during standard checkpoint operations on compacting
-     * smaller pages. Is should be less than the maximum checkpoint duration configured by
-     * {@link #PROPERTY_CHECKPOINT_DURATION}. If set to -1 checkpoints won't have a time limit. Regardless his
-     * value at least one page will be compacted for each checkpoint. By default, the value is 1000 ms.
+     * Maximum target time in milliseconds to spend during standard checkpoint operations on compacting smaller pages.
+     * Is should be less than the maximum checkpoint duration configured by {@link #PROPERTY_CHECKPOINT_DURATION}. If
+     * set to -1 checkpoints won't have a time limit. Regardless his value at least one page will be compacted for each
+     * checkpoint. By default, the value is 1000 ms.
      */
     public static final String PROPERTY_COMPACTION_DURATION = "server.checkpoint.compaction";
     public static final long PROPERTY_COMPACTION_DURATION_DEFAULT = 1000L;
@@ -147,9 +150,9 @@ public final class ServerConfiguration {
     public static final boolean PROPERTY_HALT_ON_TABLESPACE_BOOT_ERROR_DEAULT = false;
 
     /**
-     * Maximum memory usable by HerdDB. If 0 the system will try to use most of the RAM of the JVM. When you
-     * are embedding the server in another process use this property in order to limit the usage of resources
-     * by the database.
+     * Maximum memory usable by HerdDB. If 0 the system will try to use most of the RAM of the JVM. When you are
+     * embedding the server in another process use this property in order to limit the usage of resources by the
+     * database.
      */
     public static final String PROPERTY_MEMORY_LIMIT_REFERENCE = "server.memory.max.limit";
     public static final long PROPERTY_MEMORY_LIMIT_REFERENCE_DEFAULT = 0L;
@@ -168,7 +171,6 @@ public final class ServerConfiguration {
      */
     public static final String PROPERTY_MAX_PK_MEMORY = "server.memory.pk.limit";
     public static final long PROPERTY_MAX_PK_MEMORY_DEFAULT = 0L;
-
 
     public static final String PROPERTY_JMX_ENABLE = "server.jmx.enable";
     public static final boolean PROPERTY_JMX_ENABLE_DEFAULT = true;
