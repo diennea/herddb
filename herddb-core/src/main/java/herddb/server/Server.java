@@ -244,12 +244,18 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private NettyChannelAcceptor buildChannelAcceptor() {
         String realHost = serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_HOST);
         int realPort = Integer.parseInt(serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_PORT));
-        LOGGER.log(Level.SEVERE, "Binding network acceptor to {0}:{1} ssl:{2}",
-            new Object[]{realHost, realPort, serverHostData.isSsl()});
+
         NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost,
             realPort, serverHostData.isSsl());
-        if (ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
+        boolean nextworkEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_NETWORK_ENABLED,
+            ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
+        if (!nextworkEnabled || ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
             acceptor.setEnableRealNetwork(false);
+            LOGGER.log(Level.SEVERE, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
+                new Object[]{realHost, realPort, serverHostData.isSsl()});
+        } else {
+            LOGGER.log(Level.SEVERE, "Binding network acceptor to {0}:{1} ssl:{2}",
+                new Object[]{realHost, realPort, serverHostData.isSsl()});
         }
         return acceptor;
     }
