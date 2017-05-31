@@ -1687,8 +1687,8 @@ public class SQLPlanner {
                             case "maxleaderinactivitytime":
                                 try {
                                     maxleaderinactivitytime = Long.parseLong(value.trim());
-                                    if (maxleaderinactivitytime <= 0) {
-                                        throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + " must be positive");
+                                    if (maxleaderinactivitytime < 0) {
+                                        throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + " must be positive or zero");
                                     }
                                 } catch (NumberFormatException err) {
                                     throw new StatementExecutionException("invalid maxleaderinactivitytime " + value + ": " + err);

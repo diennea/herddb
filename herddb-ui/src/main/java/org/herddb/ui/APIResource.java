@@ -251,9 +251,10 @@ public class APIResource {
             Statement s = con.createStatement();
             ResultSet rs = s.executeQuery("SELECT * from " + defaultTs + ".sysnodes")) {
             int count = rs.getMetaData().getColumnCount();
-            List<Object> row = new ArrayList<>();
+            
             List<List<Object>> result = new ArrayList<>();
             while (rs.next()) {
+                List<Object> row = new ArrayList<>();
                 row.add(formatValue(rs.getObject("nodeid")));
                 row.add(formatValue(rs.getObject("address")));
                 row.add(formatValue(rs.getObject("ssl"), true));
