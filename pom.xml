@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.herddb</groupId>
     <artifactId>herddb-parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <packaging>pom</packaging>
     <name>Herd DB</name>    
     <url>http://herddb.org</url>
@@ -277,12 +277,7 @@
                 <module>herddb-cli</module>
                 <module>herddb-bench</module>                
             </modules>
-            <distributionManagement>        
-                <!--                <repository>                                
-                    <id>dev.majordodo.org</id>
-                    <name>Majordodo Public Repository</name>
-                    <url>https://dev.majordodo.org/nexus/content/repositories/releases/</url>
-                </repository>                -->
+            <distributionManagement>                        
                 <repository>
                     <id>maven.sviluppo.dna</id>
                     <name>MagNews Public Repository</name>
@@ -379,14 +374,14 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.6</version>
+                        <version>1.6.7</version>
                         <extensions>true</extensions>
                         <configuration>
                             <serverId>ossrh</serverId>
                             <nexusUrl>https://oss.sonatype.org/</nexusUrl>
-                            <autoReleaseAfterClose>false</autoReleaseAfterClose>
+                            <autoReleaseAfterClose>true</autoReleaseAfterClose>
                         </configuration>
-                    </plugin>                                 
+                    </plugin>                               
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
@@ -443,6 +438,7 @@
                 <module>herddb-jdbc</module>
                 <module>herddb-services</module>
                 <module>herddb-cli</module>
+                <module>herddb-ui</module>
                 <module>herddb-website</module>
                 <module>herddb-site-skin</module>
                 <!-- <module>herddb-bench</module> -->
@@ -491,8 +487,5 @@
                 <module>herddb-website</module>                
             </modules>
         </profile>
-    </profiles>
-    <modules>
-        <module>herddb-ui</module>
-    </modules>
+    </profiles>    
 </project>

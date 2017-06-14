@@ -5,22 +5,12 @@
     <parent>
         <groupId>org.herddb</groupId>
         <artifactId>herddb-parent</artifactId>
-        <version>0.0.7-ALPHA17</version>
+        <version>0.1.0</version>
         <relativePath>..</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <name>HerdDB Docker</name>
-    <artifactId>herddb-docker</artifactId>
-    <dependencies>       
-        <!--
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-services</artifactId>
-            <version>${project.version}</version>            
-            <type>zip</type>                  
-        </dependency>
-        -->
-    </dependencies>
+    <artifactId>herddb-docker</artifactId> 
     <build>
         <resources>
             <resource>
