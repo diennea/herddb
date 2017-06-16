@@ -25,6 +25,12 @@
             <projectNameForChangelog>HerdDB</projectNameForChangelog>
             <releases>
                 <release>
+                    <version>0.1.0</version>
+                    <date>June 2017</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>HerdDB 0.1.0, First public GA release</text>
+                </release>
+                <release>
                     <version>0.0.6</version>
                     <date>November 2016</date>
                     <href>https://github.com/diennea/herddb/releases</href>
