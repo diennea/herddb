@@ -9,6 +9,14 @@
                     <href>https://github.com/diennea/herddb</href>
                 </item>
                 <item>
+                    <text>Getting started</text>
+                    <href>https://github.com/diennea/herddb/wiki/Getting-started</href>
+                </item>                
+                <item>
+                    <text>Documentation</text>
+                    <href>https://github.com/diennea/herddb/wiki</href>
+                </item>                
+                <item>
                     <text>Download</text>
                     <href>https://github.com/diennea/herddb/releases</href>
                 </item>
@@ -23,7 +31,7 @@
         
         <changelog>
             <projectNameForChangelog>HerdDB</projectNameForChangelog>
-            <releases>
+            <releases>                
                 <release>
                     <version>0.1.0</version>
                     <date>June 2017</date>
