@@ -64,6 +64,8 @@ Indexes are supported by using an implementation of the Block Range Index patter
 
 The database can be accessed from outside the process by using TLS and authentication is performed using SASL with Kerberos.
 
+![Architecture](images/herddb.png)
+
 <h2>The write path</h2>
 
 The most critical path for data access in HerdDB is the *write path*, in particular the INSERT and the UPDATE-by-PK data manipulation statements are the most important for us, together with the GET-by-PK.
