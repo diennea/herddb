@@ -912,6 +912,17 @@ public class FileDataStorageManager extends DataStorageManager {
                         LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
                         result.add(new DeleteFileAction("transactions", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
                     }
+                } else if (isTablespaceTablesMetadataFile(p)) {
+                    try {
+                        LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTablesMetadataFile(tableSpace, p);
+                        if (sequenceNumber.after(logPositionInFile)) {
+                            LOGGER.log(Level.FINEST, "tables metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                            result.add(new DeleteFileAction("tables", "delete tablesmetadata file " + p.toAbsolutePath(), p));
+                        }
+                    } catch (DataStorageManagerException ignore) {
+                        LOGGER.log(Level.SEVERE, "Unparsable tablesmetadata file " + p.toAbsolutePath(), ignore);
+                        result.add(new DeleteFileAction("transactions", "delete unparsable tablesmetadata file " + p.toAbsolutePath(), p));
+                    }
                 }
             }
         } catch (IOException err) {
