@@ -120,15 +120,15 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public  <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader)
-            throws DataStorageManagerException {
+    public <X> X readIndexPage(String tableSpace, String indexName, Long pageId, DataReader<X> reader)
+        throws DataStorageManagerException {
         Bytes page = indexpages.get(tableSpace + "." + indexName + "_" + pageId);
         //LOGGER.log(Level.SEVERE, "loadPage " + tableName + " " + pageId + " -> " + page);
         if (page == null) {
             throw new DataStorageManagerException("No such page: " + tableSpace + "." + indexName + " page " + pageId);
         }
         try (SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(page.data);
-             ExtendedDataInputStream ein = new ExtendedDataInputStream(in)){
+            ExtendedDataInputStream ein = new ExtendedDataInputStream(in)) {
             return reader.read(ein);
         } catch (IOException e) {
             throw new DataStorageManagerException(e);
@@ -160,7 +160,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
         LogSequenceNumber max = null;
         String prefix = tableSpace + "." + tableName + "_";
-        for(String status : tableStatuses.keySet()) {
+        for (String status : tableStatuses.keySet()) {
             if (status.startsWith(prefix)) {
                 final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
                 if (log != null) {
@@ -174,12 +174,12 @@ public class MemoryDataStorageManager extends DataStorageManager {
         TableStatus latestStatus;
         if (max == null) {
             latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                    Bytes.from_long(1).data, 1, Collections.emptyMap());
+                Bytes.from_long(1).data, 1, Collections.emptyMap());
         } else {
             byte[] data = tableStatuses.get(checkpointName(tableSpace, tableName, max));
             if (data == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                        Bytes.from_long(1).data, 1, Collections.emptyMap());
+                    Bytes.from_long(1).data, 1, Collections.emptyMap());
             } else {
                 try {
                     try (InputStream input = new SimpleByteArrayInputStream(data);
@@ -197,14 +197,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public TableStatus getTableStatus(String tableSpace, String tableName, LogSequenceNumber sequenceNumber)
-            throws DataStorageManagerException {
+        throws DataStorageManagerException {
 
         final String checkPoint = checkpointName(tableSpace, tableName, sequenceNumber);
         byte[] data = tableStatuses.get(checkPoint);
 
-
         if (data == null) {
-            throw new DataStorageManagerException("no such tablee checkpoint: " + checkPoint );
+            throw new DataStorageManagerException("no such tablee checkpoint: " + checkPoint);
         }
 
         try {
@@ -219,14 +218,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
     @Override
     public IndexStatus getIndexStatus(String tableSpace, String indexName, LogSequenceNumber sequenceNumber)
-            throws DataStorageManagerException {
+        throws DataStorageManagerException {
 
         final String checkPoint = checkpointName(tableSpace, indexName, sequenceNumber);
         byte[] data = indexStatuses.get(checkPoint);
 
-
         if (data == null) {
-            throw new DataStorageManagerException("no such index checkpoint: " + checkPoint );
+            throw new DataStorageManagerException("no such index checkpoint: " + checkPoint);
         }
 
         try {
@@ -281,7 +279,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
 
         Bytes page_wrapper;
         try (ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
-             ExtendedDataOutputStream eout = new ExtendedDataOutputStream(out)){
+            ExtendedDataOutputStream eout = new ExtendedDataOutputStream(out)) {
 
             writer.write(eout);
 
@@ -299,8 +297,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, boolean pin) throws DataStorageManagerException {
 
         /* Checkpoint pinning */
-
-        final Map<Long,Integer> pins = pinTableAndGetPages(tableSpace, tableName, tableStatus, pin);
+        final Map<Long, Integer> pins = pinTableAndGetPages(tableSpace, tableName, tableStatus, pin);
         final Set<LogSequenceNumber> checkpoints = pinTableAndGetCheckpoints(tableSpace, tableName, tableStatus, pin);
 
         List<Long> pagesForTable = new ArrayList<>();
@@ -323,13 +320,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
                 public void run() {
                     // remove only after checkpoint completed
                     pages.remove(prefix + pageId);
-                    LOGGER.log(Level.SEVERE, "removing " + (prefix + pageId) );
+                    LOGGER.log(Level.SEVERE, "removing " + (prefix + pageId));
                 }
             });
         }
 
-        for(String oldStatus : tableStatuses.keySet()) {
-            if ( oldStatus.startsWith(prefix) ) {
+        for (String oldStatus : tableStatuses.keySet()) {
+            if (oldStatus.startsWith(prefix)) {
 
                 /* Check for checkpoint skip only if match expected structure */
                 final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
@@ -369,8 +366,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus, boolean pin) throws DataStorageManagerException {
 
         /* Checkpoint pinning */
-
-        final Map<Long,Integer> pins = pinIndexAndGetPages(tableSpace, indexName, indexStatus, pin);
+        final Map<Long, Integer> pins = pinIndexAndGetPages(tableSpace, indexName, indexStatus, pin);
         final Set<LogSequenceNumber> checkpoints = pinIndexAndGetCheckpoints(tableSpace, indexName, indexStatus, pin);
 
         List<Long> pagesForIndex = new ArrayList<>();
@@ -397,8 +393,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
             });
         }
 
-        for(String oldStatus : indexStatuses.keySet()) {
-            if ( oldStatus.startsWith(prefix) ) {
+        for (String oldStatus : indexStatuses.keySet()) {
+            if (oldStatus.startsWith(prefix)) {
 
                 /* Check for checkpoint skip only if match expected structure */
                 final LogSequenceNumber log = evaluateLogSequenceNumber(prefix.substring(0, prefix.length()));
@@ -470,7 +466,7 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
+    public Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber, List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
 
         tablesByTablespace.merge(tableSpace, tables, new BiFunction<List<Table>, List<Table>, List<Table>>() {
             @Override
@@ -501,6 +497,8 @@ public class MemoryDataStorageManager extends DataStorageManager {
             }
         }
         );
+        
+        return Collections.emptyList();
     }
 
     @Override
@@ -567,12 +565,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, Collection<Transaction> transactions) throws DataStorageManagerException {
+    public Collection<PostCheckpointAction> writeTransactionsAtCheckpoint(String tableSpace, LogSequenceNumber sequenceNumber, Collection<Transaction> transactions) throws DataStorageManagerException {
         try {
             for (Transaction t : transactions) {
                 // test serialization
                 t.serialize(new ExtendedDataOutputStream(new ByteArrayOutputStream()));
             }
+            return Collections.emptyList();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }

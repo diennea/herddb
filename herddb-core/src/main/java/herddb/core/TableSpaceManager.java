@@ -479,7 +479,7 @@ public class TableSpaceManager {
 
     }
 
-    private void writeTablesOnDataStorageManager(CommitLogResult writeLog) throws DataStorageManagerException,
+    private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog) throws DataStorageManagerException,
         LogNotAvailableException {
         LogSequenceNumber logSequenceNumber = writeLog.getLogSequenceNumber();
         List<Table> tablelist = new ArrayList<>();
@@ -492,7 +492,7 @@ public class TableSpaceManager {
         for (AbstractIndexManager indexManager : indexes.values()) {
             indexlist.add(indexManager.getIndex());
         }
-        dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist);
+        return dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist);
     }
 
     DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
@@ -1306,8 +1306,8 @@ public class TableSpaceManager {
             }
 
             // TODO: transactions checkpoint is not atomic
-            dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values()));
-            writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false));
+            actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
+            actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false)));
             // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
             dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
 
