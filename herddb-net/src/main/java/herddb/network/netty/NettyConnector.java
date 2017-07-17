@@ -22,7 +22,6 @@ package herddb.network.netty;
 import herddb.network.ChannelEventListener;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.DefaultEventLoopGroup;
@@ -31,7 +30,6 @@ import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.local.LocalAddress;
 import io.netty.channel.local.LocalChannel;
-import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
@@ -45,7 +43,7 @@ import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.xml.ws.Holder;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Worker-side connector
@@ -78,7 +76,7 @@ public class NettyConnector {
                 group = networkGroup;
             }
             Bootstrap b = new Bootstrap();
-            Holder<NettyChannel> result = new Holder<>();
+            AtomicReference<NettyChannel> result = new AtomicReference<>();
 
             b.group(group)
                 .channel(channelType)
@@ -87,7 +85,7 @@ public class NettyConnector {
                     @Override
                     public void initChannel(Channel ch) throws Exception {
                         NettyChannel channel = new NettyChannel(host + ":" + port, ch, callbackExecutor);
-                        result.value = channel;
+                        result.set(channel);
                         channel.setMessagesReceiver(receiver);
                         if (ssl) {
                             ch.pipeline().addLast(sslCtx.newHandler(ch.alloc(), host, port));
@@ -109,7 +107,7 @@ public class NettyConnector {
             }
             );
             b.connect(address).sync();
-            return result.value;
+            return result.get();
         } catch (InterruptedException ex) {
             throw new IOException(ex);
         }

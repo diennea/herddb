@@ -46,7 +46,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.xml.ws.Holder;
+import herddb.utils.Holder;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.PageSet.DataPageMetaData;

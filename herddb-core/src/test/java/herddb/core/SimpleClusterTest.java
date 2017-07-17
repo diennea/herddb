@@ -26,7 +26,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 
-import javax.xml.ws.Holder;
+import herddb.utils.Holder;
 
 import org.junit.Rule;
 import org.junit.Test;

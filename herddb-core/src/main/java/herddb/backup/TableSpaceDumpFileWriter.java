@@ -32,7 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import javax.xml.ws.Holder;
+import herddb.utils.Holder;
 
 /**
  * Writes a full tabledump to file

@@ -19,38 +19,20 @@
  */
 package herddb.backup;
 
-import static herddb.backup.BackupFileConstants.ENTRY_TYPE_END;
-import static herddb.backup.BackupFileConstants.ENTRY_TYPE_START;
-import static herddb.backup.BackupFileConstants.ENTRY_TYPE_TABLE;
-import static herddb.backup.BackupFileConstants.ENTRY_TYPE_TXLOGCHUNK;
-import java.io.EOFException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
-import javax.xml.ws.Holder;
+import herddb.utils.Holder;
 
 import herddb.client.HDBConnection;
-import herddb.client.TableSpaceDumpReceiver;
 import herddb.client.TableSpaceRestoreSource;
-import herddb.log.LogSequenceNumber;
-import herddb.model.Index;
-import herddb.model.Record;
-import herddb.model.Table;
 import herddb.model.TableSpace;
-import herddb.network.KeyValue;
-import herddb.storage.DataStorageManagerException;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.NonClosingInputStream;
 import herddb.utils.NonClosingOutputStream;
-import java.util.HashMap;
-import java.util.stream.Collectors;
 
 /**
  * Backup Restore Utility

@@ -32,7 +32,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-import javax.xml.ws.Holder;
+import herddb.utils.Holder;
 
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
@@ -82,11 +82,11 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         } else {
             IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
 
-            for(long pageId : status.activePages) {
+            for (long pageId : status.activePages) {
                 LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", load " + pageId);
 
-                Map<Bytes,List<Bytes>> read = dataStorageManager.readIndexPage(tableSpaceUUID, index.uuid, pageId, in -> {
-                    Map<Bytes,List<Bytes>> deserialized = new HashMap<>();
+                Map<Bytes, List<Bytes>> read = dataStorageManager.readIndexPage(tableSpaceUUID, index.uuid, pageId, in -> {
+                    Map<Bytes, List<Bytes>> deserialized = new HashMap<>();
 
                     long version = in.readVLong(); // version
                     long flags = in.readVLong(); // flags for future implementations
