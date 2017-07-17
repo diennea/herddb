@@ -45,7 +45,7 @@ import java.util.logging.Logger;
  * </pre>
  *
  * See http://web.cse.ohio-state.edu/hpcs/WWW/HTML/publications/papers/TR-05-3.pdf
- * 
+ *
  * @author diego.salvi
  */
 public class ClockProPolicy implements PageReplacementPolicy {
@@ -115,23 +115,50 @@ public class ClockProPolicy implements PageReplacementPolicy {
 
     @Override
     public CPMetadata add(Page<?> page) {
+
+        LOGGER.log(Level.FINE, () -> "Adding page " + page);
+
+        final CPMetadata remove;
+
         lock.lock();
         try {
 
-            return unsafeAdd(page);
+            remove = unsafeAdd(page);
+
         } finally {
             lock.unlock();
         }
+
+        if (remove == null) {
+            LOGGER.log(Level.FINE, () -> "Added page " + page + ", no page removal needed");
+        } else {
+            LOGGER.log(Level.FINE, () -> "Added page " + page + ", page selected for removal: " + remove);
+        }
+
+        return remove;
     }
 
     @Override
     public boolean remove(Page<?> page) {
+
+        LOGGER.log(Level.FINE, () -> "Removing page " + page);
+
+        boolean removed;
+
         lock.lock();
         try {
-            return unsafeRemove((CPMetadata) page.metadata);
+            removed = unsafeRemove((CPMetadata) page.metadata);
         } finally {
             lock.unlock();
         }
+
+        if (removed) {
+            LOGGER.log(Level.FINE, () -> "Removed page " + page);
+        } else {
+            LOGGER.log(Level.FINE, () -> "Unknown page " + page);
+        }
+
+        return removed;
     }
 
     @Override
