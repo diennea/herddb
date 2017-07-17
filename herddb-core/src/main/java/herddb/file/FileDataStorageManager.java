@@ -121,8 +121,15 @@ public class FileDataStorageManager extends DataStorageManager {
         return baseDirectory.resolve(tablespace + ".tablespace");
     }
 
-    private Path getTablespaceCheckPointInfoFile(String tablespace) {
-        return getTablespaceDirectory(tablespace).resolve(".checkpoint");
+    private Path getTablespaceCheckPointInfoFile(String tablespace, LogSequenceNumber sequenceNumber) {
+        return getTablespaceDirectory(tablespace).resolve("checkpoint." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".checkpoint");
+    }
+
+    private static boolean isTablespaceCheckPointInfoFile(Path path) {
+        Path filename = path.getFileName();
+        return filename != null && (filename.toString().startsWith("checkpoint.")
+            && filename.toString().endsWith(".checkpoint")
+            || filename.equals(".checkpoint")); // legacy 1.0 file
     }
 
     private Path getTablespaceTablesMetadataFile(String tablespace, LogSequenceNumber sequenceNumber) {
@@ -167,11 +174,11 @@ public class FileDataStorageManager extends DataStorageManager {
         return tableDirectory.resolve(pageId + ".page");
     }
 
-    private Path getCheckPointsFile(Path tableDirectory, LogSequenceNumber sequenceNumber) {
+    private Path getTableCheckPointsFile(Path tableDirectory, LogSequenceNumber sequenceNumber) {
         return tableDirectory.resolve(sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".checkpoint");
     }
 
-    private boolean isCheckpointsFile(Path path) {
+    private boolean isTableCheckpointsFile(Path path) {
         Path filename = path.getFileName();
         return filename != null && filename.toString().endsWith(".checkpoint");
     }
@@ -296,7 +303,7 @@ public class FileDataStorageManager extends DataStorageManager {
         throws DataStorageManagerException {
 
         Path dir = getIndexDirectory(tableSpace, indexName);
-        Path checkpointFile = getCheckPointsFile(dir, sequenceNumber);
+        Path checkpointFile = getTableCheckPointsFile(dir, sequenceNumber);
 
         if (!Files.exists(checkpointFile)) {
             throw new DataStorageManagerException("no such index checkpoint: " + checkpointFile);
@@ -311,7 +318,7 @@ public class FileDataStorageManager extends DataStorageManager {
         try {
 
             Path dir = getTableDirectory(tableSpace, tableUuid);
-            Path checkpointFile = getCheckPointsFile(dir, sequenceNumber);
+            Path checkpointFile = getTableCheckPointsFile(dir, sequenceNumber);
 
             if (!Files.exists(checkpointFile)) {
                 throw new DataStorageManagerException("no such table checkpoint: " + checkpointFile);
@@ -367,7 +374,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Files.createDirectories(dir);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path path : stream) {
-                if (isCheckpointsFile(path)) {
+                if (isTableCheckpointsFile(path)) {
                     LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> ACCEPT " + path);
                     FileTime lastModifiedTime = Files.getLastModifiedTime(path);
                     long ts = lastModifiedTime.toMillis();
@@ -406,7 +413,7 @@ public class FileDataStorageManager extends DataStorageManager {
     public List<PostCheckpointAction> tableCheckpoint(String tableSpace, String tableName, TableStatus tableStatus, boolean pin) throws DataStorageManagerException {
         LogSequenceNumber logPosition = tableStatus.sequenceNumber;
         Path dir = getTableDirectory(tableSpace, tableName);
-        Path checkpointFile = getCheckPointsFile(dir, logPosition);
+        Path checkpointFile = getTableCheckPointsFile(dir, logPosition);
         try {
             Files.createDirectories(dir);
             if (Files.isRegularFile(checkpointFile)) {
@@ -467,7 +474,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path p : stream) {
-                if (isCheckpointsFile(p) && !p.equals(checkpointFile)) {
+                if (isTableCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     TableStatus status = readTableStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
@@ -485,7 +492,7 @@ public class FileDataStorageManager extends DataStorageManager {
     public List<PostCheckpointAction> indexCheckpoint(String tableSpace, String indexName, IndexStatus indexStatus, boolean pin) throws DataStorageManagerException {
         Path dir = getIndexDirectory(tableSpace, indexName);
         LogSequenceNumber logPosition = indexStatus.sequenceNumber;
-        Path checkpointFile = getCheckPointsFile(dir, logPosition);
+        Path checkpointFile = getTableCheckPointsFile(dir, logPosition);
         Path parent = checkpointFile.getParent();
         if (parent == null) {
             throw new DataStorageManagerException("Invalid path " + checkpointFile);
@@ -546,7 +553,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path p : stream) {
-                if (isCheckpointsFile(p) && !p.equals(checkpointFile)) {
+                if (isTableCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     IndexStatus status = readIndexStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
@@ -910,7 +917,7 @@ public class FileDataStorageManager extends DataStorageManager {
                         }
                     } catch (DataStorageManagerException ignore) {
                         LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
-                        result.add(new DeleteFileAction("transactions", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
+                        result.add(new DeleteFileAction("indexes", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
                     }
                 } else if (isTablespaceTablesMetadataFile(p)) {
                     try {
@@ -932,17 +939,19 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     @Override
-    public void writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+    public Collection<PostCheckpointAction> writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
         try {
-            Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
-            Path checkPointFile = getTablespaceCheckPointInfoFile(tableSpace);
+            Path checkPointFile = getTablespaceCheckPointInfoFile(tableSpace, sequenceNumber);
             Path parent = checkPointFile.getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
+            Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
             LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
-            try (OutputStream out = Files.newOutputStream(checkPointFile, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+            try (OutputStream out = Files.newOutputStream(checkpointFileTemp,
+                StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
@@ -950,9 +959,33 @@ public class FileDataStorageManager extends DataStorageManager {
                 dout.writeZLong(sequenceNumber.ledgerId);
                 dout.writeZLong(sequenceNumber.offset);
             }
+            // write file atomically
+            Files.move(checkpointFileTemp, checkPointFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+
+        Collection<PostCheckpointAction> result = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(tableSpaceDirectory)) {
+            for (Path p : stream) {
+                if (isTablespaceCheckPointInfoFile(p)) {
+                    try {
+                        LogSequenceNumber logPositionInFile = readLogSequenceNumberFromCheckpointInfoFile(tableSpace, p);
+                        if (sequenceNumber.after(logPositionInFile)) {
+                            LOGGER.log(Level.FINEST, "checkpoint info file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
+                            result.add(new DeleteFileAction("checkpoint", "delete checkpoint info file " + p.toAbsolutePath(), p));
+                        }
+                    } catch (DataStorageManagerException ignore) {
+                        LOGGER.log(Level.SEVERE, "unparsable checkpoint info file " + p.toAbsolutePath(), ignore);
+                        // do not auto-delete checkpoint files
+                    }
+                }
+            }
+        } catch (IOException err) {
+            LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
+        }
+        return result;
+
     }
 
     @Override
@@ -977,32 +1010,48 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
+    private static LogSequenceNumber readLogSequenceNumberFromCheckpointInfoFile(String tableSpace, Path checkPointFile) throws DataStorageManagerException, IOException {
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(checkPointFile, StandardOpenOption.READ), 4 * 1024 * 1024);
+            ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+            long version = din.readVLong(); // version
+            long flags = din.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
+                throw new IOException("corrupted checkpoint file");
+            }
+            String readname = din.readUTF();
+            if (!readname.equals(tableSpace)) {
+                throw new DataStorageManagerException("file " + checkPointFile.toAbsolutePath() + " is not for spablespace " + tableSpace);
+            }
+            long ledgerId = din.readZLong();
+            long offset = din.readZLong();
+
+            return new LogSequenceNumber(ledgerId, offset);
+        }
+    }
+
     @Override
     public LogSequenceNumber getLastcheckpointSequenceNumber(String tableSpace) throws DataStorageManagerException {
         try {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
-            Path checkPointFile = getTablespaceCheckPointInfoFile(tableSpace);
-            LOGGER.log(Level.FINE, "getLastcheckpointSequenceNumber for tableSpace " + tableSpace + " from " + checkPointFile.toAbsolutePath().toString());
-            if (!Files.isRegularFile(checkPointFile)) {
-                return LogSequenceNumber.START_OF_TIME;
-            }
-            try (InputStream input = new BufferedInputStream(Files.newInputStream(checkPointFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
-                long version = din.readVLong(); // version
-                long flags = din.readVLong(); // flags for future implementations
-                if (version != 1 || flags != 0) {
-                    throw new IOException("corrupted transaction file");
+            LogSequenceNumber max = LogSequenceNumber.START_OF_TIME;
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(tableSpaceDirectory)) {
+                for (Path p : stream) {
+                    if (isTablespaceCheckPointInfoFile(p)) {
+                        try {
+                            LogSequenceNumber logPositionInFile = readLogSequenceNumberFromCheckpointInfoFile(tableSpace, p);
+                            if (logPositionInFile.after(max)) {
+                                max = logPositionInFile;
+                            }
+                        } catch (DataStorageManagerException ignore) {
+                            LOGGER.log(Level.SEVERE, "unparsable checkpoint info file " + p.toAbsolutePath(), ignore);
+                        }
+                    }
                 }
-                String readname = din.readUTF();
-                if (!readname.equals(tableSpace)) {
-                    throw new DataStorageManagerException("file " + checkPointFile.toAbsolutePath() + " is not for spablespace " + tableSpace);
-                }
-                long ledgerId = din.readZLong();
-                long offset = din.readZLong();
-
-                return new LogSequenceNumber(ledgerId, offset);
+            } catch (IOException err) {
+                LOGGER.log(Level.SEVERE, "Could not list dir " + tableSpaceDirectory, err);
             }
+            return max;
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
 
@@ -1125,8 +1174,9 @@ public class FileDataStorageManager extends DataStorageManager {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
+            Path checkpointFileTemp = parent.resolve(file.getFileName() + ".tmp");
             LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, file.toAbsolutePath().toString(), transactions.size()});
-            try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+            try (OutputStream out = Files.newOutputStream(checkpointFileTemp, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
@@ -1138,6 +1188,7 @@ public class FileDataStorageManager extends DataStorageManager {
                     t.serialize(dout);
                 }
             }
+            Files.move(checkpointFileTemp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }

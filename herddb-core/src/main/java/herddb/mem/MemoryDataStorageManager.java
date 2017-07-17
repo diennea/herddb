@@ -497,13 +497,13 @@ public class MemoryDataStorageManager extends DataStorageManager {
             }
         }
         );
-        
+
         return Collections.emptyList();
     }
 
     @Override
-    public void writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
-
+    public Collection<PostCheckpointAction> writeCheckpointSequenceNumber(String tableSpace, LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+        return Collections.emptyList();
     }
 
     @Override

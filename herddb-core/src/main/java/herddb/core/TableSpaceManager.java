@@ -145,6 +145,17 @@ public class TableSpaceManager {
     private volatile boolean failed;
     private LogSequenceNumber actualLogSequenceNumber;
 
+    // only for tests
+    private Runnable afterTableCheckPointAction;
+
+    public Runnable getAfterTableCheckPointAction() {
+        return afterTableCheckPointAction;
+    }
+
+    public void setAfterTableCheckPointAction(Runnable afterTableCheckPointAction) {
+        this.afterTableCheckPointAction = afterTableCheckPointAction;
+    }
+
     public String getTableSpaceName() {
         return tableSpaceName;
     }
@@ -1308,23 +1319,28 @@ public class TableSpaceManager {
             // TODO: transactions checkpoint is not atomic
             actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
             actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false)));
-            // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
-            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
+            
 
             // we checkpoint all data to disk and save the actual log sequence number
             for (AbstractTableManager tableManager : tables.values()) {
                 // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
                 // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
 
-                if (!tableManager.isSystemTable()) {
+                if (!tableManager.isSystemTable()) {                    
                     TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
 
                     if (checkpoint != null) {
                         actions.addAll(checkpoint.actions);
                         checkpoints.put(checkpoint.tableName, checkpoint.sequenceNumber);
+                        if (afterTableCheckPointAction != null) {
+                            afterTableCheckPointAction.run();
+                        }
                     }
                 }
             }
+
+            // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
+            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
 
             /* Indexes checkpoint is handled by TableManagers */
             log.dropOldLedgers(logSequenceNumber);
