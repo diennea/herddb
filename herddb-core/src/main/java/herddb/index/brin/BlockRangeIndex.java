@@ -292,7 +292,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             if (visitedBlocks.add(this.key)) {
                 lock.lock();
                 try {
-                    if (maxKey.compareTo(key) <= 0 && minKey.compareTo(key) >=0) {
+                    if (maxKey.compareTo(key) >= 0 && minKey.compareTo(key) <= 0) {
                         ensureBlockLoaded();
                         List<V> valuesForKey = values.get(key);
                         if (valuesForKey != null) {
