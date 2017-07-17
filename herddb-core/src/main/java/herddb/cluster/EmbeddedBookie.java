@@ -19,8 +19,6 @@
  */
 package herddb.cluster;
 
-import herddb.network.netty.NetworkUtils;
-import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -30,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
@@ -37,6 +36,9 @@ import org.apache.bookkeeper.proto.BookieServer;
 import org.apache.bookkeeper.stats.CodahaleMetricsProvider;
 import org.apache.bookkeeper.stats.StatsProvider;
 import org.apache.bookkeeper.util.ReflectionUtils;
+
+import herddb.network.netty.NetworkUtils;
+import herddb.server.ServerConfiguration;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -74,10 +76,10 @@ public class EmbeddedBookie implements AutoCloseable {
                 LOG.log(Level.SEVERE, "As configuration parameter "
                     + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT + " is {0},I have choosen to listen on port {1}."
                     + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
-                persistLocalBookiePort(bookie_dir, _port);                
+                persistLocalBookiePort(bookie_dir, _port);
             }
             port = _port;
-        }        
+        }
         conf.setBookiePort(port);
         Files.createDirectories(bookie_dir);
         Path bookie_data_dir = bookie_dir.resolve("bookie_data").toAbsolutePath();
@@ -90,7 +92,7 @@ public class EmbeddedBookie implements AutoCloseable {
         conf.setMaxBackupJournals(5);
         conf.setMaxJournalSizeMB(1048);
         conf.setEnableLocalTransport(true);
-        conf.setProperty("journalMaxGroupWaitMSec", (long) 10L); // default 200ms
+        conf.setProperty("journalMaxGroupWaitMSec", 10L); // default 200ms
         conf.setJournalFlushWhenQueueEmpty(true);
         conf.setAutoRecoveryDaemonEnabled(false);
         conf.setLedgerManagerFactoryClass(HierarchicalLedgerManagerFactory.class);
