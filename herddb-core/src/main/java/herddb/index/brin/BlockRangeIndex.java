@@ -286,40 +286,43 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             return true;
         }
 
-        boolean delete(K key, V value, Set<BlockStartKey<K>> visitedBlocks) {
-            visitedBlocks.add(this.key);
+        void delete(K key, V value, Set<BlockStartKey<K>> visitedBlocks) {
+            Block currentNext = null;
 
-            Block next = null;
-            lock.lock();
-            try {
-                ensureBlockLoaded();
-                List<V> valuesForKey = values.get(key);
-                if (valuesForKey != null) {
-                    boolean removed = valuesForKey.remove(value);
-                    if (removed) {
-                        if (valuesForKey.isEmpty()) {
-                            values.remove(key);
+            if (visitedBlocks.add(this.key)) {
+                lock.lock();
+                try {
+                    if (maxKey.compareTo(key) <= 0 && minKey.compareTo(key) >=0) {
+                        ensureBlockLoaded();
+                        List<V> valuesForKey = values.get(key);
+                        if (valuesForKey != null) {
+                            boolean removed = valuesForKey.remove(value);
+                            if (removed) {
+                                if (valuesForKey.isEmpty()) {
+                                    values.remove(key);
+                                }
+                                size -= evaluateEntrySize(key, value);
+                            }
                         }
-                        size -= evaluateEntrySize(key, value);
                     }
+
+                    /*
+                     * Copy current next reference before unlock this node.
+                     *
+                     * Invoking delete from next outside locking permit to unlock current node faster for data
+                     * unloads and avoid deadlocks.
+                     */
+                    currentNext = this.next;
+
+                } finally {
+                    lock.unlock();
                 }
-
-                /*
-                 * Copy current next reference before unlock this node.
-                 *
-                 * Invoking delete from next outside locking permit to unlock current node faster for data
-                 * unloads and avoid deadlocks.
-                 */
-                next = this.next;
-
-            } finally {
-                lock.unlock();
             }
 
-            if (next != null && !visitedBlocks.contains(next.key)) {
-                next.delete(key, value, visitedBlocks);
+            /* Propagate to next if exists and has not been already visited */
+            if (currentNext != null && !visitedBlocks.contains(currentNext.key)) {
+                currentNext.delete(key, value, visitedBlocks);
             }
-            return false;
         }
 
         private void ensureBlockLoaded() {
