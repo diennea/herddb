@@ -63,7 +63,8 @@ public class ScanHugeTableTest {
                     s.execute("CREATE TABLE mytable (n1 int primary key, name string)");
 
                     String bigPrefix = StringUtils.repeat("Test", 300);
-                    int size = 1_000_000;
+                    // int size = 1_000_000;
+                    int size = 100_000;
                     {
                         long _start = System.currentTimeMillis();
                         con.setAutoCommit(false);
