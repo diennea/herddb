@@ -289,7 +289,7 @@
                     <plugin>                       
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>findbugs-maven-plugin</artifactId>
-                        <version>3.0.4</version>                        
+                        <version>3.0.4</version> 
                     </plugin>                      
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
@@ -320,6 +320,31 @@
                         </configuration>
                     </plugin>
                 </plugins>        
+            </build>
+        </profile>
+        <profile>
+            <id>fb-contrib</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>                  
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>findbugs-maven-plugin</artifactId>
+                        <version>3.0.4</version> 
+                        <configuration>
+                            <plugins>
+                                <plugin>
+                                    <groupId>com.mebigfatguy.fb-contrib</groupId>
+                                    <artifactId>fb-contrib</artifactId>
+                                    <version>7.0.2</version>
+                                </plugin>
+                            </plugins>
+                        </configuration>
+                    </plugin>
+
+                </plugins>
             </build>
         </profile>
         <profile>
