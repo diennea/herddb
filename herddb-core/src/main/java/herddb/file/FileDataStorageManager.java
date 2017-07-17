@@ -412,7 +412,8 @@ public class FileDataStorageManager extends DataStorageManager {
             if (Files.isRegularFile(checkpointFile)) {
                 TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(tableStatus)) {
-                    LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " already saved on file " + checkpointFile);
+                    LOGGER.log(Level.INFO,
+                        "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " already saved on file " + checkpointFile);
                     return Collections.emptyList();
                 }
             }
@@ -424,7 +425,7 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException("Invalid path " + checkpointFile);
         }
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
-        LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
+        LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
 
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
@@ -495,7 +496,7 @@ public class FileDataStorageManager extends DataStorageManager {
             if (Files.isRegularFile(checkpointFile)) {
                 IndexStatus actualStatus = readIndexStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(indexStatus)) {
-                    LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " already saved on" + checkpointFile);
+                    LOGGER.log(Level.SEVERE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " already saved on" + checkpointFile);
                     return Collections.emptyList();
                 }
             }
@@ -503,7 +504,7 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(err);
         }
 
-        LOGGER.log(Level.SEVERE, Thread.currentThread().getName() + " indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
+        LOGGER.log(Level.FINE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
 
         VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
         try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
@@ -862,7 +863,7 @@ public class FileDataStorageManager extends DataStorageManager {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            LOGGER.log(Level.SEVERE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
+            LOGGER.log(Level.FINE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(file_tables, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeVLong(1); // version
@@ -929,7 +930,7 @@ public class FileDataStorageManager extends DataStorageManager {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            LOGGER.log(Level.SEVERE, "checkpoint for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
+            LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(checkPointFile, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeVLong(1); // version
@@ -971,7 +972,7 @@ public class FileDataStorageManager extends DataStorageManager {
             Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
             Files.createDirectories(tableSpaceDirectory);
             Path checkPointFile = getTablespaceCheckPointInfoFile(tableSpace);
-            LOGGER.log(Level.SEVERE, "getLastcheckpointSequenceNumber for tableSpace " + tableSpace + " from " + checkPointFile.toAbsolutePath().toString());
+            LOGGER.log(Level.FINE, "getLastcheckpointSequenceNumber for tableSpace " + tableSpace + " from " + checkPointFile.toAbsolutePath().toString());
             if (!Files.isRegularFile(checkPointFile)) {
                 return LogSequenceNumber.START_OF_TIME;
             }
@@ -1113,7 +1114,7 @@ public class FileDataStorageManager extends DataStorageManager {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            LOGGER.log(Level.SEVERE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, file.toAbsolutePath().toString(), transactions.size()});
+            LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, file.toAbsolutePath().toString(), transactions.size()});
             try (OutputStream out = Files.newOutputStream(file, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
                 dout.writeVLong(1); // version
@@ -1145,28 +1146,6 @@ public class FileDataStorageManager extends DataStorageManager {
                         LOGGER.log(Level.SEVERE, "Unparsable transactions file " + p.toAbsolutePath(), ignore);
                         result.add(new DeleteFileAction("transactions", "delete unparsable transactions file " + p.toAbsolutePath(), p));
                     }
-                } else if (isTablespaceTablesMetadataFile(p)) {
-                    try {
-                        LogSequenceNumber logPositionInFile = readLogSequenceNumberFromTablesMetadataFile(tableSpace, p);
-                        if (sequenceNumber.after(logPositionInFile)) {
-                            LOGGER.log(Level.FINEST, "tables metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                            result.add(new DeleteFileAction("tables", "delete tablesmetadata file " + p.toAbsolutePath(), p));
-                        }
-                    } catch (DataStorageManagerException ignore) {
-                        LOGGER.log(Level.SEVERE, "Unparsable tablesmetadata file " + p.toAbsolutePath(), ignore);
-                        result.add(new DeleteFileAction("transactions", "delete unparsable tablesmetadata file " + p.toAbsolutePath(), p));
-                    }
-                } else if (isTablespaceIndexesMetadataFile(p)) {
-                    try {
-                        LogSequenceNumber logPositionInFile = readLogSequenceNumberFromIndexMetadataFile(tableSpace, p);
-                        if (sequenceNumber.after(logPositionInFile)) {
-                            LOGGER.log(Level.FINEST, "indexes metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
-                            result.add(new DeleteFileAction("indexes", "delete indexesmetadata file " + p.toAbsolutePath(), p));
-                        }
-                    } catch (DataStorageManagerException ignore) {
-                        LOGGER.log(Level.SEVERE, "Unparsable indexesmetadata file " + p.toAbsolutePath(), ignore);
-                        result.add(new DeleteFileAction("transactions", "delete unparsable indexesmetadata file " + p.toAbsolutePath(), p));
-                    }
                 }
             }
         } catch (IOException err) {
@@ -1187,7 +1166,7 @@ public class FileDataStorageManager extends DataStorageManager {
         @Override
         public void run() {
             try {
-                LOGGER.log(Level.SEVERE, description);
+                LOGGER.log(Level.INFO, description);
                 Files.deleteIfExists(p);
             } catch (IOException err) {
                 LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
