@@ -40,7 +40,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -127,9 +126,14 @@ public class FileDataStorageManager extends DataStorageManager {
 
     private static boolean isTablespaceCheckPointInfoFile(Path path) {
         Path filename = path.getFileName();
-        return filename != null && (filename.toString().startsWith("checkpoint.")
-            && filename.toString().endsWith(".checkpoint")
-            || filename.equals(".checkpoint")); // legacy 1.0 file
+
+        if (filename == null) {
+            return false;
+        }
+
+        final String name = filename.toString();
+        return (name.startsWith("checkpoint.") && name.endsWith(".checkpoint")) ||
+                name.equals(".checkpoint"); // legacy 1.0 file
     }
 
     private Path getTablespaceTablesMetadataFile(String tablespace, LogSequenceNumber sequenceNumber) {
