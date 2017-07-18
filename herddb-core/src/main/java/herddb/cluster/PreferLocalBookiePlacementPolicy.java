@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.EnsemblePlacementPolicy;
 import org.apache.bookkeeper.net.BookieSocketAddress;
@@ -36,38 +37,36 @@ import org.apache.commons.configuration.Configuration;
  * @author francesco.caliumi
  */
 public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy {
-    
-    private static final Set<BookieSocketAddress> EMPTY_SET = new HashSet<BookieSocketAddress>();
 
     private Set<BookieSocketAddress> knownBookies = new HashSet<>();
-    
+
     private static final Method isLocalBookieMethod;
     static {
         try {
-            Class c = Class.forName("org.apache.bookkeeper.proto.LocalBookiesRegistry");
+            Class<?> c = Class.forName("org.apache.bookkeeper.proto.LocalBookiesRegistry");
             isLocalBookieMethod = c.getDeclaredMethod("isLocalBookie", BookieSocketAddress.class);
-            isLocalBookieMethod.setAccessible(true); 
-            
+            isLocalBookieMethod.setAccessible(true);
+
         } catch (ClassNotFoundException | NoSuchMethodException | SecurityException ex) {
             throw new RuntimeException(ex);
         }
     }
-    
+
     public boolean isLocalBookie(BookieSocketAddress bookie) {
         // Will be public in Bookkeeper 4.5.0
         //return LocalBookiesRegistry.isLocalBookie(bookie);
-        
+
         try {
             return (boolean) isLocalBookieMethod.invoke(null, bookie);
         } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             throw new RuntimeException(ex);
         }
     }
-    
+
     @Override
     public ArrayList<BookieSocketAddress> newEnsemble(int ensembleSize, int quorumSize,
             Set<BookieSocketAddress> excludeBookies) throws BKException.BKNotEnoughBookiesException {
-        
+
         ArrayList<BookieSocketAddress> newBookies = new ArrayList<>(ensembleSize);
         if (ensembleSize <= 0) {
             return newBookies;
@@ -76,7 +75,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
         synchronized (this) {
             allBookies = new ArrayList<>(knownBookies);
         }
-        
+
         BookieSocketAddress localBookie = null;
         for (BookieSocketAddress bookie : allBookies) {
             if (excludeBookies.contains(bookie)) {
@@ -98,7 +97,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
                 return newBookies;
             }
         }
-        
+
         Collections.shuffle(allBookies);
         for (BookieSocketAddress bookie : allBookies) {
             if (excludeBookies.contains(bookie)) {
@@ -110,7 +109,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
                 return newBookies;
             }
         }
-        
+
         throw new BKException.BKNotEnoughBookiesException();
     }
 

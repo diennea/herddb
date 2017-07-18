@@ -20,6 +20,7 @@
 package herddb.file;
 
 import java.io.BufferedInputStream;
+import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -431,10 +432,8 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
-        Path parent = checkpointFile.getParent();
-        if (parent == null) {
-            throw new DataStorageManagerException("Invalid path " + checkpointFile);
-        }
+
+        Path parent = getParent(checkpointFile);
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
         LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
 
@@ -497,10 +496,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path dir = getIndexDirectory(tableSpace, indexName);
         LogSequenceNumber logPosition = indexStatus.sequenceNumber;
         Path checkpointFile = getTableCheckPointsFile(dir, logPosition);
-        Path parent = checkpointFile.getParent();
-        if (parent == null) {
-            throw new DataStorageManagerException("Invalid path " + checkpointFile);
-        }
+        Path parent = getParent(checkpointFile);
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
         try {
             Files.createDirectories(dir);
@@ -570,6 +566,36 @@ public class FileDataStorageManager extends DataStorageManager {
         }
 
         return result;
+    }
+
+    /**
+     * Returns a {@link Path} parent
+     *
+     * @param file path from which lookup parent
+     * @return parent path
+     * @throws DataStorageManagerException if no parent cannot be resolved (even checking absolute Path)
+     */
+    private static Path getParent(Path file) throws DataStorageManagerException {
+
+        final Path path = file.getParent();
+
+        if (path != null) {
+            return path;
+        }
+
+        if (file.isAbsolute()) {
+            throw new DataStorageManagerException("Invalid path " + file);
+        }
+
+        try {
+
+            return getParent(file.toAbsolutePath());
+
+        } catch (IOError | SecurityException e) {
+
+            throw new DataStorageManagerException("Invalid path " + file);
+        }
+
     }
 
     private static long getPageId(Path p) {
@@ -870,10 +896,9 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(tableSpaceDirectory);
             Path file_tables = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
             Path file_indexes = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
-            Path parent = file_tables.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
+            Path parent = getParent(file_tables);
+            Files.createDirectories(parent);
+
             LOGGER.log(Level.FINE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(file_tables, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
                 ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
@@ -948,10 +973,9 @@ public class FileDataStorageManager extends DataStorageManager {
         try {
             Files.createDirectories(tableSpaceDirectory);
             Path checkPointFile = getTablespaceCheckPointInfoFile(tableSpace, sequenceNumber);
-            Path parent = checkPointFile.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
+            Path parent = getParent(checkPointFile);
+            Files.createDirectories(parent);
+
             Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
             LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
             try (OutputStream out = Files.newOutputStream(checkpointFileTemp,
@@ -1174,10 +1198,9 @@ public class FileDataStorageManager extends DataStorageManager {
         try {
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
-            Path parent = file.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
+            Path parent = getParent(file);
+            Files.createDirectories(parent);
+
             Path checkpointFileTemp = parent.resolve(file.getFileName() + ".tmp");
             LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, file.toAbsolutePath().toString(), transactions.size()});
             try (OutputStream out = Files.newOutputStream(checkpointFileTemp, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);

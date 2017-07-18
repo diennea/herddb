@@ -19,17 +19,22 @@
  */
 package herddb.client;
 
-import herddb.backup.BackupFileConstants;
-import herddb.backup.DumpedLogEntry;
-import herddb.backup.DumpedTableMetadata;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.backup.BackupFileConstants;
+import herddb.backup.DumpedLogEntry;
+import herddb.backup.DumpedTableMetadata;
 import herddb.client.impl.RetryRequestException;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
@@ -45,10 +50,6 @@ import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
-import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.Collectors;
 
 /**
  * A real connection to a server
@@ -114,6 +115,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     }
 
     @Override
+    @SuppressFBWarnings(value = "SF_SWITCH_NO_DEFAULT")
     public void messageReceived(Message message, Channel _channel) {
         switch (message.type) {
             case Message.TYPE_TABLESPACE_DUMP_DATA: {

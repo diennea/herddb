@@ -21,8 +21,9 @@ package herddb.file;
 
 import java.io.BufferedInputStream;
 import java.io.EOFException;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,7 +41,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.log.CommitLog;
-import herddb.log.CommitLogListener;
 import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
@@ -50,7 +50,6 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
-import java.util.concurrent.Future;
 
 /**
  * Commit log on file
@@ -94,9 +93,9 @@ public class FileCommitLog extends CommitLog {
         final long ledgerId;
         long sequenceNumber;
 
-        final ExtendedDataOutputStream out;
         final Path filename;
-        final FileOutputStream fOut;
+        final FileChannel channel;
+        final ExtendedDataOutputStream out;
 
         private CommitFileWriter(long ledgerId, long sequenceNumber) throws IOException {
             this.ledgerId = ledgerId;
@@ -105,8 +104,11 @@ public class FileCommitLog extends CommitLog {
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
             LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
-            this.fOut = new FileOutputStream(filename.toFile(), false);
-            this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(this.fOut));
+
+            this.channel = FileChannel.open(filename,
+                    StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+
+            this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
             writtenBytes = 0;
         }
 
@@ -124,14 +126,15 @@ public class FileCommitLog extends CommitLog {
                 return;
             }
             this.out.flush();
-            this.fOut.getFD().sync();
+            /* We don't need to flush file metadatas, flush just data! */
+            this.channel.force(false);
         }
 
         @Override
         public void close() throws LogNotAvailableException {
             try {
                 out.close();
-                fOut.close();
+                channel.close();
             } catch (IOException err) {
                 throw new LogNotAvailableException(err);
             }

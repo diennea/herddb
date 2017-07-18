@@ -19,12 +19,12 @@
  */
 package herddb.sql.expressions;
 
+import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
+
 import herddb.model.StatementExecutionException;
 import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
 import herddb.sql.functions.BuiltinFunctions;
-import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 import herddb.utils.RawString;
-import java.lang.reflect.InvocationTargetException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.DoubleValue;
@@ -95,7 +95,7 @@ public class SQLExpressionCompiler {
             try {
                 return new ConstantExpression(((LongValue) exp).getValue());
             } catch (NumberFormatException largeNumber) {
-                return new ConstantExpression(Double.parseDouble(((LongValue) exp).getStringValue()));
+                return new ConstantExpression(Double.valueOf(((LongValue) exp).getStringValue()));
             }
         } else if (exp instanceof DoubleValue) {
             return new ConstantExpression(((DoubleValue) exp).getValue());
@@ -176,9 +176,9 @@ public class SQLExpressionCompiler {
 
         String columnName = c.getColumnName();
         if (BuiltinFunctions.BOOLEAN_TRUE.equalsIgnoreCase(columnName)) {
-            return new ConstantExpression(true);
+            return new ConstantExpression(Boolean.TRUE);
         } else if (BuiltinFunctions.BOOLEAN_FALSE.equalsIgnoreCase(columnName)) {
-            return new ConstantExpression(false);
+            return new ConstantExpression(Boolean.FALSE);
         } else {
             return new ColumnExpression(columnName);
         }

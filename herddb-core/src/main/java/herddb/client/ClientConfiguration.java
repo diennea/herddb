@@ -19,8 +19,8 @@
  */
 package herddb.client;
 
-import java.io.File;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
 
 /**
@@ -86,7 +86,7 @@ public class ClientConfiguration {
 
     public ClientConfiguration() {
         this.properties = new Properties();
-        set(PROPERTY_BASEDIR, new File(System.getProperty("java.io.tmpdir")).toPath().toAbsolutePath());
+        set(PROPERTY_BASEDIR, Paths.get(System.getProperty("java.io.tmpdir")).toAbsolutePath());
     }
 
     public int getInt(String key, int defaultValue) {
@@ -123,7 +123,7 @@ public class ClientConfiguration {
         return this.properties.getProperty(key, defaultValue);
     }
 
-    public ClientConfiguration set(String key, Object value) {
+    public final ClientConfiguration set(String key, Object value) {
         if (value == null) {
             this.properties.remove(key);
         } else {

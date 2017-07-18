@@ -440,34 +440,34 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 }
             }
 
-            if (!other_values.isEmpty()) {
-                K newOtherMinKey = other_values.firstKey();
-                K newOtherMaxKey = other_values.lastKey();
-                Block newblock = new Block(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
-
-                K firstKey = keep_values.firstKey();
-                K lastKey = keep_values.lastKey();
-                this.next = newblock;
-                this.size = mySize;
-                this.values = keep_values;
-
-                /*
-                 * First publish the new block then reduce this block min/max keys. If done otherwise a
-                 * concurrent lookup thread could miss the block containing the right data.
-                 *
-                 * blocks.put acts as memory barrier (contains at least a volatile access thus reordering is
-                 * blocked [happen before])
-                 */
-                // access to external field, this is the cause of most of the concurrency problems
-                blocks.put(newblock.key, newblock);
-
-                this.minKey = firstKey;
-                this.maxKey = lastKey;
-
-                return newblock;
+            if (other_values.isEmpty()) {
+                return null;
             }
 
-            return null;
+            K newOtherMinKey = other_values.firstKey();
+            K newOtherMaxKey = other_values.lastKey();
+            Block newblock = new Block(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
+
+            K firstKey = keep_values.firstKey();
+            K lastKey = keep_values.lastKey();
+            this.next = newblock;
+            this.size = mySize;
+            this.values = keep_values;
+
+            /*
+             * First publish the new block then reduce this block min/max keys. If done otherwise a
+             * concurrent lookup thread could miss the block containing the right data.
+             *
+             * blocks.put acts as memory barrier (contains at least a volatile access thus reordering is
+             * blocked [happen before])
+             */
+            // access to external field, this is the cause of most of the concurrency problems
+            blocks.put(newblock.key, newblock);
+
+            this.minKey = firstKey;
+            this.maxKey = lastKey;
+
+            return newblock;
 
         }
 

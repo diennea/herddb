@@ -29,17 +29,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.commands.AlterTableStatement;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import java.util.Comparator;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * Table definition
@@ -220,8 +219,9 @@ public class Table implements ColumnsList {
         }
 
         for (Column c : this.columns) {
-            if (!dropColumns.contains(c.name.toLowerCase())
-                && !changedColumns.contains(c.name.toLowerCase())) {
+            String lowercase = c.name.toLowerCase();
+            if (!dropColumns.contains(lowercase)
+                && !changedColumns.contains(lowercase)) {
                 builder.column(c.name, c.type, c.serialPosition);
             }
             new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);

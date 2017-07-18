@@ -21,10 +21,15 @@ package herddb.sql;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import herddb.core.AbstractIndexManager;
@@ -40,7 +45,6 @@ import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Aggregator;
-import herddb.model.AlterFailedException;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
@@ -81,11 +85,6 @@ import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.IntHolder;
 import herddb.utils.SQLUtils;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.UUID;
-import java.util.logging.Logger;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.Expression;
@@ -547,7 +546,7 @@ public class SQLPlanner {
         }
         Table table = tableManager.getTable();
 
-        ItemsList itemlist = (ItemsList) s.getItemsList();
+        ItemsList itemlist = s.getItemsList();
         if (itemlist instanceof ExpressionList) {
             int index = 0;
             List<Expression> keyValueExpression = new ArrayList<>();
@@ -726,7 +725,7 @@ public class SQLPlanner {
     }
 
     private ExecutionPlan buildDeleteStatement(String defaultTableSpace, Delete s, boolean returnValues) throws StatementExecutionException {
-        net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTable();
+        net.sf.jsqlparser.schema.Table fromTable = s.getTable();
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName();
         if (tableSpace == null) {
@@ -821,7 +820,7 @@ public class SQLPlanner {
         if (s.getTables().size() != 1) {
             throw new StatementExecutionException("unsupported multi-table update " + s);
         }
-        net.sf.jsqlparser.schema.Table fromTable = (net.sf.jsqlparser.schema.Table) s.getTables().get(0);
+        net.sf.jsqlparser.schema.Table fromTable = s.getTables().get(0);
         String tableSpace = fromTable.getSchemaName();
         String tableName = fromTable.getName();
         if (tableSpace == null) {
@@ -998,12 +997,12 @@ public class SQLPlanner {
                     return e.getRightExpression();
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintOnColumn((AndExpression) e.getLeftExpression(), columnName, tableAlias, expressionType);
+                result = findConstraintOnColumn(e.getLeftExpression(), columnName, tableAlias, expressionType);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintOnColumn((AndExpression) e.getRightExpression(), columnName, tableAlias, expressionType);
+                result = findConstraintOnColumn(e.getRightExpression(), columnName, tableAlias, expressionType);
                 if (result != null) {
                     return result;
                 }
@@ -1027,12 +1026,12 @@ public class SQLPlanner {
                     return e;
                 }
             } else if (e.getLeftExpression() instanceof AndExpression) {
-                result = findConstraintExpressionOnColumn((AndExpression) e.getLeftExpression(), columnName, tableAlias, expressionType);
+                result = findConstraintExpressionOnColumn(e.getLeftExpression(), columnName, tableAlias, expressionType);
                 if (result != null) {
                     return result;
                 }
             } else if (e.getRightExpression() instanceof AndExpression) {
-                result = findConstraintExpressionOnColumn((AndExpression) e.getRightExpression(), columnName, tableAlias, expressionType);
+                result = findConstraintExpressionOnColumn(e.getRightExpression(), columnName, tableAlias, expressionType);
                 if (result != null) {
                     return result;
                 }
@@ -1202,7 +1201,7 @@ public class SQLPlanner {
             } else if (c instanceof AllTableColumns) {
                 AllTableColumns allTableColumns = (AllTableColumns) c;
                 TableRef ref = TableRef.buildFrom(allTableColumns.getTable(), defaultTableSpace);
-                if (ref.tableAlias.equals(mainTable.tableAlias) && !joinPresent) {
+                if (!joinPresent && ref.tableAlias.equals(mainTable.tableAlias)) {
                     // select a.*  FROM table a
                     allColumns = true;
                 } else {
@@ -1307,7 +1306,7 @@ public class SQLPlanner {
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
-                        scanLimits = new ScanLimits((int) rowCount, 0);
+                        scanLimits = new ScanLimits(rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
                     }
@@ -1367,7 +1366,7 @@ public class SQLPlanner {
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
-                        scanLimits = new ScanLimits((int) rowCount, 0);
+                        scanLimits = new ScanLimits(rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
                     }

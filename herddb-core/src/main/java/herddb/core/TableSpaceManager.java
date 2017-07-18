@@ -1217,9 +1217,9 @@ public class TableSpaceManager {
         newMap.put(index.name, indexManager);
 
         indexesByTable.merge(index.table, newMap, (a, b) -> {
-            Map<String, AbstractIndexManager> newList = new HashMap<>(a);
-            newList.putAll(b);
-            return newList;
+            Map<String, AbstractIndexManager> map = new HashMap<>(a);
+            map.putAll(b);
+            return map;
         });
         indexManager.start(tableManager.getBootSequenceNumber());
         long _stop = System.currentTimeMillis();
@@ -1319,14 +1319,14 @@ public class TableSpaceManager {
             // TODO: transactions checkpoint is not atomic
             actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
             actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false)));
-            
+
 
             // we checkpoint all data to disk and save the actual log sequence number
             for (AbstractTableManager tableManager : tables.values()) {
                 // each TableManager will save its own checkpoint sequence number (on TableStatus) and upon recovery will replay only actions with log position after the actual table-local checkpoint
                 // remember that the checkpoint for a table can last "minutes" and we do not want to stop the world
 
-                if (!tableManager.isSystemTable()) {                    
+                if (!tableManager.isSystemTable()) {
                     TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
 
                     if (checkpoint != null) {

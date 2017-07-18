@@ -123,32 +123,31 @@ public class ListWithMap<E> {
 
         final Node<E> ref = space.remove(e);
 
-        if (ref != null) {
-
-            if (ref.prev == null) {
-                /* E' la testa */
-                head = ref.next;
-            } else {
-                ref.prev.next = ref.next;
-            }
-
-            if (ref.next == null) {
-                /* E' la coda */
-                tail = ref.prev;
-            } else {
-                ref.next.prev = ref.prev;
-            }
-
-            final E rem = ref.item;
-
-            ref.item = null;
-            ref.prev = null;
-            ref.next = null;
-
-            return rem;
+        if (ref == null) {
+            return null;
         }
 
-        return null;
+        if (ref.prev == null) {
+            /* E' la testa */
+            head = ref.next;
+        } else {
+            ref.prev.next = ref.next;
+        }
+
+        if (ref.next == null) {
+            /* E' la coda */
+            tail = ref.prev;
+        } else {
+            ref.next.prev = ref.prev;
+        }
+
+        final E rem = ref.item;
+
+        ref.item = null;
+        ref.prev = null;
+        ref.next = null;
+
+        return rem;
     }
 
     public void clear() {
