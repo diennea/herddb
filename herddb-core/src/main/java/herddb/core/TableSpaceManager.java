@@ -961,7 +961,7 @@ public class TableSpaceManager {
             log.startWriting();
             LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, pending_transactions.size()});
             for (long tx : pending_transactions) {
-                LOGGER.log(Level.SEVERE, "rolling back transaction {0}", tx);
+                LOGGER.log(Level.FINER, "rolling back transaction {0}", tx);
                 LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
                 // let followers see the rollback on the log
                 CommitLogResult pos = log.log(rollback, true);
