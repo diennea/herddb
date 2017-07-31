@@ -1340,7 +1340,7 @@ public class TableSpaceManager {
             }
 
             // we are sure that all data as been flushed. upon recovery we will replay the log starting from this position
-            dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber);
+            actions.addAll(dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber));
 
             /* Indexes checkpoint is handled by TableManagers */
             log.dropOldLedgers(logSequenceNumber);
