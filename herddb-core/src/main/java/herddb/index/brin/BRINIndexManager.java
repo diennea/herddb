@@ -231,7 +231,12 @@ public class BRINIndexManager extends AbstractIndexManager {
             IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), activePages, contents);
             List<PostCheckpointAction> result = new ArrayList<>();
             result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.uuid, indexStatus, pin));
-            LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} blocks, pages {2}", new Object[]{index.name, page.metadata.size() + "", activePages + ""});
+
+            LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} blocks",
+                    new Object[] {index.name, sequenceNumber, Integer.toString(page.metadata.size())});
+            LOGGER.log(Level.FINE, "checkpoint index {0} finished: logpos {1}, pages {2}",
+                    new Object[] {index.name, sequenceNumber, activePages});
+
             return result;
         } catch (IOException err) {
             throw new DataStorageManagerException(err);

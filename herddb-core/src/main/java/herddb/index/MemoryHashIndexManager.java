@@ -32,8 +32,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
-import herddb.utils.Holder;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
@@ -52,6 +50,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.storage.IndexStatus;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.Holder;
 
 /**
  * HASH index. The index resides entirely in memory. It is serialized fully on the IndexStatus structure
@@ -246,7 +245,10 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
         IndexStatus indexStatus = new IndexStatus(index.name, sequenceNumber, newPageId.get(), Collections.singleton(pageId), null);
         result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.uuid, indexStatus, pin));
-        LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} entries, page {2}", new Object[]{index.name, count + "", pageId + ""});
+
+        LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} entries, page {3}",
+                new Object[] {index.name, sequenceNumber, Long.toString(count.value), Long.toString(pageId)});
+
         return result;
     }
 

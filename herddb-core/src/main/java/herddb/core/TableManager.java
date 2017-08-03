@@ -46,8 +46,6 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import herddb.utils.Holder;
-
 import herddb.codec.RecordSerializer;
 import herddb.core.PageSet.DataPageMetaData;
 import herddb.core.stats.TableManagerStats;
@@ -98,6 +96,7 @@ import herddb.utils.BatchOrderedExecutor;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
+import herddb.utils.Holder;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
@@ -1711,6 +1710,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final long dirtyPageThreshold = (long) (dirtyThreshold * maxLogicalPageSize);
 
         long start = System.currentTimeMillis();
+        long end;
         long getlock;
         long pageAnalysis;
         long dirtyPagesFlush;
@@ -1940,17 +1940,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             actions.addAll(dataStorageManager.tableCheckpoint(tableSpaceUUID, table.uuid, tableStatus, pin));
             tablecheckpoint = System.currentTimeMillis();
 
-            LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, flushed {4} records",
-                new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(), pageSet.getDirtyPagesCount(), flushedRecords});
-
-            if (LOGGER.isLoggable(Level.FINE)) {
-                LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
-                    new Object[]{table.name, sequenceNumber, pageSet.toString()});
-            }
-
             /* Writes done! Unloading and removing not needed pages and keys */
 
- /* Remove flushed pages handled */
+            /* Remove flushed pages handled */
             for (Long pageId : flushedPages) {
                 final DataPage page = pages.remove(pageId);
                 /* Current dirty record page isn't known to page replacement policy */
@@ -1972,11 +1964,22 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             result = new TableCheckpoint(table.name, sequenceNumber, actions);
 
+            end = System.currentTimeMillis();
+
+            LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, "
+                    + "flushed {4} records, total time {5} ms",
+                    new Object[] {table.name, sequenceNumber, pageSet.getActivePagesCount(),
+                            pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(end - start)});
+
+            if (LOGGER.isLoggable(Level.FINE)) {
+                LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
+                        new Object[]{table.name, sequenceNumber, pageSet.toString()});
+            }
+
         } finally {
             checkpointLock.writeLock().unlock();
         }
 
-        long end = System.currentTimeMillis();
         long delta = end - start;
         if (delta > 1000) {
 
@@ -2001,6 +2004,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 + "+" + delta_tablecheckpoint
                 + "+" + delta_unload + ")"});
         }
+
 
         return result;
     }

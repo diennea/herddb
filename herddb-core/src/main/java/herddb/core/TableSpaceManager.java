@@ -1308,10 +1308,10 @@ public class TableSpaceManager {
             logSequenceNumber = log.getLastSequenceNumber();
 
             if (logSequenceNumber.isStartOfTime()) {
-                LOGGER.log(Level.SEVERE, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
+                LOGGER.log(Level.INFO, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
                 return new TableSpaceCheckpoint(logSequenceNumber, checkpoints);
             }
-            LOGGER.log(Level.SEVERE, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
+            LOGGER.log(Level.INFO, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
             if (actualLogSequenceNumber == null) {
                 throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
             }
@@ -1358,10 +1358,9 @@ public class TableSpaceManager {
             }
         }
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, nodeId + " checkpoint finish " + tableSpaceName
-            + " started at " + logSequenceNumber
-            + ", finished at " + _logSequenceNumber
-            + ", total time " + (_stop - _start) + " ms");
+
+        LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
+                new Object[] {nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber,  Long.toString(_stop - _start)});
 
         return new TableSpaceCheckpoint(logSequenceNumber, checkpoints);
     }

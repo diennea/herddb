@@ -292,8 +292,10 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             List<PostCheckpointAction> result = new ArrayList<>();
             result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus, pin));
 
-            LOGGER.log(Level.SEVERE, "checkpoint index {0} finished, {1} blocks, pages {2}", new Object[]{
-                indexName, Integer.toString(metadata.nodes.size()), activePages.toString()});
+            LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} pages",
+                    new Object[] {indexName, sequenceNumber, Integer.toString(metadata.nodes.size())});
+            LOGGER.log(Level.FINE, "checkpoint index {0} finished: logpos {1}, pages {2}",
+                    new Object[] {indexName, sequenceNumber, activePages.toString()});
 
             return result;
 

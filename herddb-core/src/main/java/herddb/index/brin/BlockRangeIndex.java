@@ -589,7 +589,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 }
                 blocksMetadata.add(metadata);
             } else {
-                LOG.info("block " + block.pageId + " ("+ block.key+ ") is empty at checkpoint. discarding");
+                LOG.info("block " + block.pageId + " ("+ block.key+ ") is empty at checkpoint: discarding");
 
                 /* Unload the block from memory */
                 block.unload();
