@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -226,12 +227,18 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
             /* Immutable Block ID */
             page = new BRINPage(this, key.blockId);
-
         }
 
-        @Override
-        public String toString() {
-            return "Block{" + "key=" + key + ", minKey=" + minKey + ", maxKey=" + maxKey + ", size=" + size;
+        long getSize() {
+            return size;
+        }
+
+        boolean isLoaded() {
+            return loaded;
+        }
+
+        boolean isDirty() {
+            return dirty;
         }
 
         private void mergeAddValue(K key1, V value, Map<K, List<V>> values) {
@@ -548,6 +555,11 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             }
         }
 
+        @Override
+        public String toString() {
+            return "Block{" + "key=" + key + ", minKey=" + minKey + ", maxKey=" + maxKey + ", size=" + size;
+        }
+
     }
 
     public int getNumBlocks() {
@@ -561,18 +573,47 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
     }
 
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
+        final boolean fineEnabled = LOG.isLoggable(Level.FINE);
+
         List<BlockRangeIndexMetadata.BlockMetadata<K>> blocksMetadata = new ArrayList<>();
-        for (Block block : blocks.values()) {
+        Set<Block> deleted = new HashSet<>();
+
+        Iterator<Block> iterator = blocks.values().iterator();
+        while(iterator.hasNext()) {
+            Block block = iterator.next();
+
             BlockRangeIndexMetadata.BlockMetadata<K> metadata = block.checkpoint();
             if (metadata.size != 0) {
-                if (LOG.isLoggable(Level.FINE)) {
-                    LOG.fine("block " + block.key + " has " + metadata.size + " records at checkpoint");
+                if (fineEnabled) {
+                    LOG.fine("block " + block.pageId + " ("+ block.key+ ") has " + metadata.size + " records at checkpoint");
                 }
                 blocksMetadata.add(metadata);
             } else {
-                LOG.info("block " + block.key + " is empty at checkpoint. discarding");
+                LOG.info("block " + block.pageId + " ("+ block.key+ ") is empty at checkpoint. discarding");
+
+                /* Unload the block from memory */
+                block.unload();
+
+                /* Remove the block from knowledge */
+                iterator.remove();
+
+                deleted.add(block);
             }
         }
+
+        if (!deleted.isEmpty()) {
+            /* Loop again to remove next pointers to delete blocks */
+            for (Block block : blocks.values()) {
+                final Block next = block.next;
+                if (deleted.contains(next)) {
+                    if (fineEnabled) {
+                        LOG.warning("unlinking block " + block.pageId + " ("+ block.key+ ") from deleted block " + next.pageId + " ("+ block.key+ ")");
+                    }
+                    block.next = null;
+                }
+            }
+        }
+
         return new BlockRangeIndexMetadata<>(blocksMetadata);
     }
 

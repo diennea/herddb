@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -159,38 +160,102 @@ public class BlockRangeIndexTest {
     @Test
     public void testDeleteAndUnload() throws IOException {
 
-        final int testSize = 32;
-
         /* Must be 1 to keep just one page in memory keeping to unload on every page load */
         final PageReplacementPolicy policy = new RandomPageReplacementPolicy(1);
 
         final IndexDataStorage<Sized<Integer>, Sized<String>> storage = new MemoryIndexDataStorage<>();
 
         final BlockRangeIndex<Sized<Integer>, Sized<String>> index =
-                new BlockRangeIndex<>(2000, policy, storage);
+                new BlockRangeIndex<>(400, policy, storage);
 
-        /* Add values */
-        for (int i = 0; i < testSize; i++) {
-            index.put(Sized.valueOf(i), Sized.valueOf("test_" + i));
+        /* Add values until block split */
+        int elements;
+        for (elements = 0; index.getNumBlocks() < 2; elements++) {
+            index.put(Sized.valueOf(elements), Sized.valueOf("test_" + elements));
         }
 
         /* NumBlocks must be greater than 1 to permit unloading */
         Assert.assertTrue(index.getNumBlocks() > 1);
 
         /* Check every value existance */
-        for (int i = 0; i < testSize; i++) {
+        for (int i = 0; i < elements; i++) {
             List<Sized<String>> result = index.search(Sized.valueOf(i));
             Assert.assertEquals(1, result.size());
         }
 
         /* Remove every value */
-        for (int i = 0; i < testSize; i++) {
+        for (int i = 0; i < elements; i++) {
             index.delete(Sized.valueOf(i), Sized.valueOf("test_" + i));
         }
 
         /* Check every value non existance */
-        for (int i = 0; i < testSize; i++) {
+        for (int i = 0; i < elements; i++) {
             List<Sized<String>> result = index.search(Sized.valueOf(i));
+            Assert.assertEquals(0, result.size());
+        }
+
+        index.clear();
+    }
+
+    /**
+     * Verify that BRIN blocks next field is managed when pointed block get deleted
+     *
+     * @author diego.salvi
+     */
+    @Test
+    public void testSplitAndDelete() throws IOException {
+
+        /* Must be 1 to keep just one page in memory keeping to unload on every page load */
+        final PageReplacementPolicy policy = new RandomPageReplacementPolicy(1);
+
+        final MemoryIndexDataStorage<Sized<Integer>, Sized<String>> storage = new MemoryIndexDataStorage<>();
+
+        final BlockRangeIndex<Sized<Integer>, Sized<String>> index =
+                new BlockRangeIndex<>(400, policy, storage);
+
+        /* Add values until block split */
+        int elements;
+        for (elements = 0; index.getNumBlocks() < 2; elements++) {
+            /* All entries have the same key to create contiguous blocks with same keys */
+            index.put(Sized.valueOf(1), Sized.valueOf("test_" + elements));
+        }
+
+        /* NumBlocks must be greater than 1 (split done) */
+        Assert.assertTrue(index.getNumBlocks() > 1);
+
+        /* Check every value existance */
+        {
+            List<Sized<String>> result = index.search(Sized.valueOf(1));
+            Assert.assertEquals(elements, result.size());
+        }
+
+        /* Remove every last value until last block is empty */
+        for (int i = elements - 1; i > -1; i--) {
+            index.delete(Sized.valueOf(1), Sized.valueOf("test_" + i));
+
+            /* Check if last block got emptied */
+            if ( index.getBlocks().lastEntry().getValue().getSize() == 0) {
+                elements = i;
+                break;
+            }
+        }
+
+        /* Now checkpoint to remove empty block */
+        BlockRangeIndexMetadata<Sized<Integer>> metadata = index.checkpoint();
+
+        /* Deletes unreferenced pages from memory store */
+        storage.getPages().retainAll(metadata.getBlocksMetadata().stream().map(m -> m.pageId).collect(Collectors.toList()));
+
+        /* Now deleted block has been unloaded AND his page removed from store */
+
+        /* Delete remaining values (next should have been handled to avoid errors) */
+        for (int i = 0; i < elements; i++) {
+            index.delete(Sized.valueOf(1), Sized.valueOf("test_" + i));
+        }
+
+        /* Check every value non existance */
+        {
+            List<Sized<String>> result = index.search(Sized.valueOf(1));
             Assert.assertEquals(0, result.size());
         }
 
