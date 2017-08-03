@@ -79,7 +79,15 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             /* Empty index (booting from the start) */
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
         } else {
-            IndexStatus status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
+
+            IndexStatus status;
+            try {
+                status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
+            } catch (DataStorageManagerException e) {
+                LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[] {index.name, e});
+                rebuild();
+                return;
+            }
 
             for (long pageId : status.activePages) {
                 LOGGER.log(Level.SEVERE, "recovery index " + index.name + ", load " + pageId);
