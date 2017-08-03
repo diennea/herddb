@@ -22,10 +22,13 @@ package herddb.index.brin;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
 import java.util.List;
 
+import org.junit.Assert;
 import org.junit.Test;
 
+import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.utils.Sized;
 
@@ -146,6 +149,52 @@ public class BlockRangeIndexTest {
         assertEquals(Sized.valueOf("c"), index.search(Sized.valueOf(3)).get(0));
         index.delete(Sized.valueOf(3), Sized.valueOf("c"));
         assertTrue(index.search(Sized.valueOf(3)).isEmpty());
+    }
+
+    /**
+     * Verify that deleted entries stay deleted ever after a page unload
+     *
+     * @author diego.salvi
+     */
+    @Test
+    public void testDeleteAndUnload() throws IOException {
+
+        final int testSize = 32;
+
+        /* Must be 1 to keep just one page in memory keeping to unload on every page load */
+        final PageReplacementPolicy policy = new RandomPageReplacementPolicy(1);
+
+        final IndexDataStorage<Sized<Integer>, Sized<String>> storage = new MemoryIndexDataStorage<>();
+
+        final BlockRangeIndex<Sized<Integer>, Sized<String>> index =
+                new BlockRangeIndex<>(2000, policy, storage);
+
+        /* Add values */
+        for (int i = 0; i < testSize; i++) {
+            index.put(Sized.valueOf(i), Sized.valueOf("test_" + i));
+        }
+
+        /* NumBlocks must be greater than 1 to permit unloading */
+        Assert.assertTrue(index.getNumBlocks() > 1);
+
+        /* Check every value existance */
+        for (int i = 0; i < testSize; i++) {
+            List<Sized<String>> result = index.search(Sized.valueOf(i));
+            Assert.assertEquals(1, result.size());
+        }
+
+        /* Remove every value */
+        for (int i = 0; i < testSize; i++) {
+            index.delete(Sized.valueOf(i), Sized.valueOf("test_" + i));
+        }
+
+        /* Check every value non existance */
+        for (int i = 0; i < testSize; i++) {
+            List<Sized<String>> result = index.search(Sized.valueOf(i));
+            Assert.assertEquals(0, result.size());
+        }
+
+        index.clear();
     }
 
     @Test

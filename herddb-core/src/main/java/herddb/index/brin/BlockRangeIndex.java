@@ -262,8 +262,8 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
                 mergeAddValue(key, value, values);
                 size += evaluateEntrySize(key, value);
-
                 dirty = true;
+
                 if (maxKey.compareTo(key) < 0) {
                     maxKey = key;
                 }
@@ -302,6 +302,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                                     values.remove(key);
                                 }
                                 size -= evaluateEntrySize(key, value);
+                                dirty = true;
                             }
                         }
                     }
