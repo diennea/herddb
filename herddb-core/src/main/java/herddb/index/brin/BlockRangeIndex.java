@@ -67,11 +67,11 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
     private final PageReplacementPolicy pageReplacementPolicy;
 
-    public BlockRangeIndex(int maxBlockSize, PageReplacementPolicy pageReplacementPolicy) {
+    public BlockRangeIndex(long maxBlockSize, PageReplacementPolicy pageReplacementPolicy) {
         this(maxBlockSize, pageReplacementPolicy, new MemoryIndexDataStorage<>());
     }
 
-    public BlockRangeIndex(int maxBlockSize, PageReplacementPolicy pageReplacementPolicy, IndexDataStorage<K, V> dataStorage) {
+    public BlockRangeIndex(long maxBlockSize, PageReplacementPolicy pageReplacementPolicy, IndexDataStorage<K, V> dataStorage) {
         this.maxPageBlockSize = maxBlockSize - BLOCK_CONSTANT_BYTE_SIZE;
         if (maxBlockSize < 0) {
             throw new IllegalArgumentException("page size to small to store any index entry: " + maxBlockSize);

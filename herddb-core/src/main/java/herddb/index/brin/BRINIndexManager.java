@@ -71,8 +71,6 @@ import herddb.utils.SimpleByteArrayInputStream;
 public class BRINIndexManager extends AbstractIndexManager {
 
     private static final Logger LOGGER = Logger.getLogger(BRINIndexManager.class.getName());
-    public static final int MAX_BLOCK_SIZE = 10000;
-    public static final int MAX_LOADED_BLOCKS = 1000;
     LogSequenceNumber bootSequenceNumber;
     private final AtomicLong newPageId = new AtomicLong(1);
     private final BlockRangeIndex<Bytes, Bytes> data;
@@ -80,7 +78,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
-        this.data = new BlockRangeIndex<>(MAX_BLOCK_SIZE, memoryManager.getDataPageReplacementPolicy(), storageLayer);
+        this.data = new BlockRangeIndex<>(memoryManager.getMaxLogicalPageSize(), memoryManager.getDataPageReplacementPolicy(), storageLayer);
     }
 
     private static final class PageContents {
@@ -375,6 +373,10 @@ public class BRINIndexManager extends AbstractIndexManager {
     @Override
     public void close() {
         data.clear();
+    }
+
+    public int getNumBlocks() {
+        return data.getNumBlocks();
     }
 
 }

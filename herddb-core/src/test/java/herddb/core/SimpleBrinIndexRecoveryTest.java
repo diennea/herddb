@@ -252,45 +252,46 @@ public class SimpleBrinIndexRecoveryTest {
             CreateIndexStatement st3 = new CreateIndexStatement(index);
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-            long tx = TestUtils.beginTransaction(manager, table.tablespace);
-            for (int i = 0; i < BRINIndexManager.MAX_BLOCK_SIZE * 2; i++) {
+            BRINIndexManager brin = (BRINIndexManager) manager
+                    .getTableSpaceManager(table.tablespace)
+                    .getIndexesOnTable(table.name)
+                    .get(index.name);
+
+            while(brin.getNumBlocks() < 2) {
                 id++;
-                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), new TransactionContext(tx));
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
             }
-            TestUtils.commitTransaction(manager, table.tablespace, tx);
 
             // some data on disk
             manager.checkpoint();
 
             // some data to be recovered from log
-            tx = TestUtils.beginTransaction(manager, table.tablespace);
-            for (int i = 0; i < BRINIndexManager.MAX_BLOCK_SIZE; i++) {
+            while(brin.getNumBlocks() < 3) {
                 id++;
-                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), new TransactionContext(tx));
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
             }
-            TestUtils.commitTransaction(manager, table.tablespace, tx);
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.t1", Collections.emptyList());) {
                 assertEquals(id, scan1.consume().size());
             }
         }
 
-//        try (DBManager manager = new DBManager("localhost",
-//            new FileMetadataStorageManager(metadataPath),
-//            new FileDataStorageManager(dataPath),
-//            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
-//            tmoDir, null)) {
-//            manager.start();
-//            assertTrue(manager.waitForTablespace("tblspace1", 10000));
-//            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='my_repeatad_key'", Collections.emptyList(), true, true, false, -1);
-//
-//            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
-//            assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-//            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
-//                assertEquals(id, scan1.consume().size());
-//            }
-//
-//        }
+        try (DBManager manager = new DBManager("localhost",
+            new FileMetadataStorageManager(metadataPath),
+            new FileDataStorageManager(dataPath),
+            new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
+            tmoDir, null)) {
+            manager.start();
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='my_repeatad_key'", Collections.emptyList(), true, true, false, -1);
+
+            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(id, scan1.consume().size());
+            }
+
+        }
 
     }
 
