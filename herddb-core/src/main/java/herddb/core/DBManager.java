@@ -40,6 +40,9 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -115,9 +118,9 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final String virtualTableSpaceId;
     private final ReentrantReadWriteLock generalLock = new ReentrantReadWriteLock();
     private final Thread activator;
+    private final Activator activatorJ;
     private final AtomicBoolean stopped = new AtomicBoolean();
-    private final BlockingQueue<ActivatorRunRequest> activatorQueue = new LinkedBlockingDeque<>();
-    private final AtomicBoolean activatorPaused = new AtomicBoolean(false);
+
     private final SQLPlanner translator;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
@@ -167,7 +170,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
         this.translator = new SQLPlanner(this, configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
             ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT));
-        this.activator = new Thread(new Activator(), "hdb-" + nodeId + "-activator");
+        this.activatorJ = new Activator();
+        this.activator = new Thread(activatorJ, "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);
 
         this.maxMemoryReference = configuration.getLong(
@@ -827,6 +831,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     @Override
     public void close() throws DataStorageManagerException {
         stopped.set(true);
+        setActivatorPauseStatus(false);
         triggerActivator(ActivatorRunRequest.NOOP);
         try {
             activator.join();
@@ -848,7 +853,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     public void triggerActivator(ActivatorRunRequest type) {
-        activatorQueue.offer(type);
+        activatorJ.offer(type);
     }
 
     public String getNodeId() {
@@ -953,15 +958,65 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     private class Activator implements Runnable {
 
+        private final Lock runLock = new ReentrantLock();
+        private final Condition resume = runLock.newCondition();
+
+        private final BlockingQueue<ActivatorRunRequest> activatorQueue = new LinkedBlockingDeque<>();
+        private volatile boolean activatorPaused = false;
+
+        public void offer(ActivatorRunRequest type) {
+            activatorQueue.offer(type);
+        }
+
+        public void resume() {
+
+            runLock.lock();
+            try {
+                boolean wasPaused = activatorPaused;
+                if (!wasPaused) {
+                    return;
+                } else {
+                    activatorPaused = false;
+                }
+                resume.signalAll();
+            } finally {
+                runLock.unlock();
+            }
+        }
+
+        public void pause() {
+            runLock.lock();
+            try {
+                /*
+                 * Must be update in lock to avoid racing conditions between pause check
+                 * (activatorPaused == true) and resume signal check (resume.awaitUninterruptibly())
+                 */
+                activatorPaused = true;
+            } finally {
+                runLock.unlock();
+            }
+        }
+
         @Override
         public void run() {
             try {
                 try {
+
                     while (!stopped.get()) {
-                        if (activatorPaused.get()) {
-                            Thread.sleep(500);
-                            return;
+
+                        runLock.lock();
+                        try {
+
+                            if (activatorPaused == true) {
+                                LOGGER.log(Level.SEVERE, "{0} activator paused", nodeId);
+                                resume.awaitUninterruptibly();
+                                LOGGER.log(Level.SEVERE, "{0} activator resumed", nodeId);
+                                continue;
+                            }
+                        } finally {
+                            runLock.unlock();
                         }
+
                         ActivatorRunRequest type = activatorQueue.poll(1, TimeUnit.SECONDS);
                         if (type == null) {
                             type = ActivatorRunRequest.FULL;
@@ -1011,8 +1066,11 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public void setActivatorPauseStatus(boolean pause) {
-        // useful for tests
-        activatorPaused.set(pause);
+        if (pause) {
+            activatorJ.pause();
+        } else {
+            activatorJ.resume();
+        }
     }
 
     private void executeActivator(ActivatorRunRequest type) {
