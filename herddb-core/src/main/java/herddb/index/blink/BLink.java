@@ -1656,7 +1656,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Copy ranged values
          */
         @SuppressWarnings("unchecked")
-        List<Entry<X,Y>> copyRange(X start, boolean startInclusive, X end, boolean endInclusive) {
+        List<Entry<X,Y>> copyRange(X start, boolean startInclusive, X end, boolean endInclusive) throws UncheckedIOException {
 
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X,Y> loadLock = loadAndLock(true);
@@ -1958,7 +1958,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         /**
          * With {@code doUload} parameter to {@code true} will unload eventual pages before exit from this method
          */
-        final LockAndUnload<X,Y> loadAndLock(boolean doUnload) {
+        final LockAndUnload<X,Y> loadAndLock(boolean doUnload) throws UncheckedIOException {
 
             Metadata unload = null;
             Lock read = loadLock.readLock();
@@ -2362,10 +2362,16 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             this.node = node;
 
-            /* Copy values to quicly release read lock */
-            final List<Entry<K,V>> list = node.copyRange(start, sinclusive, end, einclusive);
+            try {
+                /* Copy values to quicly release read lock */
+                final List<Entry<K,V>> list = node.copyRange(start, sinclusive, end, einclusive);
 
-            this.current = list.iterator();
+                current = list.iterator();
+            } finally {
+                unlock(node, READ_LOCK);
+            }
+
+            this.lastRead = start;
 
             this.rightsep = node.rightsep;
 
@@ -2402,12 +2408,14 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                             /* rightsep changed from last separator... there could be other data to read in the node. */
                             rightsep = node.rightsep;
 
-                            /* Copy values to quicly release read lock */
-                            final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
+                            try {
+                                /* Copy values to quicly release read lock */
+                                final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
 
-                            current = list.iterator();
-
-                            unlock(node, READ_LOCK);
+                                current = list.iterator();
+                            } finally {
+                                unlock(node, READ_LOCK);
+                            }
 
                             if (current.hasNext()) {
                                 return true;
@@ -2419,12 +2427,14 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
                         rightsep = node.rightsep;
 
-                        /* Copy values to quicly release read lock */
-                        final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
+                        try {
+                            /* Copy values to quicly release read lock */
+                            final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
 
-                        current = list.iterator();
-
-                        unlock(node, READ_LOCK);
+                            current = list.iterator();
+                        } finally {
+                            unlock(node, READ_LOCK);
+                        }
 
                         if (current.hasNext()) {
                             return true;

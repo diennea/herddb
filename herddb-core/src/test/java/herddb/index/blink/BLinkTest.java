@@ -30,16 +30,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
-import herddb.utils.Holder;
-
 import org.junit.Test;
 
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
-import herddb.index.blink.BLink;
-import herddb.index.blink.BLinkIndexDataStorage;
-import herddb.index.blink.BLinkMetadata;
 import herddb.index.blink.BLink.SizeEvaluator;
+import herddb.utils.Holder;
 import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
 
@@ -252,6 +248,201 @@ public class BLinkTest {
                 System.out.println("start " + l + " end " + (l + offset) + " -> " + builder);
 
                 assertEquals(offset, (long) count.value);
+
+            }
+        }
+    }
+
+    @Test
+    public void testScanHeadNotExistent() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
+
+            final long headNonExistent = 100;
+            final long inserts = 100;
+
+            for (long l = headNonExistent; l < inserts + headNonExistent; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+
+            /* Require at least two nodes! */
+            assertNotEquals(1, metadata.nodes.size());
+
+            long offset = 10;
+
+            for (long l = 0; l < headNonExistent - offset; l++) {
+
+                Stream<Entry<Sized<Long>, Long>> stream = blink.scan(Sized.valueOf(l), Sized.valueOf(l + offset));
+
+                Holder<Long> h = new Holder<>(l);
+                Holder<Long> count = new Holder<>(0L);
+
+                StringBuilder builder = new StringBuilder();
+
+                /* Check each value */
+                stream.forEach(entry -> {
+                    assertEquals(h.value, entry.getValue());
+                    h.value++;
+                    count.value++;
+
+                    builder.append(entry.getValue()).append(", ");
+                });
+
+                assertEquals(0, (long) count.value);
+
+            }
+        }
+    }
+
+    @Test
+    public void testScanTailNotExistent() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
+
+            final long inserts = 100;
+            final long tailNonExistent = 100;
+
+            for (long l = 0; l < inserts; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+
+            /* Require at least two nodes! */
+            assertNotEquals(1, metadata.nodes.size());
+
+            long offset = 10;
+
+            for (long l = inserts; l < tailNonExistent - offset; l++) {
+
+                Stream<Entry<Sized<Long>, Long>> stream = blink.scan(Sized.valueOf(l), Sized.valueOf(l + offset));
+
+                Holder<Long> h = new Holder<>(l);
+                Holder<Long> count = new Holder<>(0L);
+
+                StringBuilder builder = new StringBuilder();
+
+                /* Check each value */
+                stream.forEach(entry -> {
+                    assertEquals(h.value, entry.getValue());
+                    h.value++;
+                    count.value++;
+
+                    builder.append(entry.getValue()).append(", ");
+                });
+
+                assertEquals(0, (long) count.value);
+
+            }
+        }
+    }
+
+    @Test
+    public void testScanMiddleNotExistent() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
+
+            final long headInserts  = 100;
+            final long nonExistents = 100;
+            final long tailInserts  = 100;
+
+            for (long l = 0; l < headInserts; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            for (long l = headInserts + nonExistents; l < headInserts + nonExistents + tailInserts; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+
+            /* Require at least two nodes! */
+            assertNotEquals(1, metadata.nodes.size());
+
+            long offset = 10;
+
+            for (long l = headInserts; l < headInserts + nonExistents - offset; l++) {
+
+                Stream<Entry<Sized<Long>, Long>> stream = blink.scan(Sized.valueOf(l), Sized.valueOf(l + offset));
+
+                Holder<Long> h = new Holder<>(l);
+                Holder<Long> count = new Holder<>(0L);
+
+                StringBuilder builder = new StringBuilder();
+
+                /* Check each value */
+                stream.forEach(entry -> {
+                    assertEquals(h.value, entry.getValue());
+                    h.value++;
+                    count.value++;
+
+                    builder.append(entry.getValue()).append(", ");
+                });
+
+                assertEquals(0, (long) count.value);
+
+            }
+        }
+    }
+
+    @Test
+    public void testScanDotNotExistent() throws Exception {
+
+        BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
+
+            final long headInserts   = 100;
+            final long nonExistents  = 10;
+            final long tailInserts   = 100;
+
+            for (long l = 0; l < headInserts; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+            for (long l = headInserts + nonExistents; l < headInserts + nonExistents + tailInserts; l++) {
+                blink.insert(Sized.valueOf(l), l);
+            }
+
+
+            BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
+
+            /* Require at least two nodes! */
+            assertNotEquals(1, metadata.nodes.size());
+
+            long offset = 100;
+
+            for (long l = nonExistents; l < headInserts + nonExistents - offset; l++) {
+
+                Stream<Entry<Sized<Long>, Long>> stream = blink.scan(Sized.valueOf(l), Sized.valueOf(l + offset));
+
+                Holder<Long> h = new Holder<>(l);
+                Holder<Long> count = new Holder<>(0L);
+
+                StringBuilder builder = new StringBuilder();
+
+                /* Check each value */
+                stream.forEach(entry -> {
+                    assertEquals(h.value, entry.getValue());
+                    h.value++;
+                    count.value++;
+
+                    builder.append(entry.getValue()).append(", ");
+                });
+
+                builder.setLength(builder.length() - 2);
+                System.out.println("start " + l + " end " + (l + offset) + " -> " + builder);
+
+                assertEquals(offset - nonExistents, (long) count.value);
 
             }
         }
