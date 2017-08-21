@@ -15,16 +15,16 @@
  */
 package herddb.benchs.simple;
 
+import java.io.IOException;
+
+import org.apache.curator.test.TestingServer;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import herddb.benchs.BaseBench;
 import herddb.benchs.InsertOperation;
 import herddb.server.ServerConfiguration;
-import java.io.IOException;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 /**
  * Simple concurrent reads and writes on a single table
@@ -58,12 +58,10 @@ public class HugeTableBookKeeperTest extends BaseBench {
     @Override
     protected void makeServerConfiguration() throws IOException {
         super.makeServerConfiguration();
-        serverConfiguration.set(ServerConfiguration.PROPERTY_MODE,
-            ServerConfiguration.PROPERTY_MODE_CLUSTER);
-        serverConfiguration.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS,
-            zooKeeperServer.getConnectString());
-        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_START,
-            true);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS,zooKeeperServer.getConnectString());
+        serverConfiguration.set(ServerConfiguration.PROPERTY_BOOKKEEPER_START, true);
+        serverConfiguration.set("bookie.allowLoopback", true);
     }
 
     @Test

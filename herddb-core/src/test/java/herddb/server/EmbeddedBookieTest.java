@@ -67,7 +67,7 @@ public class EmbeddedBookieTest {
 
     @Before
     public void beforeSetup() throws Exception {
-        testEnv = new ZKTestEnv(folder.newFolder().toPath());        
+        testEnv = new ZKTestEnv(folder.newFolder().toPath());
     }
 
     @After
@@ -87,6 +87,7 @@ public class EmbeddedBookieTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_START, true);
+        serverconfig_1.set("bookie.allowLoopback", true);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
@@ -141,12 +142,12 @@ public class EmbeddedBookieTest {
 
                     try (ScanResultSet scan = connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM t1 WHERE c=1", Collections.emptyList(), 0, 0, 10);) {
                         assertEquals(1, scan.consume().size());
-                    }                    
+                    }
                     // switch leader to server2
                     server_2.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
                             new HashSet<>(Arrays.asList("server1", "server2")), "server2", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
-                    // wait that server_1 leaves leadership                    
+                    // wait that server_1 leaves leadership
                     for (int i = 0; i < 100; i++) {
                         TableSpaceManager tManager = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT);
                         if (tManager != null && !tManager.isLeader()) {
