@@ -30,11 +30,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -851,7 +851,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
     public void triggerActivator(ActivatorRunRequest type) {
         activatorJ.offer(type);
     }
@@ -961,10 +960,16 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         private final Lock runLock = new ReentrantLock();
         private final Condition resume = runLock.newCondition();
 
-        private final BlockingQueue<ActivatorRunRequest> activatorQueue = new LinkedBlockingDeque<>();
+        private final BlockingQueue<ActivatorRunRequest> activatorQueue = new ArrayBlockingQueue<>(1);
         private volatile boolean activatorPaused = false;
 
+        @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_BAD_PRACTICE")
         public void offer(ActivatorRunRequest type) {
+            /*
+             * RV_RETURN_VALUE_IGNORED_BAD_PRACTICE: ignore return, activator queue can contain at max one
+             * element, every other request will be eventually handled from ActivatorRunRequest.FULL executed
+             * periodically from the activator itself when it doesn't have any other work to do
+             */
             activatorQueue.offer(type);
         }
 
