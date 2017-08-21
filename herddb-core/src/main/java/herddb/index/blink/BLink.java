@@ -371,11 +371,30 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         Node<K,V> n;
         Deque<ResultCouple<K,V>> descent = new LinkedList<>();
 
-        n = locate_leaf(v, READ_LOCK, descent); // v € coverset(n), n read-locked
-        V search = n.check_key(v); // decisive;
-        unlock(n,READ_LOCK);
+        try {
 
-        return search;
+            n = locate_leaf(v, READ_LOCK, descent); // v € coverset(n), n read-locked
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to search for " + v, ex);
+        }
+
+
+        try {
+
+            V search = n.check_key(v); // decisive;
+
+            return search;
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to search for " + v, ex);
+
+        } finally {
+
+            unlock(n,READ_LOCK);
+        }
     }
 
     /**
@@ -401,7 +420,14 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
              */
             lock(n, READ_LOCK);
         } else {
-            n = locate_leaf(from, READ_LOCK, descent); // v € coverset(n), n read-locked
+            try {
+
+                n = locate_leaf(from, READ_LOCK, descent); // v € coverset(n), n read-locked
+
+            } catch (IOException ex) {
+
+                throw new UncheckedIOException("failed to scan from " + from + " to " + to, ex);
+            }
         }
 
         return StreamSupport.stream(
@@ -427,7 +453,16 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
              */
             lock(n, READ_LOCK);
         } else {
-            n = locate_leaf(from, READ_LOCK, descent); // v € coverset(n), n read-locked
+
+            try {
+
+                n = locate_leaf(from, READ_LOCK, descent); // v € coverset(n), n read-locked
+
+            } catch (IOException ex) {
+
+                throw new UncheckedIOException("failed to scan from " + from + " to " + to, ex);
+            }
+
         }
 
         return StreamSupport.stream(
@@ -452,20 +487,37 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         Node<K,V> n;
         Deque<ResultCouple<K,V>> descent = new LinkedList<>();
-        Queue<Runnable> maintenance = new LinkedList<>();
+        Queue<CriticJob> maintenance = new LinkedList<>();
 
-        n = locate_leaf(v, WRITE_LOCK, descent); // v € coverset(n), n write-locked
-        V replaced = n.add_key(v,e); // decisive
-        normalize(n, descent, 1, maintenance);
-        unlock(n, WRITE_LOCK);
+        try {
+
+            n = locate_leaf(v, WRITE_LOCK, descent);  // v € coverset(n), n write-locked
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to insert " + v, ex);
+        }
+
+        V replaced;
+        try {
+
+            replaced = n.add_key(v,e); // decisive
+            normalize(n, descent, 1, maintenance);
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to insert " + v, ex);
+
+        } finally {
+
+            unlock(n, WRITE_LOCK);
+        }
 
         if (replaced == null) {
             size.increment();
         }
 
-        while(!maintenance.isEmpty()) {
-            maintenance.poll().run();
-        }
+        handleMainenance(maintenance);
 
         return replaced;
     }
@@ -484,20 +536,37 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         Node<K,V> n;
         Deque<ResultCouple<K,V>> descent = new LinkedList<>();
-        Queue<Runnable> maintenance = new LinkedList<>();
+        Queue<CriticJob> maintenance = new LinkedList<>();
 
-        n = locate_leaf(v, WRITE_LOCK, descent); // v € coverset(n), n write-locked
-        V delete = n.remove_key(v); // decisive
-        normalize(n, descent, 1, maintenance);
-        unlock(n, WRITE_LOCK);
+        try {
+
+            n = locate_leaf(v, WRITE_LOCK, descent); // v € coverset(n), n write-locked
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to delete " + v, ex);
+        }
+
+        V delete;
+        try {
+
+            delete = n.remove_key(v); // decisive
+            normalize(n, descent, 1, maintenance);
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to delete " + v, ex);
+
+        } finally {
+
+            unlock(n, WRITE_LOCK);
+        }
 
         if (delete != null) {
             size.decrement();
         }
 
-        while(!maintenance.isEmpty()) {
-            maintenance.poll().run();
-        }
+        handleMainenance(maintenance);
 
         return delete;
     }
@@ -537,7 +606,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @return
      */
     @SuppressWarnings("unchecked")
-    private Node<K,V> locate_leaf(K v, int lastlock, Deque<ResultCouple<K,V>> descent) {
+    private Node<K,V> locate_leaf(K v, int lastlock, Deque<ResultCouple<K,V>> descent) throws IOException {
 
         Node<K,V> n, m;
         int h, enterheight;
@@ -561,10 +630,21 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             n = move_right.node;
             ubleftsep = move_right.ubleftsep;
             descent.push(move_right);
-            ResultCouple<K,V> find = n.find(v, ubleftsep); // v > leftsep (m)
-            m = find.node;
-            ubleftsep = find.ubleftsep;
-            unlock(n, READ_LOCK);
+            try {
+
+                final ResultCouple<K,V> find = n.find(v, ubleftsep); // v > leftsep (m)
+                m = find.node;
+                ubleftsep = find.ubleftsep;
+
+            } catch (IOException e) {
+
+                throw new IOException("failed to find key " + v + " on leaf " + n.pageId, e);
+
+            } finally {
+
+                unlock(n, READ_LOCK);
+            }
+
             n = m;
         }
 
@@ -664,7 +744,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @param n
      * @param descent
      */
-    private void normalize(Node<K,V> n, Deque<ResultCouple<K,V>> descent, int atheight, Queue<Runnable> maintenance) {
+    private void normalize(Node<K,V> n, Deque<ResultCouple<K,V>> descent, int atheight, Queue<CriticJob> maintenance) throws IOException {
 
         Node<K,V> sib, newsib;
         K sep, newsep;
@@ -674,8 +754,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             sib = n.rightlink();
 
             lock(sib, WRITE_LOCK);
-            sep = n.half_merge(sib);
-            unlock(sib, WRITE_LOCK);
+            try {
+                sep = n.half_merge(sib);
+            } finally {
+                unlock(sib, WRITE_LOCK);
+            }
 
             spawn(() -> ascend(REMOVE_TASK,sep,sib,atheight+1,clone(descent),maintenance), maintenance);
 
@@ -732,7 +815,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @param toheight
      * @param descent
      */
-    private void ascend(int t, K sep, Node<K,V> child, int toheight, Deque<ResultCouple<K,V>> descent, Queue<Runnable> maintenance) {
+    private void ascend(int t, K sep, Node<K,V> child, int toheight, Deque<ResultCouple<K,V>> descent, Queue<CriticJob> maintenance) throws IOException {
         Node<K,V> n;
         Comparable<K> ubleftsep;
 
@@ -740,16 +823,24 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         n = locate_internal.node;
         ubleftsep = locate_internal.ubleftsep;
 
-        while (!add_or_remove_link(t, sep, child, n, toheight, descent, maintenance)) {
-            // wait and try again, very rare
+        try {
+
+            while (!add_or_remove_link(t, sep, child, n, toheight, descent, maintenance)) {
+                // wait and try again, very rare
+                unlock(n, WRITE_LOCK);
+                delay(1L); // sep > teftsep(n)
+                ResultCouple<K,V> move_right = move_right(sep, n, ubleftsep, WRITE_LOCK); // sep € coverset(n)
+                n = move_right.node;
+                ubleftsep = move_right.ubleftsep;
+            }
+
+            normalize(n, descent, toheight, maintenance);
+
+        } finally {
+
             unlock(n, WRITE_LOCK);
-            delay(1L); // sep > teftsep(n)
-            ResultCouple<K,V> move_right = move_right(sep, n, ubleftsep, WRITE_LOCK); // sep € coverset(n)
-            n = move_right.node;
-            ubleftsep = move_right.ubleftsep;
+
         }
-        normalize(n, descent, toheight, maintenance);
-        unlock(n, WRITE_LOCK);
     }
 
 //    function add-or-remove-link(t: task; sep: value; child: nodeptr;
@@ -790,7 +881,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @param descent
      * @return
      */
-    private boolean add_or_remove_link(int t, K sep, Node<K,V> child, Node<K,V> n, int atheight, Deque<ResultCouple<K,V>> descent, Queue<Runnable> maintenance) {
+    private boolean add_or_remove_link(int t, K sep, Node<K,V> child, Node<K,V> n, int atheight, Deque<ResultCouple<K,V>> descent, Queue<CriticJob> maintenance) throws IOException {
 
         Node<K,V> sib;
         K newsep;
@@ -802,8 +893,13 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 // the downlink to be removed is in n's right neighbor.
                 sib = n.rightlink(); // rightsep(n) = sep < +inf, thus rightlink(n)<>nil
                 lock(sib, WRITE_LOCK);
-                newsep = n.half_merge(sib); // newsep = sep
-                unlock(sib, WRITE_LOCK);
+                try {
+                    newsep = n.half_merge(sib); // newsep = sep
+                } catch (IOException ex) {
+                    throw new UncheckedIOException("failed to remove link from " + n.pageId + " to " + sib.pageId, ex);
+                } finally {
+                    unlock(sib, WRITE_LOCK);
+                }
                 spawn(() -> ascend(REMOVE_TASK, newsep, sib, atheight+1,clone(descent), maintenance), maintenance);
             }
             return n.remove_link(sep, child);
@@ -864,7 +960,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @return
      */
     @SuppressWarnings("unchecked")
-    private ResultCouple<K,V> locate_internal(K v, int toheight, Deque<ResultCouple<K,V>> descent, Queue<Runnable> maintenance) {
+    private ResultCouple<K,V> locate_internal(K v, int toheight, Deque<ResultCouple<K,V>> descent, Queue<CriticJob> maintenance) throws IOException {
 
         Node<K,V> n, m, newroot;
         int h, enterheight;
@@ -918,13 +1014,20 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             descent.clear();
             for (h = enterheight; h > toheight; --h) { // v > leftsep(n)
                 ResultCouple<K,V> move_right = move_right(v, n, ubleftsep, READ_LOCK); // v € coverset(n)
-                n = move_right.node;
-                ubleftsep = move_right.ubleftsep;
-                descent.push(move_right);
-                ResultCouple<K,V> find = n.find(v, ubleftsep); // v > leftsep(m)
-                m = find.node;
-                ubleftsep = find.ubleftsep;
-                unlock(n, READ_LOCK);
+                try {
+
+                    n = move_right.node;
+                    ubleftsep = move_right.ubleftsep;
+                    descent.push(move_right);
+                    ResultCouple<K,V> find = n.find(v, ubleftsep); // v > leftsep(m)
+                    m = find.node;
+                    ubleftsep = find.ubleftsep;
+
+                } finally {
+
+                    unlock(n, READ_LOCK);
+
+                }
                 n = m;
             }
         }
@@ -980,7 +1083,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      *
      */
     AtomicBoolean criticRunning = new AtomicBoolean(false);
-    private void run_critic() {
+    private void run_critic() throws IOException {
 
         if (!criticRunning.compareAndSet(false, true)) {
             /* Someone else is already running a critic */
@@ -996,15 +1099,37 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         unlock_anchor(READ_LOCK);
         lock(n, READ_LOCK);
 
-        while(n.number_of_children() < CRITIC_MIN_CHILDREN && n.rightlink() == null && h > 1) {
-            m = n.leftmost_child();
+        try {
+
+            while(n.number_of_children() < CRITIC_MIN_CHILDREN && n.rightlink() == null && h > 1) {
+
+                try {
+
+                    m = n.leftmost_child();
+
+                } catch (IOException e) {
+
+                    throw new IOException("failed to find leftmost child on node " + n.pageId, e);
+
+                } finally {
+
+                    unlock(n, READ_LOCK);
+                }
+
+                n = m;
+                lock(n, READ_LOCK);
+                --h;
+            }
+
+        } catch (IOException e) {
+
+            throw new IOException("failed to evaluate anchor fast height", e);
+
+        } finally {
+
             unlock(n, READ_LOCK);
-            n = m;
-            lock(n, READ_LOCK);
-            --h;
         }
 
-        unlock(n, READ_LOCK);
         lock_anchor(READ_LOCK);
 
         if (anchor.fastheight == h) {
@@ -1022,8 +1147,18 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * Differently from original algorithm <i>spawning</i> means just enqueuing maintenance work at for
      * execution at the end of insert/update/delete
      */
-    private void spawn(Runnable runnable, Queue<Runnable> maintenance) {
+    private void spawn(CriticJob runnable, Queue<CriticJob> maintenance) {
         maintenance.offer(runnable);
+    }
+
+    private void handleMainenance(Queue<CriticJob> maintenance) {
+        try {
+            while(!maintenance.isEmpty()) {
+                maintenance.poll().execute();
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException("failed to handle Blink maintenance", ex);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1184,82 +1319,95 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         int indents;
 
-        StringBuilder builder = new StringBuilder();
-        while(!stack.isEmpty()) {
+        try {
 
-            Object[] el = stack.pop();
-            Node<K,V> node = (Node<K, V>) el[0];
-            indents = (int) el[1];
+            StringBuilder builder = new StringBuilder();
+            while(!stack.isEmpty()) {
 
-            for(int i = 0; i < indents; ++i) {
-                builder.append("-");
-            }
+                Object[] el = stack.pop();
+                Node<K,V> node = (Node<K, V>) el[0];
+                indents = (int) el[1];
 
-            builder.append("> ");
-
-            if (seen.contains(node)) {
-                builder.append("Seen: ").append(node.pageId).append('\n');
-
-            } else {
-                seen.add(node);
-                builder.append(node).append(' ');
-
-                if (node.leaf) {
-
-                    Deque<Object[]> cstack = new LinkedList<>();
-
-                    /* No other nodes currently loaded and can't require to unload itself */
-                    final LockAndUnload<K,V> loadLock = node.loadAndLock(true);
-                    try {
-                        for( Entry<Comparable<K>,V> child :
-                            (Collection<Entry<Comparable<K>,V>>) (Collection<?>)
-                                node.map.entrySet()) {
-
-                            builder.append(child.getValue()).append(" <- ").append(child.getKey()).append(" | ");
-                        }
-
-                        builder.setLength(builder.length() - 3);
-                    } finally {
-                        loadLock.unlock();
-                    }
-
-                    while(!cstack.isEmpty()) {
-                        stack.push(cstack.pop());
-                    }
-
-                } else {
-                    Deque<Object[]> cstack = new LinkedList<>();
-
-                    /* No other nodes currently loaded and can't require to unload itself */
-                    final LockAndUnload<K,V> loadLock = node.loadAndLock(true);
-                    try {
-                        for( Entry<Comparable<K>,Node<K,V>> child :
-                            (Collection<Entry<Comparable<K>,Node<K,V>>>) (Collection<?>)
-                                node.map.entrySet()) {
-
-                            builder.append(child.getValue().pageId).append(" <- ").append(child.getKey()).append(" | ");
-                            cstack.push(new Object[] {child.getValue(),indents+1});
-                        }
-
-                        builder.setLength(builder.length() - 3);
-                    } finally {
-                        loadLock.unlock();
-                    }
-
-                    while(!cstack.isEmpty()) {
-                        stack.push(cstack.pop());
-                    }
+                for(int i = 0; i < indents; ++i) {
+                    builder.append("-");
                 }
 
-                builder.append('\n');
+                builder.append("> ");
+
+                if (seen.contains(node)) {
+                    builder.append("Seen: ").append(node.pageId).append('\n');
+
+                } else {
+                    seen.add(node);
+                    builder.append(node).append(' ');
+
+                    if (node.leaf) {
+
+                        Deque<Object[]> cstack = new LinkedList<>();
+
+                        /* No other nodes currently loaded and can't require to unload itself */
+                        final LockAndUnload<K,V> loadLock = node.loadAndLock(true);
+                        try {
+                            for( Entry<Comparable<K>,V> child :
+                                (Collection<Entry<Comparable<K>,V>>) (Collection<?>)
+                                    node.map.entrySet()) {
+
+                                builder.append(child.getValue()).append(" <- ").append(child.getKey()).append(" | ");
+                            }
+
+                            builder.setLength(builder.length() - 3);
+
+                        } finally {
+                            loadLock.unlock();
+                        }
+
+                        while(!cstack.isEmpty()) {
+                            stack.push(cstack.pop());
+                        }
+
+                    } else {
+                        Deque<Object[]> cstack = new LinkedList<>();
+
+                        /* No other nodes currently loaded and can't require to unload itself */
+                        final LockAndUnload<K,V> loadLock = node.loadAndLock(true);
+                        try {
+                            for( Entry<Comparable<K>,Node<K,V>> child :
+                                (Collection<Entry<Comparable<K>,Node<K,V>>>) (Collection<?>)
+                                    node.map.entrySet()) {
+
+                                builder.append(child.getValue().pageId).append(" <- ").append(child.getKey()).append(" | ");
+                                cstack.push(new Object[] {child.getValue(),indents+1});
+                            }
+
+                            builder.setLength(builder.length() - 3);
+                        } finally {
+                            loadLock.unlock();
+                        }
+
+                        while(!cstack.isEmpty()) {
+                            stack.push(cstack.pop());
+                        }
+                    }
+
+                    builder.append('\n');
+                }
             }
 
+            return builder.toString();
+
+        } catch (IOException ex) {
+
+            throw new UncheckedIOException("failed to generate full string representation", ex);
 
         }
 
-        return builder.toString();
     }
 
+    private static interface CriticJob {
+
+        public void execute() throws IOException;
+
+    }
 
 //  var
 //  anchor: record
@@ -1513,51 +1661,63 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * separator is set to the largest key in it. The previous value of the rightmost separator in l is
          * returned.
          */
-        X half_merge(Node<X,Y> right) {
+        X half_merge(Node<X,Y> right) throws IOException {
 
             // Cast to K, is K for sure because it has a right sibling
             @SuppressWarnings("unchecked")
             final X half_merge = (X) rightsep;
 
-            /* Could require to unload right but we need the data */
-            final LockAndUnload<X,Y> thisLoadLock = this.loadAndLock(false);
-            boolean thisUnloaded = thisLoadLock.unloadIfNot(right, owner);
+            LockAndUnload<X,Y> thisLoadLock  = null;
+            LockAndUnload<X,Y> rightLoadLock = null;
 
-            /* Could require to unload this but we need the data */
-            final LockAndUnload<X,Y> rightLoadLock = right.loadAndLock(false);
-            boolean rightUnloaded = rightLoadLock.unloadIfNot(this, owner);
+            boolean thisUnloaded = false;
+            boolean rightUnloaded  = false;
 
             try {
-
                 try {
+
+                    /* Could require to unload right but we need the data */
+                    thisLoadLock = this.loadAndLock(false);
+                    thisUnloaded = thisLoadLock.unloadIfNot(right, owner);
+
+                    /* Could require to unload this but we need the data */
+                    rightLoadLock = right.loadAndLock(false);
+                    rightUnloaded = rightLoadLock.unloadIfNot(this, owner);
 
                     // the sequence in r is transferred to the end of the sequence in l
                     map.putAll(right.map);
 
                     dirty = true;
 
+                    // r is marked empty
+                    right.empty = true;
+                    right.map.clear();
+
                 } finally {
-                    /* We don't need this.map anymore (rightUnload -> this) */
-                    thisLoadLock.unlock();
-                    if (!rightUnloaded) {
-                        rightLoadLock.unload();
+
+                    if (thisLoadLock != null) {
+                        if (!thisUnloaded) {
+                            thisLoadLock.unload();
+                        }
+
+                        thisLoadLock.unlock();
+                    }
+
+
+                    if (rightLoadLock != null) {
+                        if (!rightUnloaded) {
+                            rightLoadLock.unload();
+                        }
+
+                        rightLoadLock.unlock();
                     }
                 }
+            } catch (IOException e) {
 
-                // r is marked empty
-                right.empty = true;
-                right.map.clear();
+                throw new IOException("failed to half merge " + right.pageId + " into " + pageId, e);
 
-            } finally {
-
-                /* We don't need right.map anymore too (thisUnload -> right) */
-                rightLoadLock.unlock();
-                if (!thisUnloaded) {
-                    thisLoadLock.unload();
-                }
 
             }
-
             // add copied keys and size
             keys += right.keys;
             size += right.size - NODE_CONSTANT_SIZE; // just one node!
@@ -1586,7 +1746,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * set equal to the largest keys in them. The return value is the new rightmost separator in n.
          */
         @SuppressWarnings("unchecked")
-        X half_split(Node<X,Y> right) {
+        X half_split(Node<X,Y> right) throws IOException {
 
             // the rightlink of new is directed to the target of the rightlink of n
             right.rightlink = rightlink;
@@ -1656,7 +1816,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Copy ranged values
          */
         @SuppressWarnings("unchecked")
-        List<Entry<X,Y>> copyRange(X start, boolean startInclusive, X end, boolean endInclusive) throws UncheckedIOException {
+        List<Entry<X,Y>> copyRange(X start, boolean startInclusive, X end, boolean endInclusive) throws IOException {
 
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X,Y> loadLock = loadAndLock(true);
@@ -1716,7 +1876,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Check if the leaf contains the key.
          */
         @SuppressWarnings("unchecked")
-        Y check_key(X key) {
+        Y check_key(X key) throws IOException {
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X,Y> loadLock = loadAndLock(true);
             try {
@@ -1732,7 +1892,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * returns true otherwise false.
          */
         @SuppressWarnings("unchecked")
-        Y add_key(X key, Y value) {
+        Y add_key(X key, Y value) throws IOException {
             final Y old;
 
             /* No other nodes currently loaded and can't require to unload itself */
@@ -1761,7 +1921,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * If the leaf contains key it is removed and true is returned, otherwise returns false.
          */
         @SuppressWarnings("unchecked")
-        Y remove_key(X key) {
+        Y remove_key(X key) throws IOException {
             final Y old;
 
             /* No other nodes currently loaded and can't require to unload itself */
@@ -1793,7 +1953,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
 
         @SuppressWarnings("unchecked")
-        Node<X,Y> leftmost_child() {
+        Node<X,Y> leftmost_child() throws IOException {
 
             // TODO: move the knowledge on metadata to avoid page loading during critic?
 
@@ -1826,7 +1986,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * (pi,ubleftsep).
          */
         @SuppressWarnings("unchecked")
-        ResultCouple<X,Y> find(X v, Comparable<X> ubleftsep) {
+        ResultCouple<X,Y> find(X v, Comparable<X> ubleftsep) throws IOException {
 
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X,Y> loadLock = loadAndLock(true);
@@ -1865,7 +2025,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Otherwise, it changes the sequence in parent to (.., pi,s,child,si,...) and returns true.
          */
         @SuppressWarnings("unchecked")
-        boolean add_link(X s, Node<X,Y> child) {
+        boolean add_link(X s, Node<X,Y> child) throws IOException {
 
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X,Y> loadLock = loadAndLock(true);
@@ -1901,7 +2061,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * @param child
          * @return
          */
-        boolean remove_link(X s, Node<X,Y> child) {
+        boolean remove_link(X s, Node<X,Y> child) throws IOException {
 
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X,Y> loadLock = loadAndLock(true);
@@ -1958,7 +2118,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         /**
          * With {@code doUload} parameter to {@code true} will unload eventual pages before exit from this method
          */
-        final LockAndUnload<X,Y> loadAndLock(boolean doUnload) throws UncheckedIOException {
+        final LockAndUnload<X,Y> loadAndLock(boolean doUnload) throws IOException {
 
             Metadata unload = null;
             Lock read = loadLock.readLock();
@@ -1999,9 +2159,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     /* Downgrade the lock (permitted) */
                     read.lock();
 
-                } catch (IOException err) {
+                } catch (RuntimeException | IOException err) {
 
-                    throw new UncheckedIOException("failed to read node " + pageId, err);
+                    throw new IOException("failed to read node " + pageId, err);
 
                 } finally {
                     write.unlock();
@@ -2259,7 +2419,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.unload = unload;
         }
 
-        public boolean unloadIfNot(Node<X,Y> node, BLink<X,Y> tree) {
+        public boolean unloadIfNot(Node<X,Y> node, BLink<X,Y> tree) throws IOException {
 
             /* If nothing to unload is a success */
             if (unload == null) {
@@ -2277,13 +2437,23 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             return true;
         }
 
-        public void unload() {
-            unload.owner.unload(unload.pageId);
+        public void unload() throws IOException  {
+            try {
+                unload.owner.unload(unload.pageId);
+            } catch (RuntimeException e) {
+                throw new IOException("failed to unload " + unload.pageId);
+            }
         }
 
         public void unlock() {
             lock.unlock();
         }
+
+        @Override
+        public String toString() {
+            return "LockAndUnload [unload=" + unload + "]";
+        }
+
     }
 
     @SuppressWarnings("rawtypes")
@@ -2355,10 +2525,12 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         private final K end;
         private final boolean inclusive;
 
-        public ScanIterator(Node<K,V> node, K start, boolean sinclusive, K end, boolean einclusive) {
+        public ScanIterator(Node<K,V> node, K start, boolean sinclusive, K end, boolean einclusive) throws UncheckedIOException {
 
             this.end = end;
             this.inclusive = einclusive;
+
+            this.lastRead = start;
 
             this.node = node;
 
@@ -2367,15 +2539,16 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 final List<Entry<K,V>> list = node.copyRange(start, sinclusive, end, einclusive);
 
                 current = list.iterator();
+
+                rightsep = node.rightsep;
+
+            } catch (IOException e) {
+
+                throw new UncheckedIOException("failed to copy data from node " + node.pageId, e);
+
             } finally {
                 unlock(node, READ_LOCK);
             }
-
-            this.lastRead = start;
-
-            this.rightsep = node.rightsep;
-
-            unlock(node, READ_LOCK);
 
             this.nextChecked = false;
         }
@@ -2413,6 +2586,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                                 final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
 
                                 current = list.iterator();
+
+                            } catch (IOException e) {
+
+                                throw new UncheckedIOException("failed to copy data from node " + node.pageId, e);
+
                             } finally {
                                 unlock(node, READ_LOCK);
                             }
@@ -2432,9 +2610,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                             final List<Entry<K,V>> list = node.copyRange(lastRead, false, end, inclusive);
 
                             current = list.iterator();
+
+                        } catch (IOException e) {
+
+                            throw new UncheckedIOException("failed to copy data from node " + node.pageId, e);
+
                         } finally {
                             unlock(node, READ_LOCK);
                         }
+
 
                         if (current.hasNext()) {
                             return true;
