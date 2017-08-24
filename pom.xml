@@ -261,7 +261,27 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
+    <build>
+       <plugins>
+       <plugin>
+        <groupId>org.eluder.coveralls</groupId>
+        <artifactId>coveralls-maven-plugin</artifactId>
+        <version>4.3.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.7.9</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+        </executions>
+         </plugin>
+       </plugins>
+    </build>
     <profiles>
         <profile>
             <id>default</id>
@@ -298,8 +318,8 @@
                         <configuration>                                        
                             <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>
-                            <forkedProcessTimeoutInSeconds>600</forkedProcessTimeoutInSeconds>
-                            <argLine>-Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
+                            <forkedProcessTimeoutInSeconds>900</forkedProcessTimeoutInSeconds>
+			    <argLine>@{argLine} -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
                             <redirectTestOutputToFile>true</redirectTestOutputToFile>
                         </configuration>
                     </plugin>            
@@ -482,8 +502,8 @@
                         <configuration>                                        
                             <forkCount>1</forkCount>
                             <reuseForks>false</reuseForks>                            
-                            <argLine>-Xmx2G</argLine>
-                            <forkedProcessTimeoutInSeconds>300</forkedProcessTimeoutInSeconds>
+			    <argLine>@{argLine} -Xmx2G -XX:+UseG1GC</argLine>
+                            <forkedProcessTimeoutInSeconds>900</forkedProcessTimeoutInSeconds>
                         </configuration>
                     </plugin>            
                     <plugin>
