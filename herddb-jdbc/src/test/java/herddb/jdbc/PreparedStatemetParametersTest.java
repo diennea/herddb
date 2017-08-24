@@ -49,7 +49,7 @@ public class PreparedStatemetParametersTest
     /**
      * Execute a prepared statement without a needed parameter
      */
-    @Test(expected = SQLException.class, timeout = 2000L)
+    @Test(expected = SQLException.class)
     public void missingParameter() throws Exception
     {
         try ( Server server = new Server(new ServerConfiguration(folder.newFolder().toPath())) )
