@@ -1230,9 +1230,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         try {
                             if (!newPage.unloaded) {
                                 /* We can try to modify the page directly */
-                                insertedInSamePage = newPage.put(record);
-
-                                if (insertedInSamePage) {
+                                if (newPage.put(record)) {
                                     break;
                                 }
                             }
@@ -1438,9 +1436,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         try {
                             if (!newPage.unloaded) {
                                 /* We can try to modify the page directly */
-                                insertedInSamePage = newPage.put(record);
-
-                                if (insertedInSamePage) {
+                                if (newPage.put(record)) {
                                     break;
                                 }
                             }
