@@ -1078,6 +1078,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
 
+        if (LOGGER.isLoggable(Level.FINEST))
+            LOGGER.log(Level.FINEST, "Deleted key " + key + " from page " + pageId);
+
+
         /*
          * We'll try to remove the record if in a writable page, otherwise we'll simply set the old page
          * as dirty.
@@ -1104,7 +1108,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = page.get(key);
 
             if (previous == null) {
-                throw new RuntimeException("deleted record at " + key + " was not found ?");
+                throw new RuntimeException("deleted record at " + key + " was not found?");
             }
         }
 
@@ -1163,7 +1167,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
          */
         final DataPage prevPage;
         final Record previous;
-        boolean inserted = false;
+        boolean insertedInSamePage = false;
         if (indexes == null) {
             /* We don't need the page if isn't loaded or isn't a mutable new page*/
             prevPage = newPages.get(prevPageId);
@@ -1178,7 +1182,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             previous = prevPage.get(key);
 
             if (previous == null) {
-                throw new RuntimeException("updated record at " + key + " was not found ?");
+                throw new RuntimeException("updated record at " + key + " was not found?");
             }
         }
 
@@ -1195,7 +1199,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     pageSet.setPageDirty(prevPageId, previous);
                 } else {
                     /* We can try to modify the page directly */
-                    inserted = prevPage.put(record);
+                    insertedInSamePage = prevPage.put(record);
                 }
             } finally {
                 lock.unlock();
@@ -1205,8 +1209,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* Insertion page */
         Long insertionPageId;
 
-        if (inserted) {
-            /* Inserted in temporary mutable previous page */
+        if (insertedInSamePage) {
+            /* Inserted in temporary mutable previous page, no need to alter keyToPage too: no record page change */
             insertionPageId = prevPageId;
         } else {
             /* Do real insertion */
@@ -1226,9 +1230,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         try {
                             if (!newPage.unloaded) {
                                 /* We can try to modify the page directly */
-                                inserted = newPage.put(record);
+                                insertedInSamePage = newPage.put(record);
 
-                                if (inserted) {
+                                if (insertedInSamePage) {
                                     break;
                                 }
                             }
@@ -1241,9 +1245,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 /* Try allocate a new page if no already done */
                 insertionPageId = allocateLivePage(insertionPageId);
             }
+
+            /* Update the value on keyToPage */
+            keyToPage.put(key, insertionPageId);
         }
 
-        keyToPage.put(key, insertionPageId);
+        if (LOGGER.isLoggable(Level.FINEST))
+            LOGGER.log(Level.FINEST, "Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId);
 
         if (indexes != null) {
 
@@ -1351,7 +1359,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
          */
         final DataPage prevPage;
         final Record previous;
-        boolean inserted = false;
+        boolean insertedInSamePage = false;
         if (prevPageId != null) {
 
             /* Very strage but possible inside a transaction which executes DELETE THEN INSERT */
@@ -1374,7 +1382,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 previous = prevPage.get(key);
 
                 if (previous == null) {
-                    throw new RuntimeException("insert upon delete record at " + key + " was not found ?");
+                    throw new RuntimeException("insert upon delete record at " + key + " was not found?");
                 }
             }
 
@@ -1391,7 +1399,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         pageSet.setPageDirty(prevPageId, previous);
                     } else {
                         /* We can try to modify the page directly */
-                        inserted = prevPage.put(record);
+                        insertedInSamePage = prevPage.put(record);
                     }
                 } finally {
                     lock.unlock();
@@ -1409,8 +1417,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         /* Insertion page */
         Long insertionPageId;
 
-        if (inserted) {
-            /* Inserted in temporary mutable previous page */
+        if (insertedInSamePage) {
+            /* Inserted in temporary mutable previous page, no need to alter keyToPage too: no record page change */
             insertionPageId = prevPageId;
         } else {
             /* Do real insertion */
@@ -1430,9 +1438,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         try {
                             if (!newPage.unloaded) {
                                 /* We can try to modify the page directly */
-                                inserted = newPage.put(record);
+                                insertedInSamePage = newPage.put(record);
 
-                                if (inserted) {
+                                if (insertedInSamePage) {
                                     break;
                                 }
                             }
@@ -1446,9 +1454,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 /* Try allocate a new page if no already done */
                 insertionPageId = allocateLivePage(insertionPageId);
             }
+
+            /* Insert/update the value on keyToPage */
+            keyToPage.put(key, insertionPageId);
         }
 
-        keyToPage.put(key, insertionPageId);
+
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            if (prevPageId == null)
+                LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId);
+            else
+                LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId + " previously was in page " + prevPageId);
+
+        }
+
 
         if (indexes != null) {
             if (previous == null) {
