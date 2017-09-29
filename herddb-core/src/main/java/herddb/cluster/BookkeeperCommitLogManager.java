@@ -50,10 +50,8 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration) {
         config = new ClientConfiguration();
         config.setThrottleValue(0);
-        config.setZkServers(serverConfiguration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS,
-            ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT));
-        config.setZkTimeout(serverConfiguration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT,
-            ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT));
+        config.setZkServers(metadataStorageManager.getZkAddress());
+        config.setZkTimeout(metadataStorageManager.getZkSessionTimeout());
         LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
         if (serverConfiguration.getBoolean("bookie.preferlocalbookie", true)) {
             config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
