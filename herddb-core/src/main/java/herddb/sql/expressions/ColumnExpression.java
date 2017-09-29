@@ -21,6 +21,7 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.utils.IllegalDataAccessException;
 import java.util.Map;
 
 public class ColumnExpression implements CompiledSQLExpression {
@@ -33,7 +34,11 @@ public class ColumnExpression implements CompiledSQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return bean.get(name);
+        try {
+            return bean.get(name);
+        } catch (IllegalDataAccessException err) {
+            throw new StatementExecutionException(err);
+        }
     }
 
 }

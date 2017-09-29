@@ -305,6 +305,9 @@ public final class RecordSerializer {
     }
 
     static Object accessRawDataFromValue(String property, Bytes value, Table table) throws IOException {
+        if (table.getColumn(property) == null) {
+            throw new herddb.utils.IllegalDataAccessException("table " + table.tablespace + "." + table.name + " does not define column " + property);
+        }
         SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(value.data);
         ExtendedDataInputStream din = new ExtendedDataInputStream(s);
         while (!din.isEof()) {

@@ -39,6 +39,7 @@ import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
+import herddb.utils.IllegalDataAccessException;
 import herddb.utils.RawString;
 import java.util.Arrays;
 import static org.junit.Assert.assertFalse;
@@ -117,7 +118,11 @@ public class AlterTableSQLTest {
                 List<DataAccessor> tuples = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume();
                 assertEquals(1, tuples.size());
                 assertEquals(2, tuples.get(0).getFieldNames().length);
-                assertEquals(null, tuples.get(0).get("s1"));
+                try {
+                    assertEquals(null, tuples.get(0).get("s1"));
+                    fail("field does not exist anymore");
+                } catch (IllegalDataAccessException ok) {
+                }
             }
 
             execute(manager, "ALTER TABLE tblspace1.tsql add column s1 string", Collections.emptyList());

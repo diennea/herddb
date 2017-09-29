@@ -26,8 +26,6 @@ import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 

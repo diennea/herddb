@@ -34,7 +34,11 @@ import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.utils.IllegalDataAccessException;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  *
@@ -44,7 +48,7 @@ import herddb.model.commands.CreateTableSpaceStatement;
 public class DeleteTest {
 
     @Test
-    public void deleteMulticolumnPKTest() throws Exception {
+    public void deleteDeleteWithMulticolumnPKTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
@@ -58,6 +62,13 @@ public class DeleteTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey4", "a", Integer.valueOf(1234))).getUpdateCount());
+
+            try {
+                executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE badfield=1234", Collections.emptyList());
+                fail();
+            } catch (StatementExecutionException ok) {
+                assertTrue(ok.getCause() instanceof IllegalDataAccessException);
+            }
 
             assertEquals(4, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).getUpdateCount());
 
