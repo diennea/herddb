@@ -50,14 +50,17 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration) {
         config = new ClientConfiguration();
         config.setThrottleValue(0);
+        config.setZkServers(serverConfiguration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS,
+            ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT));
+        config.setZkTimeout(serverConfiguration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT,
+            ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT));
         LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
         if (serverConfiguration.getBoolean("bookie.preferlocalbookie", true)) {
             config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
         }
-
         for (String key : serverConfiguration.keys()) {
-            if (key.startsWith("bookie.")) {
-                String _key = key.substring("bookie.".length());
+            if (key.startsWith("bookkeeper.")) {
+                String _key = key.substring("bookkeeper.".length());
                 String value = serverConfiguration.getString(key, null);
                 LOG.log(Level.CONFIG, "Setting BookKeeper client configuration: {0}={1}", new Object[]{_key, value});
                 config.setProperty(_key, value);
@@ -78,7 +81,6 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
             this.bookKeeper
                 = BookKeeper
                     .forConfig(config)
-                    .setZookeeper(metadataStorageManager.getZooKeeper())
                     .build();
         } catch (IOException | InterruptedException | KeeperException t) {
             close();
