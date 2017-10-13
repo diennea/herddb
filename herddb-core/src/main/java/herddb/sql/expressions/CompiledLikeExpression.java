@@ -22,17 +22,13 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import static herddb.sql.SQLRecordPredicate.like;
-import java.util.Map;
 
-public class CompiledLikeExpression implements CompiledSQLExpression {
+public class CompiledLikeExpression extends CompiledBinarySQLExpression {
 
-    private final CompiledSQLExpression left;
-    private final CompiledSQLExpression right;
     private final boolean not;
 
-    public CompiledLikeExpression(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
-        this.left = left;
-        this.right = right;
+    public CompiledLikeExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+        super(left, right);
         this.not = not;
     }
 

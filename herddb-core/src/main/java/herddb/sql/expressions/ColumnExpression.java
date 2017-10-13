@@ -22,7 +22,6 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.IllegalDataAccessException;
-import java.util.Map;
 
 public class ColumnExpression implements CompiledSQLExpression {
 

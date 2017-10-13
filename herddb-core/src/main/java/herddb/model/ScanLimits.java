@@ -60,11 +60,12 @@ public class ScanLimits {
     }
 
     public int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException {
+        new Exception("computeMaxRows "+maxRowsJdbcParameterIndex).printStackTrace();
         if (maxRowsJdbcParameterIndex <= 0) {
             return maxRows;
         } else {
             try {
-                Object limit = context.getJdbcParameters().get(maxRowsJdbcParameterIndex - 1);
+                Object limit = context.getJdbcParameter(maxRowsJdbcParameterIndex - 1);
                 if (limit == null) {
                     throw new StatementExecutionException("Invalid LIMIT with NULL JDBC Parameter");
                 } else if (limit instanceof Number) {
@@ -77,7 +78,7 @@ public class ScanLimits {
                     }
                 }
             } catch (IndexOutOfBoundsException err) {
-                throw new StatementExecutionException("Invalid LIMIT with JDBC parameter position " + maxRowsJdbcParameterIndex);
+                throw new MissingJDBCParameterException(maxRowsJdbcParameterIndex);
             }
         }
     }

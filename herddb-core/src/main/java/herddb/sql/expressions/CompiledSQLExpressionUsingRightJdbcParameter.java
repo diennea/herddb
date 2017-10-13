@@ -22,31 +22,21 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 
-public class CompiledIsNullExpression implements CompiledSQLExpression {
+public abstract class CompiledSQLExpressionUsingRightJdbcParameter implements CompiledSQLExpression {
 
-    private final CompiledSQLExpression left;
-    private final boolean not;
+    protected final String columnName;
+    protected final int index;
+    protected final boolean not;
 
-    public CompiledIsNullExpression(boolean not, CompiledSQLExpression left) {
-        this.left = left;
+    public CompiledSQLExpressionUsingRightJdbcParameter(String columnName, int index, boolean not) {
+        this.columnName = columnName;
+        this.index = index;
         this.not = not;
     }
 
     @Override
-    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object leftValue = left.evaluate(bean, context);
-        boolean result = leftValue == null;
-        if (not) {
-            return !result;
-        } else {
-            return result;
-        }
-
-    }
-
-    @Override
     public void validate(StatementEvaluationContext context) throws StatementExecutionException {
-        left.validate(context);
+        context.getJdbcParameter(index);
     }
 
 }

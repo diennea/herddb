@@ -21,8 +21,6 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.sql.SQLRecordPredicate.toBoolean;
-import java.util.Map;
 
 public class CompiledSignedExpression implements CompiledSQLExpression {
 
@@ -38,32 +36,37 @@ public class CompiledSignedExpression implements CompiledSQLExpression {
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object innerValue = inner.evaluate(bean, context);
         switch (sign) {
-                case '-':
-                    if (innerValue instanceof Integer) {
-                        return ((Integer) innerValue) * -1;
-                    }
-                    if (innerValue instanceof Long) {
-                        return ((Long) innerValue) * -1;
-                    }
-                    if (innerValue instanceof Double) {
-                        return ((Double) innerValue) * -1;
-                    }
-                    if (innerValue instanceof Float) {
-                        return ((Float) innerValue) * -1;
-                    }
-                    if (innerValue instanceof Short) {
-                        return ((Short) innerValue) * -1;
-                    }
-                    if (innerValue instanceof Byte) {
-                        return ((Byte) innerValue) * -1;
-                    }
-                    throw new StatementExecutionException("invalid signed expression, value="+innerValue+"; class="+innerValue.getClass()+"; exp="+inner);
-                case '+':
-                    return innerValue;
-                default:
-                    throw new StatementExecutionException("invalid sign '" + sign + "'");
-            }
-        
+            case '-':
+                if (innerValue instanceof Integer) {
+                    return ((Integer) innerValue) * -1;
+                }
+                if (innerValue instanceof Long) {
+                    return ((Long) innerValue) * -1;
+                }
+                if (innerValue instanceof Double) {
+                    return ((Double) innerValue) * -1;
+                }
+                if (innerValue instanceof Float) {
+                    return ((Float) innerValue) * -1;
+                }
+                if (innerValue instanceof Short) {
+                    return ((Short) innerValue) * -1;
+                }
+                if (innerValue instanceof Byte) {
+                    return ((Byte) innerValue) * -1;
+                }
+                throw new StatementExecutionException("invalid signed expression, value=" + innerValue + "; class=" + innerValue.getClass() + "; exp=" + inner);
+            case '+':
+                return innerValue;
+            default:
+                throw new StatementExecutionException("invalid sign '" + sign + "'");
+        }
+
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        inner.validate(context);
     }
 
 }

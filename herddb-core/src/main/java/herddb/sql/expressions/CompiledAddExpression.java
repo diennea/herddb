@@ -22,18 +22,11 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
 
-public class CompiledAddExpression implements CompiledSQLExpression {
+public class CompiledAddExpression extends CompiledBinarySQLExpression {
 
-    private final CompiledSQLExpression left;
-    private final CompiledSQLExpression right;
-    private final boolean not;
-
-    public CompiledAddExpression(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
-        this.left = left;
-        this.right = right;
-        this.not = not;
+    public CompiledAddExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+        super(left, right);
     }
 
     @Override

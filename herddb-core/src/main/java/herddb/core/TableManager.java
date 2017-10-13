@@ -1078,8 +1078,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new IllegalStateException("corrupted transaction log: key " + key + " is not present in table " + table.name);
         }
 
-        if (LOGGER.isLoggable(Level.FINEST))
+        if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "Deleted key " + key + " from page " + pageId);
+        }
 
 
         /*
@@ -1248,8 +1249,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             keyToPage.put(key, insertionPageId);
         }
 
-        if (LOGGER.isLoggable(Level.FINEST))
+        if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "Updated key " + key + " from page " + prevPageId + " to page " + insertionPageId);
+        }
 
         if (indexes != null) {
 
@@ -1287,8 +1289,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 locksManager.releaseReadLockForKey(key, lock);
             }
         };
-        Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
-        scanner.forEach(scanExecutor);
+        try {
+            Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(null, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), tableContext, null);
+            scanner.forEach(scanExecutor);
+        } catch (StatementExecutionException impossible) {
+            throw new DataStorageManagerException(impossible);
+        }
 
     }
 
@@ -1311,21 +1317,25 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private void rebuildNextPrimaryKeyValue() throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "rebuildNextPrimaryKeyValue");
-        Stream<Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
-            StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-            tableContext,
-            null);
-        scanner.forEach((Entry<Bytes, Long> t) -> {
-            Bytes key = t.getKey();
-            long pk_logical_value;
-            if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
-                pk_logical_value = key.to_int();
-            } else {
-                pk_logical_value = key.to_long();
-            }
-            nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
-        });
-        LOGGER.log(Level.SEVERE, "rebuildNextPrimaryKeyValue, newPkValue : " + nextPrimaryKeyValue.get());
+        try {
+            Stream<Entry<Bytes, Long>> scanner = keyToPage.scanner(null,
+                StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                tableContext,
+                null);
+            scanner.forEach((Entry<Bytes, Long> t) -> {
+                Bytes key = t.getKey();
+                long pk_logical_value;
+                if (table.getColumn(table.primaryKey[0]).type == ColumnTypes.INTEGER) {
+                    pk_logical_value = key.to_int();
+                } else {
+                    pk_logical_value = key.to_long();
+                }
+                nextPrimaryKeyValue.accumulateAndGet(pk_logical_value + 1, EnsureLongIncrementAccumulator.INSTANCE);
+            });
+            LOGGER.log(Level.SEVERE, "rebuildNextPrimaryKeyValue, newPkValue : " + nextPrimaryKeyValue.get());
+        } catch (StatementExecutionException impossible) {
+            throw new DataStorageManagerException(impossible);
+        }
     }
 
     private void applyInsert(Bytes key, Bytes value, boolean onTransaction) throws DataStorageManagerException {
@@ -1455,15 +1465,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             keyToPage.put(key, insertionPageId);
         }
 
-
         if (LOGGER.isLoggable(Level.FINEST)) {
-            if (prevPageId == null)
+            if (prevPageId == null) {
                 LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId);
-            else
+            } else {
                 LOGGER.log(Level.FINEST, "Inserted key " + key + " into page " + insertionPageId + " previously was in page " + prevPageId);
+            }
 
         }
-
 
         if (indexes != null) {
             if (previous == null) {
@@ -1957,7 +1966,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             /* Writes done! Unloading and removing not needed pages and keys */
 
-            /* Remove flushed pages handled */
+ /* Remove flushed pages handled */
             for (Long pageId : flushedPages) {
                 final DataPage page = pages.remove(pageId);
                 /* Current dirty record page isn't known to page replacement policy */
@@ -1982,13 +1991,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             end = System.currentTimeMillis();
 
             LOGGER.log(Level.INFO, "checkpoint {0} finished, logpos {1}, {2} active pages, {3} dirty pages, "
-                    + "flushed {4} records, total time {5} ms",
-                    new Object[] {table.name, sequenceNumber, pageSet.getActivePagesCount(),
-                            pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(end - start)});
+                + "flushed {4} records, total time {5} ms",
+                new Object[]{table.name, sequenceNumber, pageSet.getActivePagesCount(),
+                    pageSet.getDirtyPagesCount(), flushedRecords, Long.toString(end - start)});
 
             if (LOGGER.isLoggable(Level.FINE)) {
                 LOGGER.log(Level.FINE, "checkpoint {0} finished, logpos {1}, pageSet: {2}",
-                        new Object[]{table.name, sequenceNumber, pageSet.toString()});
+                    new Object[]{table.name, sequenceNumber, pageSet.toString()});
             }
 
         } finally {
@@ -2019,7 +2028,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 + "+" + delta_tablecheckpoint
                 + "+" + delta_unload + ")"});
         }
-
 
         return result;
     }
@@ -2149,6 +2157,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private void accessTableData(ScanStatement statement, StatementEvaluationContext context, ScanResultOperation consumer, Transaction transaction,
         boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         Predicate predicate = statement.getPredicate();
+        if (predicate != null) {
+            predicate.validate(context);
+        }
         long _start = System.currentTimeMillis();
         boolean acquireLock = transaction != null || forWrite || lockRequired;
 

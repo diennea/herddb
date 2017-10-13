@@ -25,8 +25,7 @@ import net.sf.jsqlparser.expression.JdbcParameter;
 
 /**
  * Cache to store "immutable" Expressions, this reduces a lot the impact of large execution plans which include a lot of
- * replicated expressions, like JdbcParameter.
- * This in general boost INSERT expressions
+ * replicated expressions, like JdbcParameter. This in general boost INSERT expressions
  *
  * @author enrico.olivelli
  */
@@ -58,7 +57,7 @@ public class ImmutableExpressionsCache {
         }
     }
 
-    public static JdbcParameter internJdbcParameterExpression(JdbcParameter param) {
+    public static JdbcParameter internOrFixJdbcParameterExpression(JdbcParameter param) {
         ImmutableJdbcParameter res = IMMUTABLE_JDBC_PARAMETERS.get(param.getIndex());
         return res != null ? res : param;
     }

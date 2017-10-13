@@ -24,15 +24,12 @@ import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
 import java.util.Map;
 
-public class CompiledMinorThenExpression implements CompiledSQLExpression {
+public class CompiledMinorThenExpression extends CompiledBinarySQLExpression {
 
-    private final CompiledSQLExpression left;
-    private final CompiledSQLExpression right;
     private final boolean not;
 
-    public CompiledMinorThenExpression(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
-        this.left = left;
-        this.right = right;
+    public CompiledMinorThenExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+        super(left, right);
         this.not = not;
     }
 

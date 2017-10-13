@@ -17,26 +17,27 @@
  under the License.
 
  */
-package herddb.sql.expressions;
+package herddb.model;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
+/**
+ * Client did not set a JDBC Parameter
+ */
+public class MissingJDBCParameterException extends StatementExecutionException {
 
-public class CompiledDivideExpression extends CompiledBinarySQLExpression {
+    private final int index;
 
-    private final boolean not;
-
-    public CompiledDivideExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
-        super(left, right);
-        this.not = not;
+    public MissingJDBCParameterException(int index) {
+        super("Missing JDBC parameter index " + index);
+        this.index = index;
     }
 
-    @Override
-    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object leftValue = left.evaluate(bean, context);
-        Object rightValue = right.evaluate(bean, context);
-        return SQLRecordPredicate.divide(leftValue, rightValue);
+    /**
+     * Get the JDBC parameter index, starting from 1 as JDBC usal
+     *
+     * @return the index
+     */
+    public int getIndex() {
+        return index;
     }
 
 }

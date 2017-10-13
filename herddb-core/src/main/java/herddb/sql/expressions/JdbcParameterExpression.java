@@ -19,9 +19,9 @@
  */
 package herddb.sql.expressions;
 
+import herddb.model.MissingJDBCParameterException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import java.util.Map;
 
 public class JdbcParameterExpression implements CompiledSQLExpression {
 
@@ -33,7 +33,17 @@ public class JdbcParameterExpression implements CompiledSQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return context.getJdbcParameters().get(index);
+        return context.getJdbcParameter(index);
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        context.getJdbcParameter(index);
+    }
+
+    @Override
+    public String toString() {
+        return "JdbcParameterExpression{" + "index=" + index + '}';
     }
 
 }

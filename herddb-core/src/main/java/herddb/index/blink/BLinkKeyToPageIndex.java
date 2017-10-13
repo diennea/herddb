@@ -97,7 +97,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     private final AtomicBoolean closed;
 
-
     public BLinkKeyToPageIndex(String tableSpace, String tableName, MemoryManager memoryManager, DataStorageManager dataStorageManager) {
         super();
         this.tableSpace = tableSpace;
@@ -144,23 +143,19 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     @Override
     public Stream<Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
-        TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException {
+        TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException, StatementExecutionException {
         if (operation instanceof PrimaryIndexSeek) {
-            try {
-                PrimaryIndexSeek seek = (PrimaryIndexSeek) operation;
-                byte[] seekValue = seek.value.computeNewValue(null, context, tableContext);
-                if (seekValue == null) {
-                    return Stream.empty();
-                }
-                Bytes key = Bytes.from_array(seekValue);
-                Long pageId = getTree().search(key);
-                if (pageId == null) {
-                    return Stream.empty();
-                }
-                return Stream.of(new AbstractMap.SimpleImmutableEntry<>(key, pageId));
-            } catch (StatementExecutionException err) {
-                throw new DataStorageManagerException(err);
+            PrimaryIndexSeek seek = (PrimaryIndexSeek) operation;
+            byte[] seekValue = seek.value.computeNewValue(null, context, tableContext);
+            if (seekValue == null) {
+                return Stream.empty();
             }
+            Bytes key = Bytes.from_array(seekValue);
+            Long pageId = getTree().search(key);
+            if (pageId == null) {
+                return Stream.empty();
+            }
+            return Stream.of(new AbstractMap.SimpleImmutableEntry<>(key, pageId));
         }
 
         if (operation instanceof PrimaryIndexPrefixScan) {
@@ -177,11 +172,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         // Remember that the IndexOperation can return more records
         // every predicate (WHEREs...) will always be evaluated anyway on every record, in order to guarantee correctness
         if (index != null) {
-            try {
-                return index.recordSetScanner(operation, context, tableContext, this);
-            } catch (StatementExecutionException err) {
-                throw new DataStorageManagerException(err);
-            }
+            return index.recordSetScanner(operation, context, tableContext, this);
         }
 
         if (operation == null) {
@@ -293,9 +284,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             result.addAll(dataStorageManager.indexCheckpoint(tableSpace, indexName, indexStatus, pin));
 
             LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} pages",
-                    new Object[] {indexName, sequenceNumber, Integer.toString(metadata.nodes.size())});
+                new Object[]{indexName, sequenceNumber, Integer.toString(metadata.nodes.size())});
             LOGGER.log(Level.FINE, "checkpoint index {0} finished: logpos {1}, pages {2}",
-                    new Object[] {indexName, sequenceNumber, activePages.toString()});
+                new Object[]{indexName, sequenceNumber, activePages.toString()});
 
             return result;
 
@@ -313,7 +304,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
      * Retrieve {@link BLink} tree checking the index status
      */
     private BLink<Bytes, Long> getTree() {
-        final BLink<Bytes,Long> tree = this.tree;
+        final BLink<Bytes, Long> tree = this.tree;
 
         if (tree == null) {
             if (closed.get()) {

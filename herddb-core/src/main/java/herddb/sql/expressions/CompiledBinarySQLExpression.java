@@ -22,31 +22,23 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 
-public class CompiledIsNullExpression implements CompiledSQLExpression {
+/**
+ * Parent for AND/OR logical expression
+ */
+public abstract class CompiledBinarySQLExpression implements CompiledSQLExpression {
 
-    private final CompiledSQLExpression left;
-    private final boolean not;
+    protected final CompiledSQLExpression left;
+    protected final CompiledSQLExpression right;
 
-    public CompiledIsNullExpression(boolean not, CompiledSQLExpression left) {
+    public CompiledBinarySQLExpression(CompiledSQLExpression left, CompiledSQLExpression right) {
         this.left = left;
-        this.not = not;
-    }
-
-    @Override
-    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object leftValue = left.evaluate(bean, context);
-        boolean result = leftValue == null;
-        if (not) {
-            return !result;
-        } else {
-            return result;
-        }
-
+        this.right = right;
     }
 
     @Override
     public void validate(StatementEvaluationContext context) throws StatementExecutionException {
         left.validate(context);
+        right.validate(context);
     }
 
 }

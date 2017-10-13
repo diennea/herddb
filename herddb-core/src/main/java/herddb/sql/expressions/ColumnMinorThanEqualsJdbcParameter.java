@@ -22,24 +22,17 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
 
-public class ColumnMinorThanEqualsJdbcParameter implements CompiledSQLExpression {
-
-    private final String columnName;
-    private final int index;
-    private final boolean not;
+public class ColumnMinorThanEqualsJdbcParameter extends CompiledSQLExpressionUsingRightJdbcParameter {
 
     public ColumnMinorThanEqualsJdbcParameter(boolean not, String columnName, int index) {
-        this.columnName = columnName;
-        this.index = index;
-        this.not = not;
+        super(columnName, index, not);
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object left = bean.get(columnName);
-        Object value = context.getJdbcParameters().get(index);
+        Object value = context.getJdbcParameter(index);
         boolean res = SQLRecordPredicate.compare(left, value) <= 0;
         if (not) {
             return !res;

@@ -168,7 +168,6 @@ public class ColumnReferencesDiscovery implements ExpressionVisitor, ItemsListVi
 
     @Override
     public void visit(JdbcParameter jp) {
-
     }
 
     @Override

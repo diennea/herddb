@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import herddb.model.StatementExecutionException;
 import java.util.List;
 import java.util.stream.Collectors;
 import net.sf.jsqlparser.expression.Alias;
@@ -153,9 +154,15 @@ class JdbcQueryRewriter implements StatementVisitor,
 
     private void visitLimit(Limit limit) {
         if (limit.getOffset() != null) {
+            if (limit.getOffset() instanceof JdbcParameter) {
+                limit.setOffset(ImmutableExpressionsCache.internOrFixJdbcParameterExpression((JdbcParameter) limit.getOffset()));
+            }
             limit.getOffset().accept(this);
         }
         if (limit.getRowCount() != null) {
+            if (limit.getRowCount() instanceof JdbcParameter) {
+                limit.setRowCount(ImmutableExpressionsCache.internOrFixJdbcParameterExpression((JdbcParameter) limit.getRowCount()));
+            }
             limit.getRowCount().accept(this);
         }
     }
@@ -463,10 +470,10 @@ class JdbcQueryRewriter implements StatementVisitor,
 
     private void visitBinaryExpression(BinaryExpression e) {
         if (e.getLeftExpression() instanceof JdbcParameter) {
-            e.setLeftExpression(ImmutableExpressionsCache.internJdbcParameterExpression((JdbcParameter) e.getLeftExpression()));
+            e.setLeftExpression(ImmutableExpressionsCache.internOrFixJdbcParameterExpression((JdbcParameter) e.getLeftExpression()));
         }
         if (e.getRightExpression() instanceof JdbcParameter) {
-            e.setRightExpression(ImmutableExpressionsCache.internJdbcParameterExpression((JdbcParameter) e.getRightExpression()));
+            e.setRightExpression(ImmutableExpressionsCache.internOrFixJdbcParameterExpression((JdbcParameter) e.getRightExpression()));
         }
         e.getLeftExpression().accept(this);
         e.getRightExpression().accept(this);
@@ -529,6 +536,14 @@ class JdbcQueryRewriter implements StatementVisitor,
         inExpression.getLeftExpression().accept(this);
         if (inExpression.getLeftItemsList() != null) {
             inExpression.getLeftItemsList().accept(this);
+        }
+        if (inExpression.getRightItemsList() instanceof SubSelect) {
+            SubSelect ss = (SubSelect) inExpression.getRightItemsList();
+            if (!(ss.getSelectBody() instanceof PlainSelect)) {
+                throw new StatementExecutionException("unsupported operand " + inExpression.getClass()
+                    + " with subquery of type " + ss.getClass() + "(" + ss + ")");
+            }
+            visit(ss);
         }
     }
 
@@ -752,7 +767,7 @@ class JdbcQueryRewriter implements StatementVisitor,
         for (int i = 0; i < size; i++) {
             Expression e = expressions.get(i);
             if (e instanceof JdbcParameter) {
-                e = ImmutableExpressionsCache.internJdbcParameterExpression((JdbcParameter) e);
+                e = ImmutableExpressionsCache.internOrFixJdbcParameterExpression((JdbcParameter) e);
             }
             expressions.set(i, e);
             e.accept(this);

@@ -25,7 +25,6 @@ import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.sql.functions.BuiltinFunctions;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.Function;
 
@@ -33,25 +32,25 @@ public class CompiledFunction implements CompiledSQLExpression {
 
     private final String name;
     private final List<CompiledSQLExpression> parameters;
-    
+
     private final long roundMultiplier;
     private final double roundSign;
 
     public CompiledFunction(String name, List<CompiledSQLExpression> parameters) {
         this.name = name;
         this.parameters = parameters;
-        
+
         if (name.equals(BuiltinFunctions.ROUND) && parameters.size() == 2) {
             if (parameters.size() == 2) {
-                
+
                 long precision;
                 try {
-                    precision = (long)parameters.get(1).evaluate(null, null);
+                    precision = (long) parameters.get(1).evaluate(null, null);
                 } catch (NullPointerException ex) {
                     throw new IllegalArgumentException("round second parameter must be a constant value");
                 }
                 long mult = 1L;
-                for (int i=0; i<Math.abs(precision); i++) {
+                for (int i = 0; i < Math.abs(precision); i++) {
                     mult *= 10;
                 }
                 roundMultiplier = mult;
@@ -72,7 +71,7 @@ public class CompiledFunction implements CompiledSQLExpression {
         if (f.getParameters() != null) {
             params = f.getParameters().getExpressions();
         }
-        
+
         switch (name) {
             case BuiltinFunctions.COUNT:
             case BuiltinFunctions.SUM:
@@ -107,16 +106,16 @@ public class CompiledFunction implements CompiledSQLExpression {
             default:
                 throw new StatementExecutionException("unhandled function " + name);
         }
-        
+
         List<CompiledSQLExpression> compiledParams = new ArrayList<>();
-        for (Expression exp: f.getParameters().getExpressions()) {
+        for (Expression exp : f.getParameters().getExpressions()) {
             compiledParams.add(compileExpression(validatedTableAlias, exp));
         }
-        
+
         return new CompiledFunction(name, compiledParams);
-        
+
     }
-    
+
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         switch (name) {
@@ -145,15 +144,24 @@ public class CompiledFunction implements CompiledSQLExpression {
             case BuiltinFunctions.ROUND: {
                 Object parValue = parameters.get(0).evaluate(bean, context);
                 if (roundSign == 0) {
-                    return (double)Math.round((double) parValue);
+                    return (double) Math.round((double) parValue);
                 } else if (roundSign > 0) {
-                    return (double)Math.round((double) parValue *  roundMultiplier) / roundMultiplier;
+                    return (double) Math.round((double) parValue * roundMultiplier) / roundMultiplier;
                 } else {
-                    return (double)Math.round((double) parValue / roundMultiplier) * roundMultiplier;
+                    return (double) Math.round((double) parValue / roundMultiplier) * roundMultiplier;
                 }
             }
             default:
                 throw new StatementExecutionException("unhandled function " + name);
+        }
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        if (parameters != null) {
+            parameters.forEach((expression) -> {
+                expression.validate(context);
+            });
         }
     }
 

@@ -22,10 +22,8 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import static herddb.sql.SQLRecordPredicate.compare;
-import static herddb.sql.SQLRecordPredicate.like;
 import static herddb.sql.SQLRecordPredicate.objectEquals;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
-import java.util.Map;
 import net.sf.jsqlparser.expression.operators.relational.Between;
 
 public class CompiledBetweenExpression implements CompiledSQLExpression {
@@ -35,13 +33,13 @@ public class CompiledBetweenExpression implements CompiledSQLExpression {
     private final CompiledSQLExpression end;
     private final boolean not;
 
-    public CompiledBetweenExpression(Boolean not, CompiledSQLExpression left, CompiledSQLExpression start, CompiledSQLExpression end) {
+    public CompiledBetweenExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression start, CompiledSQLExpression end) {
         this.left = left;
         this.start = start;
         this.end = end;
         this.not = not;
     }
-    
+
     public static CompiledSQLExpression create(String validatedTableAlias, Between b) {
         CompiledSQLExpression left = compileExpression(validatedTableAlias, b.getLeftExpression());
         if (left == null) {
@@ -60,7 +58,7 @@ public class CompiledBetweenExpression implements CompiledSQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        
+
         Object leftValue = left.evaluate(bean, context);
         Object startValue = start.evaluate(bean, context);
         Object endValue = end.evaluate(bean, context);
@@ -74,6 +72,13 @@ public class CompiledBetweenExpression implements CompiledSQLExpression {
         } else {
             return result;
         }
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        left.validate(context);
+        start.validate(context);
+        end.validate(context);
     }
 
 }

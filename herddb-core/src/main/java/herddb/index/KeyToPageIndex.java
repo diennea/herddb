@@ -27,6 +27,7 @@ import herddb.core.AbstractIndexManager;
 import herddb.core.PostCheckpointAction;
 import herddb.log.LogSequenceNumber;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableContext;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
@@ -63,7 +64,7 @@ public interface KeyToPageIndex extends AutoCloseable {
     public void truncate();
 
     public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
-            TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException;
+            TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException, StatementExecutionException;
 
     public Long put(Bytes key, Long currentPage);
 

@@ -22,17 +22,13 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
 
-public class CompiledEqualsExpression implements CompiledSQLExpression {
+public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
 
-    private final CompiledSQLExpression left;
-    private final CompiledSQLExpression right;
     private final boolean not;
 
-    public CompiledEqualsExpression(Boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
-        this.left = left;
-        this.right = right;
+    public CompiledEqualsExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
+        super(left, right);
         this.not = not;
     }
 
@@ -46,6 +42,11 @@ public class CompiledEqualsExpression implements CompiledSQLExpression {
         } else {
             return res;
         }
+    }
+
+    @Override
+    public String toString() {
+        return "CompiledEqualsExpression{" + "left=" + left + ", right=" + right + ", not=" + not + '}';
     }
 
 }

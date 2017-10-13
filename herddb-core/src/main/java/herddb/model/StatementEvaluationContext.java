@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
@@ -77,6 +78,14 @@ public class StatementEvaluationContext {
         return Collections.emptyList();
     }
 
+    public Object getJdbcParameter(int index) throws StatementExecutionException {
+        try {
+            return getJdbcParameters().get(index);
+        } catch (IndexOutOfBoundsException err) {
+            throw new MissingJDBCParameterException(index + 1);
+        }
+    }
+
     public List<DataAccessor> executeSubquery(PlainSelect select) throws StatementExecutionException {
         StringBuilder buffer = new StringBuilder();
         SelectDeParser deparser = new SelectDeParser();
@@ -88,7 +97,7 @@ public class StatementEvaluationContext {
         if (cached != null) {
             return cached;
         }
-//        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
+        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
         TranslatedQuery translated = manager.getPlanner().translate(defaultTablespace,
             subquery, this.getJdbcParameters(), true, true, false, -1);
         try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext);) {

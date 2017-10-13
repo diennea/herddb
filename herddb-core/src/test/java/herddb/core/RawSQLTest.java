@@ -45,13 +45,13 @@ import herddb.model.DuplicatePrimaryKeyException;
 import herddb.model.GetResult;
 import herddb.model.IndexAlreadyExistsException;
 import herddb.model.IndexDoesNotExistException;
+import herddb.model.MissingJDBCParameterException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
-import herddb.model.Tuple;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
@@ -91,6 +91,101 @@ public class RawSQLTest {
                 } else {
                     assertTrue(scan == scanFirst);
                 }
+            }
+
+        }
+    }
+
+    @Test
+    public void jdbcWrongParameterCountTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1=?", Collections.emptyList());
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1=1 and n1=?", Collections.emptyList());
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1=1 or n1=?", Collections.emptyList());
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql order by k1 limit ?", Collections.emptyList());
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where n1 = 1234 and k1 in "
+                    + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?) and n1 = ?", Arrays.asList(1));
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(2, ok.getIndex());
+            }
+
+            scan(manager, "SELECT * FROM tblspace1.tsql where n1 = ? and k1 in "
+                + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?)", Arrays.asList(1));
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1 in "
+                    + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?)", Collections.emptyList());
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1 in (SELECT k1+? FROM tblspace1.tsql)", Collections.emptyList());
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1 in (SELECT k1 FROM tblspace1.tsql where n1=?)", Collections.emptyList());
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT * FROM tblspace1.tsql where k1=1 and n1=? and n1=?", Arrays.asList(1));
+                fail();
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(2, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT n1+? FROM tblspace1.tsql", Collections.emptyList());
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
+            }
+
+            try {
+                scan(manager, "SELECT sum(n1), sum(?) FROM tblspace1.tsql", Collections.emptyList());
+            } catch (MissingJDBCParameterException ok) {
+                assertEquals(1, ok.getIndex());
             }
 
         }
@@ -153,7 +248,6 @@ public class RawSQLTest {
             // non standard syntax, needs a decoding
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + RecordSerializer.getUTCTimestampFormatter()
                 .format(now.toInstant()) + "')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
-
 
             java.sql.Timestamp now2 = new java.sql.Timestamp(now.getTime() + 1000);
             // standard syntax, but timezone dependant

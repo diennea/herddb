@@ -99,6 +99,11 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         return toBoolean(where.evaluate(bean, context));
     }
 
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        where.validate(context);
+    }
+
     public static boolean toBoolean(Object result) {
         if (result == null) {
             return false;

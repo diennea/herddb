@@ -34,20 +34,20 @@ import net.sf.jsqlparser.expression.WhenClause;
 
 public class CompiledCaseExpression implements CompiledSQLExpression {
 
-    private final List<Entry<CompiledSQLExpression,CompiledSQLExpression>> whenExpressions;
+    private final List<Entry<CompiledSQLExpression, CompiledSQLExpression>> whenExpressions;
     private final CompiledSQLExpression elseExpression;
 
-    public CompiledCaseExpression(List<Entry<CompiledSQLExpression,CompiledSQLExpression>> whenExpressions, CompiledSQLExpression elseExpression) {
+    public CompiledCaseExpression(List<Entry<CompiledSQLExpression, CompiledSQLExpression>> whenExpressions, CompiledSQLExpression elseExpression) {
         this.whenExpressions = whenExpressions;
         this.elseExpression = elseExpression;
     }
-    
+
     public static CompiledCaseExpression create(String validatedTableAlias, CaseExpression caseExpression) {
         Expression switchExpression = caseExpression.getSwitchExpression();
         if (switchExpression != null) {
             throw new StatementExecutionException("unhandled expression CASE SWITCH, type " + caseExpression.getClass() + ": " + caseExpression);
         }
-        List<Entry<CompiledSQLExpression,CompiledSQLExpression>> whens = null;
+        List<Entry<CompiledSQLExpression, CompiledSQLExpression>> whens = null;
         if (caseExpression.getWhenClauses() != null) {
             whens = new ArrayList<>();
             for (Expression when : caseExpression.getWhenClauses()) {
@@ -75,7 +75,7 @@ public class CompiledCaseExpression implements CompiledSQLExpression {
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         if (whenExpressions != null) {
-            for (Entry<CompiledSQLExpression,CompiledSQLExpression> entry : whenExpressions) {
+            for (Entry<CompiledSQLExpression, CompiledSQLExpression> entry : whenExpressions) {
                 Object whenValue = entry.getKey().evaluate(bean, context);
                 if (toBoolean(whenValue)) {
                     return entry.getValue().evaluate(bean, context);
@@ -86,6 +86,19 @@ public class CompiledCaseExpression implements CompiledSQLExpression {
             return elseExpression.evaluate(bean, context);
         } else {
             return null;
+        }
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        if (whenExpressions != null) {
+            for (Entry<CompiledSQLExpression, CompiledSQLExpression> entry : whenExpressions) {
+                entry.getKey().validate(context);
+                entry.getValue().validate(context);
+            }
+        }
+        if (elseExpression != null) {
+            elseExpression.validate(context);
         }
     }
 

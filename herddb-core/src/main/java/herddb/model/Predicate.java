@@ -31,6 +31,15 @@ public abstract class Predicate {
 
     public abstract boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException;
 
+    /**
+     * Perform validation of the predicate on the given context
+     *
+     * @param context the context of execution
+     * @throws StatementExecutionException
+     */
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+    }
+
     private IndexOperation indexOperation;
 
     public IndexOperation getIndexOperation() {

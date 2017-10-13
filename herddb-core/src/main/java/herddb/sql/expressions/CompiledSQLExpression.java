@@ -35,6 +35,23 @@ public interface CompiledSQLExpression {
         public CompiledSQLExpression build(boolean not, CompiledSQLExpression left, CompiledSQLExpression right);
     }
 
+    /**
+     * Evaluates the expression
+     *
+     * @param bean
+     * @param context
+     * @return
+     * @throws StatementExecutionException
+     */
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException;
+
+    /**
+     * Validates the expression without actually doing complex operation
+     *
+     * @param context
+     * @throws StatementExecutionException
+     */
+    public default void validate(StatementEvaluationContext context) throws StatementExecutionException {
+    }
 
 }

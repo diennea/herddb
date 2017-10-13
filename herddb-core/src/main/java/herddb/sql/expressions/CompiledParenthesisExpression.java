@@ -29,7 +29,7 @@ public class CompiledParenthesisExpression implements CompiledSQLExpression {
     private final CompiledSQLExpression inner;
     private final boolean not;
 
-    public CompiledParenthesisExpression(Boolean not, CompiledSQLExpression inner) {
+    public CompiledParenthesisExpression(boolean not, CompiledSQLExpression inner) {
         this.inner = inner;
         this.not = not;
     }
@@ -42,7 +42,12 @@ public class CompiledParenthesisExpression implements CompiledSQLExpression {
         } else {
             return !toBoolean(innerValue);
         }
-        
+
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        inner.validate(context);
     }
 
 }

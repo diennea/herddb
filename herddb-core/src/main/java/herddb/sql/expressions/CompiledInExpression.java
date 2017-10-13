@@ -21,13 +21,11 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.model.Tuple;
 import static herddb.sql.SQLRecordPredicate.objectEquals;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.operators.relational.ExpressionList;
 import net.sf.jsqlparser.expression.operators.relational.InExpression;
@@ -41,7 +39,7 @@ public class CompiledInExpression implements CompiledSQLExpression {
     private final PlainSelect inSubSelectPlain;
     private final boolean not;
 
-    public CompiledInExpression(Boolean not, CompiledSQLExpression left,
+    public CompiledInExpression(boolean not, CompiledSQLExpression left,
         List<CompiledSQLExpression> inExpressions, SubSelect inSubSelect) {
         this.left = left;
         this.not = not;
@@ -132,6 +130,17 @@ public class CompiledInExpression implements CompiledSQLExpression {
             return res;
         }
 
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        if (this.left != null) {
+            left.validate(context);
+        }
+        if (this.inExpressions != null) {
+            this.inExpressions.forEach(s -> s.validate(context));
+        }
+        // NOT VALIDATING SUBSELECT PLAN NOW, BUT AT EXECUTION TIME
     }
 
 }
