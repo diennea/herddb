@@ -737,8 +737,8 @@ public class RawSQLTest {
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Collections.emptyList(), TransactionContext.NO_TRANSACTION);) {
                 fail();
-            } catch (StatementExecutionException err) {
-                assertEquals("Invalid LIMIT with JDBC parameter position 1", err.getMessage());
+            } catch (MissingJDBCParameterException err) {
+                assertEquals(1, err.getIndex());
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
                 + "ORDER BY k1 LIMIT 3", Collections.emptyList(), 5, TransactionContext.NO_TRANSACTION);) {
