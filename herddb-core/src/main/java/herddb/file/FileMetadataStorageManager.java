@@ -48,8 +48,9 @@ import herddb.model.TableSpaceReplicaState;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.ManagedFile;
+import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 
 /**
@@ -216,25 +217,29 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     }
 
     private void persistTableSpaceOnDisk(TableSpace tableSpace) throws MetadataStorageManagerException {
-        Path file_tmp = baseDirectory.resolve(tableSpace.name + "." + System.nanoTime() + ".tmpmetadata");
-        Path file = baseDirectory.resolve(tableSpace.name + ".metadata");
-        VisibleByteArrayOutputStream out = new VisibleByteArrayOutputStream(1024);
-        try (ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+        Path tablespaceMetaTmp = baseDirectory.resolve(tableSpace.name + "." + System.nanoTime() + ".tmpmetadata");
+        Path tablespaceMeta = baseDirectory.resolve(tableSpace.name + ".metadata");
+
+        try (ManagedFile file = ManagedFile.open(tablespaceMetaTmp);
+            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(),
+                    FileDataStorageManager.COPY_BUFFERS_SIZE);
+            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+            ExtendedDataOutputStream dout = new ExtendedDataOutputStream(oo)) {
+
             dout.writeVLong(1); // version
             dout.writeVLong(0); // flags for future implementations
             tableSpace.serialize(dout);
+
+            // footer
+            dout.writeLong(oo.hash());
             dout.flush();
-            out.write(out.xxhash64());
+            file.sync();
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
         }
+
         try {
-            FileUtils.fastWriteFile(file_tmp, out.getBuffer(), 0, out.size());
-        } catch (IOException err) {
-            throw new MetadataStorageManagerException(err);
-        }
-        try {
-            Files.move(file_tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            Files.move(tablespaceMetaTmp, tablespaceMeta, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException err) {
             throw new MetadataStorageManagerException(err);
         }

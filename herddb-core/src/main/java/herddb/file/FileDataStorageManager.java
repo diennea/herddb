@@ -23,7 +23,6 @@ import java.io.BufferedInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -67,9 +66,9 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
+import herddb.utils.ManagedFile;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import herddb.utils.VisibleByteArrayOutputStream;
 import herddb.utils.XXHash64Utils;
 
 /**
@@ -83,6 +82,9 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path baseDirectory;
     private final Path tmpDirectory;
     private final int swapThreshold;
+
+    /** Standard buffer size for data copies */
+    public static final int COPY_BUFFERS_SIZE = 64 * 1024;
 
     public FileDataStorageManager(Path baseDirectory) {
         this(baseDirectory, baseDirectory.resolve("tmp"), ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
@@ -437,18 +439,23 @@ public class FileDataStorageManager extends DataStorageManager {
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
         LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
 
-        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
-        try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+        try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+
             dataOutputKeys.writeVLong(1); // version
             dataOutputKeys.writeVLong(0); // flags for future implementations
             tableStatus.serialize(dataOutputKeys);
+
+            dataOutputKeys.writeLong(oo.hash());
             dataOutputKeys.flush();
-            oo.write(oo.xxhash64());
+            file.sync();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+
         try {
-            FileUtils.fastWriteFile(checkpointFileTemp, oo.getBuffer(), 0, oo.size());
             Files.move(checkpointFileTemp, checkpointFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
@@ -513,18 +520,23 @@ public class FileDataStorageManager extends DataStorageManager {
 
         LOGGER.log(Level.FINE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
 
-        VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream(1024);
-        try (ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+        try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+
             dataOutputKeys.writeVLong(1); // version
             dataOutputKeys.writeVLong(0); // flags for future implementations
             indexStatus.serialize(dataOutputKeys);
+
+            dataOutputKeys.writeLong(oo.hash());
             dataOutputKeys.flush();
-            oo.write(oo.xxhash64());
+            file.sync();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+
         try {
-            FileUtils.fastWriteFile(checkpointFileTemp, oo.getBuffer(), 0, oo.size());
             Files.move(checkpointFileTemp, checkpointFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
@@ -691,11 +703,12 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
-        try (OutputStream foo = Files.newOutputStream(pageFile, StandardOpenOption.CREATE,
-            StandardOpenOption.TRUNCATE_EXISTING);
-            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(foo, 1024);
+
+        try (ManagedFile file = ManagedFile.open(pageFile);
+            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
             XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
+            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
+
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
             dataOutput.writeInt(newPage.size());
@@ -703,13 +716,16 @@ public class FileDataStorageManager extends DataStorageManager {
                 dataOutput.writeArray(record.key.data);
                 dataOutput.writeArray(record.value.data);
             }
+
             size = oo.size();
-            long digest = oo.hash();
             // footer
-            dataOutput.writeLong(digest);
+            dataOutput.writeLong(oo.hash());
+            dataOutput.flush();
+            file.sync();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
+
         long now = System.currentTimeMillis();
 
         if (LOGGER.isLoggable(Level.FINER)) {
@@ -729,11 +745,11 @@ public class FileDataStorageManager extends DataStorageManager {
         }
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
-        try (OutputStream foo = Files.newOutputStream(pageFile, StandardOpenOption.CREATE,
-            StandardOpenOption.TRUNCATE_EXISTING);
-            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(foo, 1024);
+
+        try (ManagedFile file = ManagedFile.open(pageFile);
+            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
             XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo);) {
+            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
 
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
@@ -742,9 +758,10 @@ public class FileDataStorageManager extends DataStorageManager {
             writer.write(dataOutput);
             size = oo.size() - size;
 
-            long digest = oo.hash();
             // footer
-            dataOutput.writeLong(digest);
+            dataOutput.writeLong(oo.hash());
+            dataOutput.flush();
+            file.sync();
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
@@ -894,14 +911,16 @@ public class FileDataStorageManager extends DataStorageManager {
         Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
         try {
             Files.createDirectories(tableSpaceDirectory);
-            Path file_tables = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
-            Path file_indexes = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
-            Path parent = getParent(file_tables);
+            Path fileTables = getTablespaceTablesMetadataFile(tableSpace, sequenceNumber);
+            Path fileIndexes = getTablespaceIndexesMetadataFile(tableSpace, sequenceNumber);
+            Path parent = getParent(fileTables);
             Files.createDirectories(parent);
 
-            LOGGER.log(Level.FINE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + file_tables.toAbsolutePath().toString());
-            try (OutputStream out = Files.newOutputStream(file_tables, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+            LOGGER.log(Level.FINE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + fileTables.toAbsolutePath().toString());
+            try (ManagedFile file = ManagedFile.open(fileTables);
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
@@ -912,9 +931,17 @@ public class FileDataStorageManager extends DataStorageManager {
                     byte[] tableSerialized = t.serialize();
                     dout.writeArray(tableSerialized);
                 }
+
+                dout.flush();
+                file.sync();
+            } catch (IOException err) {
+                throw new DataStorageManagerException(err);
             }
-            try (OutputStream out = Files.newOutputStream(file_indexes, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+
+            try (ManagedFile file = ManagedFile.open(fileIndexes);
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
@@ -929,7 +956,13 @@ public class FileDataStorageManager extends DataStorageManager {
                 } else {
                     dout.writeInt(0);
                 }
+
+                dout.flush();
+                file.sync();
+            } catch (IOException err) {
+                throw new DataStorageManagerException(err);
             }
+
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
@@ -978,16 +1011,24 @@ public class FileDataStorageManager extends DataStorageManager {
 
             Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
             LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
-            try (OutputStream out = Files.newOutputStream(checkpointFileTemp,
-                StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+
+            try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
                 dout.writeZLong(sequenceNumber.ledgerId);
                 dout.writeZLong(sequenceNumber.offset);
+
+                dout.flush();
+                file.sync();
+            } catch (IOException err) {
+                throw new DataStorageManagerException(err);
             }
-            // write file atomically
+
+             // write file atomically
             Files.move(checkpointFileTemp, checkPointFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
@@ -1197,14 +1238,16 @@ public class FileDataStorageManager extends DataStorageManager {
         Path tableSpaceDirectory = getTablespaceDirectory(tableSpace);
         try {
             Files.createDirectories(tableSpaceDirectory);
-            Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
-            Path parent = getParent(file);
+            Path checkPointFile = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
+            Path parent = getParent(checkPointFile);
             Files.createDirectories(parent);
 
-            Path checkpointFileTemp = parent.resolve(file.getFileName() + ".tmp");
-            LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, file.toAbsolutePath().toString(), transactions.size()});
-            try (OutputStream out = Files.newOutputStream(checkpointFileTemp, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(out)) {
+            Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
+            LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, checkPointFile.toAbsolutePath().toString(), transactions.size()});
+            try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
                 dout.writeUTF(tableSpace);
@@ -1214,8 +1257,18 @@ public class FileDataStorageManager extends DataStorageManager {
                 for (Transaction t : transactions) {
                     t.serialize(dout);
                 }
+
+                dout.flush();
+                file.sync();
+            } catch (IOException err) {
+                throw new DataStorageManagerException(err);
             }
-            Files.move(checkpointFileTemp, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+
+            try {
+                Files.move(checkpointFileTemp, checkPointFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException err) {
+                throw new DataStorageManagerException(err);
+            }
         } catch (IOException err) {
             throw new DataStorageManagerException(err);
         }
