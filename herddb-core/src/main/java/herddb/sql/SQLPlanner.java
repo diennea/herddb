@@ -220,16 +220,14 @@ public class SQLPlanner {
                 if (query.regionMatches(idx, "ROLLBACK TRANSACTION", 0, 20)) {
                     return "EXECUTE rollbacktransaction" + query.substring(idx + 20);
                 }
-
                 return query;
-
             default:
-
                 return query;
         }
     }
 
-    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
+    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters,
+        boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
@@ -245,45 +243,69 @@ public class SQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
+        net.sf.jsqlparser.statement.Statement stmt = parseStatement(query);
+        if (!isCachable(stmt)) {
+            allowCache = false;
+        }
+        ExecutionPlan executionPlan = plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
+        if (allowCache) {
+            cache.put(cacheKey, executionPlan);
+        }
+        return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+
+    }
+
+    private net.sf.jsqlparser.statement.Statement parseStatement(String query) throws StatementExecutionException {
+        net.sf.jsqlparser.statement.Statement stmt;
         try {
-            ExecutionPlan result;
-            net.sf.jsqlparser.statement.Statement stmt = CCJSqlParserUtil.parse(query);
-            verifyJdbcParametersIndexes(stmt);
-            if (stmt instanceof CreateTable) {
-                result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
-            } else if (stmt instanceof CreateIndex) {
-                result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
-            } else if (stmt instanceof Insert) {
-                result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
-            } else if (stmt instanceof Delete) {
-                result = buildDeleteStatement(defaultTableSpace, (Delete) stmt, returnValues);
-            } else if (stmt instanceof Update) {
-                result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
-            } else if (stmt instanceof Select) {
-                result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows);
-            } else if (stmt instanceof Execute) {
-                result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
-                allowCache = false;
-            } else if (stmt instanceof Alter) {
-                result = ExecutionPlan.simple(buildAlterStatement(defaultTableSpace, (Alter) stmt));
-                allowCache = false;
-            } else if (stmt instanceof Drop) {
-                result = ExecutionPlan.simple(buildDropStatement(defaultTableSpace, (Drop) stmt));
-                allowCache = false;
-            } else if (stmt instanceof Truncate) {
-                result = ExecutionPlan.simple(buildTruncateStatement(defaultTableSpace, (Truncate) stmt));
-                allowCache = false;
-            } else {
-                throw new StatementExecutionException("unable to execute query " + query + ", type " + stmt.getClass());
-            }
-            if (allowCache) {
-                cache.put(cacheKey, result);
-            }
-            return new TranslatedQuery(result, new SQLStatementEvaluationContext(query, parameters));
+            stmt = CCJSqlParserUtil.parse(query);
         } catch (JSQLParserException | net.sf.jsqlparser.parser.TokenMgrError err) {
             throw new StatementExecutionException("unable to parse query " + query, err);
         }
+        return stmt;
+    }
 
+    public ExecutionPlan plan(String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
+        boolean scan, boolean returnValues, int maxRows) {
+        verifyJdbcParametersIndexes(stmt);
+        ExecutionPlan result;
+        if (stmt instanceof CreateTable) {
+            result = ExecutionPlan.simple(buildCreateTableStatement(defaultTableSpace, (CreateTable) stmt));
+        } else if (stmt instanceof CreateIndex) {
+            result = ExecutionPlan.simple(buildCreateIndexStatement(defaultTableSpace, (CreateIndex) stmt));
+        } else if (stmt instanceof Insert) {
+            result = buildInsertStatement(defaultTableSpace, (Insert) stmt, returnValues);
+        } else if (stmt instanceof Delete) {
+            result = buildDeleteStatement(defaultTableSpace, (Delete) stmt, returnValues);
+        } else if (stmt instanceof Update) {
+            result = buildUpdateStatement(defaultTableSpace, (Update) stmt, returnValues);
+        } else if (stmt instanceof Select) {
+            result = buildSelectStatement(defaultTableSpace, (Select) stmt, scan, maxRows);
+        } else if (stmt instanceof Execute) {
+            result = ExecutionPlan.simple(buildExecuteStatement(defaultTableSpace, (Execute) stmt));
+        } else if (stmt instanceof Alter) {
+            result = ExecutionPlan.simple(buildAlterStatement(defaultTableSpace, (Alter) stmt));
+        } else if (stmt instanceof Drop) {
+            result = ExecutionPlan.simple(buildDropStatement(defaultTableSpace, (Drop) stmt));
+        } else if (stmt instanceof Truncate) {
+            result = ExecutionPlan.simple(buildTruncateStatement(defaultTableSpace, (Truncate) stmt));
+        } else {
+            return null;
+        }
+        return result;
+    }
+
+    private static boolean isCachable(net.sf.jsqlparser.statement.Statement stmt) {
+        if (stmt instanceof Execute) {
+            return false;
+        } else if (stmt instanceof Alter) {
+            return false;
+        } else if (stmt instanceof Drop) {
+            return false;
+        } else if (stmt instanceof Truncate) {
+            return false;
+        }
+        return true;
     }
 
     private Statement buildCreateTableStatement(String defaultTableSpace, CreateTable s) throws StatementExecutionException {

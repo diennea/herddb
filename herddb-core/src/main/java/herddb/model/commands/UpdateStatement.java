@@ -74,4 +74,9 @@ public class UpdateStatement extends DMLStatement {
         return "UpdateStatement " + System.identityHashCode(this) + " {" + "function=" + function + ", key=" + key + ", predicate=" + predicate + '}';
     }
 
+    @Override
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
+        predicate.validateContext(context);
+    }
+
 }

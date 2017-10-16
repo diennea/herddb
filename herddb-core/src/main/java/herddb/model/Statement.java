@@ -26,7 +26,7 @@ package herddb.model;
  */
 public abstract class Statement {
 
-    private String tableSpace;
+    private final String tableSpace;
 
     public Statement(String tableSpace) {
         this.tableSpace = tableSpace;
@@ -35,10 +35,13 @@ public abstract class Statement {
     public String getTableSpace() {
         return tableSpace;
     }
-    
+
     public boolean supportsTransactionAutoCreate() {
         /* This instruction will not autocreate a transaction if issued */
         return false;
+    }
+
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
     }
 
 }

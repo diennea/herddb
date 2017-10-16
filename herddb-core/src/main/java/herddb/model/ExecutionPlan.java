@@ -86,6 +86,20 @@ public class ExecutionPlan {
         return new ExecutionPlan(statement, null, null, null, dataSource, null, null, null, null);
     }
 
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
+        if (mainStatement != null) {
+            mainStatement.validateContext(context);
+        }
+        if (joinStatements != null) {
+            joinStatements.forEach(s -> {
+                s.validateContext(context);
+            });
+        }
+        if (insertStatements != null) {
+            insertStatements.forEach(s -> s.validateContext(context));
+        }
+    }
+
     @Override
     public String toString() {
         return "Plan" + id;

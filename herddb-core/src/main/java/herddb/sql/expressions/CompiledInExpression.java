@@ -19,8 +19,10 @@
  */
 package herddb.sql.expressions;
 
+import herddb.model.ExecutionPlan;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.sql.SQLPlanner;
 import static herddb.sql.SQLRecordPredicate.objectEquals;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.utils.DataAccessor;
@@ -140,7 +142,10 @@ public class CompiledInExpression implements CompiledSQLExpression {
         if (this.inExpressions != null) {
             this.inExpressions.forEach(s -> s.validate(context));
         }
-        // NOT VALIDATING SUBSELECT PLAN NOW, BUT AT EXECUTION TIME
+        if (inSubSelectPlain != null) {
+            ExecutionPlan plan = context.compileSubplan(inSubSelectPlain);
+            plan.validateContext(context);
+        }
     }
 
 }

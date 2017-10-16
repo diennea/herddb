@@ -22,8 +22,7 @@ package herddb.sql;
 import herddb.model.ExecutionPlan;
 
 /**
- * Result of SQL transaction, it is made of two parts, a cachable part (the
- * Statement) and a context, non cachable, part
+ * Result of SQL transaction, it is made of two parts, a cachable part (the Statement) and a context, non cachable, part
  *
  * @author enrico.olivelli
  */

@@ -148,6 +148,16 @@ public class SimpleSubqueryTest {
                 + "WHERE t1.k1 in (SELECT fk FROM tblspace1.table2 WHERE k2='subkey4')"
                 + "", Collections.emptyList()).consume().size());
 
+            assertEquals(1, scan(manager, "SELECT * "
+                + "FROM tblspace1.table1 t1 "
+                + "WHERE t1.n1 = ? and t1.k1 in (SELECT fk FROM tblspace1.table2 WHERE k2=?)"
+                + "", Arrays.asList(1234, "subkey4")).consume().size());
+
+            assertEquals(0, scan(manager, "SELECT * "
+                + "FROM tblspace1.table1 t1 "
+                + "WHERE t1.n1 = ? and t1.k1 in (SELECT fk FROM tblspace1.table2 WHERE k2=?)"
+                + "", Arrays.asList(1234, "subkey5")).consume().size());
+
         }
     }
 

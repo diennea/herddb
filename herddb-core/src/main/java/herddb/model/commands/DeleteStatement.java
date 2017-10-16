@@ -67,6 +67,11 @@ public class DeleteStatement extends DMLStatement {
     }
 
     @Override
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
+        predicate.validateContext(context);
+    }
+
+    @Override
     public String toString() {
         return "DeleteStatement{" + "predicate=" + predicate + '}';
     }

@@ -22,6 +22,8 @@ package herddb.model.commands;
 import herddb.model.ConstValueRecordFunction;
 import herddb.model.Predicate;
 import herddb.model.RecordFunction;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableAwareStatement;
 import herddb.utils.Bytes;
 
@@ -61,5 +63,14 @@ public class GetStatement extends TableAwareStatement {
     public boolean isRequireLock() {
         return requireLock;
     }
+
+    @Override
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
+        if (predicate != null) {
+            predicate.validateContext(context);
+        }
+    }
+
+
 
 }

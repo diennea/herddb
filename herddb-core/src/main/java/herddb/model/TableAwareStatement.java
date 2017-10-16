@@ -36,7 +36,7 @@ public abstract class TableAwareStatement extends Statement {
     public String getTable() {
         return table;
     }
-    
+
     @Override
     public boolean supportsTransactionAutoCreate() {
         /* This instruction will autocreate a transaction if issued */

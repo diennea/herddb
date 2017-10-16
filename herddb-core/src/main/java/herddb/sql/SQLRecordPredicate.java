@@ -100,7 +100,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
     }
 
     @Override
-    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
         where.validate(context);
     }
 

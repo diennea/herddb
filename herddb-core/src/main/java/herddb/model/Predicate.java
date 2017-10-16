@@ -37,7 +37,7 @@ public abstract class Predicate {
      * @param context the context of execution
      * @throws StatementExecutionException
      */
-    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
     }
 
     private IndexOperation indexOperation;

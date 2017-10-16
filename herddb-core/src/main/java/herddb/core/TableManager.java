@@ -2156,10 +2156,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private void accessTableData(ScanStatement statement, StatementEvaluationContext context, ScanResultOperation consumer, Transaction transaction,
         boolean lockRequired, boolean forWrite) throws StatementExecutionException {
-        Predicate predicate = statement.getPredicate();
-        if (predicate != null) {
-            predicate.validate(context);
-        }
+        statement.validateContext(context);
+        Predicate predicate = statement.getPredicate();        
         long _start = System.currentTimeMillis();
         boolean acquireLock = transaction != null || forWrite || lockRequired;
 

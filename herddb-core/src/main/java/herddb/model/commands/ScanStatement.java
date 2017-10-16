@@ -22,6 +22,8 @@ package herddb.model.commands;
 import herddb.model.Predicate;
 import herddb.model.Projection;
 import herddb.model.ScanLimits;
+import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
 import herddb.model.TupleComparator;
@@ -71,4 +73,10 @@ public class ScanStatement extends TableAwareStatement {
         return "ScanStatement{" + "predicate=" + predicate + ", projection=" + projection + ", comparator=" + comparator + ", limits=" + limits + '}';
     }
 
+    @Override
+    public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
+        if (predicate != null) {
+            predicate.validateContext(context);
+        }
+    }
 }

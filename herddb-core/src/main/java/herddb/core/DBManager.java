@@ -590,6 +590,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
      * Executes a single lookup
      *
      * @param statement
+     * @param context
+     * @param transactionContext
      * @return
      * @throws StatementExecutionException
      */
@@ -598,6 +600,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        context.setManager(this);
+        plan.validateContext(context);
         if (plan.mainStatement instanceof ScanStatement) {
             DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
             // transction can be auto generated during the scan

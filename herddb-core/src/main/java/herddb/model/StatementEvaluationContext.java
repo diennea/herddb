@@ -20,17 +20,16 @@
 package herddb.model;
 
 import herddb.core.DBManager;
-import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.statement.select.PlainSelect;
-import net.sf.jsqlparser.util.deparser.ExpressionDeParser;
-import net.sf.jsqlparser.util.deparser.SelectDeParser;
+import net.sf.jsqlparser.statement.select.Select;
 
 /**
  * Context for each statement evaluation. Statements are immutable and cachable objects, and cannot retain state
@@ -43,7 +42,8 @@ public class StatementEvaluationContext {
 
     private DBManager manager;
     private TransactionContext transactionContext;
-    private final Map<String, List<DataAccessor>> subqueryCache = new HashMap<>();
+    private final Map<PlainSelect, List<DataAccessor>> subqueryCache = new IdentityHashMap<>();
+    private final Map<PlainSelect, ExecutionPlan> planCache = new IdentityHashMap<>();
     private String defaultTablespace = TableSpace.DEFAULT;
 
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
@@ -87,28 +87,34 @@ public class StatementEvaluationContext {
     }
 
     public List<DataAccessor> executeSubquery(PlainSelect select) throws StatementExecutionException {
-        StringBuilder buffer = new StringBuilder();
-        SelectDeParser deparser = new SelectDeParser();
-        deparser.setBuffer(buffer);
-        deparser.setExpressionVisitor(new ExpressionDeParser(deparser, buffer));
-        deparser.visit(select);
-        String subquery = deparser.getBuffer().toString();
-        List<DataAccessor> cached = subqueryCache.get(subquery);
+        List<DataAccessor> cached = subqueryCache.get(select);
         if (cached != null) {
             return cached;
         }
-        LOGGER.log(Level.SEVERE, "executing subquery " + subquery);
-        TranslatedQuery translated = manager.getPlanner().translate(defaultTablespace,
-            subquery, this.getJdbcParameters(), true, true, false, -1);
-        try (ScanResult result = (ScanResult) manager.executePlan(translated.plan, translated.context, transactionContext);) {
+        LOGGER.log(Level.SEVERE, "executing subquery {0}", select);
+        ExecutionPlan plan = compileSubplan(select);
+        try (ScanResult result = (ScanResult) manager.executePlan(plan, this, transactionContext);) {
             List<DataAccessor> fullResult = result.dataScanner.consume();
-//            LOGGER.log(Level.SEVERE, "executing subquery " + subquery+" -> "+fullResult);
-            subqueryCache.put(subquery, fullResult);
+            LOGGER.log(Level.SEVERE, "executing subquery " + select + " -> " + fullResult);
+            subqueryCache.put(select, fullResult);
             return fullResult;
         } catch (DataScannerException error) {
             throw new StatementExecutionException(error);
         }
+    }
 
+    public ExecutionPlan compileSubplan(PlainSelect select) {
+        ExecutionPlan plan = planCache.get(select);
+        if (plan != null) {
+            return plan;
+        }
+
+        Select fullSelect = new Select();
+        fullSelect.setSelectBody(select);
+        plan = manager.getPlanner().plan(defaultTablespace,
+            fullSelect, true, false, -1);
+        planCache.put(select, plan);
+        return plan;
     }
 
 }
