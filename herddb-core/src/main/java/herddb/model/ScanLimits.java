@@ -60,7 +60,6 @@ public class ScanLimits {
     }
 
     public int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException {
-        new Exception("computeMaxRows "+maxRowsJdbcParameterIndex).printStackTrace();
         if (maxRowsJdbcParameterIndex <= 0) {
             return maxRows;
         } else {
