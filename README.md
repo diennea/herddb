@@ -27,4 +27,7 @@ There are some DB features which are available only among tables of the same tab
 Replication is configured at tablespace level, for each tablespace only one server is designed to be the 'leader' (manager) and then you can configure a set of 'replicas'.
 The system automatically replicates data and handles transparently server failures.
 
+## License
+
+Majordodo is under [Apache 2 license](http://www.apache.org/licenses/LICENSE-2.0.html).
 
