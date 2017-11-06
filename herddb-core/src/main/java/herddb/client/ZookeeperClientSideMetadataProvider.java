@@ -75,7 +75,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
                         }
                     }
                 });
-                waitForConnection.await(zkSessionTimeout * 2, TimeUnit.SECONDS);
+                boolean waitResult = waitForConnection.await(zkSessionTimeout * 2L, TimeUnit.SECONDS);
                 return zk;
             } catch (Exception err) {
                 LOG.log(Level.SEVERE, "zk client error " + err, err);
