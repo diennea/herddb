@@ -132,23 +132,27 @@ import net.sf.jsqlparser.statement.update.Update;
  *
  * @author enrico.olivelli
  */
-public class SQLPlanner {
+public class SQLPlanner implements AbstractSQLPlanner {
 
     private final DBManager manager;
     private final PlansCache cache;
 
+    @Override
     public long getCacheSize() {
         return cache.getCacheSize();
     }
 
+    @Override
     public long getCacheHits() {
         return cache.getCacheHits();
     }
 
+    @Override
     public long getCacheMisses() {
         return cache.getCacheMisses();
     }
 
+    @Override
     public void clearCache() {
         cache.clear();
     }
@@ -226,6 +230,7 @@ public class SQLPlanner {
         }
     }
 
+    @Override
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters,
         boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
         if (parameters == null) {
@@ -265,6 +270,7 @@ public class SQLPlanner {
         return stmt;
     }
 
+    @Override
     public ExecutionPlan plan(String defaultTableSpace, net.sf.jsqlparser.statement.Statement stmt,
         boolean scan, boolean returnValues, int maxRows) {
         verifyJdbcParametersIndexes(stmt);

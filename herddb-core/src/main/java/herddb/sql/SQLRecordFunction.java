@@ -32,6 +32,7 @@ import herddb.utils.DataAccessor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import net.sf.jsqlparser.schema.Column;
 
 /**
@@ -42,11 +43,18 @@ import net.sf.jsqlparser.schema.Column;
 public class SQLRecordFunction extends RecordFunction {
 
     private final Table table;
-    private final List<Column> columns;
+    private final List<String> columns;
     private final List<CompiledSQLExpression> expressions;
     private final int jdbcParametersStartPos;
 
     public SQLRecordFunction(Table table, List<Column> columns, List<CompiledSQLExpression> expressions, int jdbcParametersStartPos) {
+        this.table = table;
+        this.columns = columns.stream().map(Column::getColumnName).collect(Collectors.toList());
+        this.expressions = expressions;
+        this.jdbcParametersStartPos = jdbcParametersStartPos;
+    }
+
+    public SQLRecordFunction(List<String> columns, Table table, List<CompiledSQLExpression> expressions, int jdbcParametersStartPos) {
         this.table = table;
         this.columns = columns;
         this.expressions = expressions;
@@ -59,7 +67,7 @@ public class SQLRecordFunction extends RecordFunction {
         DataAccessor bean = previous != null ? previous.getDataAccessor(table) : DataAccessor.NULL;
         for (int i = 0; i < columns.size(); i++) {
             CompiledSQLExpression e = expressions.get(i);
-            String columnName = columns.get(i).getColumnName();
+            String columnName = columns.get(i);
             herddb.model.Column column = table.getColumn(columnName);
             if (column == null) {
                 throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);

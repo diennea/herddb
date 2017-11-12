@@ -79,6 +79,35 @@ public class SQLRecordKeyFunction extends RecordFunction {
         this.fullPrimaryKey = (primaryKey.length == columns.length);
     }
 
+    public SQLRecordKeyFunction(List<String> expressionToColumn,
+            List<CompiledSQLExpression> expressions, ColumnsList table) {
+        this.table = table;
+        this.columns = new Column[expressions.size()];
+        this.expressions = new ArrayList<>();
+        this.pkColumnNames = new String[expressions.size()];
+        int i = 0;
+        boolean constant = true;
+        for (String cexp : expressionToColumn) {
+            Column pkcolumn = table.getColumn(cexp);
+            this.columns[i] = pkcolumn;
+            CompiledSQLExpression exp = expressions.get(i);
+            this.expressions.add(exp);
+            if (!SQLRecordPredicate.isConstant(exp)) {
+                constant = false;
+            }
+            i++;
+        }
+        this.isConstant = constant;
+        int k = 0;
+        String[] primaryKey = table.getPrimaryKey();
+        for (String pk : primaryKey) {
+            if (expressionToColumn.contains(pk)) {
+                this.pkColumnNames[k++] = pk;
+            }
+        }
+        this.fullPrimaryKey = (primaryKey.length == columns.length);
+    }
+
     public boolean isFullPrimaryKey() {
         return fullPrimaryKey;
     }

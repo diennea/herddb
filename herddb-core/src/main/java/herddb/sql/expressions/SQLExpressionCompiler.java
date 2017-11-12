@@ -54,18 +54,23 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import org.apache.calcite.rex.RexDynamicParam;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 
 /**
- * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
+ * Created a pure Java implementation of the expression which represents the
+ * given jSQLParser Expression
  *
  * @author enrico.olivelli
  */
 public class SQLExpressionCompiler {
 
     private static CompiledSQLExpression tryCompileBinaryExpression(
-        String validatedTableAlias,
-        BinaryExpression binExp,
-        BinaryExpressionBuilder compiledExpClass) {
+            String validatedTableAlias,
+            BinaryExpression binExp,
+            BinaryExpressionBuilder compiledExpClass) {
 
         CompiledSQLExpression left = compileExpression(validatedTableAlias, binExp.getLeftExpression());
         if (left == null) {
@@ -80,7 +85,7 @@ public class SQLExpressionCompiler {
 
     // this method never returns NULL
     public static CompiledSQLExpression compileExpression(String validatedTableAlias,
-        Expression exp) {
+            Expression exp) {
         if (exp instanceof BinaryExpression) {
             CompiledSQLExpression compiled = compileSpecialBinaryExpression(validatedTableAlias, exp);
             if (compiled != null) {
@@ -168,9 +173,9 @@ public class SQLExpressionCompiler {
         net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
         if (validatedTableAlias != null) {
             if (c.getTable() != null && c.getTable().getName() != null
-                && !c.getTable().getName().equals(validatedTableAlias)) {
+                    && !c.getTable().getName().equals(validatedTableAlias)) {
                 throw new StatementExecutionException("invalid column name " + c.getColumnName()
-                    + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
+                        + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
             }
         }
 
@@ -192,7 +197,7 @@ public class SQLExpressionCompiler {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) be.getLeftExpression();
             if (validatedTableAlias != null) {
                 if (c.getTable() != null && c.getTable().getName() != null
-                    && !c.getTable().getName().equals(validatedTableAlias)) {
+                        && !c.getTable().getName().equals(validatedTableAlias)) {
                     return null;
                 }
             }
@@ -227,5 +232,24 @@ public class SQLExpressionCompiler {
             } // TODO handle "TABLE.COLUMNNAME OPERATOR CONSTANT"
         }
         return null;
+    }
+
+    public static CompiledSQLExpression compileExpression(RexNode expression) {
+        System.out.println("compile " + expression + ", type " + expression.getClass());
+        if (expression instanceof RexDynamicParam) {
+            RexDynamicParam p = (RexDynamicParam) expression;
+            return new JdbcParameterExpression(p.getIndex());
+        } else if (expression instanceof RexLiteral) {
+            RexLiteral p = (RexLiteral) expression;
+            if (p.isNull()) {
+                return new ConstantExpression(null);
+            } else {
+                return new ConstantExpression(p.getValue());
+            }
+        } else if (expression instanceof RexInputRef) {
+            RexInputRef p = (RexInputRef) expression;
+            return new AccessDownStreamInputFieldExpression(p.getIndex());
+        }
+        throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }
 }

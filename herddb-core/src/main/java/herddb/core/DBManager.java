@@ -95,6 +95,8 @@ import herddb.network.Channel;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.server.ServerConfiguration;
+import herddb.sql.AbstractSQLPlanner;
+import herddb.sql.CalcitePlanner;
 import herddb.sql.SQLPlanner;
 import herddb.sql.SQLStatementEvaluationContext;
 import herddb.storage.DataStorageManager;
@@ -108,7 +110,7 @@ import herddb.utils.DefaultJVMHalt;
  * @author enrico.olivelli
  */
 public class DBManager implements AutoCloseable, MetadataChangeListener {
-
+    private static final boolean USE_CALCITE = true;
     private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
     private final MetadataStorageManager metadataStorageManager;
@@ -121,7 +123,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final Activator activatorJ;
     private final AtomicBoolean stopped = new AtomicBoolean();
 
-    private final SQLPlanner translator;
+    private final AbstractSQLPlanner translator;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
     private MemoryManager memoryManager;
@@ -168,7 +170,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.nodeId = nodeId;
         this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
-        this.translator = new SQLPlanner(this, configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
+        this.translator = USE_CALCITE ? new CalcitePlanner(this) : new SQLPlanner(this, configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
             ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT));
         this.activatorJ = new Activator();
         this.activator = new Thread(activatorJ, "hdb-" + nodeId + "-activator");
@@ -256,7 +258,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.connectionsInfoProvider = connectionsInfoProvider;
     }
 
-    public SQLPlanner getPlanner() {
+    public AbstractSQLPlanner getPlanner() {
         return translator;
     }
 

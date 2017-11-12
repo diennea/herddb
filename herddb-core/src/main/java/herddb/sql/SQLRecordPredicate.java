@@ -40,6 +40,7 @@ import net.sf.jsqlparser.expression.StringValue;
 import net.sf.jsqlparser.expression.TimestampValue;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.DataAccessor;
 
 /**
@@ -53,10 +54,14 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     static boolean isConstant(Expression exp) {
         return exp instanceof StringValue
-            || exp instanceof LongValue
-            || exp instanceof NullValue
-            || exp instanceof TimestampValue
-            || exp instanceof JdbcParameter;
+                || exp instanceof LongValue
+                || exp instanceof NullValue
+                || exp instanceof TimestampValue
+                || exp instanceof JdbcParameter;
+    }
+
+    static boolean isConstant(CompiledSQLExpression exp) {
+        return exp instanceof ConstantExpression;
     }
 
     private final Table table;
@@ -83,8 +88,8 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return PrimaryKeyMatchOutcome.FAILED;
         } else {
             return where == primaryKeyFilter
-                ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
-                : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
+                    ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
+                    : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
     }
 
@@ -235,11 +240,11 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return ((java.util.Date) a).getTime() == ((java.util.Date) b).getTime();
         }
         if (a instanceof java.lang.Boolean
-            && (Boolean.parseBoolean(b.toString()) == ((Boolean) a))) {
+                && (Boolean.parseBoolean(b.toString()) == ((Boolean) a))) {
             return true;
         }
         if (b instanceof java.lang.Boolean
-            && (Boolean.parseBoolean(a.toString()) == ((Boolean) b))) {
+                && (Boolean.parseBoolean(a.toString()) == ((Boolean) b))) {
             return true;
         }
         return Objects.equals(a, b);
@@ -250,10 +255,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return false;
         }
         String like = b.toString()
-            .replace(".", "\\.")
-            .replace("\\*", "\\*")
-            .replace("%", ".*")
-            .replace("_", ".?");
+                .replace(".", "\\.")
+                .replace("\\*", "\\*")
+                .replace("%", ".*")
+                .replace("_", ".?");
         return a.toString().matches(like);
     }
 

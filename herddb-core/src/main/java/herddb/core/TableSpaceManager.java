@@ -104,6 +104,7 @@ import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.DropIndexStatement;
 import herddb.model.commands.DropTableStatement;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.KeyValue;
@@ -506,7 +507,7 @@ public class TableSpaceManager {
         return dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist);
     }
 
-    DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         boolean rollbackOnError = false;
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
             StatementExecutionResult newTransaction = beginTransaction();
@@ -973,7 +974,7 @@ public class TableSpaceManager {
 
     private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
-    StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+    public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
         if (virtual) {
             throw new StatementExecutionException("executeStatement not available on virtual tablespaces");
         }
@@ -1035,7 +1036,10 @@ public class TableSpaceManager {
                 }
                 return manager.executeStatement(statement, transaction, context);
             }
-
+            if (statement instanceof SQLPlannedOperationStatement){
+                SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
+                return planned.getRootOp().execute(this, transactionContext, context);
+            }
             throw new StatementExecutionException("unsupported statement " + statement);
         } catch (StatementExecutionException error) {
             if (rollbackOnError) {
