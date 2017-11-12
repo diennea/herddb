@@ -31,13 +31,13 @@ import herddb.model.ExecutionPlan;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
-import herddb.model.TableAwareStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.InsertRecordOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
+import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
@@ -49,6 +49,7 @@ import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
+import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
@@ -63,7 +64,8 @@ import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.prepare.Prepare;
-import org.apache.calcite.rel.RelCollationTraitDef;
+import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.TableModify;
@@ -145,7 +147,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SchemaPlus schema = getRootSchema();
             List<RelTraitDef> traitDefs = new ArrayList<>();
             traitDefs.add(ConventionTraitDef.INSTANCE);
-            traitDefs.add(RelCollationTraitDef.INSTANCE);
             SqlParser.Config parserConfig
                     = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
                             .setCaseSensitive(false)
@@ -230,6 +231,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableProject) {
             EnumerableProject scan = (EnumerableProject) plan;
             return planProject(scan);
+        } else if (plan instanceof EnumerableSort) {
+            EnumerableSort scan = (EnumerableSort) plan;
+            return planSort(scan);
         }
 
         throw new StatementExecutionException("not implented " + plan.getRelTypeName());
@@ -338,6 +342,30 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
+    private PlannerOp planSort(EnumerableSort op) {
+        System.out.println("plan project " + op);
+        System.out.println("table " + op.getTable());
+        System.out.println("inputs: " + op.getInputs());
+        System.out.println("childexp: " + op.getChildExps());
+        System.out.println("traits: " + op.getTraitSet());
+        
+        PlannerOp input = convertToHerdPlan(op.getInput(), false);
+        RelCollation collation = op.getCollation();
+        List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
+        boolean[] directions = new boolean[fieldCollations.size()];
+        int[] fields = new int[fieldCollations.size()];
+        int i = 0;
+        for (RelFieldCollation col : fieldCollations){
+            RelFieldCollation.Direction direction = col.getDirection();
+            int index = col.getFieldIndex();
+            directions[i] = direction == RelFieldCollation.Direction.ASCENDING ||
+                    direction == RelFieldCollation.Direction.STRICTLY_ASCENDING;
+            fields[i++] = index;
+        }
+        return new SortOp(input, directions, fields);
+
+    }
+
     private static int convertToHerdType(RelDataType type) {
         switch (type.getSqlTypeName()) {
             case VARCHAR:
@@ -381,8 +409,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         public Statistic getStatistic() {
             // TODO
             return Statistics.of(tableManager.getStats().getTablesize(),
-                    ImmutableList.<ImmutableBitSet>of(ImmutableBitSet.of(0)),
-                    ImmutableList.of());
+                    ImmutableList.<ImmutableBitSet>of());
         }
 
         @Override

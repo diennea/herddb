@@ -71,6 +71,44 @@ public class SimplerPlannerTest {
                 assertEquals(1234, results.get(0).get(0));
                 assertEquals(1234, results.get(0).get("n1"));
             }
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(1235))).getUpdateCount());
+
+            try (DataScanner scan = scan(manager, "SELECT * "
+                    + " FROM tblspace1.tsql"
+                    + " ORDER BY k1", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(3, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(0).get(0));
+                assertEquals(RawString.of("mykey2"), results.get(1).get(0));
+                assertEquals(1234, results.get(0).get(1));
+                assertEquals(1235, results.get(1).get(1));
+                
+            }
+            try (DataScanner scan = scan(manager, "SELECT * "
+                    + " FROM tblspace1.tsql"
+                    + " ORDER BY k1 desc", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(3, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(1).get(0));
+                assertEquals(RawString.of("mykey2"), results.get(0).get(0));
+                assertEquals(1234, results.get(1).get(1));
+                assertEquals(1235, results.get(0).get(1));
+                
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1,n1 "
+                    + " FROM tblspace1.tsql"
+                    + " ORDER BY k1 desc", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(2, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(1).get(0));
+                assertEquals(RawString.of("mykey2"), results.get(0).get(0));
+                assertEquals(1234, results.get(1).get(1));
+                assertEquals(1235, results.get(0).get(1));
+                
+            }
         }
     }
 
