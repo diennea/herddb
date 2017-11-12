@@ -83,7 +83,7 @@ public class SimplerPlannerTest {
                 assertEquals(RawString.of("mykey2"), results.get(1).get(0));
                 assertEquals(1234, results.get(0).get(1));
                 assertEquals(1235, results.get(1).get(1));
-                
+
             }
             try (DataScanner scan = scan(manager, "SELECT * "
                     + " FROM tblspace1.tsql"
@@ -95,7 +95,7 @@ public class SimplerPlannerTest {
                 assertEquals(RawString.of("mykey2"), results.get(0).get(0));
                 assertEquals(1234, results.get(1).get(1));
                 assertEquals(1235, results.get(0).get(1));
-                
+
             }
             try (DataScanner scan = scan(manager, "SELECT k1,n1 "
                     + " FROM tblspace1.tsql"
@@ -107,7 +107,35 @@ public class SimplerPlannerTest {
                 assertEquals(RawString.of("mykey2"), results.get(0).get(0));
                 assertEquals(1234, results.get(1).get(1));
                 assertEquals(1235, results.get(0).get(1));
-                
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 "
+                    + " FROM tblspace1.tsql"
+                    + " ORDER BY n1 desc", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(1).get(0));
+                assertEquals(RawString.of("mykey2"), results.get(0).get(0));
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 "
+                    + " FROM tblspace1.tsql"
+                    + " ORDER BY n1 desc limit 1", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey2"), results.get(0).get(0));
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 "
+                    + " FROM tblspace1.tsql"
+                    + " ORDER BY n1 desc limit 1,1", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(0).get(0));
+
             }
         }
     }

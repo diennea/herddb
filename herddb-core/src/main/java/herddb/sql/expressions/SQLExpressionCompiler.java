@@ -235,6 +235,9 @@ public class SQLExpressionCompiler {
     }
 
     public static CompiledSQLExpression compileExpression(RexNode expression) {
+        if (expression == null) {
+            return null;
+        }
         System.out.println("compile " + expression + ", type " + expression.getClass());
         if (expression instanceof RexDynamicParam) {
             RexDynamicParam p = (RexDynamicParam) expression;

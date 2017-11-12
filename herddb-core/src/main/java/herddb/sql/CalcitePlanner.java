@@ -35,6 +35,7 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.InsertRecordOp;
+import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
 import herddb.model.planner.SortOp;
@@ -48,6 +49,7 @@ import java.util.List;
 import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
+import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
@@ -88,6 +90,8 @@ import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.sql.validate.SqlConformance;
+import org.apache.calcite.sql.validate.SqlConformanceEnum;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
 import org.apache.calcite.tools.Planner;
@@ -150,6 +154,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SqlParser.Config parserConfig
                     = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
                             .setCaseSensitive(false)
+                            .setConformance(SqlConformanceEnum.MYSQL_5)
                             .build();
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()
@@ -234,6 +239,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableSort) {
             EnumerableSort scan = (EnumerableSort) plan;
             return planSort(scan);
+        } else if (plan instanceof EnumerableLimit) {
+            EnumerableLimit scan = (EnumerableLimit) plan;
+            return planLimit(scan);
         }
 
         throw new StatementExecutionException("not implented " + plan.getRelTypeName());
@@ -348,21 +356,35 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         System.out.println("inputs: " + op.getInputs());
         System.out.println("childexp: " + op.getChildExps());
         System.out.println("traits: " + op.getTraitSet());
-        
+
         PlannerOp input = convertToHerdPlan(op.getInput(), false);
         RelCollation collation = op.getCollation();
         List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
         boolean[] directions = new boolean[fieldCollations.size()];
         int[] fields = new int[fieldCollations.size()];
         int i = 0;
-        for (RelFieldCollation col : fieldCollations){
+        for (RelFieldCollation col : fieldCollations) {
             RelFieldCollation.Direction direction = col.getDirection();
             int index = col.getFieldIndex();
-            directions[i] = direction == RelFieldCollation.Direction.ASCENDING ||
-                    direction == RelFieldCollation.Direction.STRICTLY_ASCENDING;
+            directions[i] = direction == RelFieldCollation.Direction.ASCENDING
+                    || direction == RelFieldCollation.Direction.STRICTLY_ASCENDING;
             fields[i++] = index;
         }
         return new SortOp(input, directions, fields);
+
+    }
+
+    private PlannerOp planLimit(EnumerableLimit op) {
+        System.out.println("plan limit " + op);
+        System.out.println("table " + op.getTable());
+        System.out.println("inputs: " + op.getInputs());
+        System.out.println("childexp: " + op.getChildExps());
+        System.out.println("traits: " + op.getTraitSet());
+
+        PlannerOp input = convertToHerdPlan(op.getInput(), false);
+        CompiledSQLExpression maxRows = SQLExpressionCompiler.compileExpression(op.fetch);
+        CompiledSQLExpression offset = SQLExpressionCompiler.compileExpression(op.offset);
+        return new LimitOp(input, maxRows, offset);
 
     }
 
