@@ -1435,7 +1435,7 @@ public class RawSQLTest {
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey'", Collections.emptyList(), true, true, false, -1);
 
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     List<DataAccessor> records = scan1.consume();

@@ -68,7 +68,7 @@ public class SQLRecordPredicateTest {
                     "SELECT * "
                     + "FROM t1 "
                     + "where pk >= ?", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate() instanceof SQLRecordPredicate);
                 SQLRecordPredicate pred = (SQLRecordPredicate) scan.getPredicate();
 

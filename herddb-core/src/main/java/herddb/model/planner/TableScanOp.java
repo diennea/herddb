@@ -27,6 +27,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.model.commands.ScanStatement;
+import herddb.utils.Wrapper;
 
 /**
  * Full table scan
@@ -44,6 +45,15 @@ public class TableScanOp implements PlannerOp {
     @Override
     public String getTablespace() {
         return statement.getTableSpace();
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        T unwrapped = statement.unwrap(clazz);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+        return Wrapper.unwrap(this, clazz);
     }
 
     @Override

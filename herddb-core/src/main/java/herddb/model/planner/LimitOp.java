@@ -32,6 +32,7 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
+import herddb.utils.Wrapper;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -55,6 +56,15 @@ public class LimitOp implements PlannerOp {
     @Override
     public String getTablespace() {
         return input.getTablespace();
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        T unwrapped = input.unwrap(clazz);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+        return Wrapper.unwrap(this, clazz);
     }
 
     @Override

@@ -19,12 +19,14 @@
  */
 package herddb.model;
 
+import herddb.utils.Wrapper;
+
 /**
  * A generic Statement
  *
  * @author enrico.olivelli
  */
-public abstract class Statement {
+public abstract class Statement implements Wrapper {
 
     private final String tableSpace;
 

@@ -106,7 +106,7 @@ public class SimpleBrinIndexRecoveryTest {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(3, scan1.consume().size());
@@ -124,7 +124,7 @@ public class SimpleBrinIndexRecoveryTest {
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
 
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(3, scan1.consume().size());
@@ -182,7 +182,7 @@ public class SimpleBrinIndexRecoveryTest {
             manager.executeStatement(st3, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(3, scan1.consume().size());
@@ -201,7 +201,7 @@ public class SimpleBrinIndexRecoveryTest {
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='n1'", Collections.emptyList(), true, true, false, -1);
 
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(3, scan1.consume().size());
@@ -285,7 +285,7 @@ public class SimpleBrinIndexRecoveryTest {
             assertTrue(manager.waitForTablespace("tblspace1", 10000));
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name='my_repeatad_key'", Collections.emptyList(), true, true, false, -1);
 
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(id, scan1.consume().size());

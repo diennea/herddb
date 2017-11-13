@@ -17,26 +17,27 @@
  under the License.
 
  */
-package herddb.model.planner;
+package herddb.utils;
 
-import herddb.core.TableSpaceManager;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
-import herddb.model.TransactionContext;
-import herddb.utils.Wrapper;
+public interface Wrapper {
 
-/**
- * Generic step of planned operation
- *
- * @author eolivelli
- */
-public interface PlannerOp extends Wrapper {
+    /**
+     * Unwraps this object. If the object is intance of the given class this
+     * method direclty returns <i>this</i>, otherwise it can return any other
+     * object of the given class "wrapped" by the current instance
+     *
+     * @param <T>
+     * @param clazz
+     * @return
+     */
+    public default <T> T unwrap(Class<T> clazz) {
+        return unwrap(this, clazz);
+    }
 
-    public String getTablespace();
-
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext,
-            StatementEvaluationContext context) throws StatementExecutionException;
-
+    public static <T> T unwrap(Object o, Class<T> clazz) {
+        if (clazz.isInstance(o)) {
+            return (T) o;
+        }
+        return null;
+    }
 }

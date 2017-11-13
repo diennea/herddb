@@ -142,7 +142,7 @@ public class PrimaryIndexScanRangeTest {
                     + "WHERE n1>=2 "
                     + "and n2<=6 "
                     + "order by n1", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -161,7 +161,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=6 "
                     + "order by n1 "
                     + "limit 2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -179,7 +179,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=6 "
                     + "order by n1 "
                     + "limit 1,3", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -196,7 +196,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 1,2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -214,7 +214,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 3,2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -231,7 +231,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 4,2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -251,7 +251,7 @@ public class PrimaryIndexScanRangeTest {
                     + "WHERE n1>=2 "
                     + "and n2<=6 "
                     + "order by n1", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -269,7 +269,7 @@ public class PrimaryIndexScanRangeTest {
                     + "WHERE n1>=2 "
                     + "and n2<=7 "
                     + "order by n1", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -291,7 +291,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=6 "
                     + "order by n1 "
                     + "limit 2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -309,7 +309,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 1,3", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -327,7 +327,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=6 "
                     + "order by n1 "
                     + "limit 1,3", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -345,7 +345,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 1,2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -363,7 +363,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 3,2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -380,7 +380,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 4,2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -397,7 +397,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 5,2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -418,7 +418,7 @@ public class PrimaryIndexScanRangeTest {
                     + "WHERE n1>=2 "
                     + "and n2<=7 "
                     + "order by n1 ", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -443,7 +443,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and n2<=7 "
                     + "order by n1 "
                     + "limit 7", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -466,7 +466,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and name='n3' "
                     + "order by n1 "
                     + "limit 200", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -487,7 +487,7 @@ public class PrimaryIndexScanRangeTest {
                     + "WHERE n1>=2 "
                     + "and name='n3' "
                     + "order by n1 ", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -508,7 +508,7 @@ public class PrimaryIndexScanRangeTest {
                     + "WHERE n1>=2 "
                     + "and name='n3' "
                     + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -532,7 +532,7 @@ public class PrimaryIndexScanRangeTest {
                     + "and name='n3' "
                     + "order by n1 "
                     + "limit 2", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
@@ -556,7 +556,7 @@ public class PrimaryIndexScanRangeTest {
                 + "FROM tblspace1.t1 "
                 + "WHERE n1>=2 "
                 + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(3, scan1.consume().size());
@@ -567,7 +567,7 @@ public class PrimaryIndexScanRangeTest {
                 + "FROM tblspace1.t1 "
                 + "WHERE n1>2 "
                 + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(2, scan1.consume().size());
@@ -578,7 +578,7 @@ public class PrimaryIndexScanRangeTest {
                 + "FROM tblspace1.t1 "
                 + "WHERE n1<3 "
                 + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(2, scan1.consume().size());
@@ -589,7 +589,7 @@ public class PrimaryIndexScanRangeTest {
                 + "FROM tblspace1.t1 "
                 + "WHERE n1<=3 "
                 + "and n2<=6", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(3, scan1.consume().size());
@@ -601,7 +601,7 @@ public class PrimaryIndexScanRangeTest {
                 + "WHERE n1>=2 "
                 + "and n2<=6 "
                 + "order by n1", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -614,7 +614,7 @@ public class PrimaryIndexScanRangeTest {
                 + "WHERE n1>=2 "
                 + "and n2<=6 "
                 + "order by N1", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -627,7 +627,7 @@ public class PrimaryIndexScanRangeTest {
                 + "WHERE n1>=2 "
                 + "and n2<=6 "
                 + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -640,7 +640,7 @@ public class PrimaryIndexScanRangeTest {
                 + "WHERE n1>=2 "
                 + "and n2<=6 "
                 + "order by n1 asc, n2", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {

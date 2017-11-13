@@ -128,7 +128,7 @@ public class IndexCreationTest {
 
             /* Access through index  */
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * FROM tblspace1.t1 WHERE name=\'uno\'", Collections.emptyList(), true, true, false, -1);
-            ScanStatement scan = (ScanStatement) translated.plan.mainStatement;
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                 assertEquals(1, scan1.consume().size());

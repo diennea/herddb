@@ -41,6 +41,23 @@ import org.junit.Test;
 public class SimplerPlannerTest {
 
     @Test
+    public void truncateTableNoTransaction() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+//            execute(manager, "CREATE BRIN INDEX test1 ON tblspace1.tsql (k1)", Collections.emptyList());
+//            execute(manager, "CREATE HASH INDEX test2 ON tblspace1.tsql (k1)", Collections.emptyList());
+            execute(manager, "INSERT INTO tblspace1.tsql (k1) values('a')", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
+
+        }
+    }
+
+    @Test
     public void plannerBasicStatementsTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {

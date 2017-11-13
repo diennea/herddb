@@ -30,6 +30,7 @@ import herddb.model.TransactionContext;
 import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
+import herddb.utils.Wrapper;
 
 /**
  * Generic filter
@@ -46,6 +47,15 @@ public class FilterOp implements PlannerOp {
         this.condition = condition;
     }
 
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        T unwrapped = input.unwrap(clazz);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+        return Wrapper.unwrap(this, clazz);
+    }
+
     public PlannerOp getInput() {
         return input;
     }
@@ -53,7 +63,7 @@ public class FilterOp implements PlannerOp {
     public CompiledSQLExpression getCondition() {
         return condition;
     }
-    
+
     @Override
     public String getTablespace() {
         return input.getTablespace();

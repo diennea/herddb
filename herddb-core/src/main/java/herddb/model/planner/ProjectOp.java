@@ -31,6 +31,7 @@ import herddb.model.TransactionContext;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.ProjectedDataAccessor;
+import herddb.utils.Wrapper;
 import java.util.List;
 
 /**
@@ -61,9 +62,18 @@ public class ProjectOp implements PlannerOp {
     }
 
     @Override
+    public <T> T unwrap(Class<T> clazz) {
+        T unwrapped = input.unwrap(clazz);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+        return Wrapper.unwrap(this, clazz);
+    }
+
+    @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
-        
+
         // TODO merge projection + scan + sort + limit
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
         ScanResult downstream = (ScanResult) input;

@@ -38,4 +38,13 @@ public class SQLPlannedOperationStatement extends Statement {
         return rootOp;
     }
 
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        T unwrapped = rootOp.unwrap(clazz);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+        return super.unwrap(clazz);
+    }
+
 }

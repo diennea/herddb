@@ -156,7 +156,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 || query.startsWith("ALTER")
                 || query.startsWith("BEGIN")
                 || query.startsWith("COMMIT")
-                || query.startsWith("ROLLBACK")) {
+                || query.startsWith("ROLLBACK")
+                || query.startsWith("TRUNCATE")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         try {
