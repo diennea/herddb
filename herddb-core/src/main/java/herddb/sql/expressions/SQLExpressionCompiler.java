@@ -54,10 +54,12 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
+import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexDynamicParam;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlOperator;
 
 /**
  * Created a pure Java implementation of the expression which represents the
@@ -247,11 +249,52 @@ public class SQLExpressionCompiler {
             if (p.isNull()) {
                 return new ConstantExpression(null);
             } else {
-                return new ConstantExpression(p.getValue());
+                return new ConstantExpression(p.getValue3());
             }
         } else if (expression instanceof RexInputRef) {
             RexInputRef p = (RexInputRef) expression;
-            return new AccessDownStreamInputFieldExpression(p.getIndex());
+            return new AccessCurrentRowExpression(p.getIndex());
+        } else if (expression instanceof RexCall) {
+            RexCall p = (RexCall) expression;
+            SqlOperator op = p.op;
+            String name = op.getName();
+            CompiledSQLExpression[] operands = new CompiledSQLExpression[p.operands.size()];
+//            System.out.println("operator '" + op + "' with " + p.operands.size() + " ops");
+            int i = 0;
+            for (RexNode operand : p.operands) {
+//                System.out.println("operand: " + operand);
+                operands[i++] = compileExpression(operand);
+            }
+            switch (name) {
+                case "=":
+                    return new CompiledEqualsExpression(false, operands[0], operands[1]);
+                case "<>":
+                    return new CompiledNotEqualsExpression(false, operands[0], operands[1]);
+                case ">":
+                    return new CompiledGreaterThenExpression(false, operands[0], operands[1]);
+                case ">=":
+                    return new CompiledGreaterThenEqualsExpression(false, operands[0], operands[1]);
+                case "<":
+                    return new CompiledMinorThenExpression(false, operands[0], operands[1]);
+                case "<=":
+                    return new CompiledMinorThenEqualsExpression(false, operands[0], operands[1]);
+                case "+":
+                    return new CompiledAddExpression(false, operands[0], operands[1]);
+                case "-":
+                    return new CompiledSubtractExpression(false, operands[0], operands[1]);
+                case "*":
+                    return new CompiledMultiplyExpression(false, operands[0], operands[1]);
+                case "/":
+                    return new CompiledDivideExpression(false, operands[0], operands[1]);
+                case "AND":
+                    return new CompiledMultiAndExpression(operands);
+                case "OR":
+                    return new CompiledMultiOrExpression(operands);
+                case "NOT":
+                    return new CompiledParenthesisExpression(true, operands[0]);
+                default:
+                    throw new StatementExecutionException("unsupported operator '" + name + "'");
+            }
         }
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }

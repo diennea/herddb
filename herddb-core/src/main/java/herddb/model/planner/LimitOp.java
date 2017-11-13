@@ -42,26 +42,26 @@ import java.util.logging.Logger;
  */
 public class LimitOp implements PlannerOp {
 
-    private final PlannerOp downstream;
+    private final PlannerOp input;
     private final CompiledSQLExpression maxRows;
     private final CompiledSQLExpression offset;
 
-    public LimitOp(PlannerOp downstream, CompiledSQLExpression maxRows, CompiledSQLExpression offset) {
-        this.downstream = downstream;
+    public LimitOp(PlannerOp input, CompiledSQLExpression maxRows, CompiledSQLExpression offset) {
+        this.input = input;
         this.maxRows = maxRows;
         this.offset = offset;
     }
 
     @Override
     public String getTablespace() {
-        return downstream.getTablespace();
+        return input.getTablespace();
     }
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
         try {
             // TODO merge projection + scan + sort + limit
-            StatementExecutionResult input = downstream.execute(tableSpaceManager, transactionContext, context);
+            StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
             ScanResult downstreamScanResult = (ScanResult) input;
             final DataScanner inputScanner = downstreamScanResult.dataScanner;
             int offset = this.offset == null ? 0 : ((Number) this.offset.evaluate(DataAccessor.NULL, context)).intValue();

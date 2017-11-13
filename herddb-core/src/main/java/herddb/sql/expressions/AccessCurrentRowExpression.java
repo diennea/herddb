@@ -22,17 +22,18 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
 
 /**
  * reference to downstrean inputs in the pipeline
  *
  * @author eolivelli
  */
-public class AccessDownStreamInputFieldExpression implements CompiledSQLExpression {
+public class AccessCurrentRowExpression implements CompiledSQLExpression {
 
     private final int index;
 
-    public AccessDownStreamInputFieldExpression(int index) {
+    public AccessCurrentRowExpression(int index) {
         this.index = index;
     }
 

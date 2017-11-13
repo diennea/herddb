@@ -100,11 +100,6 @@ public class ProjectOp implements PlannerOp {
         }
 
         @Override
-        public boolean isFinished() throws DataScannerException {
-            return downstream.isFinished();
-        }
-
-        @Override
         public void close() throws DataScannerException {
             downstream.close();
         }

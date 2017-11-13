@@ -50,11 +50,11 @@ public abstract class AbstractSingleExpressionArgumentColumnCalculator implement
         public Comparable apply(DataAccessor tuple) throws StatementExecutionException;
     }
 
-    protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, Expression expression,
-        StatementEvaluationContext context
+    protected AbstractSingleExpressionArgumentColumnCalculator(String fieldName, CompiledSQLExpression expression,
+            StatementEvaluationContext context
     ) throws StatementExecutionException {
         this.fieldName = fieldName;
-        this.expression = SQLExpressionCompiler.compileExpression(null, expression);
+        this.expression = expression;
         valueExtractor = (DataAccessor t) -> {
             return (Comparable) this.expression.evaluate(t, context);
         };

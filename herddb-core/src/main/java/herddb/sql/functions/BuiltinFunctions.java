@@ -19,12 +19,13 @@
  */
 package herddb.sql.functions;
 
-
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.AggregatedColumnCalculator;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
 import net.sf.jsqlparser.expression.Function;
 
 /**
@@ -37,6 +38,7 @@ public class BuiltinFunctions {
     // aggregate
     public static final String COUNT = "count";
     public static final String SUM = "sum";
+    public static final String SUM0 = "$sum0";//Calcite Sum empty is zero
     public static final String MIN = "min";
     public static final String MAX = "max";
     // scalar
@@ -66,17 +68,25 @@ public class BuiltinFunctions {
     }
 
     public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName,
-        StatementEvaluationContext context) throws StatementExecutionException {
-        String fuctionName = f.getName();
-        switch (fuctionName) {
+            StatementEvaluationContext context) throws StatementExecutionException {
+        String functionName = f.getName();
+        CompiledSQLExpression firstParam = f.getParameters().getExpressions().isEmpty() ? null
+                : SQLExpressionCompiler.compileExpression(null, f.getParameters().getExpressions().get(0));
+        return getColumnCalculator(functionName, fieldName, firstParam, context);
+    }
+
+    public static AggregatedColumnCalculator getColumnCalculator(String functionName, String fieldName,
+            CompiledSQLExpression firstParam, StatementEvaluationContext context) throws StatementExecutionException {
+        switch (functionName) {
             case COUNT:
                 return new CountColumnCalculator(fieldName);
             case SUM:
-                return new SumColumnCalculator(fieldName, f.getParameters().getExpressions().get(0), context);
+            case SUM0:
+                return new SumColumnCalculator(fieldName, firstParam, context);
             case MIN:
-                return new MinColumnCalculator(fieldName, f.getParameters().getExpressions().get(0), context);
+                return new MinColumnCalculator(fieldName, firstParam, context);
             case MAX:
-                return new MaxColumnCalculator(fieldName, f.getParameters().getExpressions().get(0), context);
+                return new MaxColumnCalculator(fieldName, firstParam, context);
             default:
                 return null;
         }
@@ -94,7 +104,7 @@ public class BuiltinFunctions {
         }
     }
 
-    public static boolean isAggregateFunction(String name) {        
+    public static boolean isAggregateFunction(String name) {
         switch (name) {
             case COUNT:
             case SUM:

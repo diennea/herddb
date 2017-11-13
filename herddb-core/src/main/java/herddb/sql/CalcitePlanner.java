@@ -20,6 +20,7 @@
 package herddb.sql;
 
 import com.google.common.collect.ImmutableList;
+import com.sun.javafx.scene.control.skin.VirtualFlow;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
@@ -34,6 +35,8 @@ import herddb.model.Table;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.planner.AggregateOp;
+import herddb.model.planner.FilterOp;
 import herddb.model.planner.InsertRecordOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
@@ -48,7 +51,10 @@ import java.util.Collection;
 import java.util.List;
 import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.DataContext;
+import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
+import org.apache.calcite.adapter.enumerable.EnumerableFilter;
+import org.apache.calcite.adapter.enumerable.EnumerableInterpreter;
 import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
@@ -69,6 +75,7 @@ import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
@@ -76,7 +83,6 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.schema.FilterableTable;
 import org.apache.calcite.schema.ModifiableTable;
 import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.SchemaPlus;
@@ -90,7 +96,6 @@ import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.type.SqlTypeName;
-import org.apache.calcite.sql.validate.SqlConformance;
 import org.apache.calcite.sql.validate.SqlConformanceEnum;
 import org.apache.calcite.tools.FrameworkConfig;
 import org.apache.calcite.tools.Frameworks;
@@ -101,6 +106,7 @@ import org.apache.calcite.tools.ValidationException;
 import org.apache.calcite.util.ImmutableBitSet;
 
 /**
+ * SQL Planner based upon Apache Calcite
  *
  * @author eolivelli
  */
@@ -168,7 +174,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelNode plan = executeQuery(config, query);
             ExecutionPlan executionPlan = ExecutionPlan.simple(
                     new SQLPlannedOperationStatement(
-                            convertToHerdPlan(plan, returnValues))
+                            convertRelNode(plan, returnValues))
             );
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         } catch (MetadataStorageManagerException | RelConversionException
@@ -213,7 +219,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return rootSchema;
     }
 
-    private PlannerOp convertToHerdPlan(RelNode plan, boolean returnValues) throws StatementExecutionException {
+    private PlannerOp convertRelNode(RelNode plan, boolean returnValues) throws StatementExecutionException {
         System.out.println("converting " + plan.getClass());
         System.out.println("converting conv " + plan.getConvention());
         System.out.println("converting rektypename " + plan.getRelTypeName());
@@ -232,7 +238,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
         } else if (plan instanceof EnumerableTableScan) {
             EnumerableTableScan scan = (EnumerableTableScan) plan;
-            return planFullTableScan(scan);
+            return planEnumerableTableScan(scan);
         } else if (plan instanceof EnumerableProject) {
             EnumerableProject scan = (EnumerableProject) plan;
             return planProject(scan);
@@ -242,6 +248,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableLimit) {
             EnumerableLimit scan = (EnumerableLimit) plan;
             return planLimit(scan);
+        } else if (plan instanceof EnumerableInterpreter) {
+            EnumerableInterpreter scan = (EnumerableInterpreter) plan;
+            return planInterpreter(scan, returnValues);
+        } else if (plan instanceof EnumerableFilter) {
+            EnumerableFilter scan = (EnumerableFilter) plan;
+            return planFilter(scan, returnValues);
+        } else if (plan instanceof EnumerableAggregate) {
+            EnumerableAggregate scan = (EnumerableAggregate) plan;
+            return planAggregate(scan, returnValues);
         }
 
         throw new StatementExecutionException("not implented " + plan.getRelTypeName());
@@ -304,7 +319,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private PlannerOp planFullTableScan(EnumerableTableScan scan) {
+    private PlannerOp planEnumerableTableScan(EnumerableTableScan scan) {
         System.out.println("plan select " + scan);
         System.out.println("scan table " + scan.getTable());
         System.out.println("inputs: " + scan.getInputs());
@@ -330,7 +345,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         System.out.println("traits: " + op.getTraitSet());
         List<PlannerOp> inputs = new ArrayList<>(op.getInputs().size());
         for (RelNode input : op.getInputs()) {
-            PlannerOp planned = convertToHerdPlan(input, false);
+            PlannerOp planned = convertRelNode(input, false);
             inputs.add(planned);
         }
         List<CompiledSQLExpression> fields = new ArrayList<>(op.getProjects().size());
@@ -357,7 +372,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         System.out.println("childexp: " + op.getChildExps());
         System.out.println("traits: " + op.getTraitSet());
 
-        PlannerOp input = convertToHerdPlan(op.getInput(), false);
+        PlannerOp input = convertRelNode(op.getInput(), false);
         RelCollation collation = op.getCollation();
         List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
         boolean[] directions = new boolean[fieldCollations.size()];
@@ -374,6 +389,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
+    private PlannerOp planInterpreter(EnumerableInterpreter op, boolean returnValues) {
+        // NOOP
+        return convertRelNode(op.getInput(), returnValues);
+    }
+
     private PlannerOp planLimit(EnumerableLimit op) {
         System.out.println("plan limit " + op);
         System.out.println("table " + op.getTable());
@@ -381,11 +401,66 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         System.out.println("childexp: " + op.getChildExps());
         System.out.println("traits: " + op.getTraitSet());
 
-        PlannerOp input = convertToHerdPlan(op.getInput(), false);
+        PlannerOp input = convertRelNode(op.getInput(), false);
         CompiledSQLExpression maxRows = SQLExpressionCompiler.compileExpression(op.fetch);
         CompiledSQLExpression offset = SQLExpressionCompiler.compileExpression(op.offset);
         return new LimitOp(input, maxRows, offset);
 
+    }
+
+    private PlannerOp planFilter(EnumerableFilter op, boolean returnValues) {
+        System.out.println("plan limit " + op);
+        System.out.println("table " + op.getTable());
+        System.out.println("inputs: " + op.getInputs());
+        System.out.println("childexp: " + op.getChildExps());
+        System.out.println("traits: " + op.getTraitSet());
+        System.out.println("condition: " + op.getCondition());
+
+        PlannerOp input = convertRelNode(op.getInput(), returnValues);
+        CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
+        return new FilterOp(input, condition);
+
+    }
+
+    private PlannerOp planAggregate(EnumerableAggregate op, boolean returnValues) {
+        System.out.println("plan aggregate " + op);
+        System.out.println("table " + op.getTable());
+        System.out.println("inputs: " + op.getInputs());
+        System.out.println("childexp: " + op.getChildExps());
+        System.out.println("traits: " + op.getTraitSet());
+        System.out.println("groupsets: " + op.getGroupSets());
+        System.out.println("group: " + op.getGroupType());
+        System.out.println("agg: " + op.getAggCallList());
+        List<RelDataTypeField> fieldList = op.getRowType().getFieldList();
+        System.out.println("fieldslist: " + fieldList);
+
+        List<AggregateCall> calls = op.getAggCallList();
+        String[] fieldnames = new String[fieldList.size()];
+        String[] aggtypes = new String[calls.size()];
+        Column[] columns = new Column[fieldList.size()];
+        List<Integer> groupedFiledsIndexes = op.getGroupSet().toList();
+        System.out.println("groupedFiledsIndexes:" + groupedFiledsIndexes);
+        List<List<Integer>> argLists = new ArrayList<>(calls.size());
+        int i = 0;
+
+        int idaggcall = 0;
+        for (RelDataTypeField c : fieldList) {
+            int type = convertToHerdType(c.getType());
+            Column co = Column.column(c.getName(), type);
+            columns[i] = co;
+            fieldnames[i] = c.getName();
+            i++;
+        }
+        for (AggregateCall call : calls) {
+            System.out.println("call:" + call.getName());
+            System.out.println("call arglist" + call.getArgList());
+            System.out.println("call fun " + call.getAggregation());
+            System.out.println("call fun " + call.getAggregation().getName());
+            aggtypes[idaggcall++] = call.getAggregation().getName();
+            argLists.add(call.getArgList());
+        }
+        PlannerOp input = convertRelNode(op.getInput(), returnValues);
+        return new AggregateOp(input, fieldnames, columns, aggtypes, argLists, groupedFiledsIndexes);
     }
 
     private static int convertToHerdType(RelDataType type) {
@@ -410,7 +485,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private static class TableImpl extends AbstractTable
-            implements ModifiableTable, ScannableTable, FilterableTable {
+            implements ModifiableTable, ScannableTable {
 
         AbstractTableManager tableManager;
 
@@ -457,17 +532,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         @Override
         public Expression getExpression(SchemaPlus schema, String tableName, Class clazz) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            throw new UnsupportedOperationException("Not supported yet.");
         }
 
         @Override
         public Enumerable<Object[]> scan(DataContext root) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-        }
-
-        @Override
-        public Enumerable<Object[]> scan(DataContext root, List<RexNode> filters) {
-            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            throw new UnsupportedOperationException("Not supported yet.");
         }
 
         private static RelDataType convertType(int type, RelDataTypeFactory typeFactory) {

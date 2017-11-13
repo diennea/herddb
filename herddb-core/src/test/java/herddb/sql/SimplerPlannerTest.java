@@ -137,6 +137,116 @@ public class SimplerPlannerTest {
                 assertEquals(RawString.of("mykey"), results.get(0).get(0));
 
             }
+            try (DataScanner scan = scan(manager, "SELECT k1 "
+                    + " FROM tblspace1.tsql"
+                    + " WHERE k1='mykey'", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(0).get(0));
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 "
+                    + " FROM tblspace1.tsql"
+                    + " WHERE k1='mykey' aNd n1>3", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(0).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 "
+                    + " FROM tblspace1.tsql"
+                    + " WHERE k1>='mykey' aNd n1>3 and n1<=1234", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(0).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1 "
+                    + " FROM tblspace1.tsql"
+                    + " WHERE k1='mykey' or not n1<3"
+                    + " order by k1", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(RawString.of("mykey"), results.get(0).get(0));
+                assertEquals(RawString.of("mykey2"), results.get(1).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT count(*) "
+                    + " FROM tblspace1.tsql",
+                    Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(1, results.get(0).getFieldNames().length);
+                assertEquals(2L, results.get(0).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT count(*), n1, k1 "
+                    + " FROM tblspace1.tsql"
+                    + " GROUP by k1, n1"
+                    + " ORDER BY k1",
+                    Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(3, results.get(0).getFieldNames().length);
+                assertEquals(1L, results.get(0).get(0));
+                assertEquals(RawString.of("mykey"), results.get(0).get(2));
+                assertEquals(1234, results.get(0).get(1));
+                assertEquals(1L, results.get(1).get(0));
+                assertEquals(RawString.of("mykey2"), results.get(1).get(2));
+                assertEquals(1235, results.get(1).get(1));
+            }
+            try (DataScanner scan = scan(manager, "SELECT n1, count(*) as cc "
+                    + " FROM tblspace1.tsql"
+                    + " GROUP by n1"
+                    + " ORDER BY n1",
+                    Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(2, results.get(0).getFieldNames().length);
+                assertEquals(1L, results.get(0).get(1));
+                assertEquals(1234, results.get(0).get(0));
+                assertEquals(1L, results.get(1).get(1));
+                assertEquals(1235, results.get(1).get(0));
+            }
+            try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
+                    + " FROM tblspace1.tsql"
+                    + " GROUP by k1"
+                    + " ORDER BY sum(n1)",
+                    Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(2, results.size());
+                assertEquals(3, results.get(0).getFieldNames().length);
+                assertEquals(1234L, results.get(0).get(0));
+                assertEquals(1L, results.get(0).get(1));
+                assertEquals(RawString.of("mykey"), results.get(0).get(2));
+                assertEquals(1235L, results.get(1).get(0));
+                assertEquals(1L, results.get(1).get(1));
+                assertEquals(RawString.of("mykey2"), results.get(1).get(2));
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT sum(n1) as ss, min(n1) as mi, max(n1) as ma"
+                    + " FROM tblspace1.tsql",
+                    Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(3, results.get(0).getFieldNames().length);
+                assertEquals(1234L + 1235L, results.get(0).get("SS"));
+                assertEquals(1234, results.get(0).get("MI"));
+                assertEquals(1235, results.get(0).get("MA"));
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
+                    + " FROM tblspace1.tsql"
+                    + " GROUP by k1"
+                    + " HAVING sum(n1) <= 1234",
+                    Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+                assertEquals(3, results.get(0).getFieldNames().length);
+                assertEquals(1234L, results.get(0).get(0));
+                assertEquals(1L, results.get(0).get(1));
+                assertEquals(RawString.of("mykey"), results.get(0).get(2));
+            }
         }
     }
 
