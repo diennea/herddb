@@ -40,30 +40,32 @@ public class ProjectOp implements PlannerOp {
 
     final private String[] fieldNames;
     final private List<CompiledSQLExpression> fields;
-    final private List<PlannerOp> inputs;
+    final private PlannerOp input;
     final private Column[] columns;
 
     public ProjectOp(List<String> fieldNames, Column[] columns,
-            List<CompiledSQLExpression> fields, List<PlannerOp> inputs) {
+            List<CompiledSQLExpression> fields, PlannerOp input) {
         this.fields = fields;
-        this.inputs = inputs;
+        this.input = input;
         this.fieldNames = fieldNames.toArray(new String[fieldNames.size()]);
         this.columns = columns;
     }
 
     @Override
     public String getTablespace() {
-        return inputs.get(0).getTablespace();
+        return input.getTablespace();
+    }
+
+    public PlannerOp getInput() {
+        return input;
     }
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
-        if (inputs.size() > 1) {
-            throw new StatementExecutionException("not supported yet, more then 1 input");
-        }
+        
         // TODO merge projection + scan + sort + limit
-        StatementExecutionResult input = inputs.get(0).execute(tableSpaceManager, transactionContext, context);
+        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
         ScanResult downstream = (ScanResult) input;
         DataScanner dataScanner = downstream.dataScanner;
 

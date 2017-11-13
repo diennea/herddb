@@ -35,6 +35,7 @@ import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
 import herddb.model.planner.DeleteOp;
 import herddb.model.planner.FilterOp;
@@ -44,6 +45,7 @@ import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
+import herddb.model.planner.UpdateOp;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
@@ -238,6 +240,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     return planInsert(dml, returnValues);
                 case DELETE:
                     return planDelete(dml, returnValues);
+                case UPDATE:
+                    return planUpdate(dml, returnValues);
                 default:
                     throw new StatementExecutionException("unsupport DML operation " + dml.getOperation());
             }
@@ -314,7 +318,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, table);
         }
-        RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions, 0);
+        RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
 
         try {
             return new InsertOp(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues));
@@ -345,7 +349,49 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         if (delete == null) {
             throw new StatementExecutionException("unsupported input type for DELETE " + input.getClass());
         }
-        return new DeleteOp(delete);
+        return new DeleteOp(delete.setReturnValues(returnValues));
+
+    }
+
+    private UpdateOp planUpdate(EnumerableTableModify dml, boolean returnValues) {
+        PlannerOp input = convertRelNode(dml.getInput(), false);
+        List<String> updateColumnList = dml.getUpdateColumnList();
+        List<RexNode> sourceExpressionList = dml.getSourceExpressionList();
+        final String tableSpace = dml.getTable().getQualifiedName().get(0);
+        final String tableName = dml.getTable().getQualifiedName().get(1);
+        final TableImpl tableImpl
+                = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
+        Table table = tableImpl.tableManager.getTable();
+        List<CompiledSQLExpression> expressions = new ArrayList<>(sourceExpressionList.size());
+        for (RexNode node : sourceExpressionList) {
+            expressions.add(SQLExpressionCompiler.compileExpression(node));
+        }
+        RecordFunction function = new SQLRecordFunction(updateColumnList, table, expressions);
+        UpdateStatement update = null;
+        if (input instanceof TableScanOp) {
+            update = new UpdateStatement(tableSpace, tableName, null, function, null);
+        } else if (input instanceof FilterOp) {
+            FilterOp filter = (FilterOp) input;
+            if (filter.getInput() instanceof TableScanOp) {
+                SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
+                update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+            }
+        } else if (input instanceof ProjectOp) {
+            ProjectOp proj = (ProjectOp) input;
+            if (proj.getInput() instanceof TableScanOp) {
+                update = new UpdateStatement(tableSpace, tableName, null, function, null);
+            } else if (proj.getInput() instanceof FilterOp) {
+                FilterOp filter = (FilterOp) proj.getInput();
+                if (filter.getInput() instanceof TableScanOp) {
+                    SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
+                    update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+                }
+            }
+        }
+        if (update == null) {
+            throw new StatementExecutionException("unsupported input type for UPDATE " + input.getClass());
+        }
+        return new UpdateOp(update.setReturnValues(returnValues));
 
     }
 
@@ -373,11 +419,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         System.out.println("inputs: " + op.getInputs());
         System.out.println("childexp: " + op.getChildExps());
         System.out.println("traits: " + op.getTraitSet());
-        List<PlannerOp> inputs = new ArrayList<>(op.getInputs().size());
-        for (RelNode input : op.getInputs()) {
-            PlannerOp planned = convertRelNode(input, false);
-            inputs.add(planned);
-        }
+        PlannerOp input = convertRelNode(op.getInput(), false);
+
         List<CompiledSQLExpression> fields = new ArrayList<>(op.getProjects().size());
         Column[] columns = new Column[op.getProjects().size()];
         RelDataType rowType = op.getRowType();
@@ -391,7 +434,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
         return new ProjectOp(rowType.getFieldNames(),
                 columns,
-                fields, inputs);
+                fields, input);
 
     }
 

@@ -17,38 +17,31 @@
  under the License.
 
  */
-package herddb.model.planner;
+package herddb.sql.expressions;
 
-import herddb.core.TableSpaceManager;
-import herddb.model.DMLStatement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
-import herddb.model.TransactionContext;
+import herddb.utils.DataAccessor;
 
 /**
- * DELETE
  *
  * @author eolivelli
  */
-public class DeleteOp implements PlannerOp {
+public class AccessCorrelVariableExpression implements CompiledSQLExpression {
 
-    private final DMLStatement delete;
+    private final int id;
 
-    public DeleteOp(DMLStatement delete) {
-        this.delete = delete;
+    public AccessCorrelVariableExpression(int id) {
+        this.id = id;
     }
 
     @Override
-    public String getTablespace() {
-        return delete.getTableSpace();
+    public Object evaluate(DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
+        // TODO: implement joins
+        if (id != 0) {
+            throw new StatementExecutionException("collarion id " + id + "...not yet supported");
+        }
+        return bean;
     }
 
-    @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transaction, StatementEvaluationContext context)
-            throws StatementExecutionException {
-
-        return tableSpaceManager.executeStatement(delete, context, transaction);
-    }
 }

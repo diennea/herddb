@@ -45,20 +45,17 @@ public class SQLRecordFunction extends RecordFunction {
     private final Table table;
     private final List<String> columns;
     private final List<CompiledSQLExpression> expressions;
-    private final int jdbcParametersStartPos;
 
-    public SQLRecordFunction(Table table, List<Column> columns, List<CompiledSQLExpression> expressions, int jdbcParametersStartPos) {
+    public SQLRecordFunction(Table table, List<Column> columns, List<CompiledSQLExpression> expressions) {
         this.table = table;
         this.columns = columns.stream().map(Column::getColumnName).collect(Collectors.toList());
         this.expressions = expressions;
-        this.jdbcParametersStartPos = jdbcParametersStartPos;
     }
 
-    public SQLRecordFunction(List<String> columns, Table table, List<CompiledSQLExpression> expressions, int jdbcParametersStartPos) {
+    public SQLRecordFunction(List<String> columns, Table table, List<CompiledSQLExpression> expressions) {
         this.table = table;
         this.columns = columns;
         this.expressions = expressions;
-        this.jdbcParametersStartPos = jdbcParametersStartPos;
     }
 
     @Override
@@ -81,7 +78,7 @@ public class SQLRecordFunction extends RecordFunction {
 
     @Override
     public String toString() {
-        return "SQLRecordFunction{" + "table=" + table + ", columns=" + columns + ", expressions=" + expressions + ", jdbcParametersStartPos=" + jdbcParametersStartPos + '}';
+        return "SQLRecordFunction{" + "table=" + table + ", columns=" + columns + ", expressions=" + expressions + '}';
     }
 
 }

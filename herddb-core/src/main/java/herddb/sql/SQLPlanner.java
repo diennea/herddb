@@ -627,7 +627,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 }
                 keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
             }
-            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
+            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions);
 
             try {
                 return ExecutionPlan.simple(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues));
@@ -692,7 +692,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                     }
                     keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
                 }
-                RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
+                RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions);
                 InsertStatement insert = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction);
                 inserts.add(insert);
             }
@@ -739,7 +739,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 }
                 keyfunction = new SQLRecordKeyFunction(table, keyExpressionToColumn, keyValueExpression);
             }
-            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions, 0);
+            RecordFunction valuesfunction = new SQLRecordFunction(table, valuesColumns, valuesExpressions);
 
             try {
                 return ExecutionPlan.dataManipulationFromSelect(
@@ -877,7 +877,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
         for (Expression e : s.getExpressions()) {
             compiledSQLExpressions.add(SQLExpressionCompiler.compileExpression(null, e));
         }
-        RecordFunction function = new SQLRecordFunction(table, s.getColumns(), compiledSQLExpressions, 0);
+        RecordFunction function = new SQLRecordFunction(table, s.getColumns(), compiledSQLExpressions);
 
         // Perform a scan and then update each row
         SQLRecordPredicate where = s.getWhere() != null ? new SQLRecordPredicate(table, table.name, s.getWhere()) : null;

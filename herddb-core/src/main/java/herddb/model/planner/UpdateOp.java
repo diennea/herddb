@@ -27,28 +27,27 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 
 /**
- * DELETE
+ * UPDATE
  *
  * @author eolivelli
  */
-public class DeleteOp implements PlannerOp {
+public class UpdateOp implements PlannerOp {
 
-    private final DMLStatement delete;
+    private final DMLStatement update;
 
-    public DeleteOp(DMLStatement delete) {
-        this.delete = delete;
+    public UpdateOp(DMLStatement update) {
+        this.update = update;
     }
 
     @Override
     public String getTablespace() {
-        return delete.getTableSpace();
+        return update.getTableSpace();
     }
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
             TransactionContext transaction, StatementEvaluationContext context)
             throws StatementExecutionException {
-
-        return tableSpaceManager.executeStatement(delete, context, transaction);
+        return tableSpaceManager.executeStatement(update, context, transaction);
     }
 }

@@ -55,7 +55,9 @@ import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexCorrelVariable;
 import org.apache.calcite.rex.RexDynamicParam;
+import org.apache.calcite.rex.RexFieldAccess;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
@@ -295,6 +297,13 @@ public class SQLExpressionCompiler {
                 default:
                     throw new StatementExecutionException("unsupported operator '" + name + "'");
             }
+        } else if (expression instanceof RexFieldAccess) {
+            RexFieldAccess p = (RexFieldAccess) expression;
+            CompiledSQLExpression object = compileExpression(p.getReferenceExpr());
+            return new AccessFieldExpression(object, p.getField().getName());
+        } else if (expression instanceof RexCorrelVariable) {
+            RexCorrelVariable p = (RexCorrelVariable) expression;
+            return new AccessCorrelVariableExpression(p.id.getId());
         }
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }

@@ -251,7 +251,7 @@ public class SimplerPlannerTest {
     }
 
     @Test
-    public void plannerDMLTest() throws Exception {
+    public void plannerDeleteTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
@@ -272,6 +272,37 @@ public class SimplerPlannerTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(0, results.size());
+            }
+        }
+    }
+
+    @Test
+    public void plannerUpdateTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=1111", Collections.emptyList()).getUpdateCount());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1111", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+            }
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=1112 where k1='mykey'", Collections.emptyList()).getUpdateCount());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1112", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+            }
+            assertEquals(0, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=1112 where k1='no'", Collections.emptyList()).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=n1+1 where k1='mykey'", Collections.emptyList()).getUpdateCount());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1113", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
             }
         }
     }
