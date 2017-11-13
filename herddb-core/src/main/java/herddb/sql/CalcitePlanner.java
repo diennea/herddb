@@ -20,7 +20,6 @@
 package herddb.sql;
 
 import com.google.common.collect.ImmutableList;
-import com.sun.javafx.scene.control.skin.VirtualFlow;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
@@ -32,12 +31,14 @@ import herddb.model.ExecutionPlan;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.AggregateOp;
+import herddb.model.planner.DeleteOp;
 import herddb.model.planner.FilterOp;
-import herddb.model.planner.InsertRecordOp;
+import herddb.model.planner.InsertOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
@@ -235,6 +236,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             switch (dml.getOperation()) {
                 case INSERT:
                     return planInsert(dml, returnValues);
+                case DELETE:
+                    return planDelete(dml, returnValues);
+                default:
+                    throw new StatementExecutionException("unsupport DML operation " + dml.getOperation());
             }
         } else if (plan instanceof EnumerableTableScan) {
             EnumerableTableScan scan = (EnumerableTableScan) plan;
@@ -262,7 +267,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         throw new StatementExecutionException("not implented " + plan.getRelTypeName());
     }
 
-    private InsertRecordOp planInsert(EnumerableTableModify dml, boolean returnValues) {
+    private InsertOp planInsert(EnumerableTableModify dml, boolean returnValues) {
 
         Project proj = (Project) dml.getInput(0);
         List<RexNode> projects = proj.getProjects();
@@ -312,10 +317,35 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions, 0);
 
         try {
-            return new InsertRecordOp(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues));
+            return new InsertOp(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues));
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
+
+    }
+
+    private DeleteOp planDelete(EnumerableTableModify dml, boolean returnValues) {
+        PlannerOp input = convertRelNode(dml.getInput(), false);
+
+        final String tableSpace = dml.getTable().getQualifiedName().get(0);
+        final String tableName = dml.getTable().getQualifiedName().get(1);
+        final TableImpl tableImpl
+                = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
+        Table table = tableImpl.tableManager.getTable();
+        DeleteStatement delete = null;
+        if (input instanceof TableScanOp) {
+            delete = new DeleteStatement(tableSpace, tableName, null, null);
+        } else if (input instanceof FilterOp) {
+            FilterOp filter = (FilterOp) input;
+            if (filter.getInput() instanceof TableScanOp) {
+                SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
+                delete = new DeleteStatement(tableSpace, tableName, null, pred);
+            }
+        }
+        if (delete == null) {
+            throw new StatementExecutionException("unsupported input type for DELETE " + input.getClass());
+        }
+        return new DeleteOp(delete);
 
     }
 

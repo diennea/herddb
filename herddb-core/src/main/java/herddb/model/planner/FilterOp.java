@@ -46,6 +46,14 @@ public class FilterOp implements PlannerOp {
         this.condition = condition;
     }
 
+    public PlannerOp getInput() {
+        return input;
+    }
+
+    public CompiledSQLExpression getCondition() {
+        return condition;
+    }
+    
     @Override
     public String getTablespace() {
         return input.getTablespace();

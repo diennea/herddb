@@ -250,4 +250,29 @@ public class SimplerPlannerTest {
         }
     }
 
+    @Test
+    public void plannerDMLTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql", Collections.emptyList()).getUpdateCount());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(0, results.size());
+            }
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1234))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).getUpdateCount());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(0, results.size());
+            }
+        }
+    }
 }

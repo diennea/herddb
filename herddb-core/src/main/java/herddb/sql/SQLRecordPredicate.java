@@ -75,6 +75,12 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         this.where = SQLExpressionCompiler.compileExpression(validatedTableAlias, where);
     }
 
+    public SQLRecordPredicate(Table table, String tableAlias, CompiledSQLExpression where) {
+        this.table = table;
+        this.validatedTableAlias = tableAlias;
+        this.where = where;
+    }
+
     @Override
     public PrimaryKeyMatchOutcome matchesRawPrimaryKey(Bytes key, StatementEvaluationContext context) throws StatementExecutionException {
         if (primaryKeyFilter == null) {

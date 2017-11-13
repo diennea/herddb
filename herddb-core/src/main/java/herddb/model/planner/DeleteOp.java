@@ -22,27 +22,36 @@ package herddb.model.planner;
 import herddb.core.TableSpaceManager;
 import herddb.model.DMLStatement;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
-import herddb.model.Transaction;
+import herddb.model.Table;
 import herddb.model.TransactionContext;
-import herddb.model.commands.InsertStatement;
+import herddb.model.commands.DeleteStatement;
+import herddb.sql.SQLRecordPredicate;
 
-public class InsertRecordOp implements PlannerOp {
+/**
+ * DELETE
+ *
+ * @author eolivelli
+ */
+public class DeleteOp implements PlannerOp {
 
-    private final DMLStatement insertStatement;
+    private final DeleteStatement delete;
 
-    public InsertRecordOp(DMLStatement insertStatement) {
-        this.insertStatement = insertStatement;
+    public DeleteOp(DeleteStatement delete) {
+        this.delete = delete;
     }
 
     @Override
     public String getTablespace() {
-        return insertStatement.getTableSpace();
+        return delete.getTableSpace();
     }
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transaction, StatementEvaluationContext context) {
-        return tableSpaceManager.executeStatement(insertStatement, context, transaction);
+            TransactionContext transaction, StatementEvaluationContext context)
+            throws StatementExecutionException {
+
+        return tableSpaceManager.executeStatement(delete, context, transaction);
     }
 }
