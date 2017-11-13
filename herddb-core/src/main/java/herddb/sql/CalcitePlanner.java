@@ -153,7 +153,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         if (query.startsWith("CREATE")
                 || query.startsWith("DROP")
                 || query.startsWith("EXECUTE")
-                || query.startsWith("ALTER")) {
+                || query.startsWith("ALTER")
+                || query.startsWith("BEGIN")
+                || query.startsWith("COMMIT")
+                || query.startsWith("ROLLBACK")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         try {
@@ -174,7 +177,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
                     .programs(Programs.ofRules(Programs.RULE_SET))
                     .build();
-            RelNode plan = executeQuery(config, query);
+            RelNode plan = runPlanner(config, query);
             ExecutionPlan executionPlan = ExecutionPlan.simple(
                     new SQLPlannedOperationStatement(
                             convertRelNode(plan, returnValues))
@@ -186,9 +189,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
 
-    private RelNode executeQuery(FrameworkConfig config, String query) throws RelConversionException, SqlParseException, ValidationException {
+    private RelNode runPlanner(FrameworkConfig config, String query) throws RelConversionException, SqlParseException, ValidationException {
         Planner planner = Frameworks.getPlanner(config);
-        System.out.println("Qury:" + query);
+        System.out.println("Query:" + query);
         SqlNode n = planner.parse(query);
         n = planner.validate(n);
         RelNode root = planner.rel(n).project();
@@ -223,16 +226,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp convertRelNode(RelNode plan, boolean returnValues) throws StatementExecutionException {
-        System.out.println("converting " + plan.getClass());
-        System.out.println("converting conv " + plan.getConvention());
-        System.out.println("converting rektypename " + plan.getRelTypeName());
-        System.out.println("converting corr var" + plan.getCorrelVariable());
-        System.out.println("converting inputs" + plan.getInputs());
-        if (plan.getTable() != null) {
-            System.out.println("converting table " + plan.getTable().getQualifiedName());
-        }
-        System.out.println("converting varset " + plan.getVariablesSet());
-
         if (plan instanceof EnumerableTableModify) {
             EnumerableTableModify dml = (EnumerableTableModify) plan;
             switch (dml.getOperation()) {
@@ -281,10 +274,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final TableImpl tableImpl
                 = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
-        System.out.println("inset of " + dml.getTable().getQualifiedName()
-                + ", projects:" + projects
-                + ", fields " + fieldList
-                + ", table " + table);
         int index = 0;
         List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
         List<String> keyExpressionToColumn = new ArrayList<>();
@@ -396,29 +385,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planEnumerableTableScan(EnumerableTableScan scan) {
-        System.out.println("plan select " + scan);
-        System.out.println("scan table " + scan.getTable());
-        System.out.println("inputs: " + scan.getInputs());
-        System.out.println("childexp: " + scan.getChildExps());
-        System.out.println("traits: " + scan.getTraitSet());
         List<RelDataTypeField> fieldList = scan.getTable().getRowType().getFieldList();
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
         final TableImpl tableImpl
                 = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
-        System.out.println("scan of " + scan.getTable().getQualifiedName()
-                + ", fields " + fieldList
-                + ", table " + table);
         return new TableScanOp(new ScanStatement(tableSpace, table, null));
     }
 
     private PlannerOp planProject(EnumerableProject op) {
-        System.out.println("plan project " + op);
-        System.out.println("project " + op.getProjects());
-        System.out.println("table " + op.getTable());
-        System.out.println("inputs: " + op.getInputs());
-        System.out.println("childexp: " + op.getChildExps());
-        System.out.println("traits: " + op.getTraitSet());
         PlannerOp input = convertRelNode(op.getInput(), false);
 
         List<CompiledSQLExpression> fields = new ArrayList<>(op.getProjects().size());
@@ -426,7 +401,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         RelDataType rowType = op.getRowType();
         int i = 0;
         for (RexNode node : op.getProjects()) {
-            System.out.println("proj:" + node.getKind() + " " + node.getClass() + " " + node.toString() + " type " + node.getType());
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
             fields.add(exp);
             Column col = Column.column(rowType.getFieldNames().get(i), convertToHerdType(node.getType()));
@@ -439,12 +413,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planSort(EnumerableSort op) {
-        System.out.println("plan project " + op);
-        System.out.println("table " + op.getTable());
-        System.out.println("inputs: " + op.getInputs());
-        System.out.println("childexp: " + op.getChildExps());
-        System.out.println("traits: " + op.getTraitSet());
-
         PlannerOp input = convertRelNode(op.getInput(), false);
         RelCollation collation = op.getCollation();
         List<RelFieldCollation> fieldCollations = collation.getFieldCollations();
@@ -468,12 +436,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planLimit(EnumerableLimit op) {
-        System.out.println("plan limit " + op);
-        System.out.println("table " + op.getTable());
-        System.out.println("inputs: " + op.getInputs());
-        System.out.println("childexp: " + op.getChildExps());
-        System.out.println("traits: " + op.getTraitSet());
-
         PlannerOp input = convertRelNode(op.getInput(), false);
         CompiledSQLExpression maxRows = SQLExpressionCompiler.compileExpression(op.fetch);
         CompiledSQLExpression offset = SQLExpressionCompiler.compileExpression(op.offset);
@@ -482,13 +444,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planFilter(EnumerableFilter op, boolean returnValues) {
-        System.out.println("plan limit " + op);
-        System.out.println("table " + op.getTable());
-        System.out.println("inputs: " + op.getInputs());
-        System.out.println("childexp: " + op.getChildExps());
-        System.out.println("traits: " + op.getTraitSet());
-        System.out.println("condition: " + op.getCondition());
-
         PlannerOp input = convertRelNode(op.getInput(), returnValues);
         CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
         return new FilterOp(input, condition);
@@ -496,23 +451,14 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planAggregate(EnumerableAggregate op, boolean returnValues) {
-        System.out.println("plan aggregate " + op);
-        System.out.println("table " + op.getTable());
-        System.out.println("inputs: " + op.getInputs());
-        System.out.println("childexp: " + op.getChildExps());
-        System.out.println("traits: " + op.getTraitSet());
-        System.out.println("groupsets: " + op.getGroupSets());
-        System.out.println("group: " + op.getGroupType());
-        System.out.println("agg: " + op.getAggCallList());
+
         List<RelDataTypeField> fieldList = op.getRowType().getFieldList();
-        System.out.println("fieldslist: " + fieldList);
 
         List<AggregateCall> calls = op.getAggCallList();
         String[] fieldnames = new String[fieldList.size()];
         String[] aggtypes = new String[calls.size()];
         Column[] columns = new Column[fieldList.size()];
         List<Integer> groupedFiledsIndexes = op.getGroupSet().toList();
-        System.out.println("groupedFiledsIndexes:" + groupedFiledsIndexes);
         List<List<Integer>> argLists = new ArrayList<>(calls.size());
         int i = 0;
 
@@ -525,10 +471,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             i++;
         }
         for (AggregateCall call : calls) {
-            System.out.println("call:" + call.getName());
-            System.out.println("call arglist" + call.getArgList());
-            System.out.println("call fun " + call.getAggregation());
-            System.out.println("call fun " + call.getAggregation().getName());
             aggtypes[idaggcall++] = call.getAggregation().getName();
             argLists.add(call.getArgList());
         }
