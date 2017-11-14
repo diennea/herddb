@@ -328,6 +328,12 @@ public class SimplerPlannerTest {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
             }
+
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=? where k1=?", Arrays.asList(1114, "mykey")).getUpdateCount());
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql where n1=1114", Collections.emptyList());) {
+                List<DataAccessor> results = scan.consume();
+                assertEquals(1, results.size());
+            }
         }
     }
 }

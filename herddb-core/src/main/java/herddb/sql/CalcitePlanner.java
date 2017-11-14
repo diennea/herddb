@@ -465,7 +465,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             int type = convertToHerdType(c.getType());
             Column co = Column.column(c.getName(), type);
             columns[i] = co;
-            fieldnames[i] = c.getName();
+            fieldnames[i] = c.getName().toLowerCase();
             i++;
         }
         for (AggregateCall call : calls) {
@@ -493,7 +493,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             case ANY:
                 return ColumnTypes.ANYTYPE;
             default:
-                throw new StatementExecutionException("unsuppoted expression type " + type.getSqlTypeName());
+                throw new StatementExecutionException("unsupported expression type " + type.getSqlTypeName());
         }
     }
 
