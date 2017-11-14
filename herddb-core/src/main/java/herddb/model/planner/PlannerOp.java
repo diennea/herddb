@@ -39,4 +39,12 @@ public interface PlannerOp extends Wrapper {
             TransactionContext transactionContext,
             StatementEvaluationContext context) throws StatementExecutionException;
 
+    /**
+     * Optimize this node, eventually merging this node with its inputs
+     *
+     * @return
+     */
+    public default PlannerOp optimize() {
+        return this;
+    }
 }

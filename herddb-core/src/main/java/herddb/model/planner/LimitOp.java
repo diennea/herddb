@@ -48,7 +48,7 @@ public class LimitOp implements PlannerOp {
     private final CompiledSQLExpression offset;
 
     public LimitOp(PlannerOp input, CompiledSQLExpression maxRows, CompiledSQLExpression offset) {
-        this.input = input;
+        this.input = input.optimize();
         this.maxRows = maxRows;
         this.offset = offset;
     }

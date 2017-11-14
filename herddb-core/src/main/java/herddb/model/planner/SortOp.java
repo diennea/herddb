@@ -42,25 +42,25 @@ import java.util.logging.Logger;
  */
 public class SortOp implements PlannerOp, TupleComparator {
 
-    private final PlannerOp downstream;
+    private final PlannerOp input;
     private final boolean[] directions;
     private final int[] fields;
 
-    public SortOp(PlannerOp downstream, boolean[] directions, int[] fields) {
-        this.downstream = downstream;
+    public SortOp(PlannerOp input, boolean[] directions, int[] fields) {
+        this.input = input.optimize();
         this.directions = directions;
         this.fields = fields;
     }
 
     @Override
     public String getTablespace() {
-        return downstream.getTablespace();
+        return input.getTablespace();
     }
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
         // TODO merge projection + scan + sort + limit
-        StatementExecutionResult input = downstream.execute(tableSpaceManager, transactionContext, context);
+        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
         ScanResult downstreamScanResult = (ScanResult) input;
         final DataScanner inputScanner = downstreamScanResult.dataScanner;
 

@@ -27,6 +27,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
+import herddb.model.commands.ScanStatement;
 import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
@@ -43,7 +44,7 @@ public class FilterOp implements PlannerOp {
     private final CompiledSQLExpression condition;
 
     public FilterOp(PlannerOp input, CompiledSQLExpression condition) {
-        this.input = input;
+        this.input = input.optimize();
         this.condition = condition;
     }
 
@@ -133,6 +134,14 @@ public class FilterOp implements PlannerOp {
             fetchNext();
         }
 
+    }
+
+    @Override
+    public PlannerOp optimize() {
+        if (input instanceof TableScanOp) {
+            return new FilteredTableScanOp(this, (TableScanOp) input);
+        }
+        return this;
     }
 
 }

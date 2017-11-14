@@ -56,7 +56,7 @@ public class InsertOp implements PlannerOp {
     public InsertOp(String tableSpace, String tableName, PlannerOp input, boolean returnValues) {
         this.tableSpace = tableSpace;
         this.tableName = tableName;
-        this.input = input;
+        this.input = input.optimize();
         this.returnValues = returnValues;
     }
 

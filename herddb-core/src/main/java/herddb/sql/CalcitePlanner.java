@@ -174,7 +174,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()
                     .parserConfig(parserConfig)
-                    .defaultSchema(schema)
+                    .defaultSchema(schema.getSubSchema(defaultTableSpace))
                     .traitDefs(traitDefs)
                     // define the rules you want to apply
 
@@ -183,7 +183,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelNode plan = runPlanner(config, query);
             ExecutionPlan executionPlan = ExecutionPlan.simple(
                     new SQLPlannedOperationStatement(
-                            convertRelNode(plan, returnValues))
+                            convertRelNode(plan, returnValues)
+                                    .optimize())
             );
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         } catch (MetadataStorageManagerException | RelConversionException
@@ -216,7 +217,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final SchemaPlus rootSchema = Frameworks.createRootSchema(true);
         for (String tableSpace : manager.getLocalTableSpaces()) {
             System.out.println("defined tablespace " + tableSpace);
-                
+
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
             SchemaPlus schema = rootSchema.add(tableSpace, new AbstractSchema());
             List<Table> tables = tableSpaceManager.getAllTablesForPlanner();

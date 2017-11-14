@@ -23,11 +23,13 @@ import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.Projection;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
+import herddb.sql.SQLProjection;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.ProjectedDataAccessor;
@@ -47,7 +49,7 @@ public class ProjectOp implements PlannerOp {
     public ProjectOp(List<String> fieldNames, Column[] columns,
             List<CompiledSQLExpression> fields, PlannerOp input) {
         this.fields = fields;
-        this.input = input;
+        this.input = input.optimize();
         this.fieldNames = fieldNames.toArray(new String[fieldNames.size()]);
         this.columns = columns;
     }
@@ -68,6 +70,33 @@ public class ProjectOp implements PlannerOp {
             return unwrapped;
         }
         return Wrapper.unwrap(this, clazz);
+    }
+
+    @Override
+    public PlannerOp optimize() {
+        if (input instanceof TableScanOp) {
+            return new ProjectedTableScanOp(this, (TableScanOp) input);
+        }
+        return this;
+    }
+
+    public Projection getProjection() {
+        return new Projection() {
+            @Override
+            public Column[] getColumns() {
+                return columns;
+            }
+
+            @Override
+            public String[] getFieldNames() {
+                return fieldNames;
+            }
+
+            @Override
+            public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
+                return new RuntimeProjectedDataAccessor(tuple, context);
+            }
+        };
     }
 
     @Override
@@ -103,7 +132,7 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public DataAccessor next() throws DataScannerException {
-            return new RuntimeProjectedDataAccessor(downstream.next());
+            return new RuntimeProjectedDataAccessor(downstream.next(), context);
         }
 
         @Override
@@ -116,47 +145,44 @@ public class ProjectOp implements PlannerOp {
             downstream.close();
         }
 
-        private class RuntimeProjectedDataAccessor implements DataAccessor {
+    }
 
-            final DataAccessor wrapped;
-            final Object[] values;
+    private class RuntimeProjectedDataAccessor implements DataAccessor {
 
-            public RuntimeProjectedDataAccessor(DataAccessor wrapper) {
-                this.wrapped = wrapper;
-                this.values = new Object[fieldNames.length];
-                for (int i = 0; i < fieldNames.length; i++) {
-                    CompiledSQLExpression exp = fields.get(i);
-                    this.values[i] = exp.evaluate(wrapper, context);
+        final Object[] values;
+
+        public RuntimeProjectedDataAccessor(DataAccessor wrapper, StatementEvaluationContext context) {
+            this.values = new Object[fieldNames.length];
+            for (int i = 0; i < fieldNames.length; i++) {
+                CompiledSQLExpression exp = fields.get(i);
+                this.values[i] = exp.evaluate(wrapper, context);
+            }
+        }
+
+        @Override
+        public String[] getFieldNames() {
+            return fieldNames;
+        }
+
+        @Override
+        public Object get(String string) {
+            for (int i = 0; i < fieldNames.length; i++) {
+                if (fieldNames[i].equalsIgnoreCase(string)) {
+                    return values[i];
                 }
             }
+            return null;
+        }
 
-            @Override
-            public String[] getFieldNames() {
-                return fieldNames;
-            }
+        @Override
+        public Object get(int i) {
+            return values[i];
+        }
 
-            @Override
-            public Object get(String string) {
-                for (int i = 0; i < fieldNames.length; i++) {
-                    if (fieldNames[i].equalsIgnoreCase(string)) {
-                        return values[i];
-                    }
-                }
-                return null;
-            }
-
-            @Override
-            public Object get(int i) {
-                return values[i];
-            }
-
-            @Override
-            public Object[] getValues() {
-                return values;
-            }
-
+        @Override
+        public Object[] getValues() {
+            return values;
         }
 
     }
-
 }
