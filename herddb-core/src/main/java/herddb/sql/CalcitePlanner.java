@@ -24,15 +24,14 @@ import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
 import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.ExecutionPlan;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.TableSpace;
 import herddb.model.commands.DeleteStatement;
-import herddb.model.commands.InsertStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
@@ -46,6 +45,7 @@ import herddb.model.planner.ProjectOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
+import herddb.model.planner.ValuesOp;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
@@ -63,6 +63,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableProject;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
+import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
 import org.apache.calcite.linq4j.Queryable;
@@ -85,6 +86,7 @@ import org.apache.calcite.rel.logical.LogicalTableModify;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.ModifiableTable;
 import org.apache.calcite.schema.ScannableTable;
@@ -212,17 +214,19 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private SchemaPlus getRootSchema() throws MetadataStorageManagerException {
         final SchemaPlus rootSchema = Frameworks.createRootSchema(true);
-        for (String tableSpace : manager.getMetadataStorageManager().listTableSpaces()) {
+        for (String tableSpace : manager.getLocalTableSpaces()) {
+            System.out.println("defined tablespace " + tableSpace);
+                
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
             SchemaPlus schema = rootSchema.add(tableSpace, new AbstractSchema());
-            List<Table> tables = tableSpaceManager.getAllCommittedTables();
+            List<Table> tables = tableSpaceManager.getAllTablesForPlanner();
             for (Table table : tables) {
+                System.out.println("defined table " + table.name);
                 AbstractTableManager tableManager = tableSpaceManager.getTableManager(table.name);
                 TableImpl tableDef = new TableImpl(tableManager);
                 schema.add(table.name, tableDef);
             }
         }
-
         return rootSchema;
     }
 
@@ -245,6 +249,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableProject) {
             EnumerableProject scan = (EnumerableProject) plan;
             return planProject(scan);
+        } else if (plan instanceof EnumerableValues) {
+            EnumerableValues scan = (EnumerableValues) plan;
+            return planValues(scan);
         } else if (plan instanceof EnumerableSort) {
             EnumerableSort scan = (EnumerableSort) plan;
             return planSort(scan);
@@ -267,51 +274,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private InsertOp planInsert(EnumerableTableModify dml, boolean returnValues) {
 
-        Project proj = (Project) dml.getInput(0);
-        List<RexNode> projects = proj.getProjects();
-        List<RelDataTypeField> fieldList = dml.getTable().getRowType().getFieldList();
+        PlannerOp input = convertRelNode(dml.getInput(), false);
+
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
-        final TableImpl tableImpl
-                = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
-        Table table = tableImpl.tableManager.getTable();
-        int index = 0;
-        List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
-        List<String> keyExpressionToColumn = new ArrayList<>();
-
-        List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
-        List<String> valuesColumns = new ArrayList<>();
-        for (RelDataTypeField c : fieldList) {
-
-            Column column = table.getColumn(c.getName());
-            if (column == null) {
-                throw new StatementExecutionException("no such column " + c.getName() + " in table " + tableName + " in tablespace " + tableSpace);
-            }
-            RexNode expression = projects.get(index++);
-
-            if (table.isPrimaryKeyColumn(column.name)) {
-                keyExpressionToColumn.add(column.name);
-                keyValueExpression.add(SQLExpressionCompiler.compileExpression(expression));
-
-            }
-            valuesColumns.add(column.name);
-            valuesExpressions.add(SQLExpressionCompiler.compileExpression(expression));
-        }
-
-        RecordFunction keyfunction;
-        if (keyValueExpression.isEmpty()
-                && table.auto_increment) {
-            keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
-        } else {
-            if (keyValueExpression.size() != table.primaryKey.length) {
-                throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
-            }
-            keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, table);
-        }
-        RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
 
         try {
-            return new InsertOp(new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues));
+            return new InsertOp(tableSpace, tableName, input, returnValues);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
@@ -386,7 +355,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planEnumerableTableScan(EnumerableTableScan scan) {
-        List<RelDataTypeField> fieldList = scan.getTable().getRowType().getFieldList();
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
         final TableImpl tableImpl
                 = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
@@ -410,6 +378,33 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new ProjectOp(rowType.getFieldNames(),
                 columns,
                 fields, input);
+
+    }
+
+    private PlannerOp planValues(EnumerableValues op) {
+
+        List<List<CompiledSQLExpression>> tuples = new ArrayList<>(op.getTuples().size());
+        RelDataType rowType = op.getRowType();
+        List<RelDataTypeField> fieldList = rowType.getFieldList();
+
+        Column[] columns = new Column[fieldList.size()];
+        for (ImmutableList<RexLiteral> tuple : op.getTuples()) {
+            List<CompiledSQLExpression> row = new ArrayList<>(tuple.size());
+            for (RexLiteral node : tuple) {
+                CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
+                row.add(exp);
+            }
+            tuples.add(row);
+        }
+        int i = 0;
+        String[] fieldNames = new String[fieldList.size()];
+        for (RelDataTypeField field : fieldList) {
+            Column col = Column.column(field.getName(), convertToHerdType(field.getType()));
+            fieldNames[i] = field.getName();
+            columns[i++] = col;
+        }
+        return new ValuesOp(manager.getNodeId(), fieldNames,
+                columns, tuples);
 
     }
 

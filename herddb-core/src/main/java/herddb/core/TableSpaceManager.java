@@ -597,6 +597,11 @@ public class TableSpaceManager {
         return tables.values().stream().filter(s -> s.getCreatedInTransaction() == 0).map(AbstractTableManager::getTable).collect(Collectors.toList());
 
     }
+    public List<Table> getAllTablesForPlanner() {
+        // No LOCK is necessary, since tables is a concurrent map
+        return tables.values().stream().map(AbstractTableManager::getTable).collect(Collectors.toList());
+
+    }
 
     private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
 
@@ -975,9 +980,6 @@ public class TableSpaceManager {
     private final ConcurrentHashMap<Long, Transaction> transactions = new ConcurrentHashMap<>();
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        if (virtual) {
-            throw new StatementExecutionException("executeStatement not available on virtual tablespaces");
-        }
         boolean rollbackOnError = false;
 
         /* Do not autostart transaction on alter table statements */
