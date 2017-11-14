@@ -27,10 +27,10 @@ import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.ExecutionPlan;
+import herddb.model.Predicate;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
-import herddb.model.TableSpace;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
@@ -38,6 +38,7 @@ import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
 import herddb.model.planner.DeleteOp;
 import herddb.model.planner.FilterOp;
+import herddb.model.planner.FilteredTableScanOp;
 import herddb.model.planner.InsertOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
@@ -80,7 +81,6 @@ import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
-import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.logical.LogicalTableModify;
 import org.apache.calcite.rel.type.RelDataType;
@@ -216,13 +216,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private SchemaPlus getRootSchema() throws MetadataStorageManagerException {
         final SchemaPlus rootSchema = Frameworks.createRootSchema(true);
         for (String tableSpace : manager.getLocalTableSpaces()) {
-            System.out.println("defined tablespace " + tableSpace);
-
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
             SchemaPlus schema = rootSchema.add(tableSpace, new AbstractSchema());
             List<Table> tables = tableSpaceManager.getAllTablesForPlanner();
             for (Table table : tables) {
-                System.out.println("defined table " + table.name);
                 AbstractTableManager tableManager = tableSpaceManager.getTableManager(table.name);
                 TableImpl tableDef = new TableImpl(tableManager);
                 schema.add(table.name, tableDef);
@@ -346,10 +343,14 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
                     update = new UpdateStatement(tableSpace, tableName, null, function, pred);
                 }
+            } else if (proj.getInput() instanceof FilteredTableScanOp) {
+                FilteredTableScanOp filter = (FilteredTableScanOp) proj.getInput();
+                Predicate pred = filter.getPredicate();
+                update = new UpdateStatement(tableSpace, tableName, null, function, pred);
             }
         }
         if (update == null) {
-            throw new StatementExecutionException("unsupported input type for UPDATE " + input.getClass());
+            throw new StatementExecutionException("unsupported input type " + input + " for UPDATE " + input.getClass());
         }
         return new UpdateOp(update.setReturnValues(returnValues));
 

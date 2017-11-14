@@ -21,6 +21,7 @@ package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
 import herddb.model.DataScanner;
+import herddb.model.Predicate;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -45,6 +46,10 @@ public class FilteredTableScanOp implements PlannerOp {
         CompiledSQLExpression condition = op.getCondition();
         // we can alter the statement, the TableScan will be dropped from the plan
         this.statement.setPredicate(new SQLRecordPredicate(statement.getTableDef(), null, condition));
+    }
+
+    public Predicate getPredicate() {
+        return statement.getPredicate();
     }
 
     @Override
