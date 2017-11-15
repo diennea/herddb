@@ -32,6 +32,7 @@ import herddb.model.TransactionContext;
 import herddb.model.TupleComparator;
 import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
+import herddb.utils.Wrapper;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -104,4 +105,12 @@ public class SortOp implements PlannerOp, TupleComparator {
         return 0;
     }
 
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        T unwrapped = input.unwrap(clazz);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+        return Wrapper.unwrap(this, clazz);
+    }
 }

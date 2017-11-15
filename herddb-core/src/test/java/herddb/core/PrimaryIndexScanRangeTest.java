@@ -597,7 +597,7 @@ public class PrimaryIndexScanRangeTest {
         }
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
+                + " FROM tblspace1.t1 "
                 + "WHERE n1>=2 "
                 + "and n2<=6 "
                 + "order by n1", Collections.emptyList(), true, true, false, -1);
