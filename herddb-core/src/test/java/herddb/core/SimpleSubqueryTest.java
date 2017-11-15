@@ -36,6 +36,7 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import static org.junit.Assert.assertTrue;
 
 /**
  *
