@@ -44,4 +44,14 @@ public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpres
         }
     }
 
+    @Override
+    public String getOperator() {
+        return ">=";
+    }
+
+    @Override
+    public String toString() {
+        return "CompiledGreaterThenEqualsExpression{" + "not=" + not + ",left=" + left + ", right=" + right + "}";
+    }
+
 }

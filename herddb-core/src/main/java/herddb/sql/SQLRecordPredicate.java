@@ -20,6 +20,7 @@
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
+import herddb.model.ColumnTypes;
 import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
@@ -289,8 +290,27 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         }
     }
 
+    public void setPrimaryKeyFilter(CompiledSQLExpression primaryKeyFilter) {
+        this.primaryKeyFilter = primaryKeyFilter;
+    }
+
     public CompiledSQLExpression getWhere() {
         return where;
     }
 
+    public static Object cast(Object value, int type) {
+        if (value == null) {
+            return null;
+        }
+        switch (type) {
+            case ColumnTypes.INTEGER:
+                return ((Number) value).intValue();
+            case ColumnTypes.LONG:
+                return ((Number) value).longValue();
+            case ColumnTypes.DOUBLE:
+                return ((Number) value).doubleValue();
+            default:
+                return value;
+        }
+    }
 }

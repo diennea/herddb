@@ -22,6 +22,7 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
+import java.util.List;
 
 public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
 
@@ -48,5 +49,6 @@ public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
     public String toString() {
         return "CompiledEqualsExpression{" + "left=" + left + ", right=" + right + ", not=" + not + '}';
     }
+
 
 }

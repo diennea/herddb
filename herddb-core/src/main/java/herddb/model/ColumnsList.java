@@ -29,6 +29,6 @@ public interface ColumnsList {
     public Column[] getColumns();
 
     public Column getColumn(String name);
-    
+
     public String[] getPrimaryKey();
 }

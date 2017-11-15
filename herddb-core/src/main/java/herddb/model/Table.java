@@ -36,6 +36,7 @@ import java.util.stream.Stream;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.commands.AlterTableStatement;
+import herddb.sql.expressions.BindableTableScanColumnNameResolver;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
@@ -46,7 +47,7 @@ import herddb.utils.SimpleByteArrayInputStream;
  * @author enrico.olivelli
  */
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
-public class Table implements ColumnsList {
+public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     public final String uuid;
     public final String name;
@@ -173,6 +174,11 @@ public class Table implements ColumnsList {
     }
 
     @Override
+    public Column resolveColumName(int columnReference) {
+        return columns[columnReference];
+    }
+
+    @Override
     public String[] getPrimaryKey() {
         return primaryKey;
     }
@@ -180,15 +186,15 @@ public class Table implements ColumnsList {
     public Table applyAlterTable(AlterTableStatement alterTableStatement) {
         int new_maxSerialPosition = this.maxSerialPosition;
         String newTableName = alterTableStatement.getNewTableName() != null ? alterTableStatement.getNewTableName().toLowerCase()
-            : this.name;
+                : this.name;
 
         Builder builder = builder()
-            .name(newTableName)
-            .uuid(this.uuid)
-            .tablespace(this.tablespace);
+                .name(newTableName)
+                .uuid(this.uuid)
+                .tablespace(this.tablespace);
 
         List<String> dropColumns = alterTableStatement.getDropColumns().stream().map(String::toLowerCase)
-            .collect(Collectors.toList());
+                .collect(Collectors.toList());
         for (String dropColumn : dropColumns) {
             if (this.getColumn(dropColumn) == null) {
                 throw new IllegalArgumentException("column " + dropColumn + " not found int table " + this.name);
@@ -199,19 +205,19 @@ public class Table implements ColumnsList {
         }
         Set<String> changedColumns = new HashSet<>();
         Map<Integer, Column> realStructure
-            = Stream
-                .of(columns)
-                .collect(
-                    Collectors.toMap(
-                        t -> t.serialPosition,
-                        Function.identity()
-                    ));
+                = Stream
+                        .of(columns)
+                        .collect(
+                                Collectors.toMap(
+                                        t -> t.serialPosition,
+                                        Function.identity()
+                                ));
         if (alterTableStatement.getModifyColumns() != null) {
             for (Column newColumn : alterTableStatement.getModifyColumns()) {
                 Column oldColumn = realStructure.get(newColumn.serialPosition);
                 if (oldColumn == null) {
                     throw new IllegalArgumentException("column " + newColumn.name + " not found int table " + this.name
-                        + ", looking for serialPosition = " + newColumn.serialPosition);
+                            + ", looking for serialPosition = " + newColumn.serialPosition);
 
                 }
                 changedColumns.add(oldColumn.name);
@@ -221,7 +227,7 @@ public class Table implements ColumnsList {
         for (Column c : this.columns) {
             String lowercase = c.name.toLowerCase();
             if (!dropColumns.contains(lowercase)
-                && !changedColumns.contains(lowercase)) {
+                    && !changedColumns.contains(lowercase)) {
                 builder.column(c.name, c.type, c.serialPosition);
             }
             new_maxSerialPosition = Math.max(new_maxSerialPosition, c.serialPosition);
@@ -255,8 +261,8 @@ public class Table implements ColumnsList {
             }
         }
         boolean new_auto_increment = alterTableStatement.getChangeAutoIncrement() != null
-            ? alterTableStatement.getChangeAutoIncrement()
-            : this.auto_increment;
+                ? alterTableStatement.getChangeAutoIncrement()
+                : this.auto_increment;
         for (String pk : newPrimaryKey) {
             builder.primaryKey(pk, new_auto_increment);
         }
@@ -363,9 +369,9 @@ public class Table implements ColumnsList {
                     throw new IllegalArgumentException("column " + pkColumn + " is not defined in table");
                 }
                 if (pk.type != ColumnTypes.STRING
-                    && pk.type != ColumnTypes.LONG
-                    && pk.type != ColumnTypes.INTEGER
-                    && pk.type != ColumnTypes.TIMESTAMP) {
+                        && pk.type != ColumnTypes.LONG
+                        && pk.type != ColumnTypes.INTEGER
+                        && pk.type != ColumnTypes.TIMESTAMP) {
                     throw new IllegalArgumentException("primary key " + pkColumn + " must be a string or long or integer or timestamp");
                 }
             }
@@ -373,8 +379,8 @@ public class Table implements ColumnsList {
             columns.sort((Column o1, Column o2) -> o1.serialPosition - o2.serialPosition);
 
             return new Table(uuid, name,
-                columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]),
-                tablespace, auto_increment, maxSerialPosition);
+                    columns.toArray(new Column[columns.size()]), primaryKey.toArray(new String[primaryKey.size()]),
+                    tablespace, auto_increment, maxSerialPosition);
         }
 
         public Builder cloning(Table tableSchema) {

@@ -22,33 +22,42 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
+import herddb.utils.DataAccessor;
+import java.util.List;
 
-public class ConstantExpression implements CompiledSQLExpression {
+/**
+ * Generic cast
+ *
+ * @author eolivelli
+ */
+public class CastExpression implements CompiledSQLExpression {
 
-    private final Object value;
+    private final CompiledSQLExpression wrapped;
+    private final int type;
 
-    public ConstantExpression(Object value) {
-        this.value = value;
+    public CastExpression(CompiledSQLExpression wrapped, int type) {
+        this.wrapped = wrapped;
+        this.type = type;
     }
 
     @Override
-    public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return value;
+    public Object evaluate(DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
+        return SQLRecordPredicate.cast(wrapped.evaluate(bean, context), type);
     }
 
     @Override
-    public String toString() {
-        if (value != null) {
-            return "ConstantExpression{" + "value=" + value + ", " + value.getClass().getSimpleName() + '}';
-        } else {
-            return "ConstantExpression{null}";
-        }
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        wrapped.validate(context);
+    }
+
+    @Override
+    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+        return wrapped.scanForConstraintsOnColumn(column, operator, columnNameResolver);
     }
 
     @Override
     public CompiledSQLExpression cast(int type) {
-        return new ConstantExpression(SQLRecordPredicate.cast(value, type));
+        return wrapped.cast(type);
     }
 
 }

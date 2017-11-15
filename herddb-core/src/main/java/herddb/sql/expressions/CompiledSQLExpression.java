@@ -21,7 +21,8 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import java.util.Map;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * A specific implementation of a predicate
@@ -54,4 +55,13 @@ public interface CompiledSQLExpression {
     public default void validate(StatementEvaluationContext context) throws StatementExecutionException {
     }
 
+    public default List<CompiledSQLExpression> scanForConstraintsOnColumn(
+            String column, String operator, BindableTableScanColumnNameResolver columnNameResolver
+    ) {
+        return Collections.emptyList();
+    }
+
+    public default CompiledSQLExpression cast(int type) {
+        return new CastExpression(this, type);
+    }
 }

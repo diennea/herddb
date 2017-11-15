@@ -44,4 +44,8 @@ public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
         }
     }
 
+    @Override
+    public String getOperator() {
+        return ">";
+    }
 }

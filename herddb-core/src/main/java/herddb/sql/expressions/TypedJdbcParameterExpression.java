@@ -19,36 +19,39 @@
  */
 package herddb.sql.expressions;
 
+import herddb.model.MissingJDBCParameterException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
 
-public class ConstantExpression implements CompiledSQLExpression {
+public class TypedJdbcParameterExpression implements CompiledSQLExpression {
 
-    private final Object value;
+    private final int index;
+    private final int type;
 
-    public ConstantExpression(Object value) {
-        this.value = value;
+    public TypedJdbcParameterExpression(int index, int type) {
+        this.index = index;
+        this.type = type;
     }
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return value;
+        return SQLRecordPredicate.cast(context.getJdbcParameter(index), type);
+    }
+
+    @Override
+    public void validate(StatementEvaluationContext context) throws StatementExecutionException {
+        context.getJdbcParameter(index);
     }
 
     @Override
     public String toString() {
-        if (value != null) {
-            return "ConstantExpression{" + "value=" + value + ", " + value.getClass().getSimpleName() + '}';
-        } else {
-            return "ConstantExpression{null}";
-        }
+        return "JdbcParameterExpression{" + "index=" + index + '}';
     }
 
     @Override
     public CompiledSQLExpression cast(int type) {
-        return new ConstantExpression(SQLRecordPredicate.cast(value, type));
+        return new TypedJdbcParameterExpression(index, type);
     }
 
 }

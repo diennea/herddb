@@ -20,12 +20,21 @@
 package herddb.sql;
 
 import com.google.common.collect.ImmutableList;
+import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
 import herddb.core.DBManager;
 import herddb.core.TableSpaceManager;
+import herddb.index.IndexOperation;
+import herddb.index.PrimaryIndexPrefixScan;
+import herddb.index.PrimaryIndexRangeScan;
+import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexPrefixScan;
+import herddb.index.SecondaryIndexRangeScan;
+import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
+import herddb.model.ColumnsList;
 import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
 import herddb.model.Projection;
@@ -50,14 +59,21 @@ import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
+import herddb.sql.expressions.BindableTableScanColumnNameResolver;
 import herddb.sql.expressions.CompiledMultiAndExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import net.sf.jsqlparser.expression.BinaryExpression;
+import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
+import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
+import net.sf.jsqlparser.expression.operators.relational.MinorThan;
+import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
@@ -392,18 +408,33 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final TableImpl tableImpl
                 = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
-        Predicate predicate = null;
+        SQLRecordPredicate predicate = null;
         if (!scan.filters.isEmpty()) {
-            CompiledSQLExpression[] operands = new CompiledSQLExpression[scan.filters.size()];
-            int i = 0;
-            for (RexNode expr : scan.filters) {
-                CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(expr);
-                System.out.println("bindscan, filter:" + expr + " -> " + condition);
-
-                operands[i++] = condition;
+            CompiledSQLExpression where = null;
+            if (scan.filters.size() == 1) {
+                RexNode expr = scan.filters.get(0);
+                where = SQLExpressionCompiler.compileExpression(expr);
+                System.out.println("bindscan, filter:" + expr + " -> " + where);
+            } else {
+                CompiledSQLExpression[] operands = new CompiledSQLExpression[scan.filters.size()];
+                int i = 0;
+                for (RexNode expr : scan.filters) {
+                    CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(expr);
+                    System.out.println("bindscan, filter:" + expr + " -> " + condition);
+                    operands[i++] = condition;
+                }
+                where = new CompiledMultiAndExpression(operands);
             }
-            CompiledMultiAndExpression and = new CompiledMultiAndExpression(operands);
-            predicate = new SQLRecordPredicate(table, null, and);
+            predicate = new SQLRecordPredicate(table, null, where);
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
+
+            IndexOperation op = scanForIndexAccess(where, table, tableSpaceManager);
+            System.out.println("bindscan, indexop" + op);
+
+            predicate.setIndexOperation(op);
+            CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
+            System.out.println("bindscan, filterpk " + filterPk);
+            predicate.setPrimaryKeyFilter(filterPk);
         }
         List<RexNode> projections = new ArrayList<>(scan.projects.size());
         RelDataType deriveRowType = scan.deriveRowType();
@@ -418,6 +449,27 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         Projection projection = buildProjection(projections, deriveRowType);
         ScanStatement scanStatement = new ScanStatement(tableSpace, table.name, projection, predicate, null, null);
         return new BindableTableScanOp(scanStatement);
+    }
+
+    private CompiledSQLExpression findFiltersOnPrimaryKey(Table table, CompiledSQLExpression where) throws StatementExecutionException {
+        List<CompiledSQLExpression> expressions = new ArrayList<>();
+
+        for (String pk : table.primaryKey) {
+            List<CompiledSQLExpression> conditions
+                    = where.scanForConstraintsOnColumn(pk, "", table);
+            if (conditions.isEmpty()) {
+                break;
+            }
+            expressions.addAll(conditions);
+        }
+        if (expressions.isEmpty()) {
+            // no match at all, there is no direct constraint on PK
+            return null;
+        } else if (expressions.size() == 1) {
+            return expressions.get(0);
+        } else {
+            return new CompiledMultiAndExpression(expressions.toArray(new CompiledSQLExpression[expressions.size()]));
+        }
     }
 
     private PlannerOp planProject(EnumerableProject op) {
@@ -563,6 +615,134 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             default:
                 throw new StatementExecutionException("unsupported expression type " + type.getSqlTypeName());
         }
+    }
+
+    private static SQLRecordKeyFunction findIndexAccess(CompiledSQLExpression where,
+            String[] columnsToMatch, ColumnsList table,
+            String operator, BindableTableScanColumnNameResolver res) throws StatementExecutionException {
+        List<CompiledSQLExpression> expressions = new ArrayList<>();
+        List<String> columns = new ArrayList<>();
+
+        for (String pk : columnsToMatch) {
+            List<CompiledSQLExpression> conditions = where.scanForConstraintsOnColumn(pk, operator, res);
+            if (conditions.isEmpty()) {
+                break;
+            }
+            columns.add(pk);
+            expressions.add(conditions.get(0));
+        }
+        if (expressions.isEmpty()) {
+            // no match at all, there is no direct constraint on PK
+            return null;
+        }
+        return new SQLRecordKeyFunction(columns, expressions, table);
+    }
+
+    private IndexOperation scanForIndexAccess(CompiledSQLExpression expressionWhere, Table table, TableSpaceManager tableSpaceManager) {
+        SQLRecordKeyFunction keyFunction = findIndexAccess(expressionWhere, table.primaryKey, table,
+                "=", table);
+        IndexOperation result = null;
+        if (keyFunction != null) {
+            if (keyFunction.isFullPrimaryKey()) {
+                result = new PrimaryIndexSeek(keyFunction);
+            } else {
+                result = new PrimaryIndexPrefixScan(keyFunction);
+            }
+        } else {
+            SQLRecordKeyFunction rangeMin = findIndexAccess(expressionWhere, table.primaryKey,
+                    table, ">=", table
+            );
+            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                rangeMin = null;
+            }
+            if (rangeMin == null) {
+                rangeMin = findIndexAccess(expressionWhere, table.primaryKey, table,
+                        ">", table);
+                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                    rangeMin = null;
+                }
+            }
+
+            SQLRecordKeyFunction rangeMax = findIndexAccess(expressionWhere, table.primaryKey,
+                    table, "<=", table);
+            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                rangeMax = null;
+            }
+            if (rangeMax == null) {
+                rangeMax = findIndexAccess(expressionWhere, table.primaryKey, table, "<", table);
+                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                    rangeMax = null;
+                }
+            }
+            if (rangeMin != null || rangeMax != null) {
+                result = new PrimaryIndexRangeScan(table.primaryKey, rangeMin, rangeMax);
+            }
+        }
+
+        if (result == null) {
+            Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+            if (indexes != null) {
+                // TODO: use some kind of statistics, maybe using an index is more expensive than a full table scan
+                for (AbstractIndexManager index : indexes.values()) {
+                    if (!index.isAvailable()) {
+                        continue;
+                    }
+                    IndexOperation secondaryIndexOperation = findSecondaryIndexOperation(index, expressionWhere, table);
+                    if (secondaryIndexOperation != null) {
+                        result = secondaryIndexOperation;
+                        break;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static IndexOperation findSecondaryIndexOperation(AbstractIndexManager index,
+            CompiledSQLExpression where, Table table) throws StatementExecutionException {
+        IndexOperation secondaryIndexOperation = null;
+        String[] columnsToMatch = index.getColumnNames();
+        SQLRecordKeyFunction indexSeekFunction = findIndexAccess(where, columnsToMatch,
+                index.getIndex(), "=", table);
+        if (indexSeekFunction != null) {
+            if (indexSeekFunction.isFullPrimaryKey()) {
+                secondaryIndexOperation = new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction);
+            } else {
+                secondaryIndexOperation = new SecondaryIndexPrefixScan(index.getIndexName(), columnsToMatch, indexSeekFunction);
+            }
+        } else {
+            SQLRecordKeyFunction rangeMin = findIndexAccess(where, columnsToMatch,
+                    index.getIndex(), ">=", table);
+            if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                rangeMin = null;
+
+            }
+            if (rangeMin == null) {
+                rangeMin = findIndexAccess(where, columnsToMatch,
+                        index.getIndex(), ">", table);
+                if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
+                    rangeMin = null;
+                }
+            }
+
+            SQLRecordKeyFunction rangeMax = findIndexAccess(where, columnsToMatch,
+                    index.getIndex(), "<=", table);
+            if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                rangeMax = null;
+            }
+            if (rangeMax == null) {
+                rangeMax = findIndexAccess(where, columnsToMatch,
+                        index.getIndex(), "<", table);
+                if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
+                    rangeMax = null;
+                }
+            }
+            if (rangeMin != null || rangeMax != null) {
+                secondaryIndexOperation = new SecondaryIndexRangeScan(index.getIndexName(), columnsToMatch, rangeMin, rangeMax);
+            }
+
+        }
+        return secondaryIndexOperation;
     }
 
     private static class TableImpl extends AbstractTable

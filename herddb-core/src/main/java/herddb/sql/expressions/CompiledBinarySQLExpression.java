@@ -19,8 +19,11 @@
  */
 package herddb.sql.expressions;
 
+import herddb.model.Column;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Parent for AND/OR logical expression
@@ -39,6 +42,27 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
     public void validate(StatementEvaluationContext context) throws StatementExecutionException {
         left.validate(context);
         right.validate(context);
+    }
+
+    public String getOperator() {
+        return "";
+    }
+
+    @Override
+    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+        if (!operator.isEmpty() && !operator.equals(getOperator())) {
+            return Collections.emptyList();
+        }
+        if ((right instanceof ConstantExpression
+                || right instanceof JdbcParameterExpression)
+                && (left instanceof AccessCurrentRowExpression)) {
+            AccessCurrentRowExpression ex = (AccessCurrentRowExpression) left;
+            Column colName = columnNameResolver.resolveColumName(ex.getIndex());
+            if (column.equals(colName.name)) {
+                return Collections.singletonList(right.cast(colName.type));
+            }
+        }
+        return Collections.emptyList();
     }
 
 }

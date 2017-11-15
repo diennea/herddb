@@ -44,4 +44,8 @@ public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpressi
         }
     }
 
+    @Override
+    public String getOperator() {
+        return "<=";
+    }
 }

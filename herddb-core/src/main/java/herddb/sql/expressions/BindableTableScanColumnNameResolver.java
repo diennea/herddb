@@ -19,36 +19,22 @@
  */
 package herddb.sql.expressions;
 
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.utils.DataAccessor;
-import java.util.Arrays;
+import herddb.model.Column;
+import herddb.model.Table;
 
 /**
- * reference to downstrean inputs in the pipeline
+ * Helper which associates a given position to a column name.
  *
  * @author eolivelli
  */
-public class AccessCurrentRowExpression implements CompiledSQLExpression {
+public interface BindableTableScanColumnNameResolver {
 
-    private final int index;
-
-    public AccessCurrentRowExpression(int index) {
-        this.index = index;
-    }
-
-    @Override
-    public Object evaluate(DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        return bean.get(index);
-    }
-
-    public int getIndex() {
-        return index;
-    }
-
-    @Override
-    public String toString() {
-        return "AccessCurrentRow{" + index + '}';
-    }
-
+    /**
+     * Returns the namr of the column in a table. It is assumed that the
+     * index is relative to the logical structure of the table
+     * @param columnReference
+     * @return 
+     * @see Table#getColumns() 
+     */
+    public Column resolveColumName(int columnReference);
 }

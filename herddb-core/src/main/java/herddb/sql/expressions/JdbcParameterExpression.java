@@ -46,4 +46,9 @@ public class JdbcParameterExpression implements CompiledSQLExpression {
         return "JdbcParameterExpression{" + "index=" + index + '}';
     }
 
+    @Override
+    public CompiledSQLExpression cast(int type) {
+        return new TypedJdbcParameterExpression(index, type);
+    }
+
 }

@@ -22,7 +22,9 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class CompiledMultiAndExpression implements CompiledSQLExpression {
 
@@ -53,6 +55,15 @@ public class CompiledMultiAndExpression implements CompiledSQLExpression {
     @Override
     public String toString() {
         return "AND{" + Arrays.toString(operands) + '}';
+    }
+
+    @Override
+    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+        List<CompiledSQLExpression> res = new ArrayList<>();
+        for (CompiledSQLExpression exp : operands) {
+            res.addAll(exp.scanForConstraintsOnColumn(column, operator, columnNameResolver));
+        }
+        return res;
     }
 
 }
