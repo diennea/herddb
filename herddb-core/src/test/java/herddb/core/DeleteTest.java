@@ -46,7 +46,7 @@ import static org.junit.Assert.fail;
  * @author enrico.olivelli
  */
 public class DeleteTest {
-
+    
     @Test
     public void deleteDeleteWithMulticolumnPKTest() throws Exception {
         String nodeId = "localhost";
@@ -55,26 +55,28 @@ public class DeleteTest {
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
-
+            
             execute(manager, "CREATE TABLE tblspace1.tsql (K1 string ,s1 string,n1 int, primary key(k1,s1))", Collections.emptyList());
-
+            
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey2", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey3", "a", Integer.valueOf(1234))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1) values(?,?,?)", Arrays.asList("mykey4", "a", Integer.valueOf(1234))).getUpdateCount());
-
+            
             try {
                 executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE badfield=1234", Collections.emptyList());
                 fail();
             } catch (StatementExecutionException ok) {
-                assertTrue(ok.getCause() instanceof IllegalDataAccessException);
+                ok.printStackTrace();
+                assertTrue(ok.getCause() instanceof IllegalDataAccessException
+                        || ok.getMessage().contains("badfield"));
             }
-
+            
             assertEquals(4, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).getUpdateCount());
-
+            
             assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).consume().size());
-
+            
         }
     }
-
+    
 }

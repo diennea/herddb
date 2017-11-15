@@ -35,12 +35,14 @@ import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
+import org.apache.calcite.tools.ValidationException;
 
 /**
  * Tests on table creation
@@ -140,6 +142,8 @@ public class DropTableSQLTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
                 fail();
             } catch (TableDoesNotExistException ok) {
+            } catch (StatementExecutionException ok) {
+                assertTrue(ok.getCause() instanceof ValidationException);
             }
 
         }

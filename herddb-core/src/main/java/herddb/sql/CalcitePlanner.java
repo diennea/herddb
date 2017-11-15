@@ -32,6 +32,7 @@ import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
+import herddb.model.TableDoesNotExistException;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
@@ -54,6 +55,7 @@ import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import net.sf.jsqlparser.statement.Statement;
@@ -93,6 +95,7 @@ import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.runtime.CalciteContextException;
 import org.apache.calcite.schema.ModifiableTable;
 import org.apache.calcite.schema.ProjectableFilterableTable;
 import org.apache.calcite.schema.ScannableTable;
@@ -165,6 +168,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 || query.startsWith("BEGIN")
                 || query.startsWith("COMMIT")
                 || query.startsWith("ROLLBACK")
+                || query.startsWith("UPDATE")
                 || query.startsWith("TRUNCATE")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
@@ -193,6 +197,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                                     .optimize())
             );
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+        } catch (CalciteContextException ex) {
+            //TODO can this be done better ?
+            throw new TableDoesNotExistException(ex.getOriginalStatement());
         } catch (MetadataStorageManagerException | RelConversionException
                 | SqlParseException | ValidationException ex) {
             throw new StatementExecutionException(ex);
@@ -391,6 +398,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             int i = 0;
             for (RexNode expr : scan.filters) {
                 CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(expr);
+                System.out.println("bindscan, filter:" + expr + " -> " + condition);
+
                 operands[i++] = condition;
             }
             CompiledMultiAndExpression and = new CompiledMultiAndExpression(operands);
@@ -399,6 +408,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         List<RexNode> projections = new ArrayList<>(scan.projects.size());
         RelDataType deriveRowType = scan.deriveRowType();
         int i = 0;
+        System.out.println("bindscan, proj:" + scan.projects);
+
         for (int fieldpos : scan.projects) {
             projections.add(new RexInputRef(fieldpos, deriveRowType
                     .getFieldList()
@@ -543,6 +554,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 return ColumnTypes.BYTEARRAY;
             case NULL:
                 return ColumnTypes.NULL;
+            case TIMESTAMP:
+                return ColumnTypes.TIMESTAMP;
+            case DECIMAL:
+                return ColumnTypes.DOUBLE;
             case ANY:
                 return ColumnTypes.ANYTYPE;
             default:
