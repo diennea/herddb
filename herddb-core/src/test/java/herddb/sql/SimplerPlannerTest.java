@@ -254,9 +254,10 @@ public class SimplerPlannerTest {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
-                assertEquals(1234L + 1235L, results.get(0).get("SS"));
-                assertEquals(1234, results.get(0).get("MI"));
-                assertEquals(1235, results.get(0).get("MA"));
+                System.out.println("map:"+results.get(0).toMap());
+                assertEquals(1234L + 1235L, results.get(0).get("ss"));
+                assertEquals(1234, results.get(0).get("mi"));
+                assertEquals(1235, results.get(0).get("ma"));
 
             }
             try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "

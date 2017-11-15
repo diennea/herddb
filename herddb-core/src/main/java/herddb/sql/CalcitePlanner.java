@@ -28,6 +28,7 @@ import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
+import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -36,6 +37,7 @@ import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
+import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.DeleteOp;
 import herddb.model.planner.FilterOp;
 import herddb.model.planner.FilteredTableScanOp;
@@ -47,6 +49,7 @@ import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
+import herddb.sql.expressions.CompiledMultiAndExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
@@ -65,6 +68,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
+import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
 import org.apache.calcite.linq4j.Queryable;
@@ -86,9 +90,11 @@ import org.apache.calcite.rel.logical.LogicalTableModify;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.ModifiableTable;
+import org.apache.calcite.schema.ProjectableFilterableTable;
 import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.Statistic;
@@ -241,6 +247,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 default:
                     throw new StatementExecutionException("unsupport DML operation " + dml.getOperation());
             }
+        } else if (plan instanceof BindableTableScan) {
+            BindableTableScan scan = (BindableTableScan) plan;
+            return planBindableTableScan(scan);
         } else if (plan instanceof EnumerableTableScan) {
             EnumerableTableScan scan = (EnumerableTableScan) plan;
             return planEnumerableTableScan(scan);
@@ -302,6 +311,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 SQLRecordPredicate pred = new SQLRecordPredicate(table, null, filter.getCondition());
                 delete = new DeleteStatement(tableSpace, tableName, null, pred);
             }
+        } else if (input instanceof BindableTableScanOp) {
+            BindableTableScanOp filter = (BindableTableScanOp) input;
+            Predicate pred = filter
+                    .getStatement()
+                    .getPredicate();
+            delete = new DeleteStatement(tableSpace, tableName, null, pred);
         }
         if (delete == null) {
             throw new StatementExecutionException("unsupported input type for DELETE " + input.getClass());
@@ -361,26 +376,64 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final TableImpl tableImpl
                 = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
-        return new TableScanOp(new ScanStatement(tableSpace, table, null));
+        ScanStatement scanStatement = new ScanStatement(tableSpace, table, null);
+        return new TableScanOp(scanStatement);
+    }
+
+    private PlannerOp planBindableTableScan(BindableTableScan scan) {
+        final String tableSpace = scan.getTable().getQualifiedName().get(0);
+        final TableImpl tableImpl
+                = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
+        Table table = tableImpl.tableManager.getTable();
+        Predicate predicate = null;
+        if (!scan.filters.isEmpty()) {
+            CompiledSQLExpression[] operands = new CompiledSQLExpression[scan.filters.size()];
+            int i = 0;
+            for (RexNode expr : scan.filters) {
+                CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(expr);
+                operands[i++] = condition;
+            }
+            CompiledMultiAndExpression and = new CompiledMultiAndExpression(operands);
+            predicate = new SQLRecordPredicate(table, null, and);
+        }
+        List<RexNode> projections = new ArrayList<>(scan.projects.size());
+        RelDataType deriveRowType = scan.deriveRowType();
+        int i = 0;
+        for (int fieldpos : scan.projects) {
+            projections.add(new RexInputRef(fieldpos, deriveRowType
+                    .getFieldList()
+                    .get(i++).getType()));
+        }
+        Projection projection = buildProjection(projections, deriveRowType);
+        ScanStatement scanStatement = new ScanStatement(tableSpace, table.name, projection, predicate, null, null);
+        return new BindableTableScanOp(scanStatement);
     }
 
     private PlannerOp planProject(EnumerableProject op) {
         PlannerOp input = convertRelNode(op.getInput(), false);
+        final List<RexNode> projects = op.getProjects();
+        final RelDataType rowType = op.getRowType();
+        Projection projection = buildProjection(projects, rowType);
+        return new ProjectOp(projection, input);
+    }
 
-        List<CompiledSQLExpression> fields = new ArrayList<>(op.getProjects().size());
-        Column[] columns = new Column[op.getProjects().size()];
-        RelDataType rowType = op.getRowType();
+    private Projection buildProjection(final List<RexNode> projects, final RelDataType rowType) {
+        List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
+        Column[] columns = new Column[projects.size()];
+        String[] fieldNames = new String[columns.length];
         int i = 0;
-        for (RexNode node : op.getProjects()) {
+        for (RexNode node : projects) {
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
             fields.add(exp);
             Column col = Column.column(rowType.getFieldNames().get(i), convertToHerdType(node.getType()));
+            fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        return new ProjectOp(rowType.getFieldNames(),
+        ProjectOp.BasicProjection projection = new ProjectOp.BasicProjection(
+                fieldNames,
                 columns,
-                fields, input);
-
+                fields);
+        return projection;
     }
 
     private PlannerOp planValues(EnumerableValues op) {
@@ -498,7 +551,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private static class TableImpl extends AbstractTable
-            implements ModifiableTable, ScannableTable {
+            implements ModifiableTable, ScannableTable, ProjectableFilterableTable {
 
         AbstractTableManager tableManager;
 
@@ -550,6 +603,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         @Override
         public Enumerable<Object[]> scan(DataContext root) {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
+        @Override
+        public Enumerable<Object[]> scan(DataContext root, List<RexNode> filters, int[] projects) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
 

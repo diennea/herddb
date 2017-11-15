@@ -29,10 +29,8 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.sql.SQLProjection;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
-import herddb.utils.ProjectedDataAccessor;
 import herddb.utils.Wrapper;
 import java.util.List;
 
@@ -40,29 +38,91 @@ import java.util.List;
  * Executes a projection
  */
 public class ProjectOp implements PlannerOp {
-
-    final private String[] fieldNames;
-    final private List<CompiledSQLExpression> fields;
+    
+    final private Projection projection;
     final private PlannerOp input;
-    final private Column[] columns;
-
-    public ProjectOp(List<String> fieldNames, Column[] columns,
-            List<CompiledSQLExpression> fields, PlannerOp input) {
-        this.fields = fields;
+    
+    public ProjectOp(Projection projection1, PlannerOp input) {
+        this.projection = projection1;
         this.input = input.optimize();
-        this.fieldNames = fieldNames.toArray(new String[fieldNames.size()]);
-        this.columns = columns;
     }
-
+    
+    public static final class BasicProjection implements Projection {
+        
+        private final Column[] columns;
+        private final String[] fieldNames;
+        private final List<CompiledSQLExpression> fields;
+        
+        public BasicProjection(String[] fieldNames, Column[] columns,
+                List<CompiledSQLExpression> fields) {
+            this.fieldNames = fieldNames;
+            this.columns = columns;
+            this.fields = fields;
+        }
+        
+        @Override
+        public Column[] getColumns() {
+            return columns;
+        }
+        
+        @Override
+        public String[] getFieldNames() {
+            return fieldNames;
+        }
+        
+        @Override
+        public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
+            return new RuntimeProjectedDataAccessor(tuple, context);
+        }
+        
+        private class RuntimeProjectedDataAccessor implements DataAccessor {
+            
+            final Object[] values;
+            
+            public RuntimeProjectedDataAccessor(DataAccessor wrapper, StatementEvaluationContext context) {
+                this.values = new Object[fieldNames.length];
+                for (int i = 0; i < fieldNames.length; i++) {
+                    CompiledSQLExpression exp = fields.get(i);
+                    this.values[i] = exp.evaluate(wrapper, context);
+                }
+            }
+            
+            @Override
+            public String[] getFieldNames() {
+                return fieldNames;
+            }
+            
+            @Override
+            public Object get(String string) {
+                for (int i = 0; i < fieldNames.length; i++) {
+                    if (fieldNames[i].equalsIgnoreCase(string)) {
+                        return values[i];
+                    }
+                }
+                return null;
+            }
+            
+            @Override
+            public Object get(int i) {
+                return values[i];
+            }
+            
+            @Override
+            public Object[] getValues() {
+                return values;
+            }
+        }
+    }
+    
     @Override
     public String getTablespace() {
         return input.getTablespace();
     }
-
+    
     public PlannerOp getInput() {
         return input;
     }
-
+    
     @Override
     public <T> T unwrap(Class<T> clazz) {
         T unwrapped = input.unwrap(clazz);
@@ -71,7 +131,7 @@ public class ProjectOp implements PlannerOp {
         }
         return Wrapper.unwrap(this, clazz);
     }
-
+    
     @Override
     public PlannerOp optimize() {
         if (input instanceof TableScanOp) {
@@ -79,26 +139,11 @@ public class ProjectOp implements PlannerOp {
         }
         return this;
     }
-
+    
     public Projection getProjection() {
-        return new Projection() {
-            @Override
-            public Column[] getColumns() {
-                return columns;
-            }
-
-            @Override
-            public String[] getFieldNames() {
-                return fieldNames;
-            }
-
-            @Override
-            public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
-                return new RuntimeProjectedDataAccessor(tuple, context);
-            }
-        };
+        return projection;
     }
-
+    
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
@@ -107,82 +152,44 @@ public class ProjectOp implements PlannerOp {
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
         ScanResult downstream = (ScanResult) input;
         DataScanner dataScanner = downstream.dataScanner;
-
+        
         DataScanner projected = new ProjectedDataScanner(dataScanner,
-                fieldNames, columns, context);
+                projection.getFieldNames(), projection.getColumns(), context);
         return new ScanResult(downstream.transactionId, projected);
     }
-
+    
     private class ProjectedDataScanner extends DataScanner {
-
+        
         final DataScanner downstream;
         final StatementEvaluationContext context;
-
+        
         public ProjectedDataScanner(DataScanner downstream, String[] fieldNames,
                 Column[] schema, StatementEvaluationContext context) {
             super(downstream.transactionId, fieldNames, schema);
             this.downstream = downstream;
             this.context = context;
         }
-
+        
         @Override
         public boolean hasNext() throws DataScannerException {
             return downstream.hasNext();
         }
-
+        
         @Override
         public DataAccessor next() throws DataScannerException {
-            return new RuntimeProjectedDataAccessor(downstream.next(), context);
+            return projection.map(downstream.next(), context);
         }
-
+        
         @Override
         public void rewind() throws DataScannerException {
             downstream.rewind();
         }
-
+        
         @Override
         public void close() throws DataScannerException {
             downstream.close();
         }
-
+        
     }
-
-    private class RuntimeProjectedDataAccessor implements DataAccessor {
-
-        final Object[] values;
-
-        public RuntimeProjectedDataAccessor(DataAccessor wrapper, StatementEvaluationContext context) {
-            this.values = new Object[fieldNames.length];
-            for (int i = 0; i < fieldNames.length; i++) {
-                CompiledSQLExpression exp = fields.get(i);
-                this.values[i] = exp.evaluate(wrapper, context);
-            }
-        }
-
-        @Override
-        public String[] getFieldNames() {
-            return fieldNames;
-        }
-
-        @Override
-        public Object get(String string) {
-            for (int i = 0; i < fieldNames.length; i++) {
-                if (fieldNames[i].equalsIgnoreCase(string)) {
-                    return values[i];
-                }
-            }
-            return null;
-        }
-
-        @Override
-        public Object get(int i) {
-            return values[i];
-        }
-
-        @Override
-        public Object[] getValues() {
-            return values;
-        }
-
-    }
+    
 }
