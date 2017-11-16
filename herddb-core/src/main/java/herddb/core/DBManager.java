@@ -111,7 +111,7 @@ import herddb.utils.DefaultJVMHalt;
  */
 public class DBManager implements AutoCloseable, MetadataChangeListener {
 
-    private static final boolean USE_CALCITE = false;
+    private static final boolean USE_CALCITE = true;
     private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
     private final MetadataStorageManager metadataStorageManager;
@@ -546,6 +546,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+        System.out.println("execute "+statement);
         context.setDefaultTablespace(statement.getTableSpace());
         context.setManager(this);
         context.setTransactionContext(transactionContext);

@@ -47,4 +47,10 @@ public class SQLPlannedOperationStatement extends Statement {
         return super.unwrap(clazz);
     }
 
+    @Override
+    public String toString() {
+        return "SQLPlannedOperationStatement{" + "rootOp=" + rootOp + '}';
+    }
+
+    
 }

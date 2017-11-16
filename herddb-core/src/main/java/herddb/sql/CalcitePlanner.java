@@ -59,6 +59,7 @@ import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
+import herddb.sql.expressions.AccessCurrentRowExpression;
 import herddb.sql.expressions.BindableTableScanColumnNameResolver;
 import herddb.sql.expressions.CompiledMultiAndExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
@@ -508,23 +509,39 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new ProjectOp(projection, input);
     }
 
-    private Projection buildProjection(final List<RexNode> projects, final RelDataType rowType) {
+    private Projection buildProjection(
+            final List<RexNode> projects,
+            final RelDataType rowType) {
+        boolean allowZeroCopyProjection = true;
         List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
         Column[] columns = new Column[projects.size()];
         String[] fieldNames = new String[columns.length];
         int i = 0;
+        int[] zeroCopyProjections = new int[fieldNames.length];
         for (RexNode node : projects) {
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
+            if (exp instanceof AccessCurrentRowExpression) {
+                AccessCurrentRowExpression accessCurrentRowExpression = (AccessCurrentRowExpression) exp;
+                zeroCopyProjections[i] = accessCurrentRowExpression.getIndex();
+            } else {
+                allowZeroCopyProjection = false;
+            }
             fields.add(exp);
             Column col = Column.column(rowType.getFieldNames().get(i), convertToHerdType(node.getType()));
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        ProjectOp.BasicProjection projection = new ProjectOp.BasicProjection(
-                fieldNames,
-                columns,
-                fields);
-        return projection;
+        if (allowZeroCopyProjection) {
+            return new ProjectOp.ZeroCopyProjection(
+                    fieldNames,
+                    columns,
+                    zeroCopyProjections);
+        } else {
+            return new ProjectOp.BasicProjection(
+                    fieldNames,
+                    columns,
+                    fields);
+        }
     }
 
     private PlannerOp planValues(EnumerableValues op) {

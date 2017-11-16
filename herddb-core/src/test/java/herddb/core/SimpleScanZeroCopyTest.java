@@ -29,6 +29,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.model.planner.ProjectOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.ProjectedDataAccessor;
 import herddb.utils.RawString;
@@ -66,8 +67,10 @@ public class SimpleScanZeroCopyTest {
                 List<DataAccessor> data = scan.consume();
                 assertEquals(1, data.size());
                 // read from the full record, keeping only some field
-                assertTrue(data.get(0) instanceof ProjectedDataAccessor);
-                assertEquals(RawString.of("a"),data.get(0).get("k1"));
+                assertTrue(data.get(0) instanceof ProjectedDataAccessor
+                        || data.get(0) instanceof ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor);
+                assertEquals(RawString.of("a"), data.get(0).get("k1"));
+                assertEquals(RawString.of("a"), data.get(0).get(0));
             }
             try (DataScanner scan = TestUtils.scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql ", Collections.emptyList());) {
                 List<DataAccessor> data = scan.consume();
