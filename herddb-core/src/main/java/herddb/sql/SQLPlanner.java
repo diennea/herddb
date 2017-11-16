@@ -54,7 +54,7 @@ import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
 import herddb.model.Projection;
 import herddb.model.RecordFunction;
-import herddb.model.ScanLimits;
+import herddb.model.ScanLimitsImpl;
 import herddb.model.Statement;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
@@ -1288,7 +1288,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 }
 
                 Aggregator aggregator = null;
-                ScanLimits scanLimits = null;
+                ScanLimitsImpl scanLimits = null;
                 if (containsAggregateFunctions || (selectBody.getGroupByColumnReferences() != null && !selectBody.getGroupByColumnReferences().isEmpty())) {
                     aggregator = new SQLAggregator(selectBody.getSelectItems(), selectBody.getGroupByColumnReferences(), manager.getRecordSetFactory());
                 }
@@ -1327,28 +1327,28 @@ public class SQLPlanner implements AbstractSQLPlanner {
                         rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
                     }
                     int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
-                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter + 1);
+                    scanLimits = new ScanLimitsImpl(rowCount, offset, rowCountJdbcParameter + 1);
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
                         throw new StatementExecutionException("Invalid TOP clause (top=" + top + ")");
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
-                        scanLimits = new ScanLimits(rowCount, 0);
+                        scanLimits = new ScanLimitsImpl(rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
                     }
                 }
                 if (maxRows > 0) {
                     if (scanLimits == null) {
-                        scanLimits = new ScanLimits(maxRows, 0);
+                        scanLimits = new ScanLimitsImpl(maxRows, 0);
                     } else if (scanLimits.getMaxRows() <= 0 || scanLimits.getMaxRows() > maxRows) {
-                        scanLimits = new ScanLimits(maxRows, scanLimits.getOffset());
+                        scanLimits = new ScanLimitsImpl(maxRows, scanLimits.getOffset());
                     }
                 }
 
-                ScanLimits limitsOnScan = null;
-                ScanLimits limitsOnPlan = null;
+                ScanLimitsImpl limitsOnScan = null;
+                ScanLimitsImpl limitsOnPlan = null;
                 if (aggregator != null) {
                     limitsOnPlan = scanLimits;
                 } else {
@@ -1369,7 +1369,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (limit != null && top != null) {
                     throw new StatementExecutionException("LIMIT and TOP cannot be used on the same query");
                 }
-                ScanLimits scanLimits = null;
+                ScanLimitsImpl scanLimits = null;
                 if (limit != null) {
                     if (limit.isLimitAll() || limit.isLimitNull() || limit.getOffset() instanceof JdbcParameter) {
                         throw new StatementExecutionException("Invalid LIMIT clause (limit=" + limit + ")");
@@ -1386,7 +1386,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                         rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
                     }
                     int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
-                    scanLimits = new ScanLimits(rowCount, offset, rowCountJdbcParameter + 1);
+                    scanLimits = new ScanLimitsImpl(rowCount, offset, rowCountJdbcParameter + 1);
 
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
@@ -1394,16 +1394,16 @@ public class SQLPlanner implements AbstractSQLPlanner {
                     }
                     try {
                         int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
-                        scanLimits = new ScanLimits(rowCount, 0);
+                        scanLimits = new ScanLimitsImpl(rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
                     }
                 }
                 if (maxRows > 0) {
                     if (scanLimits == null) {
-                        scanLimits = new ScanLimits(maxRows, 0);
+                        scanLimits = new ScanLimitsImpl(maxRows, 0);
                     } else if (scanLimits.getMaxRows() <= 0 || scanLimits.getMaxRows() > maxRows) {
-                        scanLimits = new ScanLimits(maxRows, scanLimits.getOffset());
+                        scanLimits = new ScanLimitsImpl(maxRows, scanLimits.getOffset());
                     }
                 }
 

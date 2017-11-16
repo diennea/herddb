@@ -22,7 +22,6 @@ package herddb.mem;
 import herddb.core.*;
 import herddb.model.Column;
 import herddb.model.Projection;
-import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
@@ -31,6 +30,7 @@ import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import herddb.model.ScanLimits;
 
 /**
  * a Simple MaterializedRecordSet held in memory
@@ -99,14 +99,15 @@ public class MemoryRecordSet extends MaterializedRecordSet {
         if (limits == null) {
             return;
         }
-        if (limits.getOffset() > 0) {
+        int offset = limits.computeOffset(context);
+        if (offset > 0) {
             int maxlen = buffer.size();
-            if (limits.getOffset() >= maxlen) {
+            if (offset >= maxlen) {
                 buffer.clear();
                 return;
             }
-            int samplesize = maxlen - limits.getOffset();
-            buffer = buffer.subList(limits.getOffset(), limits.getOffset() + samplesize);
+            int samplesize = maxlen - offset;
+            buffer = buffer.subList(offset, offset + samplesize);
         }
         int maxRows = limits.computeMaxRows(context);
         if (maxRows > 0) {

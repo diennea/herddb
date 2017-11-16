@@ -22,7 +22,6 @@ package herddb.file;
 import herddb.core.MaterializedRecordSet;
 import herddb.model.Column;
 import herddb.model.Projection;
-import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
@@ -37,6 +36,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import herddb.model.ScanLimits;
 
 /**
  * RecordSet which eventually swaps to disk
@@ -154,9 +154,10 @@ class FileRecordSet extends MaterializedRecordSet {
         if (limits == null) {
             return;
         }
-        if (limits.getOffset() > 0) {
+        int offset = limits.computeOffset(context);
+        if (offset > 0) {
             int maxlen = buffer.size();
-            if (limits.getOffset() >= maxlen) {
+            if (offset >= maxlen) {
                 buffer.close();
 
                 // new empty buffer
@@ -166,11 +167,11 @@ class FileRecordSet extends MaterializedRecordSet {
                 return;
             }
 
-            int samplesize = maxlen - limits.getOffset();
+            int samplesize = maxlen - offset;
             DiskArrayList<DataAccessor> copy = new DiskArrayList<>(buffer.isSwapped() ? -1 : Integer.MAX_VALUE, tmpDirectory, new TupleSerializer(columns, fieldNames));
             copy.enableCompression();
-            int firstIndex = limits.getOffset();
-            int lastIndex = limits.getOffset() + samplesize;
+            int firstIndex = offset;
+            int lastIndex = offset + samplesize;
             int i = 0;
             for (DataAccessor t : buffer) {
                 if (i >= firstIndex && i < lastIndex) {

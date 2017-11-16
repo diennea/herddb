@@ -22,6 +22,7 @@ package herddb.model.planner;
 import herddb.core.MaterializedRecordSet;
 import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.LimitedDataScanner;
@@ -29,19 +30,22 @@ import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
 import herddb.model.TransactionContext;
+import herddb.model.commands.ScanStatement;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import herddb.model.ScanLimits;
 
 /**
  * Limit clause
  *
  * @author eolivelli
  */
-public class LimitOp implements PlannerOp {
+public class LimitOp implements PlannerOp, ScanLimits {
 
     private final PlannerOp input;
     private final CompiledSQLExpression maxRows;
@@ -74,8 +78,8 @@ public class LimitOp implements PlannerOp {
             StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
             ScanResult downstreamScanResult = (ScanResult) input;
             final DataScanner inputScanner = downstreamScanResult.dataScanner;
-            int offset = this.offset == null ? 0 : ((Number) this.offset.evaluate(DataAccessor.NULL, context)).intValue();
-            int maxrows = this.maxRows == null ? -1 : ((Number) this.maxRows.evaluate(DataAccessor.NULL, context)).intValue();
+            int offset = computeOffset(context);
+            int maxrows = computeMaxRows(context);
             LimitedDataScanner limited = new LimitedDataScanner(inputScanner, maxrows, offset, context);
             return new ScanResult(downstreamScanResult.transactionId, limited);
         } catch (DataScannerException ex) {
@@ -83,4 +87,31 @@ public class LimitOp implements PlannerOp {
         }
     }
 
+    @Override
+    public int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException {
+        return this.maxRows == null ? -1 : ((Number) this.maxRows.evaluate(DataAccessor.NULL, context)).intValue();
+    }
+
+    @Override
+    public int computeOffset(StatementEvaluationContext context) throws StatementExecutionException {
+        return this.offset == null ? 0 : ((Number) this.offset.evaluate(DataAccessor.NULL, context)).intValue();
+    }
+
+    @Override
+    public PlannerOp optimize() {
+        if (input instanceof SortedBindableTableScanOp) {
+            SortedBindableTableScanOp op = (SortedBindableTableScanOp) input;
+            // we can change the statement, this node will be lost and the tablescan too
+            ScanStatement statement = op.getStatement();
+            statement.setLimits(this);
+            return new LimitedSortedBindableTableScanOp(statement);
+        } else if (input instanceof BindableTableScanOp) {
+            BindableTableScanOp op = (BindableTableScanOp) input;
+            // we can change the statement, this node will be lost and the tablescan too
+            ScanStatement statement = op.getStatement();
+            statement.setLimits(this);
+            return new LimitedBindableTableScanOp(statement);
+        }
+        return this;
+    }
 }

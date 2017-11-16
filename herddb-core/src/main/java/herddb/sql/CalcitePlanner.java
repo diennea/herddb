@@ -448,6 +448,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
         Projection projection = buildProjection(projections, deriveRowType);
         ScanStatement scanStatement = new ScanStatement(tableSpace, table.name, projection, predicate, null, null);
+        scanStatement.setTableDef(table);
         return new BindableTableScanOp(scanStatement);
     }
 

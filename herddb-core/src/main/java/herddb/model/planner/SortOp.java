@@ -22,19 +22,20 @@ package herddb.model.planner;
 import herddb.core.MaterializedRecordSet;
 import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
+import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
+import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.TupleComparator;
+import herddb.model.commands.ScanStatement;
 import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Generic Sort
@@ -46,6 +47,7 @@ public class SortOp implements PlannerOp, TupleComparator {
     private final PlannerOp input;
     private final boolean[] directions;
     private final int[] fields;
+    private boolean onlyPrimaryKeyAndAscending;
 
     public SortOp(PlannerOp input, boolean[] directions, int[] fields) {
         this.input = input.optimize();
@@ -83,8 +85,30 @@ public class SortOp implements PlannerOp, TupleComparator {
     }
 
     @Override
+    public PlannerOp optimize() {
+        if (input instanceof BindableTableScanOp) {
+            BindableTableScanOp op = (BindableTableScanOp) input;
+            // we can change the statement, this node will be lost and the tablescan too
+            ScanStatement statement = op.getStatement();
+            statement.setComparator(this);
+
+            if (fields.length == 1 && directions[0]) {
+                Table tableDef = statement.getTableDef();
+                if (tableDef.getPrimaryKey().length == 1) {
+                    Column col = tableDef.resolveColumName(fields[0]);
+                    if (col.name.equals(tableDef.getPrimaryKey()[0])) {
+                        this.onlyPrimaryKeyAndAscending = true;
+                    }
+                }
+            }
+            return new SortedBindableTableScanOp(statement);
+        }
+        return this;
+    }
+
+    @Override
     public boolean isOnlyPrimaryKeyAndAscending() {
-        return false;
+        return onlyPrimaryKeyAndAscending;
     }
 
     @Override

@@ -42,12 +42,16 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
+import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
+import herddb.model.planner.PlannerOp;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.DataAccessor;
 import java.nio.file.Path;
 import java.util.List;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
@@ -66,22 +70,22 @@ public class PrimaryIndexScanRangeTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(),
-            new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+                new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("n1")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("n1")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -105,22 +109,22 @@ public class PrimaryIndexScanRangeTest {
 
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(),
-            new FileDataStorageManager(dataPath), new MemoryCommitLogManager(), null, null);) {
+                new FileDataStorageManager(dataPath), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("n1")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("n1")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -138,10 +142,10 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=6 "
-                    + "order by n1", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=6 "
+                        + "order by n1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -156,14 +160,15 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=6 "
-                    + "order by n1 "
-                    + "limit 2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=6 "
+                        + "order by n1 "
+                        + "limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+                PlannerOp planned = translated.plan.mainStatement.unwrap(SQLPlannedOperationStatement.class).getRootOp();
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     List<DataAccessor> tuples = scan1.consume();
                     assertEquals(2, tuples.size());
@@ -171,14 +176,28 @@ public class PrimaryIndexScanRangeTest {
                     assertEquals(3, tuples.get(1).get("n1"));
                 }
             }
-
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=6 "
-                    + "order by n1 "
-                    + "limit 1,3", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=6 "
+                        + "limit 2", Collections.emptyList(), true, true, false, -1);
+                ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+                assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+                assertNull(scan.getComparator());
+                assertNotNull(scan.getLimits());
+                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                    List<DataAccessor> tuples = scan1.consume();
+                    assertEquals(2, tuples.size());
+                }
+            }
+            {
+                TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=6 "
+                        + "order by n1 "
+                        + "limit 1,3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -191,11 +210,11 @@ public class PrimaryIndexScanRangeTest {
             }
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 1,2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 1,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -209,11 +228,11 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 3,2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 3,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -226,11 +245,11 @@ public class PrimaryIndexScanRangeTest {
             }
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 4,2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 4,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -247,10 +266,10 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=6 "
-                    + "order by n1", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=6 "
+                        + "order by n1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -265,10 +284,10 @@ public class PrimaryIndexScanRangeTest {
             }
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -286,11 +305,11 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=6 "
-                    + "order by n1 "
-                    + "limit 2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=6 "
+                        + "order by n1 "
+                        + "limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -304,11 +323,11 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 1,3", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 1,3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -322,11 +341,11 @@ public class PrimaryIndexScanRangeTest {
             }
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=6 "
-                    + "order by n1 "
-                    + "limit 1,3", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=6 "
+                        + "order by n1 "
+                        + "limit 1,3", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -340,11 +359,11 @@ public class PrimaryIndexScanRangeTest {
             }
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 1,2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 1,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -358,11 +377,11 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 3,2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 3,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -375,11 +394,11 @@ public class PrimaryIndexScanRangeTest {
             }
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 4,2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 4,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -392,11 +411,11 @@ public class PrimaryIndexScanRangeTest {
             }
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 5,2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 5,2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -414,10 +433,10 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 ", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 ", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -438,11 +457,11 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and n2<=7 "
-                    + "order by n1 "
-                    + "limit 7", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and n2<=7 "
+                        + "order by n1 "
+                        + "limit 7", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -461,11 +480,11 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and name='n3' "
-                    + "order by n1 "
-                    + "limit 200", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and name='n3' "
+                        + "order by n1 "
+                        + "limit 200", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -483,10 +502,10 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and name='n3' "
-                    + "order by n1 ", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and name='n3' "
+                        + "order by n1 ", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -504,10 +523,10 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and name='n3' "
-                    + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and name='n3' "
+                        + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -527,11 +546,11 @@ public class PrimaryIndexScanRangeTest {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2,name "
-                    + "FROM tblspace1.t1 "
-                    + "WHERE n1>=2 "
-                    + "and name='n3' "
-                    + "order by n1 "
-                    + "limit 2", Collections.emptyList(), true, true, false, -1);
+                        + "FROM tblspace1.t1 "
+                        + "WHERE n1>=2 "
+                        + "and name='n3' "
+                        + "order by n1 "
+                        + "limit 2", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -542,7 +561,7 @@ public class PrimaryIndexScanRangeTest {
                     });
                     assertEquals(2, tuples.size());
                     assertEquals(8, tuples.get(0).get("n1"));
-                    assertEquals(9, tuples.get(1).get("n1"));                    
+                    assertEquals(9, tuples.get(1).get("n1"));
                 }
             }
 
@@ -553,9 +572,9 @@ public class PrimaryIndexScanRangeTest {
     private void performBasicPlannerTests(final DBManager manager) throws StatementExecutionException, DataScannerException {
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
-                + "WHERE n1>=2 "
-                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -564,9 +583,9 @@ public class PrimaryIndexScanRangeTest {
         }
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
-                + "WHERE n1>2 "
-                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>2 "
+                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -575,9 +594,9 @@ public class PrimaryIndexScanRangeTest {
         }
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
-                + "WHERE n1<3 "
-                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1<3 "
+                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -586,9 +605,9 @@ public class PrimaryIndexScanRangeTest {
         }
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
-                + "WHERE n1<=3 "
-                + "and n2<=6", Collections.emptyList(), true, true, false, -1);
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1<=3 "
+                    + "and n2<=6", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -596,11 +615,12 @@ public class PrimaryIndexScanRangeTest {
             }
         }
         {
-            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + " FROM tblspace1.t1 "
-                + "WHERE n1>=2 "
-                + "and n2<=6 "
-                + "order by n1", Collections.emptyList(), true, true, false, -1);
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT,
+                    "SELECT *"
+                    + " FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -610,10 +630,10 @@ public class PrimaryIndexScanRangeTest {
         }
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
-                + "WHERE n1>=2 "
-                + "and n2<=6 "
-                + "order by N1", Collections.emptyList(), true, true, false, -1);
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by N1", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -623,10 +643,23 @@ public class PrimaryIndexScanRangeTest {
         }
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
-                + "WHERE n1>=2 "
-                + "and n2<=6 "
-                + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by N1", Collections.emptyList(), true, true, false, -1);
+            ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
+            assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
+            assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
+            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                assertEquals(3, scan1.consume().size());
+            }
+        }
+        {
+            TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1 desc", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());
@@ -636,10 +669,10 @@ public class PrimaryIndexScanRangeTest {
         }
         {
             TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT *"
-                + "FROM tblspace1.t1 "
-                + "WHERE n1>=2 "
-                + "and n2<=6 "
-                + "order by n1 asc, n2", Collections.emptyList(), true, true, false, -1);
+                    + "FROM tblspace1.t1 "
+                    + "WHERE n1>=2 "
+                    + "and n2<=6 "
+                    + "order by n1 asc, n2", Collections.emptyList(), true, true, false, -1);
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
             assertFalse(scan.getComparator().isOnlyPrimaryKeyAndAscending());

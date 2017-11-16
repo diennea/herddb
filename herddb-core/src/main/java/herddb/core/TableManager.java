@@ -72,7 +72,6 @@ import herddb.model.Projection;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.RecordTooBigException;
-import herddb.model.ScanLimits;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -100,6 +99,7 @@ import herddb.utils.Holder;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import herddb.model.ScanLimits;
 
 /**
  * Handles Data of a Table
@@ -2050,7 +2050,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         ScanLimits limits = statement.getLimits();
         int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
-        int offset = limits == null ? 0 : limits.getOffset();
+        int offset = limits == null ? 0 : limits.computeOffset(context);
         boolean sortDone = false;
         if (maxRows > 0) {
             if (sortedByClusteredIndex) {

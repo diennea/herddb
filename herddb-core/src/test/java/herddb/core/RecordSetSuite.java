@@ -35,7 +35,7 @@ import org.junit.Test;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Projection;
-import herddb.model.ScanLimits;
+import herddb.model.ScanLimitsImpl;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
@@ -157,7 +157,7 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
 
-            rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
+            rs.applyLimits(new ScanLimitsImpl(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
@@ -193,7 +193,7 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
 
-            rs.applyLimits(new ScanLimits(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
+            rs.applyLimits(new ScanLimitsImpl(20, 10), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (DataAccessor t : rs) {
                 expected_s1.remove(t.get("s1").toString());
@@ -223,7 +223,7 @@ public abstract class RecordSetSuite {
             }
             rs.writeFinished();
 
-            rs.applyLimits(new ScanLimits(20, 100000), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
+            rs.applyLimits(new ScanLimitsImpl(20, 100000), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT());
 
             for (DataAccessor t : rs) {
                 fail();

@@ -21,12 +21,12 @@ package herddb.model.commands;
 
 import herddb.model.Predicate;
 import herddb.model.Projection;
-import herddb.model.ScanLimits;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableAwareStatement;
 import herddb.model.TupleComparator;
+import herddb.model.ScanLimits;
 
 /**
  * Lookup a bunch record with a condition
@@ -100,5 +100,9 @@ public class ScanStatement extends TableAwareStatement {
         if (predicate != null) {
             predicate.validateContext(context);
         }
+    }
+
+    public void setTableDef(Table table) {
+        this.tableDef = table;
     }
 }

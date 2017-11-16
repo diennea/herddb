@@ -20,66 +20,13 @@
 package herddb.model;
 
 /**
- * Limits on the scan, see the SQL LIMIT CLAUSE
  *
- * @author enrico.olivelli
+ * @author eolivelli
  */
-public class ScanLimits {
+public interface ScanLimits {
 
-    private final int maxRows;
-    private final int offset;
-    private final int maxRowsJdbcParameterIndex;
+    int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException;
 
-    public ScanLimits(int maxRows, int offset) {
-        this.maxRows = maxRows;
-        this.offset = offset;
-        this.maxRowsJdbcParameterIndex = 0;
-    }
-
-    public ScanLimits(int maxRows, int offset, int maxRowsJdbcParameterIndex) {
-        this.maxRows = maxRows;
-        this.offset = offset;
-        this.maxRowsJdbcParameterIndex = maxRowsJdbcParameterIndex;
-    }
-
-    public int getMaxRows() {
-        return maxRows;
-    }
-
-    public int getOffset() {
-        return offset;
-    }
-
-    public int getMaxRowsJdbcParameterIndex() {
-        return maxRowsJdbcParameterIndex;
-    }
-
-    @Override
-    public String toString() {
-        return "ScanLimits{" + "maxRows=" + maxRows + ", offset=" + offset + '}';
-    }
-
-    public int computeMaxRows(StatementEvaluationContext context) throws StatementExecutionException {
-        if (maxRowsJdbcParameterIndex <= 0) {
-            return maxRows;
-        } else {
-            try {
-                Object limit = context.getJdbcParameter(maxRowsJdbcParameterIndex - 1);
-                if (limit == null) {
-                    throw new StatementExecutionException("Invalid LIMIT with NULL JDBC Parameter");
-                } else if (limit instanceof Number) {
-                    return ((Number) limit).intValue();
-                } else {
-                    try {
-                        return Integer.parseInt(limit + "");
-                    } catch (IllegalArgumentException ee) {
-                        throw new StatementExecutionException("Invalid LIMIT JDBC Parameter: value is " + limit);
-                    }
-                }
-            } catch (IndexOutOfBoundsException err) {
-                throw new MissingJDBCParameterException(maxRowsJdbcParameterIndex);
-            }
-        }
-    }
-
+    int computeOffset(StatementEvaluationContext context) throws StatementExecutionException;
+    
 }
