@@ -386,7 +386,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
 
             TransactionContext transactionContext = new TransactionContext(txId);
-            if (translatedQuery.plan.mainStatement instanceof ScanStatement
+            if (translatedQuery.plan.mainStatement.unwrap(ScanStatement.class) != null
                 || translatedQuery.plan.joinStatements != null) {
 
                 ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);

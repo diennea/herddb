@@ -83,13 +83,15 @@ public class InsertOp implements PlannerOp {
                 List<String> valuesColumns = new ArrayList<>();
                 for (Column column : table.getColumns()) {
                     Object value = row.get(index++);
-                    ConstantExpression exp = new ConstantExpression(value);
-                    if (table.isPrimaryKeyColumn(column.name)) {
-                        keyExpressionToColumn.add(column.name);
-                        keyValueExpression.add(exp);
+                    if (value != null) {
+                        ConstantExpression exp = new ConstantExpression(value);
+                        if (table.isPrimaryKeyColumn(column.name)) {
+                            keyExpressionToColumn.add(column.name);
+                            keyValueExpression.add(exp);
+                        }
+                        valuesColumns.add(column.name);
+                        valuesExpressions.add(exp);
                     }
-                    valuesColumns.add(column.name);
-                    valuesExpressions.add(exp);
                 }
 
                 RecordFunction keyfunction;

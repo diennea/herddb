@@ -50,5 +50,9 @@ public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
         return "CompiledEqualsExpression{" + "left=" + left + ", right=" + right + ", not=" + not + '}';
     }
 
+    @Override
+    public String getOperator() {
+        return "=";
+    }
 
 }

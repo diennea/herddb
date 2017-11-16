@@ -111,7 +111,7 @@ import herddb.utils.DefaultJVMHalt;
  */
 public class DBManager implements AutoCloseable, MetadataChangeListener {
 
-    private static final boolean USE_CALCITE = true;
+    private static final boolean USE_CALCITE = false;
     private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
     private final MetadataStorageManager metadataStorageManager;
@@ -171,8 +171,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.nodeId = nodeId;
         this.virtualTableSpaceId = makeVirtualTableSpaceManagerId(nodeId);
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
-        this.translator = USE_CALCITE ? new CalcitePlanner(this) : new SQLPlanner(this, configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
-                ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT));
+        long planCacheMem = configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
+                ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT);
+        this.translator = USE_CALCITE ? new CalcitePlanner(this, planCacheMem) 
+                : new SQLPlanner(this, planCacheMem);
         this.activatorJ = new Activator();
         this.activator = new Thread(activatorJ, "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);

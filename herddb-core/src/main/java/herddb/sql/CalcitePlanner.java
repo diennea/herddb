@@ -66,6 +66,7 @@ import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import net.sf.jsqlparser.expression.BinaryExpression;
@@ -145,29 +146,34 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private final DBManager manager;
     private final AbstractSQLPlanner fallback;
 
-    public CalcitePlanner(DBManager manager) {
+    public CalcitePlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
-        this.fallback = new SQLPlanner(manager, 1024 * 1024);
+        this.cache = new PlansCache(maxPlanCacheSize);
+        //used only for DDL
+        this.fallback = new SQLPlanner(manager, maxPlanCacheSize);
     }
 
+    private final PlansCache cache;
+
     @Override
-    public void clearCache() {
-        fallback.clearCache();
+    public long getCacheSize() {
+        return cache.getCacheSize();
     }
 
     @Override
     public long getCacheHits() {
-        return 0;
+        return cache.getCacheHits();
     }
 
     @Override
     public long getCacheMisses() {
-        return 0;
+        return cache.getCacheMisses();
     }
 
     @Override
-    public long getCacheSize() {
-        return 0;
+    public void clearCache() {
+        cache.clear();
+        fallback.clearCache();
     }
 
     @Override
@@ -177,6 +183,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     @Override
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
+        query = SQLPlanner.rewriteExecuteSyntax(query);
         if (query.startsWith("CREATE")
                 || query.startsWith("DROP")
                 || query.startsWith("EXECUTE")
@@ -184,9 +191,26 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 || query.startsWith("BEGIN")
                 || query.startsWith("COMMIT")
                 || query.startsWith("ROLLBACK")
-                || query.startsWith("UPDATE")
+                || query.startsWith("UPDATE") // this needs some fixes on Calcite
                 || query.startsWith("TRUNCATE")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+        }
+        if (parameters == null) {
+            parameters = Collections.emptyList();
+        }
+        String cacheKey = "scan:" + scan
+                + ",defaultTableSpace:" + defaultTableSpace
+                + ",query:" + query
+                + ",returnValues:" + returnValues
+                + ",maxRows:" + maxRows;
+        if (allowCache) {
+            ExecutionPlan cached = cache.get(cacheKey);
+            if (cached != null) {
+                return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
+            }
+        }
+        if (!isCachable(query)) {
+            allowCache = false;
         }
         try {
             SchemaPlus schema = getRootSchema();
@@ -212,6 +236,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                             convertRelNode(plan, returnValues)
                                     .optimize())
             );
+            if (allowCache) {
+                cache.put(cacheKey, executionPlan);
+            }
             return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
         } catch (CalciteContextException ex) {
             //TODO can this be done better ?
@@ -744,6 +771,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         }
         return secondaryIndexOperation;
+    }
+
+    private static boolean isCachable(String query) {
+        return true;
     }
 
     private static class TableImpl extends AbstractTable

@@ -162,7 +162,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
         this.cache = new PlansCache(maxPlanCacheSize);
     }
 
-    private static String rewriteExecuteSyntax(String query) {
+    public static String rewriteExecuteSyntax(String query) {
         int idx = SQLUtils.findQueryStart(query);
 
         //* No match at all. Only ignorable charaters and comments */

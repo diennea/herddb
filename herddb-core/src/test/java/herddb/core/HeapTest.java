@@ -46,7 +46,7 @@ public class HeapTest {
 
 
     @Test
-    public void cacheStatement() throws Exception {
+    public void testHeapTable() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
             manager.start();

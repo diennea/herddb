@@ -69,7 +69,7 @@ public class DeleteTest {
             } catch (StatementExecutionException ok) {
                 ok.printStackTrace();
                 assertTrue(ok.getCause() instanceof IllegalDataAccessException
-                        || ok.getMessage().contains("badfield"));
+                        || ok.getMessage().contains("BADFIELD"));
             }
             
             assertEquals(4, executeUpdate(manager, "DELETE FROM tblspace1.tsql WHERE N1=1234", Collections.emptyList()).getUpdateCount());
