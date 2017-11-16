@@ -546,7 +546,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        System.out.println("execute "+statement);
         context.setDefaultTablespace(statement.getTableSpace());
         context.setManager(this);
         context.setTransactionContext(transactionContext);

@@ -20,14 +20,16 @@
 package herddb.model;
 
 import herddb.index.IndexOperation;
+import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.Bytes;
+import herddb.utils.Wrapper;
 
 /**
  * A Condition
  *
  * @author enrico.olivelli
  */
-public abstract class Predicate {
+public abstract class Predicate implements Wrapper {
 
     public abstract boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException;
 

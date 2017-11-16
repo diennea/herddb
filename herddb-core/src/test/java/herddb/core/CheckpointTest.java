@@ -242,7 +242,7 @@ public class CheckpointTest {
                 tmpDir, null, config2)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 20000));
 
             manager.checkpoint();
 

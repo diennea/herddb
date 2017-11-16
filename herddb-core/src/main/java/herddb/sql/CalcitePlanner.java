@@ -43,6 +43,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.GetStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
@@ -61,8 +62,10 @@ import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
 import herddb.sql.expressions.AccessCurrentRowExpression;
 import herddb.sql.expressions.BindableTableScanColumnNameResolver;
+import herddb.sql.expressions.CastExpression;
 import herddb.sql.expressions.CompiledMultiAndExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -155,6 +158,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private final PlansCache cache;
+    private SchemaPlus rootSchema;
 
     @Override
     public long getCacheSize() {
@@ -173,6 +177,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     @Override
     public void clearCache() {
+        rootSchema = null;
         cache.clear();
         fallback.clearCache();
     }
@@ -232,10 +237,38 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     .programs(Programs.ofRules(Programs.RULE_SET))
                     .build();
             RelNode plan = runPlanner(config, query);
+            SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
+                    convertRelNode(plan, returnValues)
+                            .optimize());
+            if (!scan) {
+                ScanStatement scanStatement = sqlPlannedOperationStatement.unwrap(ScanStatement.class);
+                if (scanStatement != null) {
+                    Table tableDef = scanStatement.getTableDef();
+                    CompiledSQLExpression where = scanStatement.getPredicate().unwrap(CompiledSQLExpression.class);
+                    SQLRecordKeyFunction keyFunction = findIndexAccess(where, tableDef.getPrimaryKey(),
+                            tableDef, "=", tableDef);
+                    if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
+                        throw new StatementExecutionException("unsupported GET not on PK, bad where clause: " + query);
+                    }
+                    GetStatement get = new GetStatement(scanStatement.getTableSpace(),
+                            scanStatement.getTable(), keyFunction, scanStatement.getPredicate(), true);
+                    ExecutionPlan executionPlan = ExecutionPlan.simple(
+                            get
+                    );
+                    if (allowCache) {
+                        cache.put(cacheKey, executionPlan);
+                    }
+                    return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+                }
+            }
+            if (maxRows > 0) {
+                PlannerOp op = new LimitOp(sqlPlannedOperationStatement.getRootOp(),
+                        new ConstantExpression(maxRows), new ConstantExpression(0))
+                        .optimize();
+                sqlPlannedOperationStatement = new SQLPlannedOperationStatement(op);
+            }
             ExecutionPlan executionPlan = ExecutionPlan.simple(
-                    new SQLPlannedOperationStatement(
-                            convertRelNode(plan, returnValues)
-                                    .optimize())
+                    sqlPlannedOperationStatement
             );
             if (allowCache) {
                 cache.put(cacheKey, executionPlan);
@@ -271,10 +304,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private SchemaPlus getRootSchema() throws MetadataStorageManagerException {
-        final SchemaPlus rootSchema = Frameworks.createRootSchema(true);
+        if (rootSchema != null) {
+            return rootSchema;
+        }
+        final SchemaPlus _rootSchema = Frameworks.createRootSchema(true);
         for (String tableSpace : manager.getLocalTableSpaces()) {
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(tableSpace);
-            SchemaPlus schema = rootSchema.add(tableSpace, new AbstractSchema());
+            SchemaPlus schema = _rootSchema.add(tableSpace, new AbstractSchema());
             List<Table> tables = tableSpaceManager.getAllTablesForPlanner();
             for (Table table : tables) {
                 AbstractTableManager tableManager = tableSpaceManager.getTableManager(table.name);
@@ -282,7 +318,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 schema.add(table.name, tableDef);
             }
         }
-        return rootSchema;
+        rootSchema = _rootSchema;
+        return _rootSchema;
     }
 
     private PlannerOp convertRelNode(RelNode plan, boolean returnValues) throws StatementExecutionException {

@@ -313,4 +313,13 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
                 return value;
         }
     }
+
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        if (clazz.equals(CompiledSQLExpression.class)) {
+            return (T) where;
+        }
+        return super.unwrap(clazz);
+    }
+
 }
