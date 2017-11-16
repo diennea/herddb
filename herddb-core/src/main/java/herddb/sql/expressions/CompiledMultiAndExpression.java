@@ -58,10 +58,18 @@ public class CompiledMultiAndExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, BindableTableScanColumnNameResolver columnNameResolver) {
         List<CompiledSQLExpression> res = new ArrayList<>();
         for (CompiledSQLExpression exp : operands) {
-            res.addAll(exp.scanForConstraintsOnColumn(column, operator, columnNameResolver));
+            res.addAll(exp.scanForConstraintsOnColumn(column, columnNameResolver));
+        }
+        return res;
+    }
+    @Override
+    public List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+        List<CompiledSQLExpression> res = new ArrayList<>();
+        for (CompiledSQLExpression exp : operands) {
+            res.addAll(exp.scanForConstraintedValueOnColumnWithOperator(column, operator, columnNameResolver));
         }
         return res;
     }

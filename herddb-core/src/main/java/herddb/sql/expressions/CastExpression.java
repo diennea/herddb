@@ -51,8 +51,13 @@ public class CastExpression implements CompiledSQLExpression {
     }
 
     @Override
-    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
-        return wrapped.scanForConstraintsOnColumn(column, operator, columnNameResolver);
+    public List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+        return wrapped.scanForConstraintedValueOnColumnWithOperator(column, operator, columnNameResolver);
+    }
+
+    @Override
+    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, BindableTableScanColumnNameResolver columnNameResolver) {
+        return wrapped.scanForConstraintsOnColumn(column, columnNameResolver);
     }
 
     @Override

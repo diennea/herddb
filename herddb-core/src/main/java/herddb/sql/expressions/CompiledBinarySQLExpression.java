@@ -49,8 +49,8 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
     }
 
     @Override
-    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
-        if (!operator.isEmpty() && !operator.equals(getOperator())) {
+    public List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
+        if (!operator.equals(getOperator())) {
             return Collections.emptyList();
         }
         if ((right instanceof ConstantExpression
@@ -60,6 +60,21 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
             Column colName = columnNameResolver.resolveColumName(ex.getIndex());
             if (column.equals(colName.name)) {
                 return Collections.singletonList(right.cast(colName.type));
+            }
+        }
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<CompiledSQLExpression> scanForConstraintsOnColumn(String column, BindableTableScanColumnNameResolver columnNameResolver) {
+
+        if ((right instanceof ConstantExpression
+                || right instanceof JdbcParameterExpression)
+                && (left instanceof AccessCurrentRowExpression)) {
+            AccessCurrentRowExpression ex = (AccessCurrentRowExpression) left;
+            Column colName = columnNameResolver.resolveColumName(ex.getIndex());
+            if (column.equals(colName.name)) {
+                return Collections.singletonList(this);
             }
         }
         return Collections.emptyList();

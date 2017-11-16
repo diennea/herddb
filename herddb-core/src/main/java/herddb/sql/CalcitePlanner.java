@@ -432,9 +432,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             System.out.println("bindscan, indexop" + op);
 
             predicate.setIndexOperation(op);
-//            CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
-//            System.out.println("bindscan, filterpk " + filterPk);
-//            predicate.setPrimaryKeyFilter(filterPk);
+            CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
+            System.out.println("bindscan, filterpk " + filterPk);
+            predicate.setPrimaryKeyFilter(filterPk);
         }
         List<RexNode> projections = new ArrayList<>(scan.projects.size());
         RelDataType deriveRowType = scan.deriveRowType();
@@ -456,7 +456,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         for (String pk : table.primaryKey) {
             List<CompiledSQLExpression> conditions
-                    = where.scanForConstraintsOnColumn(pk, "", table);
+                    = where.scanForConstraintsOnColumn(pk, table);
             if (conditions.isEmpty()) {
                 break;
             }
@@ -624,7 +624,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         List<String> columns = new ArrayList<>();
 
         for (String pk : columnsToMatch) {
-            List<CompiledSQLExpression> conditions = where.scanForConstraintsOnColumn(pk, operator, res);
+            List<CompiledSQLExpression> conditions = where.scanForConstraintedValueOnColumnWithOperator(pk, operator, res);
             if (conditions.isEmpty()) {
                 break;
             }

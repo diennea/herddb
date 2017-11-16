@@ -55,8 +55,14 @@ public interface CompiledSQLExpression {
     public default void validate(StatementEvaluationContext context) throws StatementExecutionException {
     }
 
-    public default List<CompiledSQLExpression> scanForConstraintsOnColumn(
+    public default List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(
             String column, String operator, BindableTableScanColumnNameResolver columnNameResolver
+    ) {
+        return Collections.emptyList();
+    }
+    
+    public default List<CompiledSQLExpression> scanForConstraintsOnColumn(
+            String column, BindableTableScanColumnNameResolver columnNameResolver
     ) {
         return Collections.emptyList();
     }
