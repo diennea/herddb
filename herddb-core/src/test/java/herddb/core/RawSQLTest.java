@@ -994,7 +994,7 @@ public class RawSQLTest {
                     assertEquals(Long.valueOf(4), result.get(0).get("cc"));
                 }
             }
-            {
+            if (manager.getPlanner() instanceof SQLPlanner) {
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*)  FROM tblspace1.tsql", Collections.emptyList());) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
@@ -1004,11 +1004,11 @@ public class RawSQLTest {
             }
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) FROM tblspace1.tsql WHERE k1='mykey3'", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc FROM tblspace1.tsql WHERE k1='mykey3'", Collections.emptyList());) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(1), result.get(0).get(0));
-                    assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
+                    assertEquals(Long.valueOf(1), result.get(0).get("cc"));
                 }
             }
             {
@@ -1017,15 +1017,16 @@ public class RawSQLTest {
                     List<DataAccessor> result = scan1.consume();
                     Assert.fail();
                 } catch (StatementExecutionException error) {
-                    assertEquals("field k1 MUST appear in GROUP BY clause", error.getMessage());
+                    assertTrue("field k1 MUST appear in GROUP BY clause".equals(error.getMessage())
+                    || error.getMessage().contains("ValidationException"));
                 }
             }
             {
-                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1", Collections.emptyList());) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(4, result.size());
                     for (DataAccessor t : result) {
-                        assertEquals(Long.valueOf(1), t.get("count(*)"));
+                        assertEquals(Long.valueOf(1), t.get("cc"));
                         switch (t.get("k1") + "") {
                             case "mykey":
                             case "mykey2":
@@ -1071,21 +1072,21 @@ public class RawSQLTest {
 
             {
 
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1),s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(n1) as cc,s1 FROM tblspace1.tsql GROUP BY s1 ORDER BY s1", Collections.emptyList());) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(Long.valueOf(3), result.get(0).get(0));
-                    assertEquals(Long.valueOf(3), result.get(0).get("sum(n1)"));
+                    assertEquals(Long.valueOf(3), result.get(0).get("cc"));
                     assertEquals(RawString.of("a"), result.get(0).get(1));
                     assertEquals(RawString.of("a"), result.get(0).get("s1"));
 
                     assertEquals(Long.valueOf(5), result.get(1).get(0));
-                    assertEquals(Long.valueOf(5), result.get(1).get("sum(n1)"));
+                    assertEquals(Long.valueOf(5), result.get(1).get("cc"));
                     assertEquals(RawString.of("b"), result.get(1).get(1));
                     assertEquals(RawString.of("b"), result.get(1).get("s1"));
 
                     assertEquals(Long.valueOf(0), result.get(2).get(0));
-                    assertEquals(Long.valueOf(0), result.get(2).get("sum(n1)"));
+                    assertEquals(Long.valueOf(0), result.get(2).get("cc"));
                     assertEquals(null, result.get(2).get(1));
                     assertEquals(null, result.get(2).get("s1"));
                 }
@@ -1138,11 +1139,11 @@ public class RawSQLTest {
             }
 
             {
-                try (DataScanner scan1 = scan(manager, "SELECT SUM(1) FROM tblspace1.tsql", Collections.emptyList());) {
+                try (DataScanner scan1 = scan(manager, "SELECT SUM(1) as cc FROM tblspace1.tsql", Collections.emptyList());) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
                     assertEquals(Long.valueOf(4), result.get(0).get(0));
-                    assertEquals(Long.valueOf(4), result.get(0).get("sum(1)"));
+                    assertEquals(Long.valueOf(4), result.get(0).get("cc"));
                 }
             }
 
