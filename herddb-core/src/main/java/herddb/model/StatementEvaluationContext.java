@@ -32,7 +32,8 @@ import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 
 /**
- * Context for each statement evaluation. Statements are immutable and cachable objects, and cannot retain state
+ * Context for each statement evaluation. Statements are immutable and cachable
+ * objects, and cannot retain state
  *
  * @author enrico.olivelli
  */
@@ -112,9 +113,17 @@ public class StatementEvaluationContext {
         Select fullSelect = new Select();
         fullSelect.setSelectBody(select);
         plan = manager.getPlanner().plan(defaultTablespace,
-            fullSelect, true, false, -1);
+                fullSelect, true, false, -1);
         planCache.put(select, plan);
         return plan;
+    }
+    private long currentTimestamp;
+
+    public Object getCurrentTimestamp() {
+        if (currentTimestamp == 0) {
+            currentTimestamp = System.currentTimeMillis();
+        }
+        return currentTimestamp;
     }
 
 }

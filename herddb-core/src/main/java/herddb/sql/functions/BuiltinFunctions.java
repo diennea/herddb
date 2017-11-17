@@ -50,7 +50,20 @@ public class BuiltinFunctions {
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
     public static final String BOOLEAN_TRUE = "true";
     public static final String BOOLEAN_FALSE = "false";
-
+    
+    // aggregate
+    public static final String NAME_COUNT = "COUNT";
+    public static final String NAME_SUM = "SUM";
+    public static final String NAME_MIN = "MIN";
+    public static final String NAME_MAX = "MAX";
+    // scalar
+    public static final String NAME_LOWERCASE = "LOWER";
+    public static final String NAME_UPPER = "UPPER";
+    public static final String NAME_ABS = "ABS";
+    public static final String NAME_ROUND = "ROUND";
+    // special
+    public static final String NAME_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP";
+    
     public static Column toAggregatedOutputColumn(String fieldName, Function f) {
         if (f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
             return Column.column(fieldName, ColumnTypes.LONG);

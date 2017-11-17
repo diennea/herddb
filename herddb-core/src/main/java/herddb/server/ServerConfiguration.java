@@ -175,6 +175,12 @@ public final class ServerConfiguration {
     public static final String PROPERTY_JMX_ENABLE = "server.jmx.enable";
     public static final boolean PROPERTY_JMX_ENABLE_DEFAULT = true;
 
+    public static final String PROPERTY_PLANNER_TYPE = "server.planner.type";
+    public static final String PLANNER_TYPE_JSQLPARSER = "jsqlparser";
+    public static final String PLANNER_TYPE_CALCITE = "calcite";
+    public static final String PROPERTY_PLANNER_TYPE_DEFAULT =
+            System.getProperty("herddb.defaultplanner.type", PLANNER_TYPE_CALCITE);
+    
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();
         this.properties.putAll(properties);

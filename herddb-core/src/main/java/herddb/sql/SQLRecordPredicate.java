@@ -160,6 +160,14 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
             return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
+        if (a instanceof java.util.Date && b instanceof java.lang.Long) {
+            long delta = ((java.util.Date) a).getTime() - ((Long) b).longValue();
+            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+        }
+        if (a instanceof Long && b instanceof java.util.Date) {
+            long delta = ((Long) a).longValue() - ((java.util.Date) b).getTime();
+            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+        }
         if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
             return ((Comparable) a).compareTo(b);
         }

@@ -677,6 +677,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private static int convertToHerdType(RelDataType type) {
         switch (type.getSqlTypeName()) {
             case VARCHAR:
+            case CHAR:
                 return ColumnTypes.STRING;
             case BOOLEAN:
                 return ColumnTypes.BOOLEAN;

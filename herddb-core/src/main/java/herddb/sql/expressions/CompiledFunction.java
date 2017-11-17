@@ -141,6 +141,8 @@ public class CompiledFunction implements CompiledSQLExpression {
                     return Math.abs((long) parValue);
                 }
             }
+            case BuiltinFunctions.CURRENT_TIMESTAMP:
+                return context.getCurrentTimestamp();
             case BuiltinFunctions.ROUND: {
                 Object parValue = parameters.get(0).evaluate(bean, context);
                 if (roundSign == 0) {

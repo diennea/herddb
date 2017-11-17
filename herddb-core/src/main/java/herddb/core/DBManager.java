@@ -173,8 +173,18 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.hostData = hostData != null ? hostData : new ServerHostData("localhost", 7000, "", false, new HashMap<>());
         long planCacheMem = configuration.getLong(ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY,
                 ServerConfiguration.PROPERTY_PLANSCACHE_MAXMEMORY_DEFAULT);
-        this.translator = USE_CALCITE ? new CalcitePlanner(this, planCacheMem) 
-                : new SQLPlanner(this, planCacheMem);
+        String plannerType = serverConfiguration.getString(ServerConfiguration.PROPERTY_PLANNER_TYPE,
+                ServerConfiguration.PROPERTY_PLANNER_TYPE_DEFAULT);
+        switch (plannerType) {
+            case ServerConfiguration.PLANNER_TYPE_CALCITE:
+                translator = new CalcitePlanner(this, planCacheMem);
+                break;
+            case ServerConfiguration.PLANNER_TYPE_JSQLPARSER:
+                translator = new SQLPlanner(this, planCacheMem);
+                break;
+            default:
+                throw new IllegalArgumentException("invalid planner type " + plannerType);
+        }
         this.activatorJ = new Activator();
         this.activator = new Thread(activatorJ, "hdb-" + nodeId + "-activator");
         this.activator.setDaemon(true);

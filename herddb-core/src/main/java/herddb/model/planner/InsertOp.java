@@ -34,17 +34,14 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.commands.InsertStatement;
-import herddb.sql.CalcitePlanner;
 import herddb.sql.SQLRecordFunction;
 import herddb.sql.SQLRecordKeyFunction;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
-import herddb.sql.expressions.SQLExpressionCompiler;
+import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.calcite.rel.type.RelDataTypeField;
-import org.apache.calcite.rex.RexNode;
 
 public class InsertOp implements PlannerOp {
 
@@ -71,7 +68,10 @@ public class InsertOp implements PlannerOp {
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
-        StatementExecutionResult result = null;
+        long transactionId = transactionContext.transactionId;
+        int updateCount = 0;
+        Bytes key = null;
+        Bytes newValue = null;
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
                 DataAccessor row = inputScanner.next();
@@ -107,13 +107,14 @@ public class InsertOp implements PlannerOp {
                 RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
 
                 DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
-                result = tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
+
+                DMLStatementExecutionResult _result = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
+                updateCount += _result.getUpdateCount();
+                transactionId = _result.transactionId;
+                key = _result.getKey();
+                newValue = _result.getNewvalue();
             }
-            if (result == null) {
-                return new DMLStatementExecutionResult(transactionContext.transactionId, 0);
-            } else {
-                return result;
-            }
+            return new DMLStatementExecutionResult(transactionId, updateCount, key, newValue);
         } catch (DataScannerException err) {
             throw new StatementExecutionException(err);
         }

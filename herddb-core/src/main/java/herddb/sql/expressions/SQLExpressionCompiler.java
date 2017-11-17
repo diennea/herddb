@@ -25,6 +25,8 @@ import herddb.model.StatementExecutionException;
 import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.RawString;
+import java.util.Arrays;
+import java.util.Collections;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.DoubleValue;
@@ -294,6 +296,16 @@ public class SQLExpressionCompiler {
                     return new CompiledMultiOrExpression(operands);
                 case "NOT":
                     return new CompiledParenthesisExpression(true, operands[0]);
+                case BuiltinFunctions.NAME_CURRENT_TIMESTAMP:
+                    return new CompiledFunction(BuiltinFunctions.CURRENT_TIMESTAMP, Collections.emptyList());
+                case BuiltinFunctions.NAME_LOWERCASE:
+                    return new CompiledFunction(BuiltinFunctions.LOWER, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_UPPER:
+                    return new CompiledFunction(BuiltinFunctions.UPPER, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_ABS:
+                    return new CompiledFunction(BuiltinFunctions.ABS, Arrays.asList(operands));
+                case BuiltinFunctions.NAME_ROUND:
+                    return new CompiledFunction(BuiltinFunctions.ROUND, Arrays.asList(operands));
                 default:
                     throw new StatementExecutionException("unsupported operator '" + name + "'");
             }
