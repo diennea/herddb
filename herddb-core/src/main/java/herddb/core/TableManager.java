@@ -100,6 +100,7 @@ import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
 import herddb.model.ScanLimits;
+import herddb.model.ScanResult;
 
 /**
  * Handles Data of a Table

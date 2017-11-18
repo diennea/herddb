@@ -297,6 +297,10 @@ public class SQLExpressionCompiler {
                     return new CompiledMultiOrExpression(operands);
                 case "NOT":
                     return new CompiledParenthesisExpression(true, operands[0]);
+                case "IS NOT NULL":
+                    return new CompiledIsNullExpression(true, operands[0]);
+                case "IS NULL":
+                    return new CompiledIsNullExpression(false, operands[0]);
                 case BuiltinFunctions.NAME_CURRENT_TIMESTAMP:
                     return new CompiledFunction(BuiltinFunctions.CURRENT_TIMESTAMP, Collections.emptyList());
                 case BuiltinFunctions.NAME_LOWERCASE:

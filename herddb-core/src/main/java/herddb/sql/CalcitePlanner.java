@@ -232,9 +232,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     .programs(Programs.ofRules(Programs.RULE_SET))
                     .build();
             PlannerResult plan = runPlanner(config, query);
+            System.out.println("planner result:" + plan.topNode);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                     convertRelNode(plan.topNode, plan.originalRowType, returnValues)
                             .optimize());
+            System.out.println("top node:" + sqlPlannedOperationStatement.getRootOp());
             if (!scan) {
                 ScanStatement scanStatement = sqlPlannedOperationStatement.unwrap(ScanStatement.class);
                 if (scanStatement != null) {
@@ -487,6 +489,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planBindableTableScan(BindableTableScan scan, RelDataType rowType) {
+        System.out.println("planBindableTableScan " + scan + " " + rowType + " vs " + scan.getRowType());
         if (rowType == null) {
             rowType = scan.getRowType();
         }
@@ -561,7 +564,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planProject(EnumerableProject op, RelDataType rowType) {
+        System.out.println("plan project " + op + " " + rowType);
         PlannerOp input = convertRelNode(op.getInput(), null, false);
+
         final List<RexNode> projects = op.getProjects();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         Projection projection = buildProjection(projects, _rowType);
@@ -586,7 +591,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 allowZeroCopyProjection = false;
             }
             fields.add(exp);
-            Column col = Column.column(rowType.getFieldNames().get(i), convertToHerdType(node.getType()));
+            Column col = Column.column(rowType.getFieldNames().get(i).toLowerCase(),
+                    convertToHerdType(node.getType()));
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
@@ -879,8 +885,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         @Override
         public RelDataType getRowType(RelDataTypeFactory typeFactory) {
             RelDataTypeFactory.Builder builder = new RelDataTypeFactory.Builder(typeFactory);
-            for (Column c : tableManager.getTable().getColumns()) {
-                builder.add(c.name, convertType(c.type, typeFactory));
+            Table table = tableManager.getTable();
+            for (Column c : table.getColumns()) {
+                boolean nullable = !table.isPrimaryKeyColumn(c.name);
+                builder.add(c.name, convertType(c.type, typeFactory, nullable));
             }
             return builder.build();
         }
@@ -928,7 +936,19 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             throw new UnsupportedOperationException("Not supported yet.");
         }
 
-        private static RelDataType convertType(int type, RelDataTypeFactory typeFactory) {
+        private static RelDataType convertType(int type,
+                RelDataTypeFactory typeFactory, boolean nullable) {
+            RelDataType relDataType = convertTypeNotNull(type, typeFactory);
+            if (nullable) {
+                return typeFactory.createTypeWithNullability(relDataType, true);
+            } else {
+                return relDataType;
+            }
+        }
+
+        private static RelDataType convertTypeNotNull(int type,
+                RelDataTypeFactory typeFactory) {
+
             switch (type) {
                 case ColumnTypes.BOOLEAN:
                     return typeFactory.createSqlType(SqlTypeName.BOOLEAN);
