@@ -32,7 +32,7 @@ public class ScanResult extends StatementExecutionResult implements AutoCloseabl
         super(transactionId);
         this.dataScanner = dataScanner;
     }
-
+    
     @Override
     public void close() throws DataScannerException {
         dataScanner.close();

@@ -22,6 +22,7 @@ package herddb.sql.expressions;
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 
 import herddb.model.StatementExecutionException;
+import herddb.sql.CalcitePlanner;
 import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.RawString;
@@ -247,7 +248,7 @@ public class SQLExpressionCompiler {
         System.out.println("compile " + expression + ", type " + expression.getClass());
         if (expression instanceof RexDynamicParam) {
             RexDynamicParam p = (RexDynamicParam) expression;
-            return new JdbcParameterExpression(p.getIndex());
+            return new TypedJdbcParameterExpression(p.getIndex(), CalcitePlanner.convertToHerdType(p.getType()));
         } else if (expression instanceof RexLiteral) {
             RexLiteral p = (RexLiteral) expression;
             if (p.isNull()) {

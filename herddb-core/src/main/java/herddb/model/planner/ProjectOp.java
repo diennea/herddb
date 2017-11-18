@@ -32,6 +32,7 @@ import herddb.model.TransactionContext;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -112,6 +113,13 @@ public class ProjectOp implements PlannerOp {
             public Object[] getValues() {
                 return values;
             }
+
+            @Override
+            public String toString() {
+                return "RuntimeProjectedDataAccessor{" + "values=" + Arrays.toString(values) + '}';
+            }
+            
+            
         }
     }
 

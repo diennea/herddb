@@ -69,12 +69,20 @@ public class InsertOp implements PlannerOp {
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
+        System.out.println("starting txid " + transactionId);
         int updateCount = 0;
         Bytes key = null;
         Bytes newValue = null;
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
+
                 DataAccessor row = inputScanner.next();
+                long transactionIdFromScanner = inputScanner.getTransactionId();
+                System.out.println("transactionIdFromScanner:" + transactionIdFromScanner);
+                if (transactionIdFromScanner > 0 && transactionIdFromScanner != transactionId) {
+                    transactionId = transactionIdFromScanner;
+                    transactionContext = new TransactionContext(transactionId);
+                }
                 int index = 0;
                 List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
                 List<String> keyExpressionToColumn = new ArrayList<>();
@@ -109,8 +117,12 @@ public class InsertOp implements PlannerOp {
                 DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
 
                 DMLStatementExecutionResult _result = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
+                System.out.println("insert ount " + _result.getUpdateCount() + " txid " + _result.transactionId);
                 updateCount += _result.getUpdateCount();
-                transactionId = _result.transactionId;
+                if (_result.transactionId > 0 && _result.transactionId != transactionId) {
+                    transactionId = _result.transactionId;
+                    transactionContext = new TransactionContext(transactionId);
+                }
                 key = _result.getKey();
                 newValue = _result.getNewvalue();
             }

@@ -35,7 +35,7 @@ public abstract class DataScanner implements AutoCloseable {
 
     private final Column[] schema;
     private final String[] fieldNames;
-    public final long transactionId;
+    public long transactionId;
 
     public DataScanner(long transactionId, String[] fieldNames, Column[] schema) {
         this.schema = schema;

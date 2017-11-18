@@ -67,6 +67,7 @@ import herddb.utils.RawString;
 import java.sql.Timestamp;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 public class RawSQLTest {
 
@@ -548,6 +549,7 @@ public class RawSQLTest {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
+            assumeTrue(manager.getPlanner() instanceof SQLPlanner);
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
@@ -884,27 +886,27 @@ public class RawSQLTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
 
             // scan performed after aggregation
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 "
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 "
                     + "FROM tblspace1.tsql "
                     + "GROUP BY k1 "
                     + "ORDER BY k1 DESC", Collections.emptyList());) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("cc"));
                 assertEquals(RawString.of("mykey3"), result.get(1).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(1).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(1).get("cc"));
                 assertEquals(RawString.of("mykey2"), result.get(2).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(2).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(2).get("cc"));
                 assertEquals(RawString.of("mykey"), result.get(3).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(3).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(3).get("cc"));
             }
 
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,1", Collections.emptyList());) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey3"), result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("cc"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as alias,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 1,2", Collections.emptyList());) {
@@ -915,17 +917,17 @@ public class RawSQLTest {
                 assertEquals(RawString.of("mykey2"), result.get(1).get("k1"));
                 assertEquals(Long.valueOf(1), result.get(1).get("alias"));
             }
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10", Collections.emptyList());) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(4, result.size());
                 assertEquals(RawString.of("mykey4"), result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("cc"));
                 assertEquals(RawString.of("mykey3"), result.get(1).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(1).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(1).get("cc"));
                 assertEquals(RawString.of("mykey2"), result.get(2).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(2).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(2).get("cc"));
                 assertEquals(RawString.of("mykey"), result.get(3).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(3).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(3).get("cc"));
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 10,10", Collections.emptyList());) {
@@ -937,11 +939,11 @@ public class RawSQLTest {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(0, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*),k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 3,10", Collections.emptyList());) {
+            try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,k1 FROM tblspace1.tsql GROUP BY k1 ORDER BY k1 DESC LIMIT 3,10", Collections.emptyList());) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
-                assertEquals(Long.valueOf(1), result.get(0).get("count(*)"));
+                assertEquals(Long.valueOf(1), result.get(0).get("cc"));
             }
             try (DataScanner scan1 = scan(manager, "SELECT COUNT(*) as cc,n1 FROM tblspace1.tsql GROUP BY n1 ORDER BY cc", Collections.emptyList());) {
                 List<DataAccessor> result = scan1.consume();
@@ -1018,7 +1020,7 @@ public class RawSQLTest {
                     Assert.fail();
                 } catch (StatementExecutionException error) {
                     assertTrue("field k1 MUST appear in GROUP BY clause".equals(error.getMessage())
-                    || error.getMessage().contains("ValidationException"));
+                            || error.getMessage().contains("ValidationException"));
                 }
             }
             {
@@ -1494,7 +1496,7 @@ public class RawSQLTest {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(0, records.size());
                     assertEquals(1, scan1.getFieldNames().length);
-                    assertEquals("theKey", scan1.getFieldNames()[0]);
+                    assertEquals("thekey", scan1.getFieldNames()[0].toLowerCase());
                 }
             }
         }
@@ -1870,7 +1872,7 @@ public class RawSQLTest {
             assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now + 1000), new java.sql.Timestamp(now - 1000))).consume().size());
 
             // timestamp with jdbc literals
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between {ts '" + new java.sql.Timestamp(now) + "'} and {ts '" + new java.sql.Timestamp(now) + "'}", Arrays.asList(new java.sql.Timestamp(now), new java.sql.Timestamp(now))).consume().size());
+            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between {ts '" + new java.sql.Timestamp(now) + "'} and {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consume().size());
 
         }
     }
