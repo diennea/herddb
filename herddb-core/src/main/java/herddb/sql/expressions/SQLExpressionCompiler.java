@@ -27,8 +27,12 @@ import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.RawString;
 import java.math.BigDecimal;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.DoubleValue;
@@ -66,6 +70,7 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.fun.SqlCastFunction;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 /**
@@ -247,7 +252,6 @@ public class SQLExpressionCompiler {
         if (expression == null) {
             return null;
         }
-        System.out.println("compile " + expression + ", type " + expression.getClass());
         if (expression instanceof RexDynamicParam) {
             RexDynamicParam p = (RexDynamicParam) expression;
             return new TypedJdbcParameterExpression(p.getIndex(), CalcitePlanner.convertToHerdType(p.getType()));
@@ -293,6 +297,8 @@ public class SQLExpressionCompiler {
                     return new CompiledMultiplyExpression(false, operands[0], operands[1]);
                 case "/":
                     return new CompiledDivideExpression(false, operands[0], operands[1]);
+                case "LIKE":
+                    return new CompiledLikeExpression(false, operands[0], operands[1]);
                 case "AND":
                     return new CompiledMultiAndExpression(operands);
                 case "OR":
@@ -303,6 +309,17 @@ public class SQLExpressionCompiler {
                     return new CompiledIsNullExpression(true, operands[0]);
                 case "IS NULL":
                     return new CompiledIsNullExpression(false, operands[0]);
+                case "CAST":
+                    return operands[0].cast(CalcitePlanner.convertToHerdType(p.type));
+                case "CASE":
+                    List<Map.Entry<CompiledSQLExpression, CompiledSQLExpression>> cases = new ArrayList<>(operands.length / 2);
+                    boolean hasElse = operands.length % 2 == 1;
+                    int numcases = hasElse ? ((operands.length - 1) / 2) : (operands.length / 2);
+                    for (int j = 0; j < numcases; j++) {
+                        cases.add(new AbstractMap.SimpleImmutableEntry<>(operands[j * 2], operands[j * 2 + 1]));
+                    }
+                    CompiledSQLExpression elseExp = hasElse ? operands[operands.length - 1] : null;
+                    return new CompiledCaseExpression(cases, elseExp);
                 case BuiltinFunctions.NAME_CURRENT_TIMESTAMP:
                     return new CompiledFunction(BuiltinFunctions.CURRENT_TIMESTAMP, Collections.emptyList());
                 case BuiltinFunctions.NAME_LOWERCASE:
@@ -328,9 +345,14 @@ public class SQLExpressionCompiler {
     }
 
     private static Object safeValue(Object value3, SqlTypeName typeName) {
-       if (value3 instanceof BigDecimal){
-           return ((BigDecimal) value3).longValue();
-       }
-       return value3;
+        if (value3 instanceof BigDecimal) {
+            System.out.println("safe value " + value3 + " for " + typeName);
+
+            if (typeName == SqlTypeName.DECIMAL) {
+                return ((BigDecimal) value3).doubleValue();
+            }
+            return ((BigDecimal) value3).longValue();
+        }
+        return value3;
     }
 }

@@ -39,11 +39,11 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.ColumnTypes;
 import herddb.model.DataScanner;
 import herddb.model.Index;
+import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
-import herddb.model.Tuple;
 import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateIndexStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -76,25 +76,25 @@ public abstract class SecondaryIndexAccessSuite {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(Index.TYPE_BRIN)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(table)
+                    .type(Index.TYPE_BRIN)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING).
+                    build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('a',1,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,name) values('b',1,'n1')", Collections.emptyList());
@@ -147,25 +147,25 @@ public abstract class SecondaryIndexAccessSuite {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("n1", ColumnTypes.INTEGER)
-                .column("n2", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .column("n2", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("n1", ColumnTypes.INTEGER)
-                .build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("n1", ColumnTypes.INTEGER)
+                    .build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('a',1,5,'n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,n1,n2,name) values('b',2,5,'n1')", Collections.emptyList());
@@ -308,23 +308,23 @@ public abstract class SecondaryIndexAccessSuite {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('a','n1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('b','n1')", Collections.emptyList());
@@ -358,24 +358,24 @@ public abstract class SecondaryIndexAccessSuite {
             manager.waitForTablespace("q1", 10000);
 
             Table q1_message = Table
-                .builder()
-                .tablespace("q1")
-                .name("q1_message")
-                .column("id", ColumnTypes.INTEGER)
-                .column("subject", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("q1")
+                    .name("q1_message")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("subject", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             Table q1_headers = Table
-                .builder()
-                .tablespace("q1")
-                .name("q1_headers")
-                .column("id", ColumnTypes.INTEGER)
-                .column("msgid", ColumnTypes.INTEGER)
-                .column("name", ColumnTypes.STRING)
-                .column("value", ColumnTypes.STRING)
-                .primaryKey("id", true)
-                .build();
+                    .builder()
+                    .tablespace("q1")
+                    .name("q1_headers")
+                    .column("id", ColumnTypes.INTEGER)
+                    .column("msgid", ColumnTypes.INTEGER)
+                    .column("name", ColumnTypes.STRING)
+                    .column("value", ColumnTypes.STRING)
+                    .primaryKey("id", true)
+                    .build();
 
             CreateTableStatement stc1 = new CreateTableStatement(q1_message);
             manager.executeStatement(stc1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -384,17 +384,17 @@ public abstract class SecondaryIndexAccessSuite {
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(q1_headers)
-                .type(Index.TYPE_BRIN)
-                .column("name", ColumnTypes.STRING)
-                .column("value", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(q1_headers)
+                    .type(Index.TYPE_BRIN)
+                    .column("name", ColumnTypes.STRING)
+                    .column("value", ColumnTypes.STRING).
+                    build();
 
             TestUtils.executeUpdate(manager, "INSERT INTO q1.q1_message(id,subject) values(1,'test1')", Collections.emptyList());
             TestUtils.executeUpdate(manager, "INSERT INTO q1.q1_message(id,subject) values(2,'test2')", Collections.emptyList());
-            TestUtils.executeUpdate(manager, "INSERT INTO q1.q1_headers(msgid,name,value) values(1,'from','test@localhost')", Collections.emptyList());
-            TestUtils.executeUpdate(manager, "INSERT INTO q1.q1_headers(msgid,name,value) values(1,'to','test@localhost')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO q1.q1_headers(msgid,name,`value`) values(1,'from','test@localhost')", Collections.emptyList());
+            TestUtils.executeUpdate(manager, "INSERT INTO q1.q1_headers(msgid,name,`value`) values(1,'to','test@localhost')", Collections.emptyList());
 
             // create index, it will be built using existing data
             CreateIndexStatement st3 = new CreateIndexStatement(index);
@@ -402,9 +402,9 @@ public abstract class SecondaryIndexAccessSuite {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT msgid "
-                    + "from q1.q1_headers "
-                    + "where name='from' "
-                    + "and value='test@localhost'", Collections.emptyList(), true, true, false, -1);
+                        + "from q1.q1_headers "
+                        + "where name='from' "
+                        + "and `value`='test@localhost'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -416,9 +416,9 @@ public abstract class SecondaryIndexAccessSuite {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT msgid "
-                    + "from q1.q1_headers "
-                    + "where name='from' "
-                    + "and value like '%test@localhost%'", Collections.emptyList(), true, true, false, -1);
+                        + "from q1.q1_headers "
+                        + "where name='from' "
+                        + "and `value` like '%test@localhost%'", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexPrefixScan);
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
@@ -428,26 +428,28 @@ public abstract class SecondaryIndexAccessSuite {
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * "
-                    + "FROM q1.q1_message "
-                    + "WHERE id in "
-                    + "(SELECT msgid from q1.q1_headers "
-                    + "where name='from' "
-                    + "and value='test@localhost')", Collections.emptyList(), true, true, false, -1);
+                        + "FROM q1.q1_message "
+                        + "WHERE id in "
+                        + "(SELECT msgid from q1.q1_headers "
+                        + "where name='from' "
+                        + "and `value`='test@localhost')", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = ((ScanResult) manager
+                        .executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
                     assertEquals(1, scan1.consume().size());
                 }
             }
 
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT * "
-                    + "FROM q1.q1_message "
-                    + "WHERE id in "
-                    + "(SELECT msgid from q1.q1_headers "
-                    + "where name='from' "
-                    + "and value like '%test@%')", Collections.emptyList(), true, true, false, -1);
+                        + "FROM q1.q1_message "
+                        + "WHERE id in "
+                        + "(SELECT msgid from q1.q1_headers "
+                        + "where name='from' "
+                        + "and `value` like '%test@%')", Collections.emptyList(), true, true, false, -1);
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = ((ScanResult) manager
+                        .executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
                     assertEquals(1, scan1.consume().size());
                 }
             }
@@ -466,23 +468,23 @@ public abstract class SecondaryIndexAccessSuite {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
 
             // create index, initially it will be empty
             CreateIndexStatement st3 = new CreateIndexStatement(index);
@@ -498,7 +500,8 @@ public abstract class SecondaryIndexAccessSuite {
 
             ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
             assertTrue(scan.getPredicate().getIndexOperation() instanceof SecondaryIndexSeek);
-            try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
+            try (DataScanner scan1 = ((ScanResult) manager
+                    .executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
                 assertEquals(3, scan1.consume().size());
             }
 
@@ -516,23 +519,23 @@ public abstract class SecondaryIndexAccessSuite {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
 
             // create index, initially it will be empty
             CreateIndexStatement st3 = new CreateIndexStatement(index);
@@ -579,23 +582,23 @@ public abstract class SecondaryIndexAccessSuite {
             manager.waitForTablespace("tblspace1", 10000);
 
             Table table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st2 = new CreateTableStatement(table);
             manager.executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
 
             // create index, initially it will be empty
             CreateIndexStatement st3 = new CreateIndexStatement(index);
@@ -663,13 +666,13 @@ public abstract class SecondaryIndexAccessSuite {
             Bytes value = Bytes.from_long(8888);
 
             Table transacted_table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             long tx = TestUtils.beginTransaction(manager, "tblspace1");
             CreateTableStatement st_create = new CreateTableStatement(transacted_table);
@@ -680,11 +683,11 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), new TransactionContext(tx));
 
             Index index = Index
-                .builder()
-                .onTable(transacted_table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
 
@@ -725,24 +728,24 @@ public abstract class SecondaryIndexAccessSuite {
             Bytes value = Bytes.from_long(8888);
 
             Table transacted_table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             long tx = TestUtils.beginTransaction(manager, "tblspace1");
             CreateTableStatement st_create = new CreateTableStatement(transacted_table);
             manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
 
             Index index = Index
-                .builder()
-                .onTable(transacted_table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
 
@@ -787,13 +790,13 @@ public abstract class SecondaryIndexAccessSuite {
             Bytes value = Bytes.from_long(8888);
 
             Table transacted_table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st_create = new CreateTableStatement(transacted_table);
             manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -803,11 +806,11 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(transacted_table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
@@ -848,13 +851,13 @@ public abstract class SecondaryIndexAccessSuite {
             Bytes value = Bytes.from_long(8888);
 
             Table transacted_table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st_create = new CreateTableStatement(transacted_table);
             manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -864,11 +867,11 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(transacted_table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
@@ -911,13 +914,13 @@ public abstract class SecondaryIndexAccessSuite {
             Bytes value = Bytes.from_long(8888);
 
             Table transacted_table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st_create = new CreateTableStatement(transacted_table);
             manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -927,11 +930,11 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(transacted_table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
@@ -971,13 +974,13 @@ public abstract class SecondaryIndexAccessSuite {
             Bytes value = Bytes.from_long(8888);
 
             Table transacted_table = Table
-                .builder()
-                .tablespace("tblspace1")
-                .name("t1")
-                .column("id", ColumnTypes.STRING)
-                .column("name", ColumnTypes.STRING)
-                .primaryKey("id")
-                .build();
+                    .builder()
+                    .tablespace("tblspace1")
+                    .name("t1")
+                    .column("id", ColumnTypes.STRING)
+                    .column("name", ColumnTypes.STRING)
+                    .primaryKey("id")
+                    .build();
 
             CreateTableStatement st_create = new CreateTableStatement(transacted_table);
             manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -987,11 +990,11 @@ public abstract class SecondaryIndexAccessSuite {
             TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList("c", "n2"), TransactionContext.NO_TRANSACTION);
 
             Index index = Index
-                .builder()
-                .onTable(transacted_table)
-                .type(indexType)
-                .column("name", ColumnTypes.STRING).
-                build();
+                    .builder()
+                    .onTable(transacted_table)
+                    .type(indexType)
+                    .column("name", ColumnTypes.STRING).
+                    build();
             CreateIndexStatement createIndex = new CreateIndexStatement(index);
             manager.executeStatement(createIndex, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 

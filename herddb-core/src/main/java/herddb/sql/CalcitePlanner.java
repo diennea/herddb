@@ -89,6 +89,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
 import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
+import org.apache.calcite.avatica.util.Quoting;
 import org.apache.calcite.interpreter.Bindables.BindableTableScan;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.QueryProvider;
@@ -224,6 +225,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
                             .setCaseSensitive(false)
                             .setConformance(SqlConformanceEnum.MYSQL_5)
+                            .setQuoting(Quoting.BACK_TICK)
                             .build();
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()

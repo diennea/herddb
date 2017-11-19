@@ -117,11 +117,11 @@ public class StatementEvaluationContext {
         planCache.put(select, plan);
         return plan;
     }
-    private long currentTimestamp;
+    private java.sql.Timestamp currentTimestamp;
 
-    public Object getCurrentTimestamp() {
-        if (currentTimestamp == 0) {
-            currentTimestamp = System.currentTimeMillis();
+    public java.sql.Timestamp getCurrentTimestamp() {
+        if (currentTimestamp == null) {
+            currentTimestamp = new java.sql.Timestamp(System.currentTimeMillis());
         }
         return currentTimestamp;
     }

@@ -23,6 +23,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import net.sf.jsqlparser.expression.Expression;
@@ -45,7 +46,7 @@ public class CompiledFunction implements CompiledSQLExpression {
 
                 long precision;
                 try {
-                    precision = (long) parameters.get(1).evaluate(null, null);
+                    precision = ((Number) parameters.get(1).evaluate(DataAccessor.NULL, null)).longValue();
                 } catch (NullPointerException ex) {
                     throw new IllegalArgumentException("round second parameter must be a constant value");
                 }
