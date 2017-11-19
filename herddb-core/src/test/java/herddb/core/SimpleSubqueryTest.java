@@ -85,7 +85,8 @@ public class SimpleSubqueryTest {
                         + "WHERE t2.n1=123", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertEquals("invalid column name n1 invalid table name t2, expecting t1", ok.getMessage());
+                assertTrue("invalid column name n1 invalid table name t2, expecting t1".equals(ok.getMessage())
+                        || ok.getMessage().contains("ValidationException"));
             }
             try {
                 scan(manager, "SELECT k1 "
@@ -93,7 +94,8 @@ public class SimpleSubqueryTest {
                         + "WHERE t2.k1='aaa'", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertEquals("invalid column name k1 invalid table name t2, expecting t1", ok.getMessage());
+                assertTrue("invalid column name n1 invalid table name t2, expecting t1".equals(ok.getMessage())
+                        || ok.getMessage().contains("ValidationException"));
 
             }
 
@@ -103,7 +105,9 @@ public class SimpleSubqueryTest {
                         + "WHERE t1.k1='mykey2'", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertEquals("invalid column name k1 invalid table name t1, expecting t2", ok.getMessage());
+                assertTrue("invalid column name k1 invalid table name t1, expecting t2".equals(ok.getMessage())
+                        || ok.getMessage().contains("ValidationException"));
+
             }
 
             try {
@@ -112,7 +116,9 @@ public class SimpleSubqueryTest {
                         + "ORDER BY t1.n1", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertEquals("invalid column name n1 invalid table name t1, expecting t2", ok.getMessage());
+                assertTrue("invalid column name k1 invalid table name t1, expecting t2".equals(ok.getMessage())
+                        || ok.getMessage().contains("ValidationException"));
+
             }
 
         }

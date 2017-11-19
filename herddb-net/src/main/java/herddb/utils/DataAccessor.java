@@ -36,6 +36,10 @@ public interface DataAccessor {
 
     public String[] getFieldNames();
 
+    public default int getNumFields() {
+        return getFieldNames().length;
+    }
+
     public default void forEach(BiConsumer<String, Object> consumer) {
         for (String property : getFieldNames()) {
             consumer.accept(property, get(property));
@@ -55,7 +59,7 @@ public interface DataAccessor {
         return result;
     }
 
-    public static DataAccessor NULL = new DataAccessor() {
+    public static DataAccessor NULL = new AbstractDataAccessor() {
 
         @Override
         public void forEach(BiConsumer<String, Object> consumer) {

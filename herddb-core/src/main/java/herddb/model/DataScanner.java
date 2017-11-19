@@ -20,10 +20,14 @@
 package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import herddb.core.HerdDBInternalException;
 import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import org.apache.calcite.linq4j.AbstractEnumerable;
+import org.apache.calcite.linq4j.Enumerable;
+import org.apache.calcite.linq4j.Enumerator;
 
 /**
  * Live scanner of data
@@ -100,6 +104,60 @@ public abstract class DataScanner implements AutoCloseable {
     }
 
     public void rewind() throws DataScannerException {
-        throw new RuntimeException("yet implemented");
+        throw new RuntimeException("not implemented for " + this.getClass());
     }
+
+    public Enumerable<DataAccessor> createEnumerable() {
+        return new AbstractEnumerable<DataAccessor>() {
+            @Override
+            public Enumerator<DataAccessor> enumerator() {
+                return asEnumerator();
+            }
+        };
+    }
+
+    public Enumerator<DataAccessor> asEnumerator() {
+        return new Enumerator<DataAccessor>() {
+            private DataAccessor current;
+
+            @Override
+            public DataAccessor current() {
+                return current;
+            }
+
+            @Override
+            public boolean moveNext() {
+                try {
+                    if (hasNext()) {
+                        current = next();
+                        return true;
+                    } else {
+                        return false;
+                    }
+                } catch (DataScannerException ex) {
+                    throw new HerdDBInternalException(ex);
+                }
+            }
+
+            @Override
+            public void reset() {
+                try {
+                    rewind();
+                } catch (DataScannerException ex) {
+                    throw new HerdDBInternalException(ex);
+                }
+            }
+
+            @Override
+            public void close() {
+                try {
+                    DataScanner.this.close();
+                } catch (DataScannerException ex) {
+                    throw new HerdDBInternalException(ex);
+                }
+            }
+
+        };
+    }
+;
 }

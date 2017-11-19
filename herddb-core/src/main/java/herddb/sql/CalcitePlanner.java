@@ -56,6 +56,7 @@ import herddb.model.planner.InsertOp;
 import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
+import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UnionAllOp;
@@ -69,6 +70,7 @@ import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -81,6 +83,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableFilter;
 import org.apache.calcite.adapter.enumerable.EnumerableInterpreter;
 import org.apache.calcite.adapter.enumerable.EnumerableLimit;
 import org.apache.calcite.adapter.enumerable.EnumerableProject;
+import org.apache.calcite.adapter.enumerable.EnumerableSemiJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
@@ -358,6 +361,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableProject) {
             EnumerableProject scan = (EnumerableProject) plan;
             return planProject(scan, rowType);
+        } else if (plan instanceof EnumerableSemiJoin) {
+            EnumerableSemiJoin scan = (EnumerableSemiJoin) plan;
+            return planEnumerableSemiJoin(scan, rowType);
         } else if (plan instanceof EnumerableValues) {
             EnumerableValues scan = (EnumerableValues) plan;
             return planValues(scan);
@@ -571,6 +577,34 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
         Projection projection = buildProjection(projects, _rowType);
         return new ProjectOp(projection, input);
+    }
+
+    private PlannerOp planEnumerableSemiJoin(EnumerableSemiJoin op, RelDataType rowType) {
+        System.out.println("plan semijoin " + op + " " + rowType + " " + op.getRowType());
+        // please note that EnumerableSemiJoin has a condition field which actually is not useful
+        PlannerOp left = convertRelNode(op.getLeft(), null, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        int[] leftKeys = op.getLeftKeys().toIntArray();
+        int[] rightKeys = op.getRightKeys().toIntArray();
+        final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
+        System.out.println("semijoin:");
+        System.out.println("left:" + left);
+        System.out.println("leftkeys:" + Arrays.toString(leftKeys));
+        System.out.println("right:" + right);
+        System.out.println("rigthkeys:" + Arrays.toString(rightKeys));
+        List<RelDataTypeField> fieldList = _rowType.getFieldList();
+        Column[] columns = new Column[fieldList.size()];
+        String[] fieldNames = new String[columns.length];
+        int i = 0;
+        int[] zeroCopyProjections = new int[fieldNames.length];
+        for (RelDataTypeField field : fieldList) {
+            Column col = Column.column(field.getName().toLowerCase(),
+                    convertToHerdType(field.getType()));
+            fieldNames[i] = col.name;
+            columns[i++] = col;
+        }
+        return new SemiJoinOp(fieldNames, columns,
+                leftKeys, left, rightKeys, right);
     }
 
     private Projection buildProjection(

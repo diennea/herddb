@@ -26,6 +26,7 @@ import herddb.sql.CalcitePlanner;
 import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
 import herddb.sql.functions.BuiltinFunctions;
 import herddb.utils.RawString;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import net.sf.jsqlparser.expression.BinaryExpression;
@@ -65,6 +66,7 @@ import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 /**
  * Created a pure Java implementation of the expression which represents the
@@ -254,7 +256,7 @@ public class SQLExpressionCompiler {
             if (p.isNull()) {
                 return new ConstantExpression(null);
             } else {
-                return new ConstantExpression(p.getValue3());
+                return new ConstantExpression(safeValue(p.getValue3(), p.getTypeName()));
             }
         } else if (expression instanceof RexInputRef) {
             RexInputRef p = (RexInputRef) expression;
@@ -323,5 +325,12 @@ public class SQLExpressionCompiler {
             return new AccessCorrelVariableExpression(p.id.getId());
         }
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
+    }
+
+    private static Object safeValue(Object value3, SqlTypeName typeName) {
+       if (value3 instanceof BigDecimal){
+           return ((BigDecimal) value3).longValue();
+       }
+       return value3;
     }
 }

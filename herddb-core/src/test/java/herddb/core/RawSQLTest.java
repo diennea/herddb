@@ -1671,24 +1671,24 @@ public class RawSQLTest {
                     assertEquals(1, records.size());
                     assertEquals(1, records.get(0).getFieldNames().length);
                     assertEquals(1, records.get(0).toMap().size());
-                    assertEquals("theKey", records.get(0).getFieldNames()[0]);
+                    assertEquals("thekey", records.get(0).getFieldNames()[0].toLowerCase());
                     System.out.println("type: " + records.get(0).getClass());
                     assertEquals(RawString.of("mykey2"), records.get(0).get(0));
                 }
             }
             {
                 TranslatedQuery translate1 = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT k1 as theKey,'one' as theStringConstant,3  LongConstant FROM tblspace1.tsql where k1 ='mykey2'", Collections.emptyList(), true, true, false, -1);
-                ScanStatement scan = translate1.plan.mainStatement.unwrap(ScanStatement.class);
-                try (DataScanner scan1 = manager.scan(scan, translate1.context, TransactionContext.NO_TRANSACTION);) {
+                try (DataScanner scan1 = ((ScanResult) manager.executePlan(translate1.plan,
+                        translate1.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).getFieldNames().length);
                     assertEquals(3, records.get(0).toMap().size());
-                    assertEquals("theKey", records.get(0).getFieldNames()[0]);
+                    assertEquals("thekey", records.get(0).getFieldNames()[0].toLowerCase());
                     assertEquals(RawString.of("mykey2"), records.get(0).get(0));
-                    assertEquals("theStringConstant", records.get(0).getFieldNames()[1]);
+                    assertEquals("thestringconstant", records.get(0).getFieldNames()[1].toLowerCase());
                     assertEquals(RawString.of("one"), records.get(0).get(1));
-                    assertEquals("LongConstant", records.get(0).getFieldNames()[2]);
+                    assertEquals("longconstant", records.get(0).getFieldNames()[2].toLowerCase());
                     assertEquals(Long.valueOf(3), records.get(0).get(2)
                     );
                 }

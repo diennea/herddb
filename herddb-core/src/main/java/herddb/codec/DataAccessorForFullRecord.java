@@ -22,14 +22,14 @@ package herddb.codec;
 import herddb.model.Column;
 import herddb.model.Record;
 import herddb.model.Table;
-import herddb.utils.DataAccessor;
+import herddb.utils.AbstractDataAccessor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class DataAccessorForFullRecord implements DataAccessor {
+public class DataAccessorForFullRecord extends AbstractDataAccessor {
 
     private final Table table;
     private final Record record;

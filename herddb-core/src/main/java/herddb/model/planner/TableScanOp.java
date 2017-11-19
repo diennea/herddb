@@ -62,4 +62,9 @@ public class TableScanOp implements PlannerOp {
         return new ScanResult(transactionContext.transactionId, scan);
     }
 
+    @Override
+    public String toString() {
+        return "TableScanOp{" + "statement=" + statement + '}';
+    }
+
 }

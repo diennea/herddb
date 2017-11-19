@@ -30,6 +30,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
 import java.util.Arrays;
@@ -77,7 +78,7 @@ public class ProjectOp implements PlannerOp {
             return new RuntimeProjectedDataAccessor(tuple, context);
         }
 
-        private class RuntimeProjectedDataAccessor implements DataAccessor {
+        private class RuntimeProjectedDataAccessor extends AbstractDataAccessor {
 
             final Object[] values;
 
@@ -194,7 +195,7 @@ public class ProjectOp implements PlannerOp {
             return new RuntimeProjectedDataAccessor(tuple, context);
         }
 
-        public class RuntimeProjectedDataAccessor implements DataAccessor {
+        public class RuntimeProjectedDataAccessor extends AbstractDataAccessor {
 
             private final DataAccessor wrapped;
 
@@ -219,17 +220,17 @@ public class ProjectOp implements PlannerOp {
 
             @Override
             public void forEach(BiConsumer<String, Object> consumer) {
-                for (String fieldName : fieldNames) {
-                    Object value = wrapped.get(fieldName);
-                    consumer.accept(fieldName, value);
+                for (int i = 0 ; i < zeroCopyProjections.length; i++) {
+                    Object value = wrapped.get(zeroCopyProjections[i]);
+                    consumer.accept(fieldNames[i], value);
                 }
             }
 
             @Override
             public Object[] getValues() {
                 Object[] data = new Object[fieldNames.length];
-                for (int i = 0; i < fieldNames.length; i++) {
-                    data[i] = wrapped.get(fieldNames[i]);
+                for (int i = 0 ; i < zeroCopyProjections.length; i++) {
+                    data[i] = wrapped.get(zeroCopyProjections[i]);
                 }
                 return data;
             }

@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.Map;
 import herddb.model.ColumnsList;
 import herddb.model.StatementExecutionException;
+import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SimpleByteArrayInputStream;
@@ -555,7 +556,7 @@ public final class RecordSerializer {
         }
     }
 
-    private static class DataAccessorForPrimaryKey implements DataAccessor {
+    private static class DataAccessorForPrimaryKey extends AbstractDataAccessor {
 
         private final Table table;
         private final Bytes key;

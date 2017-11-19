@@ -29,7 +29,7 @@ import java.util.function.BiConsumer;
  * @author enrico.olivelli
  */
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
-public class MapDataAccessor implements DataAccessor {
+public class MapDataAccessor extends AbstractDataAccessor {
 
     private final Map<String, Object> map;
     private final String[] fieldNames;

@@ -77,23 +77,25 @@ public class FilterOp implements PlannerOp {
             StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
             ScanResult downstreamScanResult = (ScanResult) input;
             final DataScanner inputScanner = downstreamScanResult.dataScanner;
-            FilteredDataScanner filtered = new FilteredDataScanner(inputScanner, context);
+            FilteredDataScanner filtered = new FilteredDataScanner(inputScanner, condition, context);
             return new ScanResult(downstreamScanResult.transactionId, filtered);
         } catch (DataScannerException ex) {
             throw new StatementExecutionException(ex);
         }
     }
 
-    private class FilteredDataScanner extends DataScanner {
+    static final class FilteredDataScanner extends DataScanner {
 
         final DataScanner inputScanner;
         final StatementEvaluationContext context;
+        final CompiledSQLExpression condition;
         DataAccessor next;
 
-        private FilteredDataScanner(DataScanner inputScanner, StatementEvaluationContext context) throws DataScannerException {
+        FilteredDataScanner(DataScanner inputScanner, CompiledSQLExpression condition, StatementEvaluationContext context) throws DataScannerException {
             super(inputScanner.transactionId, inputScanner.getFieldNames(), inputScanner.getSchema());
             this.inputScanner = inputScanner;
             this.context = context;
+            this.condition = condition;
             fetchNext();
         }
 

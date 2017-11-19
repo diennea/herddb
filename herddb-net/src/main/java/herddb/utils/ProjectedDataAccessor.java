@@ -24,7 +24,7 @@ import java.util.function.BiConsumer;
  * @author enrico.olivelli
  */
 @SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
-public class ProjectedDataAccessor implements DataAccessor {
+public class ProjectedDataAccessor extends AbstractDataAccessor {
 
     private final String[] fieldNames;
     private final DataAccessor wrapped;
