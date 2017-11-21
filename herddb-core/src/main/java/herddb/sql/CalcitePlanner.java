@@ -200,7 +200,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 || query.startsWith("BEGIN")
                 || query.startsWith("COMMIT")
                 || query.startsWith("ROLLBACK")
-                || (query.startsWith("UPDATE") && query.contains("?")) // this needs some fixes on Calcite
+//                || (query.startsWith("UPDATE") && query.contains("?")) // this needs some fixes on Calcite
                 || query.startsWith("TRUNCATE")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
@@ -480,8 +480,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
         List<CompiledSQLExpression> expressions = new ArrayList<>(sourceExpressionList.size());
+        int i = 0;
         for (RexNode node : sourceExpressionList) {
-            expressions.add(SQLExpressionCompiler.compileExpression(node));
+            CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
+            expressions.add(exp);
+            System.out.println("set "+updateColumnList.get(i++)+" = "+exp);
         }
         RecordFunction function = new SQLRecordFunction(updateColumnList, table, expressions);
         UpdateStatement update = null;

@@ -34,6 +34,7 @@ import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -81,13 +82,15 @@ public class ProjectOp implements PlannerOp {
         private class RuntimeProjectedDataAccessor extends AbstractDataAccessor {
 
             final Object[] values;
+            final BitSet evaluated;
+            final DataAccessor wrapper;
+            final StatementEvaluationContext context;
 
             public RuntimeProjectedDataAccessor(DataAccessor wrapper, StatementEvaluationContext context) {
                 this.values = new Object[fieldNames.length];
-                for (int i = 0; i < fieldNames.length; i++) {
-                    CompiledSQLExpression exp = fields.get(i);
-                    this.values[i] = exp.evaluate(wrapper, context);
-                }
+                this.evaluated = new BitSet(fieldNames.length);
+                this.wrapper = wrapper;
+                this.context = context;
             }
 
             @Override
@@ -99,7 +102,7 @@ public class ProjectOp implements PlannerOp {
             public Object get(String string) {
                 for (int i = 0; i < fieldNames.length; i++) {
                     if (fieldNames[i].equalsIgnoreCase(string)) {
-                        return values[i];
+                        return get(i);
                     }
                 }
                 return null;
@@ -107,20 +110,34 @@ public class ProjectOp implements PlannerOp {
 
             @Override
             public Object get(int i) {
+                if (!evaluated.get(i)) {
+                    CompiledSQLExpression exp = fields.get(i);
+                    this.values[i] = exp.evaluate(wrapper, context);
+                    evaluated.set(i);
+                }
                 return values[i];
             }
 
             @Override
             public Object[] getValues() {
+                ensureFullyEvaluated();
                 return values;
             }
 
             @Override
             public String toString() {
-                return "RuntimeProjectedDataAccessor{" + "values=" + Arrays.toString(values) + '}';
+                return "RuntimeProjectedDataAccessor{evaluated: "+evaluated + "values=" + Arrays.toString(values) + '}';
             }
-            
-            
+
+            private void ensureFullyEvaluated() {
+                if (evaluated.cardinality() == fieldNames.length) {
+                    return;
+                }
+                for (int i = 0; i < fieldNames.length; i++) {
+                    get(i);
+                }
+            }
+
         }
     }
 
@@ -220,7 +237,7 @@ public class ProjectOp implements PlannerOp {
 
             @Override
             public void forEach(BiConsumer<String, Object> consumer) {
-                for (int i = 0 ; i < zeroCopyProjections.length; i++) {
+                for (int i = 0; i < zeroCopyProjections.length; i++) {
                     Object value = wrapped.get(zeroCopyProjections[i]);
                     consumer.accept(fieldNames[i], value);
                 }
@@ -229,7 +246,7 @@ public class ProjectOp implements PlannerOp {
             @Override
             public Object[] getValues() {
                 Object[] data = new Object[fieldNames.length];
-                for (int i = 0 ; i < zeroCopyProjections.length; i++) {
+                for (int i = 0; i < zeroCopyProjections.length; i++) {
                     data[i] = wrapped.get(zeroCopyProjections[i]);
                 }
                 return data;

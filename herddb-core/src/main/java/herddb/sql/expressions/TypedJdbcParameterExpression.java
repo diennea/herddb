@@ -46,11 +46,12 @@ public class TypedJdbcParameterExpression implements CompiledSQLExpression {
 
     @Override
     public String toString() {
-        return "JdbcParameterExpression{" + "index=" + index + '}';
+        return System.identityHashCode(this) + " TypedJdbcParameterExpression{type=" + type + ", index=" + index + '}';
     }
 
     @Override
     public CompiledSQLExpression cast(int type) {
+        System.out.println("cast " + this + " to type " + type);
         return new TypedJdbcParameterExpression(index, type);
     }
 
