@@ -51,4 +51,9 @@ public class ConstantExpression implements CompiledSQLExpression {
         return new ConstantExpression(SQLRecordPredicate.cast(value, type));
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return this;
+    }
+
 }

@@ -24,7 +24,7 @@ import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
 
 public class CompiledNotEqualsExpression extends CompiledBinarySQLExpression {
-    
+
     private final boolean not;
 
     public CompiledNotEqualsExpression(boolean not, CompiledSQLExpression left, CompiledSQLExpression right) {
@@ -36,7 +36,7 @@ public class CompiledNotEqualsExpression extends CompiledBinarySQLExpression {
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object leftValue = left.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);
-        boolean res = ! SQLRecordPredicate.objectEquals(leftValue, rightValue);
+        boolean res = !SQLRecordPredicate.objectEquals(leftValue, rightValue);
         if (not) {
             return !res;
         } else {
@@ -44,4 +44,15 @@ public class CompiledNotEqualsExpression extends CompiledBinarySQLExpression {
         }
     }
 
+    @Override
+    public String getOperator() {
+        return "<>";
+    }
+
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledNotEqualsExpression(not,
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
 }

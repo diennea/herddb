@@ -63,9 +63,9 @@ public class CompiledBetweenExpression implements CompiledSQLExpression {
         Object startValue = start.evaluate(bean, context);
         Object endValue = end.evaluate(bean, context);
         boolean result = (objectEquals(startValue, endValue) || compare(startValue, endValue) < 0) // check impossible range
-            && (objectEquals(leftValue, startValue)
-            || objectEquals(leftValue, endValue)
-            || (compare(leftValue, startValue) > 0 && compare(leftValue, endValue) < 0)); // check value in range;
+                && (objectEquals(leftValue, startValue)
+                || objectEquals(leftValue, endValue)
+                || (compare(leftValue, startValue) > 0 && compare(leftValue, endValue) < 0)); // check value in range;
 
         if (not) {
             return !result;
@@ -79,6 +79,14 @@ public class CompiledBetweenExpression implements CompiledSQLExpression {
         left.validate(context);
         start.validate(context);
         end.validate(context);
+    }
+
+    @Override
+    public CompiledBetweenExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledBetweenExpression(not,
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                start.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                end.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
 
 }

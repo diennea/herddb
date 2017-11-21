@@ -88,7 +88,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
         DataAccessor bean = RecordSerializer.buildRawDataAccessorForPrimaryKey(key, table);
-
+        
         boolean result = toBoolean(primaryKeyFilter.evaluate(bean, context));
 
         if (!result) {
@@ -146,26 +146,25 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return -((RawString) b).compareToString((String) a);
         }
         if (a instanceof Integer && b instanceof Integer) {
-            return ((Number) a).intValue() - ((Number) b).intValue();
+            return ((Integer) a) - ((Integer) b);
         }
         if (a instanceof Long && b instanceof Long) {
-            double delta = ((Number) a).longValue() - ((Number) b).longValue();
+            double delta = ((Long) a) - ((Long) b);
             return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof Number && b instanceof Number) {
-            double delta = ((Number) a).doubleValue() - ((Number) b).doubleValue();
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
+            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
         }
         if (a instanceof java.util.Date && b instanceof java.util.Date) {
             long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
             return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof java.util.Date && b instanceof java.lang.Long) {
-            long delta = ((java.util.Date) a).getTime() - ((Long) b).longValue();
+            long delta = ((java.util.Date) a).getTime() - ((Long) b);
             return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof Long && b instanceof java.util.Date) {
-            long delta = ((Long) a).longValue() - ((java.util.Date) b).getTime();
+            long delta = ((Long) a) - ((java.util.Date) b).getTime();
             return delta == 0 ? 0 : delta > 0 ? 1 : -1;
         }
         if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {

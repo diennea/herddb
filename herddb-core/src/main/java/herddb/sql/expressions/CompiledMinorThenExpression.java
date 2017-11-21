@@ -49,4 +49,11 @@ public class CompiledMinorThenExpression extends CompiledBinarySQLExpression {
     public String getOperator() {
         return "<";
     }
+    
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledMinorThenExpression(not,
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
 }

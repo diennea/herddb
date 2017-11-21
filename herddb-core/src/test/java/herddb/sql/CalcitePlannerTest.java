@@ -32,9 +32,8 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
-import herddb.model.planner.FilteredTableScanOp;
+import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.PlannerOp;
-import herddb.model.planner.ProjectOp;
 import herddb.model.planner.ProjectedTableScanOp;
 import herddb.model.planner.TableScanOp;
 import java.util.Arrays;
@@ -61,8 +60,8 @@ public class CalcitePlannerTest {
             }
 
             assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), TableScanOp.class);
-            assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1=1"), FilteredTableScanOp.class);
-            assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), ProjectedTableScanOp.class);
+            assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), BindableTableScanOp.class);
         }
     }
 

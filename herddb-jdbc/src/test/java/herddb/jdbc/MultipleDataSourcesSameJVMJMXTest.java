@@ -64,14 +64,14 @@ public class MultipleDataSourcesSameJVMJMXTest {
                     assertEquals(1, statement_2.executeUpdate("INSERT INTO mytable (key,name) values('k2','name2')"));
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k3','name3')"));
 
-                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable a JOIN mytable b")) {
+                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable a NATURAL FULL JOIN mytable b")) {
                         int count = 0;
                         while (rs.next()) {
                             count++;
                         }
                         assertEquals(9, count);
                     }
-                    try (ResultSet rs = statement_2.executeQuery("SELECT * FROM mytable a JOIN mytable b")) {
+                    try (ResultSet rs = statement_2.executeQuery("SELECT * FROM mytable a NATURAL FULL JOIN mytable b")) {
                         int count = 0;
                         while (rs.next()) {
                             count++;

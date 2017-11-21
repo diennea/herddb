@@ -59,6 +59,9 @@ public class Driver implements java.sql.Driver, AutoCloseable {
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
+        if (!acceptsURL(url)) {
+            return null;
+        }
         HerdDBEmbeddedDataSource datasource = ensureDatasource(url, info);
         return datasource.getConnection();
     }
@@ -100,7 +103,8 @@ public class Driver implements java.sql.Driver, AutoCloseable {
             return ds;
         }
         /**
-         * DriverManager puts username/password in 'user' and 'password' properties
+         * DriverManager puts username/password in 'user' and 'password'
+         * properties
          */
         ds = new HerdDBEmbeddedDataSource(info);
         ds.setUrl(url);

@@ -221,6 +221,10 @@ public class SimpleSubqueryTest {
                     + "WHERE t1.k1 in (SELECT fk FROM tblspace1.table2 WHERE k2=?)"
                     + "", Arrays.asList("subkey4")).consume().size());
 
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.table1 set n1=1000"
+                    + "WHERE k1 in (SELECT fk FROM tblspace1.table2 WHERE k2=?)"
+                    + "", Arrays.asList("subkey4")).getUpdateCount());
+            
             assertEquals(1, executeUpdate(manager, "DELETE  "
                     + "FROM tblspace1.table1 "
                     + "WHERE k1 in (SELECT fk FROM tblspace1.table2 WHERE k2=?)"

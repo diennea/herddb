@@ -65,12 +65,15 @@ public class SimpleTableScanWithNullsTest {
                         + "  `offset` int(50) DEFAULT NULL,\n"
                         + "  PRIMARY KEY (`ip`)\n"
                         + ") ENGINE=InnoDB DEFAULT CHARSET=utf8;");
-                    statement.executeUpdate("INSERT INTO `sm_machine` VALUES"
+                    statement.executeUpdate("INSERT INTO `sm_machine` "
+//                            + "(`ip`,`firefox_version`,`chrome_version`,"
+//                            + "`ie_version`,`log`,`offset`) "
+                            + "VALUES"
                         + "('10.168.10.106',26,36,9,NULL,1),"
                         + "('10.168.10.107',26,31,10,NULL,1),"
                         + "('10.168.10.108',26,36,11,NULL,2),"
                         + "('10.168.10.109',33,38,10,NULL,3),"
-                        + "('10.168.10.110',33,38,10,NULL,4);");
+                        + "('10.168.10.110',33,38,10,NULL,4)");
                     statement.executeQuery("SELECT * FROM sm_machine").close();
 
                     try (ResultSet rs = statement.executeQuery("SELECT bad_field FROM sm_machine")) {

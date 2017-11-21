@@ -122,13 +122,13 @@ public class SimpleDataSourceTest {
                         assertTrue(rs.next());
                         assertEquals(10, rs.getLong("total"));
                     }
-                    try (PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) FROM mytable");
+                    try (PreparedStatement ps = con.prepareStatement("SELECT COUNT(*) as cc FROM mytable");
                         ResultSet rs = ps.executeQuery()) {
                         assertTrue(rs.next());
-                        assertEquals(10, rs.getLong("COUNT(*)"));
+                        assertEquals(10, rs.getLong("cc"));
                         assertEquals(10, rs.getLong(1));
                         assertEquals(Long.valueOf(10), rs.getObject(1));
-                        assertEquals(Long.valueOf(10), rs.getObject("COUNT(*)"));
+                        assertEquals(Long.valueOf(10), rs.getObject("cc"));
                     }
                 }
             }

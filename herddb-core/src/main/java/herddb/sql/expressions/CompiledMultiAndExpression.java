@@ -65,6 +65,7 @@ public class CompiledMultiAndExpression implements CompiledSQLExpression {
         }
         return res;
     }
+
     @Override
     public List<CompiledSQLExpression> scanForConstraintedValueOnColumnWithOperator(String column, String operator, BindableTableScanColumnNameResolver columnNameResolver) {
         List<CompiledSQLExpression> res = new ArrayList<>();
@@ -74,4 +75,13 @@ public class CompiledMultiAndExpression implements CompiledSQLExpression {
         return res;
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        CompiledSQLExpression[] ops = new CompiledSQLExpression[operands.length];
+        int i = 0;
+        for (CompiledSQLExpression exp : operands) {
+            ops[i++] = exp.remapPositionalAccessToToPrimaryKeyAccessor(projection);
+        }
+        return new CompiledMultiAndExpression(ops);
+    }
 }

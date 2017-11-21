@@ -83,7 +83,7 @@ public class FileCommitLog extends CommitLog {
         FileCommitLog.class.getName() + ".maxsynchtime", 1);
 
     private final boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
-        FileCommitLog.class.getName() + ".requirefsynch", true);
+        "herddb.file.requirefsynch", true);
 
     private final static byte ENTRY_START = 13;
     private final static byte ENTRY_END = 25;

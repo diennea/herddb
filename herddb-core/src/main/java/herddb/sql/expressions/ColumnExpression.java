@@ -40,4 +40,8 @@ public class ColumnExpression implements CompiledSQLExpression {
         }
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return this;
+    }
 }

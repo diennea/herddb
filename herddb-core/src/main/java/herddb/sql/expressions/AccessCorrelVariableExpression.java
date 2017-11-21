@@ -44,4 +44,8 @@ public class AccessCorrelVariableExpression implements CompiledSQLExpression {
         return bean;
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return this;
+    }
 }

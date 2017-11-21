@@ -65,4 +65,10 @@ public class CastExpression implements CompiledSQLExpression {
         return wrapped.cast(type);
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CastExpression(wrapped.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                type);
+    }
+
 }

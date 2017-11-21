@@ -28,7 +28,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Enumeration;
 import org.junit.After;
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import org.junit.Rule;
 import org.junit.Test;
@@ -58,8 +58,8 @@ public class PrettySQLExceptionTest {
                 fail();
             } catch (SQLException errorExpected) {
                 System.out.println("EXCEPTION MESSAGE: " + errorExpected.getMessage());
-                assertEquals("herddb.model.TableDoesNotExistException: no such table bad_table in tablespace default",
-                    errorExpected.getMessage());
+                assertTrue("herddb.model.TableDoesNotExistException: no such table bad_table in tablespace default"
+                    .equals(errorExpected.getMessage()) || errorExpected.getMessage().contains("Object 'BAD_TABLE' not found"));
             }
 
         }

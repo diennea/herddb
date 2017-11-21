@@ -41,6 +41,7 @@ import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.RawString;
 import herddb.utils.VisibleByteArrayOutputStream;
+import herddb.utils.Wrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -263,6 +264,15 @@ public class AggregateOp implements PlannerOp {
         public void close() throws DataScannerException {
             wrapped.close();
         }
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        T unwrapped = input.unwrap(clazz);
+        if (unwrapped != null) {
+            return unwrapped;
+        }
+        return Wrapper.unwrap(this, clazz);
     }
 
 }

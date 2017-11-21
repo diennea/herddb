@@ -48,4 +48,11 @@ public class CompiledGreaterThenExpression extends CompiledBinarySQLExpression {
     public String getOperator() {
         return ">";
     }
+    
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledGreaterThenExpression(not,
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
 }

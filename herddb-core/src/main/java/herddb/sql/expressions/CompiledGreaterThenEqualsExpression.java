@@ -54,4 +54,11 @@ public class CompiledGreaterThenEqualsExpression extends CompiledBinarySQLExpres
         return "CompiledGreaterThenEqualsExpression{" + "not=" + not + ",left=" + left + ", right=" + right + "}";
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledGreaterThenEqualsExpression(not,
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
 }

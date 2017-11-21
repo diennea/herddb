@@ -48,4 +48,11 @@ public class CompiledMinorThenEqualsExpression extends CompiledBinarySQLExpressi
     public String getOperator() {
         return "<=";
     }
+    
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledMinorThenEqualsExpression(not,
+                left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+                right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
 }

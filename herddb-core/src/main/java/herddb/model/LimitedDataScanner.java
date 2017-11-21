@@ -34,7 +34,8 @@ public class LimitedDataScanner extends DataScanner {
     public LimitedDataScanner(DataScanner wrapped, ScanLimits limits, StatementEvaluationContext context) throws DataScannerException, StatementExecutionException {
         this(wrapped, limits.computeMaxRows(context), limits.computeOffset(context), context);
     }
-    public LimitedDataScanner(DataScanner wrapped, int maxRows,int offset,  StatementEvaluationContext context) throws DataScannerException, StatementExecutionException {
+
+    public LimitedDataScanner(DataScanner wrapped, int maxRows, int offset, StatementEvaluationContext context) throws DataScannerException, StatementExecutionException {
         super(wrapped.transactionId, wrapped.getFieldNames(), wrapped.getSchema());
         this.remaining = maxRows > 0 ? maxRows : -1;
         this.offset = offset;
@@ -60,7 +61,9 @@ public class LimitedDataScanner extends DataScanner {
     @Override
     public DataAccessor next() throws DataScannerException {
         DataAccessor result = wrapped.next();
-        remaining--;
+        if (remaining != -1) {
+            remaining--;
+        }
         return result;
     }
 

@@ -55,4 +55,14 @@ public class CompiledMultiOrExpression implements CompiledSQLExpression {
         return "OR{" + Arrays.toString(operands) + '}';
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        CompiledSQLExpression[] ops = new CompiledSQLExpression[operands.length];
+        int i = 0;
+        for (CompiledSQLExpression exp : operands) {
+            ops[i++] = exp.remapPositionalAccessToToPrimaryKeyAccessor(projection);
+        }
+        return new CompiledMultiOrExpression(ops);
+    }
+
 }

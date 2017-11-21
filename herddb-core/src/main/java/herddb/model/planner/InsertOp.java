@@ -32,6 +32,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
+import herddb.model.TableAwareStatement;
 import herddb.model.TransactionContext;
 import herddb.model.commands.InsertStatement;
 import herddb.sql.SQLRecordFunction;
@@ -40,6 +41,7 @@ import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.Wrapper;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -69,7 +71,6 @@ public class InsertOp implements PlannerOp {
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
-        System.out.println("starting txid " + transactionId);
         int updateCount = 0;
         Bytes key = null;
         Bytes newValue = null;
@@ -78,7 +79,6 @@ public class InsertOp implements PlannerOp {
 
                 DataAccessor row = inputScanner.next();
                 long transactionIdFromScanner = inputScanner.getTransactionId();
-                System.out.println("transactionIdFromScanner:" + transactionIdFromScanner);
                 if (transactionIdFromScanner > 0 && transactionIdFromScanner != transactionId) {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
@@ -117,7 +117,6 @@ public class InsertOp implements PlannerOp {
                 DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
 
                 DMLStatementExecutionResult _result = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
-                System.out.println("insert ount " + _result.getUpdateCount() + " txid " + _result.transactionId);
                 updateCount += _result.getUpdateCount();
                 if (_result.transactionId > 0 && _result.transactionId != transactionId) {
                     transactionId = _result.transactionId;
@@ -126,10 +125,27 @@ public class InsertOp implements PlannerOp {
                 key = _result.getKey();
                 newValue = _result.getNewvalue();
             }
+            if (updateCount > 1 && returnValues) {
+                if (transactionId > 0) {
+                    // usually the first record will be rolledback with transaction failure
+                    throw new StatementExecutionException("cannot 'return values' on multi-values insert");
+                } else {
+                    throw new StatementExecutionException("cannot 'return values' on multi-values insert, at least record could have been written because autocommit=true");
+                }
+            }
             return new DMLStatementExecutionResult(transactionId, updateCount, key, newValue);
         } catch (DataScannerException err) {
             throw new StatementExecutionException(err);
         }
 
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> clazz) {
+        if (clazz.isAssignableFrom(TableAwareStatement.class)) {
+            return (T) new TableAwareStatement(tableName, tableSpace) {
+            };
+        }
+        return Wrapper.unwrap(this, clazz);
     }
 }

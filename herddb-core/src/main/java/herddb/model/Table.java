@@ -57,6 +57,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
     public final Map<String, Column> columnsByName;
     public final Map<Integer, Column> columnsBySerialPosition;
     public final String[] primaryKey;
+    public final int[] primaryKeyProjection;
     public final boolean auto_increment;
     private final Set<String> primaryKeyColumns;
     public final int maxSerialPosition;
@@ -73,6 +74,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         this.auto_increment = auto_increment;
         this.columnNames = new String[columns.length];
         int i = 0;
+        this.primaryKeyProjection = new int[columns.length];
         for (Column c : columns) {
             String cname = c.name.toLowerCase();
             columnsByName.put(cname, c);
@@ -81,9 +83,11 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             }
             columnsBySerialPosition.put(c.serialPosition, c);
             columnNames[i] = cname;
+            primaryKeyProjection[i] = findPositionInArray(cname, primaryKey);
             i++;
         }
         this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));
+
     }
 
     public boolean isPrimaryKeyColumn(String column) {
@@ -273,6 +277,19 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     public Column getColumnBySerialPosition(int serialPosition) {
         return columnsBySerialPosition.get(serialPosition);
+    }
+
+    public int[] getPrimaryKeyProjection() {
+        return primaryKeyProjection;
+    }
+
+    private static int findPositionInArray(String cname, String[] primaryKey) {
+        for (int i = 0; i < primaryKey.length; i++) {
+            if (primaryKey[i].equals(cname)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     public static class Builder {

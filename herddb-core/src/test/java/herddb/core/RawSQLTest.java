@@ -141,32 +141,33 @@ public class RawSQLTest {
                 assertEquals(1, ok.getIndex());
             }
 
-            try {
-                scan(manager, "SELECT * FROM tblspace1.tsql where n1 = 1234 and k1 in "
-                        + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?) and n1 = ?", Arrays.asList(1));
-                fail();
-            } catch (MissingJDBCParameterException ok) {
-                assertEquals(2, ok.getIndex());
+            if (manager.getPlanner() instanceof SQLPlanner) {
+                try {
+                    scan(manager, "SELECT * FROM tblspace1.tsql where n1 = 1234 and k1 in "
+                            + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?) and n1 = ?", Arrays.asList(1));
+                    fail();
+                } catch (MissingJDBCParameterException ok) {
+                    assertEquals(2, ok.getIndex());
+                }
+
+                scan(manager, "SELECT * FROM tblspace1.tsql where n1 = ? and k1 in "
+                        + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?)", Arrays.asList(1));
+
+                try {
+                    scan(manager, "SELECT * FROM tblspace1.tsql where k1 in "
+                            + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?)", Collections.emptyList());
+                    fail();
+                } catch (MissingJDBCParameterException ok) {
+                    assertEquals(1, ok.getIndex());
+                }
+
+                try {
+                    scan(manager, "SELECT * FROM tblspace1.tsql where k1 in (SELECT k1+? FROM tblspace1.tsql)", Collections.emptyList());
+                    fail();
+                } catch (MissingJDBCParameterException ok) {
+                    assertEquals(1, ok.getIndex());
+                }
             }
-
-            scan(manager, "SELECT * FROM tblspace1.tsql where n1 = ? and k1 in "
-                    + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?)", Arrays.asList(1));
-
-            try {
-                scan(manager, "SELECT * FROM tblspace1.tsql where k1 in "
-                        + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?)", Collections.emptyList());
-                fail();
-            } catch (MissingJDBCParameterException ok) {
-                assertEquals(1, ok.getIndex());
-            }
-
-            try {
-                scan(manager, "SELECT * FROM tblspace1.tsql where k1 in (SELECT k1+? FROM tblspace1.tsql)", Collections.emptyList());
-                fail();
-            } catch (MissingJDBCParameterException ok) {
-                assertEquals(1, ok.getIndex());
-            }
-
             try {
                 scan(manager, "SELECT * FROM tblspace1.tsql where k1 in (SELECT k1 FROM tblspace1.tsql where n1=?)", Collections.emptyList());
                 fail();
@@ -195,10 +196,12 @@ public class RawSQLTest {
                 assertEquals(1, ok.getIndex());
             }
 
-            try {
-                scan(manager, "SELECT sum(n1), sum(?) FROM tblspace1.tsql", Collections.emptyList());
-            } catch (MissingJDBCParameterException ok) {
-                assertEquals(1, ok.getIndex());
+            if (manager.getPlanner() instanceof SQLPlanner) {
+                try {
+                    scan(manager, "SELECT sum(n1), sum(?) FROM tblspace1.tsql", Collections.emptyList());
+                } catch (MissingJDBCParameterException ok) {
+                    assertEquals(1, ok.getIndex());
+                }
             }
 
         }
@@ -437,20 +440,21 @@ public class RawSQLTest {
             try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
                 assertEquals(3, scan.consume().size());
             }
+            if (manager.getPlanner() instanceof SQLPlanner) {
+                DMLStatementExecutionResult executeUpdateWithParameters = executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
+                        + "(select ?,?,n1 from tblspace1.tsql where n1=?)", Arrays.asList("mykey5", tt3, 1236), TransactionContext.NO_TRANSACTION);
+                assertEquals(1, executeUpdateWithParameters.getUpdateCount());
+                assertTrue(executeUpdateWithParameters.transactionId == 0);
 
-            DMLStatementExecutionResult executeUpdateWithParameters = executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
-                    + "(select ?,?,n1 from tblspace1.tsql where n1=?)", Arrays.asList("mykey5", tt3, 1236), TransactionContext.NO_TRANSACTION);
-            assertEquals(1, executeUpdateWithParameters.getUpdateCount());
-            assertTrue(executeUpdateWithParameters.transactionId == 0);
-
-            try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 "
-                    + "FROM tblspace1.tsql2 "
-                    + "WHERE t2 = ?", Arrays.asList(tt3));) {
-                List<DataAccessor> all = scan.consume();
-                assertEquals(1, all.size());
-                assertEquals(Integer.valueOf(1236), all.get(0).get("n2"));
-                assertEquals(tt3, all.get(0).get("t2"));
-                assertEquals(RawString.of("mykey5"), all.get(0).get("k2"));
+                try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 "
+                        + "FROM tblspace1.tsql2 "
+                        + "WHERE t2 = ?", Arrays.asList(tt3));) {
+                    List<DataAccessor> all = scan.consume();
+                    assertEquals(1, all.size());
+                    assertEquals(Integer.valueOf(1236), all.get(0).get("n2"));
+                    assertEquals(tt3, all.get(0).get("t2"));
+                    assertEquals(RawString.of("mykey5"), all.get(0).get("k2"));
+                }
             }
         }
     }
@@ -728,6 +732,14 @@ public class RawSQLTest {
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?", Arrays.asList(3), TransactionContext.NO_TRANSACTION);) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT 1,2", Collections.emptyList(), TransactionContext.NO_TRANSACTION);) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(2, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?,?", Arrays.asList(1, 2), TransactionContext.NO_TRANSACTION);) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(2, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
@@ -1461,8 +1473,8 @@ public class RawSQLTest {
                 PlannerOp first = translated.plan.mainStatement.unwrap(SQLPlannedOperationStatement.class)
                         .getRootOp();
                 System.out.println("first:" + first);
-                try (DataScanner scan1 = 
-                        ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
+                try (DataScanner scan1
+                        = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
                     List<DataAccessor> records = scan1.consume();
                     assertEquals(1, records.size());
                     assertEquals(3, records.get(0).getFieldNames().length);
@@ -1472,7 +1484,7 @@ public class RawSQLTest {
                     assertEquals("thestringconstant", records.get(0).getFieldNames()[1].toLowerCase());
                     assertEquals(RawString.of("one"), records.get(0).get("theStringConstant"));
                     assertEquals("longconstant", records.get(0).getFieldNames()[2].toLowerCase());
-                    assertEquals(Long.valueOf(3), records.get(0).get("LongConstant"));
+                    assertEquals(3L, ((Number) records.get(0).get("LongConstant")).longValue());
                 }
             }
             {
@@ -1689,8 +1701,7 @@ public class RawSQLTest {
                     assertEquals("thestringconstant", records.get(0).getFieldNames()[1].toLowerCase());
                     assertEquals(RawString.of("one"), records.get(0).get(1));
                     assertEquals("longconstant", records.get(0).getFieldNames()[2].toLowerCase());
-                    assertEquals(Long.valueOf(3), records.get(0).get(2)
-                    );
+                    assertEquals(3, ((Number) records.get(0).get(2)).longValue());
                 }
             }
 
@@ -1889,8 +1900,17 @@ public class RawSQLTest {
             assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(0), new java.sql.Timestamp(1000))).consume().size());
             assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now + 1000), new java.sql.Timestamp(now - 1000))).consume().size());
 
-            // timestamp with jdbc literals
-            assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between {ts '" + new java.sql.Timestamp(now) + "'} and {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consume().size());
+            if (manager.getPlanner() instanceof SQLPlanner) {
+                System.out.println("now:" + new java.sql.Timestamp(now));
+                assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts >= {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consume().size());
+
+                // timestamp with jdbc literals
+                assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts between {ts '" + new java.sql.Timestamp(now) + "'} and {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consume().size());
+
+            } else {
+                // Calcite interprets JDBC syntax as in UTC Timezone
+
+            }
 
         }
     }

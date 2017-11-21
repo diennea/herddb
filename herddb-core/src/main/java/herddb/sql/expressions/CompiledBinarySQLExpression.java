@@ -19,6 +19,7 @@
  */
 package herddb.sql.expressions;
 
+import herddb.core.HerdDBInternalException;
 import herddb.model.Column;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -55,8 +56,7 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
         }
         if ((right instanceof ConstantExpression
                 || right instanceof TypedJdbcParameterExpression
-                || right instanceof JdbcParameterExpression
-                )
+                || right instanceof JdbcParameterExpression)
                 && (left instanceof AccessCurrentRowExpression)) {
             AccessCurrentRowExpression ex = (AccessCurrentRowExpression) left;
             Column colName = columnNameResolver.resolveColumName(ex.getIndex());
@@ -81,6 +81,11 @@ public abstract class CompiledBinarySQLExpression implements CompiledSQLExpressi
             }
         }
         return Collections.emptyList();
+    }
+
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        throw new IllegalStateException("no implemented");
     }
 
 }

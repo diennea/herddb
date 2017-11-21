@@ -51,4 +51,15 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
         return "AccessCurrentRow{" + index + '}';
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+
+        int _index = projection[index];
+        if (_index < 0) {
+            throw new IllegalStateException("column " + index + " not in pk, projection:" + Arrays.toString(projection));
+        }
+        System.out.println("remap column " + index + " to pk, projection:" + Arrays.toString(projection)+" -> "+_index);
+        return new AccessCurrentRowExpression(_index);
+    }
+
 }

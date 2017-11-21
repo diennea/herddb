@@ -80,8 +80,12 @@ public class LimitOp implements PlannerOp, ScanLimits {
             final DataScanner inputScanner = downstreamScanResult.dataScanner;
             int offset = computeOffset(context);
             int maxrows = computeMaxRows(context);
-            LimitedDataScanner limited = new LimitedDataScanner(inputScanner, maxrows, offset, context);
-            return new ScanResult(downstreamScanResult.transactionId, limited);
+            if (maxrows <= 0 && offset == 0) {
+                return downstreamScanResult;
+            } else {
+                LimitedDataScanner limited = new LimitedDataScanner(inputScanner, maxrows, offset, context);
+                return new ScanResult(downstreamScanResult.transactionId, limited);
+            }
         } catch (DataScannerException ex) {
             throw new StatementExecutionException(ex);
         }

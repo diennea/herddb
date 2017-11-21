@@ -51,4 +51,9 @@ public class JdbcParameterExpression implements CompiledSQLExpression {
         return new TypedJdbcParameterExpression(index, type);
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return this;
+    }
+
 }

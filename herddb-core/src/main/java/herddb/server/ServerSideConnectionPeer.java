@@ -563,7 +563,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                 Map<String, Object> otherData = null;
                 if (returnValues && dml.getKey() != null) {
-                    TableAwareStatement tableStatement = (TableAwareStatement) statement;
+                    TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class);
                     Table table = server
                         .getManager()
                         .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();

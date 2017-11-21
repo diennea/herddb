@@ -48,4 +48,8 @@ public class AccessFieldExpression implements CompiledSQLExpression {
         return bean.get(name);
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return this;
+    }
 }

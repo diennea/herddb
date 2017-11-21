@@ -60,7 +60,7 @@ public interface CompiledSQLExpression {
     ) {
         return Collections.emptyList();
     }
-    
+
     public default List<CompiledSQLExpression> scanForConstraintsOnColumn(
             String column, BindableTableScanColumnNameResolver columnNameResolver
     ) {
@@ -69,5 +69,21 @@ public interface CompiledSQLExpression {
 
     public default CompiledSQLExpression cast(int type) {
         return new CastExpression(this, type);
+    }
+
+    /**
+     * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
+     * }
+     * works on a projection of the table wich contains only the pk fields of
+     * the table for instance if the predicate wants to access first element of
+     * the pk, and this field is the 3rd in the column list then you will find
+     * {@link AccessCurrentRowExpression} with index=2. To this expression you
+     * have to apply the projection and map 2 (3rd element of the table) to 0
+     * (1st element of the pk)
+     *
+     * @param projection a map from index on table to the index on pk
+     */
+    public default CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        throw new IllegalStateException("not implemented for " + this.getClass());
     }
 }

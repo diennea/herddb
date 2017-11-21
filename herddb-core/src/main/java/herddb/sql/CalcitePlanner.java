@@ -50,6 +50,7 @@ import herddb.model.commands.UpdateStatement;
 import herddb.model.planner.AggregateOp;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.DeleteOp;
+import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.FilterOp;
 import herddb.model.planner.FilteredTableScanOp;
 import herddb.model.planner.InsertOp;
@@ -60,6 +61,7 @@ import herddb.model.planner.SemiJoinOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UnionAllOp;
+import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
 import herddb.sql.expressions.AccessCurrentRowExpression;
@@ -75,6 +77,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
@@ -183,7 +187,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     @Override
     public ExecutionPlan plan(String defaultTableSpace, Statement stmt, boolean scan, boolean returnValues, int maxRows) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return fallback.plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
     }
 
     @Override
@@ -196,7 +200,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 || query.startsWith("BEGIN")
                 || query.startsWith("COMMIT")
                 || query.startsWith("ROLLBACK")
-                || query.startsWith("UPDATE") // this needs some fixes on Calcite
+                || (query.startsWith("UPDATE") && query.contains("?")) // this needs some fixes on Calcite
                 || query.startsWith("TRUNCATE")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
@@ -264,6 +268,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 }
             }
             if (maxRows > 0) {
+                System.out.println("maxRows on plan:" + maxRows);
                 PlannerOp op = new LimitOp(sqlPlannedOperationStatement.getRootOp(),
                         new ConstantExpression(maxRows), new ConstantExpression(0))
                         .optimize();
@@ -284,6 +289,30 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             throw new StatementExecutionException(ex);
         }
     }
+
+    /**
+     * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
+     * }
+     * works on a projection of the table wich contains only the pk fields of
+     * the table for instance if the predicate wants to access first element of
+     * the pk, and this field is the 3rd in the column list then you will find
+     * {@link AccessCurrentRowExpression} with index=2. To this expression you
+     * have to apply the projection and map 2 (3rd element of the table) to 0
+     * (1st element of the pk)
+     *
+     * @param filterPk
+     * @param table
+     */
+    private CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(CompiledSQLExpression filterPk, Table table) {
+        try {
+            int[] projectionToKey = table.getPrimaryKeyProjection();
+            return filterPk.remapPositionalAccessToToPrimaryKeyAccessor(projectionToKey);
+        } catch (IllegalStateException notImplemented) {
+            LOG.log(Level.INFO, "Not implemented best accessnfor PK ", notImplemented);
+            return null;
+        }
+    }
+    private static final Logger LOG = Logger.getLogger(CalcitePlanner.class.getName());
 
     private static class PlannerResult {
 
@@ -348,7 +377,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 case INSERT:
                     return planInsert(dml, returnValues);
                 case DELETE:
-                    return planDelete(dml, returnValues);
+                    return planDelete(dml);
                 case UPDATE:
                     return planUpdate(dml, returnValues);
                 default:
@@ -409,8 +438,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private DeleteOp planDelete(EnumerableTableModify dml,
-            boolean returnValues) {
+    private PlannerOp planDelete(EnumerableTableModify dml) {
         PlannerOp input = convertRelNode(dml.getInput(), null, false);
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
@@ -434,14 +462,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     .getPredicate();
             delete = new DeleteStatement(tableSpace, tableName, null, pred);
         }
-        if (delete == null) {
-            throw new StatementExecutionException("unsupported input type for DELETE " + input.getClass());
-        }
-        return new DeleteOp(delete.setReturnValues(returnValues));
+        if (delete != null) {
 
+            return new SimpleDeleteOp(delete);
+        } else {
+            return new DeleteOp(tableSpace, tableName, input);
+        }
     }
 
-    private UpdateOp planUpdate(EnumerableTableModify dml, boolean returnValues) {
+    private PlannerOp planUpdate(EnumerableTableModify dml, boolean returnValues) {
         PlannerOp input = convertRelNode(dml.getInput(), null, false);
         List<String> updateColumnList = dml.getUpdateColumnList();
         List<RexNode> sourceExpressionList = dml.getSourceExpressionList();
@@ -480,10 +509,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 update = new UpdateStatement(tableSpace, tableName, null, function, pred);
             }
         }
-        if (update == null) {
-            throw new StatementExecutionException("unsupported input type " + input + " for UPDATE " + input.getClass());
+        if (update != null) {
+            return new SimpleUpdateOp(update.setReturnValues(returnValues));
+        } else {
+            return new UpdateOp(tableSpace, tableName, input, returnValues, function);
         }
-        return new UpdateOp(update.setReturnValues(returnValues));
 
     }
 
@@ -531,6 +561,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             predicate.setIndexOperation(op);
             CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
             System.out.println("bindscan, filterpk " + filterPk);
+
+            if (filterPk != null) {
+                filterPk = remapPositionalAccessToToPrimaryKeyAccessor(filterPk, table);
+                System.out.println("bindscan, remapped filterpk " + filterPk);
+            }
             predicate.setPrimaryKeyFilter(filterPk);
         }
         List<RexNode> projections = new ArrayList<>(scan.projects.size());
@@ -697,6 +732,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private PlannerOp planLimit(EnumerableLimit op, RelDataType rowType) {
         PlannerOp input = convertRelNode(op.getInput(), rowType, false);
+        System.out.println("limit:" + op.fetch + " off " + op.offset);
         CompiledSQLExpression maxRows = SQLExpressionCompiler.compileExpression(op.fetch);
         CompiledSQLExpression offset = SQLExpressionCompiler.compileExpression(op.offset);
         return new LimitOp(input, maxRows, offset);

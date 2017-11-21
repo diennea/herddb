@@ -42,7 +42,7 @@ public class CompiledInExpression implements CompiledSQLExpression {
     private final boolean not;
 
     public CompiledInExpression(boolean not, CompiledSQLExpression left,
-        List<CompiledSQLExpression> inExpressions, SubSelect inSubSelect) {
+            List<CompiledSQLExpression> inExpressions, SubSelect inSubSelect) {
         this.left = left;
         this.not = not;
         this.inExpressions = inExpressions;
@@ -51,8 +51,8 @@ public class CompiledInExpression implements CompiledSQLExpression {
                 this.inSubSelectPlain = (PlainSelect) inSubSelect.getSelectBody();
             } else {
                 throw new StatementExecutionException("unsupported operand \"IN\""
-                    + " with subquery of type " + inSubSelect.getSelectBody().getClass()
-                    + "(" + inSubSelect.getSelectBody() + ")");
+                        + " with subquery of type " + inSubSelect.getSelectBody().getClass()
+                        + "(" + inSubSelect.getSelectBody() + ")");
             }
         } else {
             this.inSubSelectPlain = null;
@@ -85,13 +85,13 @@ public class CompiledInExpression implements CompiledSQLExpression {
             SubSelect ss = (SubSelect) in.getRightItemsList();
             if (!(ss.getSelectBody() instanceof PlainSelect)) {
                 throw new StatementExecutionException("unsupported operand " + in.getClass()
-                    + " with subquery of type " + ss.getClass() + "(" + ss + ")");
+                        + " with subquery of type " + ss.getClass() + "(" + ss + ")");
             }
             return new CompiledInExpression(in.isNot(), left, null, ss);
         }
 
         throw new StatementExecutionException("unsupported operand " + in.getClass()
-            + " with argument of type " + in.getRightItemsList().getClass() + "(" + in + ")");
+                + " with argument of type " + in.getRightItemsList().getClass() + "(" + in + ")");
     }
 
     @Override
