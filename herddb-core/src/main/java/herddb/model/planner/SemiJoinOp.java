@@ -67,10 +67,11 @@ public class SemiJoinOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
-        ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext, context);
+    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        ScanResult resLeft = (ScanResult) left.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         transactionContext = new TransactionContext(resLeft.transactionId);
-        ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext, context);
+        ScanResult resRight = (ScanResult) right.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         final long resTransactionId = resRight.transactionId;
         Enumerable<DataAccessor> result = EnumerableDefaults.semiJoin(
                 resLeft.dataScanner.createEnumerable(),

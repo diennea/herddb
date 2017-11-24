@@ -211,7 +211,8 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
     protected abstract Iterable<Record> buildVirtualRecordList() throws StatementExecutionException;
 
     @Override
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         Predicate predicate = statement.getPredicate();
         MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
             .createRecordSet(table.columnNames, table.columns);

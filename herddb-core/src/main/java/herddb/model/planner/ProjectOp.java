@@ -173,10 +173,10 @@ public class ProjectOp implements PlannerOp {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
 
         // TODO merge projection + scan + sort + limit
-        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
+        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         ScanResult downstream = (ScanResult) input;
         DataScanner dataScanner = downstream.dataScanner;
 

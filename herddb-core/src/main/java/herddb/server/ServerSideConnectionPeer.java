@@ -59,6 +59,7 @@ import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
 import herddb.model.commands.RollbackTransactionStatement;
+import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
@@ -230,13 +231,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             long dumpOffset = (long) message.parameters.get("dumpOffset");
             Table tableSchema = Table.deserialize(table);
             tableSchema = Table
-                .builder()
-                .cloning(tableSchema)
-                .tablespace(tableSpace)
-                .build();
+                    .builder()
+                    .cloning(tableSchema)
+                    .tablespace(tableSpace)
+                    .build();
             server.getManager()
-                .getTableSpaceManager(tableSpace)
-                .beginRestoreTable(tableSchema.serialize(), new LogSequenceNumber(dumpLedgerId, dumpOffset));
+                    .getTableSpaceManager(tableSpace)
+                    .beginRestoreTable(tableSchema.serialize(), new LogSequenceNumber(dumpLedgerId, dumpOffset));
 
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (StatementExecutionException err) {
@@ -257,8 +258,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             List<Index> indexes = indexesDef.stream().map(Index::deserialize).collect(Collectors.toList());
 
             server.getManager()
-                .getTableSpaceManager(tableSpace)
-                .restoreTableFinished(table, indexes);
+                    .getTableSpaceManager(tableSpace)
+                    .restoreTableFinished(table, indexes);
 
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (StatementExecutionException err) {
@@ -275,8 +276,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             String tableSpace = (String) message.parameters.get("tableSpace");
 
             server.getManager()
-                .getTableSpaceManager(tableSpace)
-                .restoreFinished();
+                    .getTableSpaceManager(tableSpace)
+                    .restoreFinished();
 
             _channel.sendReplyMessage(message, Message.ACK(null));
         } catch (StatementExecutionException err) {
@@ -378,16 +379,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
         try {
             TranslatedQuery translatedQuery = server
-                .getManager()
-                .getPlanner().translate(tableSpace, query, parameters, true, true, false, maxRows);
+                    .getManager()
+                    .getPlanner().translate(tableSpace, query, parameters, true, true, false, maxRows);
 
             if (LOGGER.isLoggable(Level.FINEST)) {
                 LOGGER.log(Level.FINEST, query + " -> " + translatedQuery.plan.mainStatement);
             }
 
             TransactionContext transactionContext = new TransactionContext(txId);
-            if (translatedQuery.plan.mainStatement.unwrap(ScanStatement.class) != null
-                || translatedQuery.plan.joinStatements != null) {
+            if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
+                    || translatedQuery.plan.mainStatement instanceof ScanStatement
+                    || translatedQuery.plan.joinStatements != null) {
 
                 ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                 DataScanner dataScanner = scanResult.dataScanner;
@@ -496,8 +498,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
                 TransactionContext transactionContext = new TransactionContext(transactionId);
                 TranslatedQuery translatedQuery = server
-                    .getManager()
-                    .getPlanner().translate(tableSpace, query, parameters, false, true, returnValues, -1);
+                        .getManager()
+                        .getPlanner().translate(tableSpace, query, parameters, false, true, returnValues, -1);
                 Statement statement = translatedQuery.plan.mainStatement;
 
                 StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -552,12 +554,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         try {
             TransactionContext transactionContext = new TransactionContext(txId);
             TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace,
-                query, parameters, false, true, returnValues, -1);
+                    query, parameters, false, true, returnValues, -1);
             Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
             StatementExecutionResult result = server
-                .getManager()
-                .executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
+                    .getManager()
+                    .executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
             if (result instanceof DMLStatementExecutionResult) {
                 DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
@@ -565,8 +567,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 if (returnValues && dml.getKey() != null) {
                     TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class);
                     Table table = server
-                        .getManager()
-                        .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
+                            .getManager()
+                            .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
 
                     otherData = new HashMap<>();
                     Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);

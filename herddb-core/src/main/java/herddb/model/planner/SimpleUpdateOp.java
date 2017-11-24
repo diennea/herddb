@@ -47,7 +47,7 @@ public class SimpleUpdateOp implements PlannerOp {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transaction, StatementEvaluationContext context)
+            TransactionContext transaction, StatementEvaluationContext context, boolean lockRequired, boolean forWrite)
             throws StatementExecutionException {
         return tableSpaceManager.executeStatement(statement, context, transaction);
     }

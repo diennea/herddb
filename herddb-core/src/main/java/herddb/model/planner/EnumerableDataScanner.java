@@ -50,13 +50,10 @@ public class EnumerableDataScanner extends DataScanner {
     }
 
     private void fetchNext() {
-        System.out.println("fetchnext");
         if (wrapped.moveNext()) {
             next = wrapped.current();
-            System.out.println("new cuurent:" + next);
         } else {
             next = null;
-            System.out.println("end");
         }
     }
 

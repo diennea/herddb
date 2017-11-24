@@ -26,10 +26,12 @@ import herddb.model.Predicate;
 import herddb.model.Record;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.model.predicates.RawKeyEquals;
 import herddb.utils.Bytes;
 
 /**
- * Delete an existing record, if the record does not exist the updateCount will return 0
+ * Delete an existing record, if the record does not exist the updateCount will
+ * return 0
  *
  * @author enrico.olivelli
  */
@@ -48,12 +50,7 @@ public class DeleteStatement extends DMLStatement {
                     }
                 };
             } else {
-                predicate = new Predicate() {
-                    @Override
-                    public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
-                        return record.key.equals(key);
-                    }
-                };
+                predicate = new RawKeyEquals(key);
             }
         }
         if (key != null) {

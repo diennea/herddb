@@ -507,7 +507,8 @@ public class TableSpaceManager {
         return dataStorageManager.writeTables(tableSpaceUUID, logSequenceNumber, tablelist, indexlist);
     }
 
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
+            TransactionContext transactionContext, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         boolean rollbackOnError = false;
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
             StatementExecutionResult newTransaction = beginTransaction();
@@ -529,7 +530,7 @@ public class TableSpaceManager {
                     throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + tableManager.getCreatedInTransaction());
                 }
             }
-            return tableManager.scan(statement, context, transaction);
+            return tableManager.scan(statement, context, transaction, lockRequired, forWrite);
         } catch (StatementExecutionException error) {
             if (rollbackOnError) {
                 rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId));
@@ -1040,7 +1041,7 @@ public class TableSpaceManager {
             }
             if (statement instanceof SQLPlannedOperationStatement){
                 SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-                return planned.getRootOp().execute(this, transactionContext, context);
+                return planned.getRootOp().execute(this, transactionContext, context, false, false);
             }
             throw new StatementExecutionException("unsupported statement " + statement);
         } catch (StatementExecutionException error) {

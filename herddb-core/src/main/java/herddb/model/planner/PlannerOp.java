@@ -37,7 +37,7 @@ public interface PlannerOp extends Wrapper {
 
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext,
-            StatementEvaluationContext context) throws StatementExecutionException;
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException;
 
     /**
      * Optimize this node, eventually merging this node with its inputs

@@ -51,7 +51,6 @@ public class TypedJdbcParameterExpression implements CompiledSQLExpression {
 
     @Override
     public CompiledSQLExpression cast(int type) {
-        System.out.println("cast " + this + " to type " + type);
         return new TypedJdbcParameterExpression(index, type);
     }
 

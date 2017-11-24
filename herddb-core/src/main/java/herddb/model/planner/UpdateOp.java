@@ -26,6 +26,7 @@ import herddb.model.DMLStatement;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.Predicate;
 import herddb.model.RecordFunction;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
@@ -35,6 +36,7 @@ import herddb.model.Table;
 import herddb.model.TableAwareStatement;
 import herddb.model.TransactionContext;
 import herddb.model.commands.UpdateStatement;
+import herddb.model.predicates.RawKeyEquals;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
@@ -63,12 +65,11 @@ public class UpdateOp implements PlannerOp {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context) {
-        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
+            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) {
+        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
-        System.out.println("starting txid " + transactionId);
         int updateCount = 0;
         Bytes key = null;
         Bytes newValue = null;
@@ -77,20 +78,18 @@ public class UpdateOp implements PlannerOp {
 
                 DataAccessor row = inputScanner.next();
                 long transactionIdFromScanner = inputScanner.getTransactionId();
-                System.out.println("transactionIdFromScanner:" + transactionIdFromScanner);
                 if (transactionIdFromScanner > 0 && transactionIdFromScanner != transactionId) {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
                 key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
-
+                Predicate pred = new RawKeyEquals(key);
                 DMLStatement updateStatement = new UpdateStatement(tableSpace, tableName,
-                        new ConstValueRecordFunction(key.data), this.recordFunction, null)
+                        null, this.recordFunction, pred)
                         .setReturnValues(returnValues);
-
+                
                 DMLStatementExecutionResult _result
                         = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(updateStatement, context, transactionContext);
-                System.out.println("update ount " + _result.getUpdateCount() + " txid " + _result.transactionId);
                 updateCount += _result.getUpdateCount();
                 if (_result.transactionId > 0 && _result.transactionId != transactionId) {
                     transactionId = _result.transactionId;

@@ -2034,7 +2034,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @Override
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException {
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         boolean sorted = statement.getComparator() != null;
         boolean sortedByClusteredIndex = statement.getComparator() != null
             && statement.getComparator().isOnlyPrimaryKeyAndAscending()
@@ -2089,7 +2090,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
 
                     }
-                }, transaction, false, false);
+                }, transaction, lockRequired, forWrite);
                 // we have to sort data any way, because accessTableData will return partially sorted data
                 sortDone = false;
             } else if (sorted) {
@@ -2104,7 +2105,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             sorter.collect(record.getDataAccessor(table));
                         }
                     }
-                }, transaction, false, false);
+                }, transaction, lockRequired, forWrite);
                 sorter.flushToRecordSet(recordSet);
                 sortDone = true;
             } else {
@@ -2127,7 +2128,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             throw new ExitLoop(false);
                         }
                     }
-                }, transaction, false, false);
+                }, transaction, lockRequired, forWrite);
             }
         } else {
             accessTableData(statement, context, new ScanResultOperation() {
@@ -2141,7 +2142,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
                 }
-            }, transaction, false, false);
+            }, transaction, lockRequired, forWrite);
         }
 
         recordSet.writeFinished();

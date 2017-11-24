@@ -71,10 +71,13 @@ public class FilterOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext,
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         try {
             // TODO merge projection + scan + sort + limit
-            StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
+            StatementExecutionResult input = this.input.execute(tableSpaceManager,
+                    transactionContext, context, lockRequired, forWrite);
             ScanResult downstreamScanResult = (ScanResult) input;
             final DataScanner inputScanner = downstreamScanResult.dataScanner;
             FilteredDataScanner filtered = new FilteredDataScanner(inputScanner, condition, context);

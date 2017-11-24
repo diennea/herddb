@@ -50,11 +50,15 @@ public class UnionAllOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext,
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         try {
-            StatementExecutionResult input = this.inputs.get(0).execute(tableSpaceManager, transactionContext, context);
+            StatementExecutionResult input = this.inputs.get(0).execute(tableSpaceManager,
+                    transactionContext, context, lockRequired,forWrite);
             ScanResult downstream = (ScanResult) input;
-            DataScanner dataScanner = new UnionAllDataScanner(downstream.dataScanner, tableSpaceManager, transactionContext, context);
+            DataScanner dataScanner = new UnionAllDataScanner(downstream.dataScanner,
+                    tableSpaceManager, transactionContext, context, lockRequired, forWrite);
 
             return new ScanResult(downstream.transactionId, dataScanner);
         } catch (DataScannerException ex) {
@@ -70,11 +74,15 @@ public class UnionAllOp implements PlannerOp {
         final TableSpaceManager tableSpaceManager;
         TransactionContext transactionContext;
         final StatementEvaluationContext context;
+        final boolean lockRequired;
+        final boolean forWrite;
 
         public UnionAllDataScanner(DataScanner first, TableSpaceManager tableSpaceManager,
-                TransactionContext transactionContext, StatementEvaluationContext context) throws DataScannerException {
+                TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws DataScannerException {
             super(first.transactionId, first.getFieldNames(), first.getSchema());
             this.tableSpaceManager = tableSpaceManager;
+            this.lockRequired = lockRequired;
+            this.forWrite = forWrite;
             this.context = context;
             this.transactionContext = transactionContext;
             current = first;
@@ -82,14 +90,15 @@ public class UnionAllOp implements PlannerOp {
         }
 
         private void fetchNext() throws DataScannerException {
-            System.out.println("fetchNext " + current + " index " + index);
             if (current.hasNext()) {
                 next = current.next();
             } else if (index == inputs.size() - 1) {
                 next = null;
             } else {
                 index++;
-                ScanResult execute = (ScanResult) inputs.get(index).execute(tableSpaceManager, transactionContext, context);
+                ScanResult execute = (ScanResult) inputs
+                        .get(index).execute(tableSpaceManager,
+                                transactionContext, context, lockRequired, forWrite);
                 transactionContext = new TransactionContext(execute.transactionId);
                 this.transactionId = execute.transactionId;
                 current = execute.dataScanner;
@@ -105,9 +114,8 @@ public class UnionAllOp implements PlannerOp {
 
         @Override
         public DataAccessor next() throws DataScannerException {
-            DataAccessor current = next;
+            final DataAccessor current = next;
             fetchNext();
-            System.out.println("returning " + current);
             return current;
         }
 

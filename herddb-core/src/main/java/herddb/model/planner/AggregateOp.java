@@ -82,9 +82,13 @@ public class AggregateOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext,
+            StatementEvaluationContext context,
+            boolean lockRequired, boolean forWrite) throws StatementExecutionException {
 
-        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
+        StatementExecutionResult input =
+                this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         ScanResult downstreamScanResult = (ScanResult) input;
         final DataScanner inputScanner = downstreamScanResult.dataScanner;
         AggregatedDataScanner filtered = new AggregatedDataScanner(inputScanner, context,

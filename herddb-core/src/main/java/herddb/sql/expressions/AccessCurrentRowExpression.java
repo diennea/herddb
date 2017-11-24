@@ -58,7 +58,6 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
         if (_index < 0) {
             throw new IllegalStateException("column " + index + " not in pk, projection:" + Arrays.toString(projection));
         }
-        System.out.println("remap column " + index + " to pk, projection:" + Arrays.toString(projection)+" -> "+_index);
         return new AccessCurrentRowExpression(_index);
     }
 

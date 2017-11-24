@@ -92,4 +92,7 @@ public interface DataAccessor {
 
     };
 
+    public static DataAccessor ALL_NULLS(String[] fieldNames) {
+        return new AllNullsDataAccessor(fieldNames);
+    }
 }

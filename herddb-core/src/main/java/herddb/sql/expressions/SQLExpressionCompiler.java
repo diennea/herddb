@@ -346,8 +346,6 @@ public class SQLExpressionCompiler {
 
     private static Object safeValue(Object value3, SqlTypeName typeName) {
         if (value3 instanceof BigDecimal) {
-            System.out.println("safe value " + value3 + " for " + typeName);
-
             if (typeName == SqlTypeName.DECIMAL) {
                 return ((BigDecimal) value3).doubleValue();
             }

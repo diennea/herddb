@@ -29,6 +29,10 @@ import org.apache.curator.test.TestingServer;
 
 public class ZKTestEnv implements AutoCloseable {
 
+    static {
+        System.setProperty("zookeeper.admin.enableServer", "false");
+    }
+    
     TestingServer zkServer;
     BookieServer bookie;
     Path path;

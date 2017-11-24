@@ -53,32 +53,25 @@ public class MultipleDataSourcesSameJVMJMXTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    BasicHerdDBDataSource dataSource_2 = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Connection con_2 = dataSource_2.getConnection();
-                    Statement statement = con.createStatement();
-                    Statement statement_2 = con.createStatement();) {
+                        BasicHerdDBDataSource dataSource_2 = new BasicHerdDBDataSource(client);
+                        Connection con = dataSource.getConnection();
+                        Connection con_2 = dataSource_2.getConnection();
+                        Statement statement = con.createStatement();
+                        Statement statement_2 = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
 
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1','name1')"));
                     assertEquals(1, statement_2.executeUpdate("INSERT INTO mytable (key,name) values('k2','name2')"));
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k3','name3')"));
 
-                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable a NATURAL FULL JOIN mytable b")) {
+                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable a"
+                            + " INNER JOIN mytable b ON 1=1")) {
                         int count = 0;
                         while (rs.next()) {
                             count++;
                         }
                         assertEquals(9, count);
                     }
-                    try (ResultSet rs = statement_2.executeQuery("SELECT * FROM mytable a NATURAL FULL JOIN mytable b")) {
-                        int count = 0;
-                        while (rs.next()) {
-                            count++;
-                        }
-                        assertEquals(9, count);
-                    }
-
                     MBeanServer jmxServer = ManagementFactory.getPlatformMBeanServer();
 
                     Object attributeValue = jmxServer.getAttribute(new ObjectName("org.apache.commons.pool2:type=GenericObjectPool,name=HerdDBClient"), "BorrowedCount");

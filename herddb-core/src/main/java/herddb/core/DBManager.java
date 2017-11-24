@@ -776,7 +776,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         if (errorIfNotLeader && !manager.isLeader()) {
             throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
         }
-        return manager.scan(statement, context, transactionContext);
+        return manager.scan(statement, context, transactionContext, false, false);
     }
 
     /**

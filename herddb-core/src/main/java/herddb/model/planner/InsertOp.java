@@ -66,8 +66,10 @@ public class InsertOp implements PlannerOp {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context) {
-        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
+            TransactionContext transactionContext, StatementEvaluationContext context,
+            boolean lockRequired, boolean forWrite) {
+        StatementExecutionResult input = this.input.execute(tableSpaceManager,
+                transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;

@@ -59,7 +59,8 @@ public class SimpleJoinTest {
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k2','name2')"));
                     assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k3','name3')"));
 
-                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable a JOIN mytable b")) {
+                    try (ResultSet rs = statement.executeQuery("SELECT * FROM mytable a"
+                            + " INNER JOIN mytable b ON 1=1")) {
                         int count = 0;
                         while (rs.next()) {
                             count++;

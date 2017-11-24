@@ -59,7 +59,9 @@ public class ValuesOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext,
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         Iterator<List<CompiledSQLExpression>> it = tuples.iterator();
         DataScanner res = new DataScanner(transactionContext.transactionId, fieldNames, columns) {
             @Override

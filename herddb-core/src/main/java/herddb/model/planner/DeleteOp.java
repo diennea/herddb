@@ -34,6 +34,7 @@ import herddb.model.Table;
 import herddb.model.TableAwareStatement;
 import herddb.model.TransactionContext;
 import herddb.model.commands.DeleteStatement;
+import herddb.model.predicates.RawKeyEquals;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.Bytes;
@@ -61,30 +62,28 @@ public class DeleteOp implements PlannerOp {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context) {
-        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context);
+            TransactionContext transactionContext, StatementEvaluationContext context,
+            boolean lockRequired, boolean forWrite) {
+        StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, true, true);
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
-        System.out.println("starting txid " + transactionId);
         int updateCount = 0;
         Bytes key = null;
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
                 DataAccessor row = inputScanner.next();
                 long transactionIdFromScanner = inputScanner.getTransactionId();
-                System.out.println("transactionIdFromScanner:" + transactionIdFromScanner);
                 if (transactionIdFromScanner > 0 && transactionIdFromScanner != transactionId) {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
                 key = RecordSerializer.serializePrimaryKey(row, table, table.getPrimaryKey());
                 DMLStatement deleteStatement = new DeleteStatement(tableSpace, tableName,
-                        key, null);
+                        null, new RawKeyEquals(key));
 
                 DMLStatementExecutionResult _result
                         = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(deleteStatement, context, transactionContext);
-                System.out.println("delete ount " + _result.getUpdateCount() + " txid " + _result.transactionId);
                 updateCount += _result.getUpdateCount();
                 if (_result.transactionId > 0 && _result.transactionId != transactionId) {
                     transactionId = _result.transactionId;

@@ -109,7 +109,8 @@ public interface AbstractTableManager extends AutoCloseable {
 
     StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException;
 
-    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context, Transaction transaction) throws StatementExecutionException;
+    public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException;
 
     public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
