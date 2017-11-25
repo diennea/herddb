@@ -27,48 +27,43 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.sql.SQLRecordPredicate;
+import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.function.BiConsumer;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
-import org.apache.calcite.linq4j.function.Function1;
 import org.apache.calcite.linq4j.function.Function2;
+import org.apache.calcite.linq4j.function.Predicate2;
 
 /**
- * basic join operation
+ * theta oin operation
  *
  * @author eolivelli
  */
-public class JoinOp implements PlannerOp {
+public class ThetaJoinOp implements PlannerOp {
 
-    private final int[] leftKeys;
     private final PlannerOp left;
-    private final int[] rightKeys;
     private final PlannerOp right;
     private final String[] fieldNames;
     private final Column[] columns;
     private final boolean generateNullsOnLeft;
     private final boolean generateNullsOnRight;
-    private final boolean mergeJoin;
+    private final CompiledSQLExpression condition;
 
-    public JoinOp(String[] fieldNames,
-            Column[] columns, int[] leftKeys, PlannerOp left,
-            int[] rightKeys, PlannerOp right,
+    public ThetaJoinOp(String[] fieldNames,
+            Column[] columns, PlannerOp left,
+            PlannerOp right,
+            CompiledSQLExpression condition,
             boolean generateNullsOnLeft,
             boolean generateNullsOnRight,
             boolean mergeJoin) {
         this.fieldNames = fieldNames;
         this.columns = columns;
-        this.leftKeys = leftKeys;
         this.left = left.optimize();
-        this.rightKeys = rightKeys;
         this.right = right.optimize();
         this.generateNullsOnLeft = generateNullsOnLeft;
         this.generateNullsOnRight = generateNullsOnRight;
-        this.mergeJoin = mergeJoin;
+        this.condition = condition;
     }
 
     @Override
@@ -88,42 +83,40 @@ public class JoinOp implements PlannerOp {
         final long resTransactionId = resRight.transactionId;
         final String[] fieldNamesFromLeft = resLeft.dataScanner.getFieldNames();
         final String[] fieldNamesFromRight = resRight.dataScanner.getFieldNames();
+        final Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection = resultProjection(fieldNamesFromLeft, fieldNamesFromRight);
 
-        Enumerable<DataAccessor> result = mergeJoin
-                ? EnumerableDefaults.mergeJoin(
-                        resLeft.dataScanner.createEnumerable(),
-                        resRight.dataScanner.createEnumerable(),
-                        JoinKey.keyExtractor(leftKeys),
-                        JoinKey.keyExtractor(rightKeys),
-                        resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
-                        generateNullsOnLeft,
-                        generateNullsOnRight
-                )
-                : EnumerableDefaults.join(
-                        resLeft.dataScanner.createEnumerable(),
-                        resRight.dataScanner.createEnumerable(),
-                        JoinKey.keyExtractor(leftKeys),
-                        JoinKey.keyExtractor(rightKeys),
-                        resultProjection(fieldNamesFromLeft, fieldNamesFromRight),
-                        null,
-                        generateNullsOnLeft,
-                        generateNullsOnRight
-                );
+        Enumerable<DataAccessor> result = EnumerableDefaults.thetaJoin(resLeft.dataScanner.createEnumerable(),
+                resRight.dataScanner.createEnumerable(),
+                predicate(resultProjection, context), resultProjection,
+                generateNullsOnLeft,
+                generateNullsOnRight
+        );
         EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resTransactionId, fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }
 
+    private Predicate2<DataAccessor, DataAccessor> predicate(
+            Function2<DataAccessor, DataAccessor, DataAccessor> projection,
+            StatementEvaluationContext context) {
+        return (DataAccessor v0, DataAccessor v1) -> {
+            DataAccessor currentRow = projection.apply(v0, v1);
+            return SQLRecordPredicate.toBoolean(condition.evaluate(currentRow, context));
+        };
+    }
+
     private Function2<DataAccessor, DataAccessor, DataAccessor> resultProjection(
             String[] fieldNamesFromLeft,
             String[] fieldNamesFromRight) {
-        DataAccessor nullsOnLeft = DataAccessor.ALL_NULLS(fieldNamesFromLeft);
-        DataAccessor nullsOnRight = DataAccessor.ALL_NULLS(fieldNamesFromRight);
+        final DataAccessor nullsOnLeft = DataAccessor.ALL_NULLS(fieldNamesFromLeft);
+        final DataAccessor nullsOnRight = DataAccessor.ALL_NULLS(fieldNamesFromRight);
 
         return (DataAccessor a, DataAccessor b)
                 -> new ConcatenatedDataAccessor(fieldNames,
                         a != null ? a : nullsOnLeft,
                         b != null ? b : nullsOnRight);
+
     }
+
 
 }

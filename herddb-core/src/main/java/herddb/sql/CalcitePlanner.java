@@ -41,7 +41,6 @@ import herddb.model.Projection;
 import herddb.model.RecordFunction;
 import herddb.model.StatementExecutionException;
 import herddb.model.Table;
-import herddb.model.TableDoesNotExistException;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
@@ -63,6 +62,7 @@ import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UnionAllOp;
 import herddb.model.planner.SimpleUpdateOp;
+import herddb.model.planner.ThetaJoinOp;
 import herddb.model.planner.UpdateOp;
 import herddb.model.planner.ValuesOp;
 import herddb.sql.expressions.AccessCurrentRowExpression;
@@ -73,7 +73,6 @@ import herddb.sql.expressions.ConstantExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -94,6 +93,7 @@ import org.apache.calcite.adapter.enumerable.EnumerableSemiJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableSort;
 import org.apache.calcite.adapter.enumerable.EnumerableTableModify;
 import org.apache.calcite.adapter.enumerable.EnumerableTableScan;
+import org.apache.calcite.adapter.enumerable.EnumerableThetaJoin;
 import org.apache.calcite.adapter.enumerable.EnumerableUnion;
 import org.apache.calcite.adapter.enumerable.EnumerableValues;
 import org.apache.calcite.avatica.util.Quoting;
@@ -358,6 +358,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                 SqlExplainLevel.ALL_ATTRIBUTES)});
         }
+//        System.out.println("Query: "+query+"\n"+
+//                RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
+//                SqlExplainLevel.ALL_ATTRIBUTES));
         return new PlannerResult(bestExp, originalRowType);
     }
 
@@ -406,6 +409,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (plan instanceof EnumerableSemiJoin) {
             EnumerableSemiJoin scan = (EnumerableSemiJoin) plan;
             return planEnumerableSemiJoin(scan, rowType);
+        } else if (plan instanceof EnumerableThetaJoin) {
+            EnumerableThetaJoin scan = (EnumerableThetaJoin) plan;
+            return planEnumerableThetaJoin(scan, rowType);
         } else if (plan instanceof EnumerableJoin) {
             EnumerableJoin scan = (EnumerableJoin) plan;
             return planEnumerableJoin(scan, rowType);
@@ -647,7 +653,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planEnumerableJoin(EnumerableJoin op, RelDataType rowType) {
-        // please note that EnumerableSemiJoin has a condition field which actually is not useful
+        // please note that EnumerableJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
         int[] leftKeys = op.getLeftKeys().toIntArray();
@@ -668,9 +674,30 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new JoinOp(fieldNames, columns,
                 leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
     }
+    
+    private PlannerOp planEnumerableThetaJoin(EnumerableThetaJoin op, RelDataType rowType) {
+        PlannerOp left = convertRelNode(op.getLeft(), null, false);
+        PlannerOp right = convertRelNode(op.getRight(), null, false);
+        CompiledSQLExpression condition = SQLExpressionCompiler.compileExpression(op.getCondition());
+        boolean generateNullsOnLeft = op.getJoinType().generatesNullsOnLeft();
+        boolean generateNullsOnRight = op.getJoinType().generatesNullsOnRight();
+        final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
+        List<RelDataTypeField> fieldList = _rowType.getFieldList();
+        Column[] columns = new Column[fieldList.size()];
+        String[] fieldNames = new String[columns.length];
+        int i = 0;
+        for (RelDataTypeField field : fieldList) {
+            Column col = Column.column(field.getName().toLowerCase(),
+                    convertToHerdType(field.getType()));
+            fieldNames[i] = col.name;
+            columns[i++] = col;
+        }
+        return new ThetaJoinOp(fieldNames, columns,
+                left, right, condition, generateNullsOnLeft, generateNullsOnRight, false);
+    }
 
     private PlannerOp planEnumerableMergeJoin(EnumerableMergeJoin op, RelDataType rowType) {
-        // please note that EnumerableSemiJoin has a condition field which actually is not useful
+        // please note that EnumerableMergeJoin has a condition field which actually is not useful
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);
         int[] leftKeys = op.getLeftKeys().toIntArray();

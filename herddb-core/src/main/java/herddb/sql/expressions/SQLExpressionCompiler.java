@@ -307,6 +307,8 @@ public class SQLExpressionCompiler {
                     return new CompiledParenthesisExpression(true, operands[0]);
                 case "IS NOT NULL":
                     return new CompiledIsNullExpression(true, operands[0]);
+                case "IS NOT TRUE":
+                    return new CompiledIsNotTrueExpression(false, operands[0]);
                 case "IS NULL":
                     return new CompiledIsNullExpression(false, operands[0]);
                 case "CAST":

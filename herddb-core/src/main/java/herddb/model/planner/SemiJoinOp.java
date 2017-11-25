@@ -27,8 +27,10 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
+import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -76,60 +78,11 @@ public class SemiJoinOp implements PlannerOp {
         Enumerable<DataAccessor> result = EnumerableDefaults.semiJoin(
                 resLeft.dataScanner.createEnumerable(),
                 resRight.dataScanner.createEnumerable(),
-                keyExtractor(leftKeys),
-                keyExtractor(rightKeys)
+                JoinKey.keyExtractor(leftKeys),
+                JoinKey.keyExtractor(rightKeys)
         );
         EnumerableDataScanner joinedScanner = new EnumerableDataScanner(resTransactionId, fieldNames, columns, result);
         return new ScanResult(resTransactionId, joinedScanner);
 
     }
-
-    private static class RecordKey {
-
-        private final DataAccessor dataAccessor;
-        private final int[] selectedFields;
-
-        public RecordKey(DataAccessor dataAccessor, int[] selectedFields) {
-            this.dataAccessor = dataAccessor;
-            this.selectedFields = selectedFields;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-
-            RecordKey da = (RecordKey) obj;
-            int size = this.selectedFields.length;
-
-            // leverage zero-copy and to not create temporary arrays
-            for (int i = 0; i < size; i++) {
-                if (!Objects.equals(dataAccessor.get(i), da.dataAccessor.get(i))) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private int _hashcode = Integer.MIN_VALUE;
-
-        @Override
-        public int hashCode() {
-            if (_hashcode == Integer.MIN_VALUE) {
-                int size = this.selectedFields.length;
-                int res = 0;
-                // leverage zero-copy and to not create temporary arrays
-                for (int i = 0; i < size; i++) {
-                    res += Objects.hashCode(dataAccessor.get(i));
-                }
-                _hashcode = res;
-            }
-            return _hashcode;
-        }
-
-    }
-
-    private static Function1<DataAccessor, RecordKey> keyExtractor(
-            int[] projection) {
-        return (DataAccessor a) -> new RecordKey(a, projection);
-    }
-
 }
