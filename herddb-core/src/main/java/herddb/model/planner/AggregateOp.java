@@ -19,6 +19,7 @@
  */
 package herddb.model.planner;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.MaterializedRecordSet;
 import herddb.core.RecordSetFactory;
 import herddb.core.SimpleDataScanner;
@@ -53,6 +54,7 @@ import java.util.Map;
  *
  * @author eolivelli
  */
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class AggregateOp implements PlannerOp {
 
     private final PlannerOp input;

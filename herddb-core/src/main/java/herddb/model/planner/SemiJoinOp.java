@@ -19,30 +19,24 @@
  */
 package herddb.model.planner;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
-import herddb.model.DataScannerException;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
-import herddb.sql.SQLRecordPredicate;
-import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
-import org.apache.calcite.linq4j.function.Function1;
 
 /**
  * Semi join operation
  *
  * @author eolivelli
  */
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class SemiJoinOp implements PlannerOp {
 
     private final int[] leftKeys;

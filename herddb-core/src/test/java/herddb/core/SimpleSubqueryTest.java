@@ -77,7 +77,7 @@ public class SimpleSubqueryTest {
                 fail("query must not work");
             } catch (Exception ok) {
                 assertTrue("invalid column name k1 invalid table name t2, expecting t1".equals(ok.getMessage())
-                        || ok.getMessage().contains("ValidationException"));
+                        || ok.getMessage().contains("Table 'T2' not found"));
             }
             try {
                 scan(manager, "SELECT k1 "
@@ -86,7 +86,7 @@ public class SimpleSubqueryTest {
                 fail("query must not work");
             } catch (Exception ok) {
                 assertTrue("invalid column name n1 invalid table name t2, expecting t1".equals(ok.getMessage())
-                        || ok.getMessage().contains("ValidationException"));
+                        || ok.getMessage().contains("Table 'T2' not found"));
             }
             try {
                 scan(manager, "SELECT k1 "
@@ -94,8 +94,8 @@ public class SimpleSubqueryTest {
                         + "WHERE t2.k1='aaa'", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("invalid column name n1 invalid table name t2, expecting t1".equals(ok.getMessage())
-                        || ok.getMessage().contains("ValidationException"));
+                assertTrue("invalid column name k1 invalid table name t2, expecting t1".equals(ok.getMessage())
+                        || ok.getMessage().contains("Table 'T2' not found"));
 
             }
 
@@ -106,7 +106,7 @@ public class SimpleSubqueryTest {
                 fail("query must not work");
             } catch (Exception ok) {
                 assertTrue("invalid column name k1 invalid table name t1, expecting t2".equals(ok.getMessage())
-                        || ok.getMessage().contains("ValidationException"));
+                        || ok.getMessage().contains("Table 'T1' not found"));
 
             }
 
@@ -116,8 +116,8 @@ public class SimpleSubqueryTest {
                         + "ORDER BY t1.n1", Collections.emptyList());
                 fail("query must not work");
             } catch (Exception ok) {
-                assertTrue("invalid column name k1 invalid table name t1, expecting t2".equals(ok.getMessage())
-                        || ok.getMessage().contains("ValidationException"));
+                assertTrue("invalid column name n1 invalid table name t1, expecting t2".equals(ok.getMessage())
+                        || ok.getMessage().contains("Table 'T1' not found"));
 
             }
 

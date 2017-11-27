@@ -19,6 +19,7 @@ direction
  */
 package herddb.model.planner;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.MaterializedRecordSet;
 import herddb.core.SimpleDataScanner;
 import herddb.core.TableSpaceManager;
@@ -42,6 +43,7 @@ import herddb.utils.Wrapper;
  *
  * @author eolivelli
  */
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class SortOp implements PlannerOp, TupleComparator {
 
     private final PlannerOp input;
@@ -113,6 +115,7 @@ public class SortOp implements PlannerOp, TupleComparator {
     }
 
     @Override
+    @SuppressFBWarnings("RV_NEGATING_RESULT_OF_COMPARETO")
     public int compare(DataAccessor o1, DataAccessor o2) {
         for (int i = 0; i < fields.length; i++) {
             int index = fields[i];

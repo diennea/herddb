@@ -19,6 +19,7 @@
  */
 package herddb.sql.expressions;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class CompiledMultiAndExpression implements CompiledSQLExpression {
 
     private final CompiledSQLExpression[] operands;

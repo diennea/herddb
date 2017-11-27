@@ -33,8 +33,12 @@ import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.planner.BindableTableScanOp;
+import herddb.model.planner.DeleteOp;
 import herddb.model.planner.PlannerOp;
+import herddb.model.planner.SimpleDeleteOp;
+import herddb.model.planner.SimpleUpdateOp;
 import herddb.model.planner.TableScanOp;
+import herddb.model.planner.UpdateOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import java.util.Arrays;
@@ -69,6 +73,13 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "select * from tblspace1.tsql"), TableScanOp.class);
             assertInstanceOf(plan(manager, "select * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select n1 from tblspace1.tsql"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
+            assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=? and n1=?"), SimpleUpdateOp.class);
+            assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
+                    + " and n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
+            assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=?"), SimpleDeleteOp.class);
+            assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=? and n1=?"), SimpleDeleteOp.class);
+            assertInstanceOf(plan(manager, "delete from tblspace1.tsql"), DeleteOp.class);
         }
     }
 

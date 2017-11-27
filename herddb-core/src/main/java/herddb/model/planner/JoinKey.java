@@ -19,6 +19,7 @@
  */
 package herddb.model.planner;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
 import java.util.Arrays;
@@ -29,6 +30,7 @@ import org.apache.calcite.linq4j.function.Function1;
  * Selected key for join. It is a specialized projection, which must be Comparable
  * @author eolivelli
  */
+@SuppressFBWarnings("BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS")
 class JoinKey implements Comparable<JoinKey> {
 
     public static Function1<DataAccessor, JoinKey> keyExtractor(

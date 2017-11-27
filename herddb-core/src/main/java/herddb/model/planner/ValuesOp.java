@@ -19,6 +19,7 @@
  */
 package herddb.model.planner;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.DataScanner;
@@ -39,6 +40,7 @@ import java.util.List;
  *
  * @author eolivelli
  */
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class ValuesOp implements PlannerOp {
 
     private final String tablespace;

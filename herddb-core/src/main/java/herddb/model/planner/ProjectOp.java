@@ -19,6 +19,7 @@
  */
 package herddb.model.planner;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.DataScanner;
@@ -51,6 +52,7 @@ public class ProjectOp implements PlannerOp {
         this.input = input.optimize();
     }
 
+    @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
     public static final class BasicProjection implements Projection {
 
         private final Column[] columns;
@@ -79,6 +81,7 @@ public class ProjectOp implements PlannerOp {
             return new RuntimeProjectedDataAccessor(tuple, context);
         }
 
+        @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
         private class RuntimeProjectedDataAccessor extends AbstractDataAccessor {
 
             final Object[] values;
@@ -126,7 +129,7 @@ public class ProjectOp implements PlannerOp {
 
             @Override
             public String toString() {
-                return "RuntimeProjectedDataAccessor{evaluated: "+evaluated + "values=" + Arrays.toString(values) + '}';
+                return "RuntimeProjectedDataAccessor{evaluated: " + evaluated + "values=" + Arrays.toString(values) + '}';
             }
 
             private void ensureFullyEvaluated() {
@@ -185,6 +188,7 @@ public class ProjectOp implements PlannerOp {
         return new ScanResult(downstream.transactionId, projected);
     }
 
+    @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
     public static class ZeroCopyProjection implements Projection {
 
         public ZeroCopyProjection(String[] fieldNames, Column[] columns, int[] zeroCopyProjections) {
@@ -212,6 +216,7 @@ public class ProjectOp implements PlannerOp {
             return new RuntimeProjectedDataAccessor(tuple, context);
         }
 
+        @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
         public class RuntimeProjectedDataAccessor extends AbstractDataAccessor {
 
             private final DataAccessor wrapped;

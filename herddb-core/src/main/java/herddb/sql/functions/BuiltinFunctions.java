@@ -83,7 +83,7 @@ public class BuiltinFunctions {
     public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName,
             StatementEvaluationContext context) throws StatementExecutionException {
         String functionName = f.getName();
-        CompiledSQLExpression firstParam = f.getParameters().getExpressions().isEmpty() ? null
+        CompiledSQLExpression firstParam = f.getParameters() == null || f.getParameters().getExpressions() == null || f.getParameters().getExpressions().isEmpty() ? null
                 : SQLExpressionCompiler.compileExpression(null, f.getParameters().getExpressions().get(0));
         return getColumnCalculator(functionName, fieldName, firstParam, context);
     }

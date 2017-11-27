@@ -1196,7 +1196,6 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 joinPresent = true;
                 if (join.isLeft()
                     || join.isCross()
-                    || join.isNatural()
                     || join.isRight()
                     || join.isOuter()
                     || join.isSimple()) {

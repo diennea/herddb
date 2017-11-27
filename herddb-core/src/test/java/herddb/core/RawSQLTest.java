@@ -60,6 +60,7 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.PlannerOp;
+import herddb.sql.CalcitePlanner;
 import herddb.sql.SQLPlanner;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
@@ -737,9 +738,11 @@ public class RawSQLTest {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(2, result.size());
             }
-            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?,?", Arrays.asList(1, 2), TransactionContext.NO_TRANSACTION);) {
-                List<DataAccessor> result = scan1.consume();
-                assertEquals(2, result.size());
+            if (manager.getPlanner() instanceof CalcitePlanner) {
+                try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql LIMIT ?,?", Arrays.asList(1, 2), TransactionContext.NO_TRANSACTION);) {
+                    List<DataAccessor> result = scan1.consume();
+                    assertEquals(2, result.size());
+                }
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
@@ -1043,7 +1046,7 @@ public class RawSQLTest {
                     Assert.fail();
                 } catch (StatementExecutionException error) {
                     assertTrue("field k1 MUST appear in GROUP BY clause".equals(error.getMessage())
-                            || error.getMessage().contains("ValidationException"));
+                            || error.getMessage().equals("From line 1, column 17 to line 1, column 18: Expression 'K1' is not being grouped"));
                 }
             }
             {
@@ -1470,9 +1473,6 @@ public class RawSQLTest {
 
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexSeek);
-                PlannerOp first = translated.plan.mainStatement.unwrap(SQLPlannedOperationStatement.class)
-                        .getRootOp();
-                System.out.println("first:" + first);
                 try (DataScanner scan1
                         = ((ScanResult) manager.executePlan(translated.plan, translated.context, TransactionContext.NO_TRANSACTION)).dataScanner;) {
                     List<DataAccessor> records = scan1.consume();

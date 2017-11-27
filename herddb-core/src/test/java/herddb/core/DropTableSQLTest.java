@@ -39,10 +39,10 @@ import herddb.model.StatementExecutionException;
 import herddb.model.TableDoesNotExistException;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
-import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.sql.CalcitePlanner;
+import herddb.sql.SQLPlanner;
 import herddb.utils.DataAccessor;
-import org.apache.calcite.tools.ValidationException;
 
 /**
  * Tests on table creation
@@ -142,8 +142,10 @@ public class DropTableSQLTest {
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList());) {
                 fail();
             } catch (TableDoesNotExistException ok) {
+                assertTrue(manager.getPlanner() instanceof SQLPlanner);
             } catch (StatementExecutionException ok) {
-                assertTrue(ok.getCause() instanceof ValidationException);
+                assertEquals("From line 1, column 15 to line 1, column 28: Object 'TSQL' not found within 'tblspace1'", ok.getMessage());
+                assertTrue(manager.getPlanner() instanceof CalcitePlanner);
             }
 
         }

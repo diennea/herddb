@@ -232,21 +232,23 @@ public class SimplerPlannerTest {
                 assertEquals(1L, results.get(1).get(1));
                 assertEquals(1235, results.get(1).get(0));
             }
-            try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
-                    + " FROM tblspace1.tsql"
-                    + " GROUP by k1"
-                    + " ORDER BY sum(n1)",
-                    Collections.emptyList());) {
-                List<DataAccessor> results = scan.consume();
-                assertEquals(2, results.size());
-                assertEquals(3, results.get(0).getFieldNames().length);
-                assertEquals(1234L, results.get(0).get(0));
-                assertEquals(1L, results.get(0).get(1));
-                assertEquals(RawString.of("mykey"), results.get(0).get(2));
-                assertEquals(1235L, results.get(1).get(0));
-                assertEquals(1L, results.get(1).get(1));
-                assertEquals(RawString.of("mykey2"), results.get(1).get(2));
+            if (manager.getPlanner() instanceof CalcitePlanner) {
+                try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
+                        + " FROM tblspace1.tsql"
+                        + " GROUP by k1"
+                        + " ORDER BY sum(n1)",
+                        Collections.emptyList());) {
+                    List<DataAccessor> results = scan.consume();
+                    assertEquals(2, results.size());
+                    assertEquals(3, results.get(0).getFieldNames().length);
+                    assertEquals(1234L, results.get(0).get(0));
+                    assertEquals(1L, results.get(0).get(1));
+                    assertEquals(RawString.of("mykey"), results.get(0).get(2));
+                    assertEquals(1235L, results.get(1).get(0));
+                    assertEquals(1L, results.get(1).get(1));
+                    assertEquals(RawString.of("mykey2"), results.get(1).get(2));
 
+                }
             }
             try (DataScanner scan = scan(manager, "SELECT sum(n1) as ss, min(n1) as mi, max(n1) as ma"
                     + " FROM tblspace1.tsql",
@@ -254,23 +256,25 @@ public class SimplerPlannerTest {
                 List<DataAccessor> results = scan.consume();
                 assertEquals(1, results.size());
                 assertEquals(3, results.get(0).getFieldNames().length);
-                System.out.println("map:"+results.get(0).toMap());
+                System.out.println("map:" + results.get(0).toMap());
                 assertEquals(1234L + 1235L, results.get(0).get("ss"));
                 assertEquals(1234, results.get(0).get("mi"));
                 assertEquals(1235, results.get(0).get("ma"));
 
             }
-            try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
-                    + " FROM tblspace1.tsql"
-                    + " GROUP by k1"
-                    + " HAVING sum(n1) <= 1234",
-                    Collections.emptyList());) {
-                List<DataAccessor> results = scan.consume();
-                assertEquals(1, results.size());
-                assertEquals(3, results.get(0).getFieldNames().length);
-                assertEquals(1234L, results.get(0).get(0));
-                assertEquals(1L, results.get(0).get(1));
-                assertEquals(RawString.of("mykey"), results.get(0).get(2));
+            if (manager.getPlanner() instanceof CalcitePlanner) {
+                try (DataScanner scan = scan(manager, "SELECT sum(n1), count(*) as cc, k1 "
+                        + " FROM tblspace1.tsql"
+                        + " GROUP by k1"
+                        + " HAVING sum(n1) <= 1234",
+                        Collections.emptyList());) {
+                    List<DataAccessor> results = scan.consume();
+                    assertEquals(1, results.size());
+                    assertEquals(3, results.get(0).getFieldNames().length);
+                    assertEquals(1234L, results.get(0).get(0));
+                    assertEquals(1L, results.get(0).get(1));
+                    assertEquals(RawString.of("mykey"), results.get(0).get(2));
+                }
             }
         }
     }

@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.DBManager;
 import herddb.utils.DataAccessor;
 import java.util.Collections;
@@ -119,6 +120,7 @@ public class StatementEvaluationContext {
     }
     private java.sql.Timestamp currentTimestamp;
 
+    @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
     public java.sql.Timestamp getCurrentTimestamp() {
         if (currentTimestamp == null) {
             currentTimestamp = new java.sql.Timestamp(System.currentTimeMillis());

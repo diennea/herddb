@@ -19,11 +19,13 @@
  */
 package herddb.sql.expressions;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
 import java.util.Arrays;
 
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class CompiledMultiOrExpression implements CompiledSQLExpression {
 
     private final CompiledSQLExpression[] operands;

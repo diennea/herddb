@@ -228,15 +228,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SchemaPlus schema = getRootSchema();
             List<RelTraitDef> traitDefs = new ArrayList<>();
             traitDefs.add(ConventionTraitDef.INSTANCE);
-            SqlParser.Config parserConfig
-                    = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
-                            .setCaseSensitive(false)
-                            .setConformance(SqlConformanceEnum.MYSQL_5)
-                            .setQuoting(Quoting.BACK_TICK)
-                            .build();
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()
-                    .parserConfig(parserConfig)
+                    .parserConfig(SQL_PARSER_CONFIG)
                     .defaultSchema(schema.getSubSchema(defaultTableSpace))
                     .traitDefs(traitDefs)
                     // define the rules you want to apply
@@ -284,17 +278,22 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } catch (CalciteContextException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + ex.getOriginalStatement() + "'", ex);
             //TODO can this be done better ?
-            throw new StatementExecutionException(ex);
-        } catch (RelConversionException ex) {
+            throw new StatementExecutionException(ex.getMessage());
+        } catch (RelConversionException | ValidationException | SqlParseException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             //TODO can this be done better ?
-            throw new StatementExecutionException(ex);
-        } catch (MetadataStorageManagerException
-                | SqlParseException | ValidationException ex) {
+            throw new StatementExecutionException(ex.getMessage().replace("org.apache.calcite.runtime.CalciteContextException: ", ""));
+        } catch (MetadataStorageManagerException ex) {
             LOG.log(Level.INFO, "Error while parsing '" + query + "'", ex);
             throw new StatementExecutionException(ex);
         }
     }
+    private static final SqlParser.Config SQL_PARSER_CONFIG
+            = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
+            .setCaseSensitive(false)
+            .setConformance(SqlConformanceEnum.MYSQL_5)
+            .setQuoting(Quoting.BACK_TICK)
+            .build();
 
     /**
      * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
@@ -503,7 +502,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
         List<CompiledSQLExpression> expressions = new ArrayList<>(sourceExpressionList.size());
-        int i = 0;
+
         for (RexNode node : sourceExpressionList) {
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
             expressions.add(exp);
@@ -532,6 +531,14 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 FilteredTableScanOp filter = (FilteredTableScanOp) proj.getInput();
                 Predicate pred = filter.getPredicate();
                 update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+            } else if (proj.getInput() instanceof BindableTableScanOp) {
+                BindableTableScanOp filter = (BindableTableScanOp) proj.getInput();
+                ScanStatement scan = filter.getStatement();
+                if (scan.getComparator() == null && scan.getLimits() == null
+                        && scan.getTableDef() != null) {
+                    Predicate pred = scan.getPredicate();
+                    update = new UpdateStatement(tableSpace, tableName, null, function, pred);
+                }
             }
         }
         if (update != null) {
@@ -674,7 +681,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         return new JoinOp(fieldNames, columns,
                 leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
     }
-    
+
     private PlannerOp planEnumerableThetaJoin(EnumerableThetaJoin op, RelDataType rowType) {
         PlannerOp left = convertRelNode(op.getLeft(), null, false);
         PlannerOp right = convertRelNode(op.getRight(), null, false);

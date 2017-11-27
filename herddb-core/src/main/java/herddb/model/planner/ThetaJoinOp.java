@@ -19,6 +19,7 @@
  */
 package herddb.model.planner;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.ScanResult;
@@ -40,6 +41,7 @@ import org.apache.calcite.linq4j.function.Predicate2;
  *
  * @author eolivelli
  */
+@SuppressFBWarnings(value = "EI_EXPOSE_REP2")
 public class ThetaJoinOp implements PlannerOp {
 
     private final PlannerOp left;

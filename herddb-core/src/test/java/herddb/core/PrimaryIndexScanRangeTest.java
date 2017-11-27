@@ -168,7 +168,6 @@ public class PrimaryIndexScanRangeTest {
                 ScanStatement scan = translated.plan.mainStatement.unwrap(ScanStatement.class);
                 assertTrue(scan.getPredicate().getIndexOperation() instanceof PrimaryIndexRangeScan);
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
-                PlannerOp planned = translated.plan.mainStatement.unwrap(SQLPlannedOperationStatement.class).getRootOp();
                 try (DataScanner scan1 = manager.scan(scan, translated.context, TransactionContext.NO_TRANSACTION);) {
                     List<DataAccessor> tuples = scan1.consume();
                     assertEquals(2, tuples.size());
