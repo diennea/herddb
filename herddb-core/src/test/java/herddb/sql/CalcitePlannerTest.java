@@ -35,10 +35,12 @@ import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.planner.BindableTableScanOp;
 import herddb.model.planner.DeleteOp;
 import herddb.model.planner.InsertOp;
+import herddb.model.planner.LimitedSortedBindableTableScanOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
+import herddb.model.planner.SortedBindableTableScanOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.utils.DataAccessor;
@@ -60,7 +62,7 @@ public class CalcitePlannerTest {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
-            
+
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -84,7 +86,9 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
-            
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
+
         }
     }
 
@@ -143,7 +147,7 @@ public class CalcitePlannerTest {
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
                         "k2", "mykey2", "n2", 1234, "n1", null
                 ))));
-                
+
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
                         "k2", "mykey", "n2", 1234, "n1", null
@@ -169,7 +173,7 @@ public class CalcitePlannerTest {
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
                         "k2", "mykey2", "n2", 1234, "halfn1", 617.0
                 ))));
-                
+
                 assertTrue(
                         tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
                         "k2", "mykey", "n2", 1234, "halfn1", 617.0

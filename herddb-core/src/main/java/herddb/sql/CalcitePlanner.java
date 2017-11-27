@@ -1092,10 +1092,21 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private static class TableImpl extends AbstractTable
             implements ModifiableTable, ScannableTable, ProjectableFilterableTable {
 
-        AbstractTableManager tableManager;
+        final AbstractTableManager tableManager;
+        final ImmutableList<ImmutableBitSet> keys;
 
         private TableImpl(AbstractTableManager tableManager) {
             this.tableManager = tableManager;
+            ImmutableBitSet.Builder builder = ImmutableBitSet.builder();
+            Table table = tableManager.getTable();
+            int index = 0;
+            for (Column c : table.getColumns()) {
+                if (table.isPrimaryKeyColumn(c.name)) {
+                    builder.set(index);
+                }
+                index++;
+            }
+            keys = ImmutableList.of(builder.build());
         }
 
         @Override
@@ -1111,9 +1122,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         @Override
         public Statistic getStatistic() {
-            // TODO
             return Statistics.of(tableManager.getStats().getTablesize(),
-                    ImmutableList.<ImmutableBitSet>of());
+                    keys);
         }
 
         @Override
