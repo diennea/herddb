@@ -52,6 +52,8 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         config.setThrottleValue(0);
         config.setZkServers(metadataStorageManager.getZkAddress());
         config.setZkTimeout(metadataStorageManager.getZkSessionTimeout());
+        config.setEnableParallelRecoveryRead(true);
+        config.setEnableDigestTypeAutodetection(true);
         LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
         if (serverConfiguration.getBoolean("bookie.preferlocalbookie", true)) {
             config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
@@ -77,9 +79,9 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     public void start() throws LogNotAvailableException {
         try {
             this.bookKeeper
-                = BookKeeper
-                    .forConfig(config)
-                    .build();
+                    = BookKeeper
+                            .forConfig(config)
+                            .build();
         } catch (IOException | InterruptedException | KeeperException t) {
             close();
             throw new LogNotAvailableException(t);
