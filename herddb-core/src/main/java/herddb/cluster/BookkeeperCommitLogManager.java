@@ -55,7 +55,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         config.setEnableParallelRecoveryRead(true);
         config.setEnableDigestTypeAutodetection(true);
         LOG.log(Level.CONFIG, "Processing server config {0}", serverConfiguration);
-        if (serverConfiguration.getBoolean("bookie.preferlocalbookie", true)) {
+        if (serverConfiguration.getBoolean("bookie.preferlocalbookie", false)) {
             config.setEnsemblePlacementPolicy(PreferLocalBookiePlacementPolicy.class);
         }
         for (String key : serverConfiguration.keys()) {
