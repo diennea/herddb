@@ -22,7 +22,6 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
 
 public class ConstantExpression implements CompiledSQLExpression {
 
@@ -54,6 +53,10 @@ public class ConstantExpression implements CompiledSQLExpression {
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return this;
+    }
+
+    public boolean isNull() {
+        return value == null;
     }
 
 }

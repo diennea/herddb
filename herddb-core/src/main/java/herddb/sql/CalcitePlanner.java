@@ -32,9 +32,11 @@ import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.ColumnsList;
+import herddb.model.DMLStatement;
 import herddb.model.ExecutionPlan;
 import herddb.model.Predicate;
 import herddb.model.Projection;
@@ -43,6 +45,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
+import herddb.model.commands.InsertStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.commands.UpdateStatement;
@@ -58,6 +61,7 @@ import herddb.model.planner.LimitOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp;
 import herddb.model.planner.SemiJoinOp;
+import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SortOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UnionAllOp;
@@ -70,7 +74,9 @@ import herddb.sql.expressions.BindableTableScanColumnNameResolver;
 import herddb.sql.expressions.CompiledMultiAndExpression;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
+import herddb.sql.expressions.JdbcParameterExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
+import herddb.sql.expressions.TypedJdbcParameterExpression;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -290,10 +296,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
     private static final SqlParser.Config SQL_PARSER_CONFIG
             = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
-            .setCaseSensitive(false)
-            .setConformance(SqlConformanceEnum.MYSQL_5)
-            .setQuoting(Quoting.BACK_TICK)
-            .build();
+                    .setCaseSensitive(false)
+                    .setConformance(SqlConformanceEnum.MYSQL_5)
+                    .setQuoting(Quoting.BACK_TICK)
+                    .build();
 
     /**
      * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
@@ -443,21 +449,78 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         throw new StatementExecutionException("not implented " + plan.getRelTypeName());
     }
 
-    private InsertOp planInsert(EnumerableTableModify dml,
+    private PlannerOp planInsert(EnumerableTableModify dml,
             boolean returnValues) {
-
-        PlannerOp input = convertRelNode(dml.getInput(),
-                null, false);
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
+        DMLStatement statement = null;
+        if (dml.getInput() instanceof EnumerableProject) {
+            // fastest path for insert into TABLE(s,b,c) values(?,?,?)
+            EnumerableProject project = (EnumerableProject) dml.getInput();
+            if (project.getInput() instanceof EnumerableValues) {
+                EnumerableValues values = (EnumerableValues) project.getInput();
+                if (values.getTuples().size() == 1) {
+                    final TableImpl tableImpl
+                            = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
+                    Table table = tableImpl.tableManager.getTable();
+                    int index = 0;
+                    List<RexNode> projects = project.getProjects();
+                    List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
+                    List<String> keyExpressionToColumn = new ArrayList<>();
+                    List<CompiledSQLExpression> valuesExpressions = new ArrayList<>();
+                    List<String> valuesColumns = new ArrayList<>();
+                    boolean invalid = false;
+                    for (Column column : table.getColumns()) {
+                        CompiledSQLExpression exp
+                                = SQLExpressionCompiler.compileExpression(projects.get(index));
+                        if (exp instanceof ConstantExpression
+                                || exp instanceof JdbcParameterExpression
+                                || exp instanceof TypedJdbcParameterExpression) {
+                            boolean isAlwaysNull = (exp instanceof ConstantExpression)
+                                    && ((ConstantExpression) exp).isNull();
+                            if (!isAlwaysNull) {
+                                if (table.isPrimaryKeyColumn(column.name)) {
+                                    keyExpressionToColumn.add(column.name);
+                                    keyValueExpression.add(exp);
+                                }
+                                valuesColumns.add(column.name);
+                                valuesExpressions.add(exp);
+                            }
+                            index++;
+                        } else {
+                            invalid = true;
+                            break;
+                        }
+                    }
+                    if (!invalid) {
+                        RecordFunction keyfunction;
+                        if (keyValueExpression.isEmpty()
+                                && table.auto_increment) {
+                            keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
+                        } else {
+                            if (keyValueExpression.size() != table.primaryKey.length) {
+                                throw new StatementExecutionException("you must set a value for the primary key (expressions=" + keyValueExpression.size() + ")");
+                            }
+                            keyfunction = new SQLRecordKeyFunction(keyExpressionToColumn, keyValueExpression, table);
+                        }
+                        RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
+                        statement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
+                    }
+                }
+            }
+        }
+        if (statement != null) {
+            return new SimpleInsertOp(statement);
+        }
+        PlannerOp input = convertRelNode(dml.getInput(),
+                null, false);
 
         try {
             return new InsertOp(tableSpace, tableName, input, returnValues);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }
-
     }
 
     private PlannerOp planDelete(EnumerableTableModify dml) {
