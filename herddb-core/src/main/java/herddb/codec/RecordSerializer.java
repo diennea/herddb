@@ -331,6 +331,27 @@ public final class RecordSerializer {
         return null;
     }
 
+    static Object accessRawDataFromValue(int index, Bytes value, Table table) throws IOException {
+        Column column = table.getColumn(index);
+        SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(value.data);
+        ExtendedDataInputStream din = new ExtendedDataInputStream(s);
+        while (!din.isEof()) {
+            int serialPosition;
+            serialPosition = din.readVIntNoEOFException();
+            if (din.isEof()) {
+                return null;
+            }
+            Column col = table.getColumnBySerialPosition(serialPosition);
+            if (col != null && col.serialPosition == column.serialPosition) {
+                return deserializeTypeAndValue(din);
+            } else {
+                // we have to deserialize always the value, even the column is no more present
+                skipTypeAndValue(din);
+            }
+        }
+        return null;
+    }
+
     static Object accessRawDataFromPrimaryKey(String property, Bytes key, Table table) throws IOException {
         if (table.primaryKey.length == 1) {
             return deserialize(key.data, table.getColumn(property).type);
@@ -345,6 +366,25 @@ public final class RecordSerializer {
                 }
             }
             throw new IOException("property " + property + " not found in PK: " + Arrays.toString(table.primaryKey));
+        }
+    }
+
+    static Object accessRawDataFromPrimaryKey(int index, Bytes key, Table table) throws IOException {
+        Column column = table.getColumn(index);
+        if (table.primaryKey.length == 1) {
+            return deserialize(key.data, column.type);
+        } else {
+            final String cname = column.name;
+            try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                for (String primaryKeyColumn : table.primaryKey) {
+                    byte[] value = din.readArray();
+                    if (primaryKeyColumn.equals(cname)) {
+                        return deserialize(value, table.getColumn(primaryKeyColumn).type);
+                    }
+                }
+            }
+            throw new IOException("position #" + index + " not found in PK: " + Arrays.toString(table.primaryKey));
         }
     }
 

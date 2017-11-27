@@ -94,6 +94,10 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         return primaryKeyColumns.contains(column);
     }
 
+    public boolean isPrimaryKeyColumn(int index) {
+        return primaryKeyProjection[index] >= 0;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -290,6 +294,10 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             }
         }
         return -1;
+    }
+
+    public Column getColumn(int index) {
+        return columns[index];
     }
 
     public static class Builder {

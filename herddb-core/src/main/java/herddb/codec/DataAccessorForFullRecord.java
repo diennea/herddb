@@ -53,6 +53,24 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
     }
 
     @Override
+    public Object get(int index) {
+        try {
+            if (table.isPrimaryKeyColumn(index)) {
+                return RecordSerializer.accessRawDataFromPrimaryKey(index, record.key, table);
+            } else {
+                return RecordSerializer.accessRawDataFromValue(index, record.value, table);
+            }
+        } catch (IOException err) {
+            throw new IllegalStateException("bad data:" + err, err);
+        }
+    }
+
+    @Override
+    public int getNumFields() {
+        return table.columns.length;
+    }
+
+    @Override
     public String[] getFieldNames() {
         return table.columnNames;
     }
