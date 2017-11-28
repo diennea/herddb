@@ -1114,7 +1114,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelDataTypeFactory.Builder builder = new RelDataTypeFactory.Builder(typeFactory);
             Table table = tableManager.getTable();
             for (Column c : table.getColumns()) {
-                boolean nullable = !table.isPrimaryKeyColumn(c.name);
+                boolean nullable = !table.isPrimaryKeyColumn(c.name) || table.auto_increment;
                 builder.add(c.name, convertType(c.type, typeFactory, nullable));
             }
             return builder.build();
