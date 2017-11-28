@@ -1360,7 +1360,7 @@ public class RawSQLTest {
 
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey", Integer.valueOf(1))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey2", Integer.valueOf(2))).getUpdateCount());
-            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(3))).getUpdateCount());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1) values(?,?)", Arrays.asList("mykey3", Integer.valueOf(4))).getUpdateCount());
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4")).getUpdateCount());
 
             {
@@ -1396,8 +1396,8 @@ public class RawSQLTest {
                     assertEquals(5, result.size());
                     assertEquals(RawString.of("mykey"), result.get(0).get(0));
                     assertEquals(RawString.of("mykey2"), result.get(1).get(0));
-                    assertEquals(RawString.of("mykey3"), result.get(2).get(0));
-                    assertEquals(RawString.of("mykey5"), result.get(3).get(0));
+                    assertEquals(RawString.of("mykey5"), result.get(2).get(0));
+                    assertEquals(RawString.of("mykey3"), result.get(3).get(0));
                     assertEquals(RawString.of("mykey4"), result.get(4).get(0)); // NULLS LAST
                 }
             }
@@ -1444,8 +1444,9 @@ public class RawSQLTest {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(3, result.size());
                     assertEquals(RawString.of("mykey4"), result.get(0).get(0));
-                    assertEquals(RawString.of("mykey5"), result.get(1).get(0));
-                    assertEquals(RawString.of("mykey3"), result.get(2).get(0));
+                    assertEquals(RawString.of("mykey3"), result.get(1).get(0));
+                    assertEquals(RawString.of("mykey5"), result.get(2).get(0));
+
                 }
             }
 

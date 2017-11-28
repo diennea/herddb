@@ -113,10 +113,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
     private static final int SORTED_PAGE_ACCESS_WINDOW_SIZE = SystemProperties.
-            getIntSystemProperty(TableManager.class.getName() + ".sortedPageAccessWindowSize", 2000);
+            getIntSystemProperty("herddb.tablemanager..sortedPageAccessWindowSize", 2000);
 
     private static final boolean ENABLE_LOCAL_SCAN_PAGE_CACHE = SystemProperties.
-            getBooleanSystemProperty(TableManager.class.getName() + ".enableLocalScanPageCache", true);
+            getBooleanSystemProperty("herddb.tablemanager..enableLocalScanPageCache", true);
+
+    private static final int HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET = SystemProperties.
+            getIntSystemProperty("herddb.tablemanager..hugeTableSizeForceMaterializedResultSet", 100_000);
+
+    private static final boolean ENABLE_STREAMING_DATA_SCANNER = SystemProperties.
+            getBooleanSystemProperty("herddb.tablemanager.enableStreamingDataScanner", true);
 
     private final ConcurrentMap<Long, DataPage> newPages;
 
@@ -789,9 +795,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @SuppressWarnings("serial")
-    private static class ExitLoop extends RuntimeException {
+    static class ExitLoop extends RuntimeException {
 
-        private final boolean continueWithTransactionData;
+        final boolean continueWithTransactionData;
 
         public ExitLoop(boolean continueWithTransactionData) {
             this.continueWithTransactionData = continueWithTransactionData;
@@ -799,12 +805,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     }
 
-    private static class ScanResultOperation {
+    static interface ScanResultOperation {
 
-        public void accept(Record record) throws StatementExecutionException, DataStorageManagerException, LogNotAvailableException {
+        public default void accept(Record record) throws StatementExecutionException, DataStorageManagerException, LogNotAvailableException {
         }
 
-        public void beginNewRecordsInTransactionBlock() {
+        public default void beginNewRecordsInTransactionBlock() {
         }
     }
 
@@ -2040,6 +2046,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
             Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        if (!ENABLE_STREAMING_DATA_SCANNER || (statement.getComparator() != null && this.stats.getTablesize() > HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET)) {
+            return scanNoStream(statement, context, transaction, lockRequired, forWrite);
+        }
+        return scanWithStream(statement, context, transaction, lockRequired, forWrite);
+    }
+
+    private DataScanner scanNoStream(ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+
         boolean sorted = statement.getComparator() != null;
         boolean sortedByClusteredIndex = statement.getComparator() != null
                 && statement.getComparator().isOnlyPrimaryKeyAndAscending()
@@ -2158,6 +2173,130 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             recordSet.applyProjection(statement.getProjection(), context);
         }
         return new SimpleDataScanner(transaction != null ? transaction.transactionId : 0, recordSet);
+    }
+
+    private DataScanner scanWithStream(ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+
+        boolean sorted = statement.getComparator() != null;
+        boolean sortedByClusteredIndex = statement.getComparator() != null
+                && statement.getComparator().isOnlyPrimaryKeyAndAscending()
+                && keyToPage.isSortedAscending();
+        final Projection projection = statement.getProjection();
+        final boolean applyProjectionDuringScan = !sorted && projection != null;
+        String[] fieldNames;
+        Column[] columns;
+        if (applyProjectionDuringScan) {
+            fieldNames = projection.getFieldNames();
+            columns = projection.getColumns();
+        } else {
+            fieldNames = table.columnNames;
+            columns = table.columns;
+        }
+        ScanLimits limits = statement.getLimits();
+        int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
+        int offset = limits == null ? 0 : limits.computeOffset(context);
+        StreamDataScanner.TransactionStreamListener listener = new StreamDataScanner.TransactionStreamListener();
+        Stream<DataAccessor> result;
+        boolean sortDone = false;
+        if (maxRows > 0) {
+            if (sortedByClusteredIndex) {
+                // leverage the sorted nature of the clustered primary key index
+                AtomicInteger remaining = new AtomicInteger(maxRows);
+                if (offset > 0) {
+                    remaining.getAndAdd(offset);
+                }
+
+                Stream<Record> data = streamTableData(statement, context, transaction, listener, lockRequired, forWrite);
+
+                result = data.map(record -> {
+                    DataAccessor tuple;
+                    if (applyProjectionDuringScan) {
+                        tuple = projection.map(record.getDataAccessor(table), context);
+                    } else {
+                        tuple = record.getDataAccessor(table);
+                    }
+                    if (!listener.inTransactionData) {
+                        // we have scanned the table and kept top K record already sorted by the PK
+                        // we can exit now from the loop on the primary key
+                        // we have to keep all data from the transaction buffer, because it is not sorted
+                        // in the same order as the clustered index
+                        if (remaining.decrementAndGet() < 0) {
+                            // we want to receive transaction data uncommitted records too
+                            throw new ExitLoop(true);
+                        }
+                    }
+                    return tuple;
+                });
+
+                // we have to sort data any way, because accessTableData will return partially sorted data
+                sortDone = transaction == null;
+
+            } else if (sorted) {
+                Stream<Record> data = streamTableData(statement, context, transaction,
+                        listener, lockRequired, forWrite);
+                result = data.map(record -> {
+                    DataAccessor tuple;
+                    if (applyProjectionDuringScan) {
+                        tuple = projection.map(record.getDataAccessor(table), context);
+                    } else {
+                        tuple = record.getDataAccessor(table);
+                    }
+                    return tuple;
+                });
+                result = result.sorted(statement.getComparator());
+                if (offset > 0) {
+                    result = result.skip(offset);
+                }
+                if (maxRows > 0) {
+                    result = result.limit(maxRows);
+                }
+                sortDone = true;
+            } else {
+                // if no sort is present the limits can be applying during the scan and perform an early exit
+                AtomicInteger remaining = new AtomicInteger(maxRows);
+
+                if (offset > 0) {
+                    remaining.getAndAdd(offset);
+                }
+
+                Stream<Record> data = streamTableData(statement, context, transaction, listener, lockRequired, forWrite);
+                result = data.map(record -> {
+                    DataAccessor tuple;
+                    if (applyProjectionDuringScan) {
+                        tuple = projection.map(record.getDataAccessor(table), context);
+                    } else {
+                        tuple = record.getDataAccessor(table);
+                    }
+                    if (remaining.decrementAndGet() < 0) {
+                        throw new ExitLoop(false);
+                    }
+                    return tuple;
+                });
+            }
+        } else {
+            Stream<Record> data = streamTableData(statement, context, transaction,
+                    listener, lockRequired, forWrite);
+            result = data.map(record -> {
+                DataAccessor tuple;
+                if (applyProjectionDuringScan) {
+                    tuple = projection.map(record.getDataAccessor(table), context);
+                } else {
+                    tuple = record.getDataAccessor(table);
+                }
+                return tuple;
+            });
+
+        }
+        if (!sortDone && statement.getComparator() != null) {
+            result = result.sorted(statement.getComparator());
+        }
+        if (!applyProjectionDuringScan) {
+            result = result.map(record -> {
+                return statement.getProjection().map(record, context);
+            });
+        }
+        return new StreamDataScanner(transaction != null ? transaction.transactionId : 0, fieldNames, columns, result, listener);
     }
 
     private void accessTableData(ScanStatement statement, StatementEvaluationContext context, ScanResultOperation consumer, Transaction transaction,
@@ -2279,6 +2418,114 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } catch (HerdDBInternalException err) {
             LOGGER.log(Level.SEVERE, "error during scan {0}, started at {1}: {2}", new Object[]{statement, new java.sql.Timestamp(_start), err.toString()});
             throw new StatementExecutionException(err);
+        }
+    }
+
+    private Stream<Record> streamTableData(ScanStatement statement, StatementEvaluationContext context,
+            Transaction transaction, ScanResultOperation listener,
+            boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        statement.validateContext(context);
+        Predicate predicate = statement.getPredicate();
+        long _start = System.currentTimeMillis();
+        boolean acquireLock = transaction != null || forWrite || lockRequired;
+
+        LocalScanPageCache lastPageRead = acquireLock ? null : new LocalScanPageCache();
+
+        IndexOperation indexOperation = predicate != null ? predicate.getIndexOperation() : null;
+        boolean primaryIndexSeek = indexOperation instanceof PrimaryIndexSeek;
+        AbstractIndexManager useIndex = getIndexForTbleAccess(indexOperation);
+
+        Stream<Record> resultFromTable;
+
+        Stream<Map.Entry<Bytes, Long>> scanner = keyToPage.scanner(indexOperation, context, tableContext, useIndex);
+
+        resultFromTable = scanner.map(entry -> {
+            return accessRecord(entry, predicate, context,
+                    transaction, lastPageRead, primaryIndexSeek, forWrite, acquireLock);
+        }).filter(r -> r != null);
+
+        Stream<Record> fromTransaction = Stream.empty();
+        if (transaction != null) {
+            Holder<Boolean> transactionBlockStarted = new Holder<>(false);
+            Collection<Record> newRecordsForTable = transaction.getNewRecordsForTable(table.name);
+            fromTransaction = newRecordsForTable
+                    .stream()
+                    .map(record -> {
+                        if (!transaction.recordDeleted(table.name, record.key)
+                                && (predicate == null || predicate.evaluate(record, context))) {
+                            if (!transactionBlockStarted.value) {
+                                listener.beginNewRecordsInTransactionBlock();
+                                transactionBlockStarted.value = true;
+                            }
+                            return record;
+                        } else {
+                            return null;
+                        }
+                    }).filter(r -> r != null);
+        } else {
+            return resultFromTable;
+        }
+        return Stream.concat(resultFromTable, fromTransaction);
+    }
+
+    public Record accessRecord(Map.Entry<Bytes, Long> entry,
+            Predicate predicate, StatementEvaluationContext context,
+            Transaction transaction, LocalScanPageCache lastPageRead, boolean primaryIndexSeek,
+            boolean forWrite, boolean acquireLock) {
+
+        Bytes key = entry.getKey();
+        boolean keep_lock = false;
+        boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
+        LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
+        try {
+            if (transaction != null) {
+                if (transaction.recordDeleted(table.name, key)) {
+                    // skip this record. inside current transaction it has been deleted
+                    return null;
+                }
+                Record record = transaction.recordUpdated(table.name, key);
+                if (record != null) {
+                    // use current transaction version of the record
+                    if (predicate == null || predicate.evaluate(record, context)) {
+                        keep_lock = true;
+                        return record;
+                    }
+                    return null;
+                }
+            }
+            Long pageId = entry.getValue();
+            if (pageId != null) {
+                boolean pkFilterCompleteMatch = false;
+                if (!primaryIndexSeek && predicate != null) {
+                    Predicate.PrimaryKeyMatchOutcome outcome
+                            = predicate.matchesRawPrimaryKey(key, context);
+                    if (outcome == Predicate.PrimaryKeyMatchOutcome.FAILED) {
+                        return null;
+                    } else if (outcome == Predicate.PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED) {
+                        pkFilterCompleteMatch = true;
+                    }
+                }
+                Record record = fetchRecord(key, pageId, lastPageRead);
+                if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
+
+                    keep_lock = true;
+                    return record;
+                }
+            }
+            return null;
+        } finally {
+            // release the lock on the key if it did not match scan criteria
+            if (transaction == null) {
+                if (lock != null) {
+                    if (forWrite) {
+                        locksManager.releaseWriteLockForKey(key, lock);
+                    } else {
+                        locksManager.releaseReadLockForKey(key, lock);
+                    }
+                }
+            } else if (!keep_lock && !already_locked) {
+                transaction.releaseLockOnKey(table.name, key, locksManager);
+            }
         }
     }
 
