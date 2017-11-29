@@ -301,7 +301,7 @@ public class PrimaryIndexScanRangeTest {
                     assertEquals(7, tuples.get(5).get("n1"));
                 }
             }
-
+            System.out.println("QUAAAAAAAA");
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
                         + "FROM tblspace1.t1 "
@@ -319,7 +319,7 @@ public class PrimaryIndexScanRangeTest {
                     assertEquals(3, tuples.get(1).get("n1"));
                 }
             }
-
+            System.out.println("QUIIIIII");
             {
                 TranslatedQuery translated = manager.getPlanner().translate(TableSpace.DEFAULT, "SELECT n1,n2 "
                         + "FROM tblspace1.t1 "
@@ -332,6 +332,9 @@ public class PrimaryIndexScanRangeTest {
                 assertTrue(scan.getComparator().isOnlyPrimaryKeyAndAscending());
                 try (DataScanner scan1 = manager.scan(scan, translated.context, new TransactionContext(tx));) {
                     List<DataAccessor> tuples = scan1.consume();
+                    for (DataAccessor tuple : tuples) {
+                        System.out.println("tuple: "+tuple.toMap());
+                    }
                     assertEquals(3, tuples.size());
                     assertEquals(3, tuples.get(0).get("n1"));
                     assertEquals(4, tuples.get(1).get("n1"));

@@ -35,25 +35,13 @@ import java.util.stream.Stream;
 class StreamDataScanner extends DataScanner {
 
     private final Iterator<DataAccessor> wrapped;
-    private final TransactionStreamListener listener;
     private DataAccessor next;
 
-    static final class TransactionStreamListener implements ScanResultOperation {
-
-        boolean inTransactionData;
-
-        @Override
-        public void beginNewRecordsInTransactionBlock() {
-            inTransactionData = true;
-        }
-
-    }
 
     public StreamDataScanner(
-            long transactionId, String[] fieldNames, Column[] schema,
-            Stream<DataAccessor> wrapped, TransactionStreamListener listener) {
+        long transactionId, String[] fieldNames, Column[] schema,
+        Stream<DataAccessor> wrapped, TransactionStreamListener listener) {
         super(transactionId, fieldNames, schema);
-        this.listener = listener;
         this.wrapped = wrapped.iterator();
         fetchNext();
     }
@@ -64,22 +52,10 @@ class StreamDataScanner extends DataScanner {
     }
 
     private void fetchNext() {
-        try {
-            if (wrapped.hasNext()) {
-                next = wrapped.next();
-            } else {
-                next = null;
-            }
-        } catch (TableManager.ExitLoop exitLoop) {
-            exitLoop.printStackTrace();
-            if (exitLoop.continueWithTransactionData) {
-                while (!listener.inTransactionData && next != null) {
-                    fetchNext();
-                }
-            } else {
-                next = null;
-            }
-                   
+        if (wrapped.hasNext()) {
+            next = wrapped.next();
+        } else {
+            next = null;
         }
     }
 
