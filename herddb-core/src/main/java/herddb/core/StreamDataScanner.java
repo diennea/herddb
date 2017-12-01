@@ -19,7 +19,6 @@
  */
 package herddb.core;
 
-import herddb.core.TableManager.ScanResultOperation;
 import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
@@ -37,10 +36,9 @@ class StreamDataScanner extends DataScanner {
     private final Iterator<DataAccessor> wrapped;
     private DataAccessor next;
 
-
     public StreamDataScanner(
         long transactionId, String[] fieldNames, Column[] schema,
-        Stream<DataAccessor> wrapped, TransactionStreamListener listener) {
+        Stream<DataAccessor> wrapped) {
         super(transactionId, fieldNames, schema);
         this.wrapped = wrapped.iterator();
         fetchNext();

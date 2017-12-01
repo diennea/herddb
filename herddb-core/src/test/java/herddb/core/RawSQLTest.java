@@ -57,7 +57,6 @@ import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.RollbackTransactionStatement;
-import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.PlannerOp;
 import herddb.sql.CalcitePlanner;
@@ -749,6 +748,11 @@ public class RawSQLTest {
                     + "WHERE k1 <> ? LIMIT ?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
                 List<DataAccessor> result = scan1.consume();
                 assertEquals(3, result.size());
+            }
+            try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
+                    + "WHERE k1 <> ? LIMIT 2,?", Arrays.asList("aaa", 3), TransactionContext.NO_TRANSACTION);) {
+                List<DataAccessor> result = scan1.consume();
+                assertEquals(2, result.size());
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql "
