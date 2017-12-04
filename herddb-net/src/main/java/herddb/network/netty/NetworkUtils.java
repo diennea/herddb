@@ -25,6 +25,8 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.UnknownHostException;
 
+import io.netty.channel.epoll.Epoll;
+
 /**
  * Network utility
  *
@@ -32,8 +34,10 @@ import java.net.UnknownHostException;
  */
 public class NetworkUtils {
 
-    private static final boolean ENABLE_EPOOL_NATIVE = System.getProperty("os.name").equalsIgnoreCase("linux")
-        && !Boolean.getBoolean("herddb.network.disablenativeepoll");
+    private static final boolean ENABLE_EPOOL_NATIVE =
+            System.getProperty("os.name").equalsIgnoreCase("linux")
+            && !Boolean.getBoolean("herddb.network.disablenativeepoll")
+            && Epoll.isAvailable();
 
     public static boolean isEnableEpoolNative() {
         return ENABLE_EPOOL_NATIVE;
