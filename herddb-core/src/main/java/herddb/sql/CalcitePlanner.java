@@ -203,24 +203,24 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
         query = SQLPlanner.rewriteExecuteSyntax(query);
         if (query.startsWith("CREATE")
-                || query.startsWith("DROP")
-                || query.startsWith("EXECUTE")
-                || query.startsWith("ALTER")
-                || query.startsWith("BEGIN")
-                || query.startsWith("COMMIT")
-                || query.startsWith("ROLLBACK")
-                //                || (query.startsWith("UPDATE") && query.contains("?")) // this needs some fixes on Calcite
-                || query.startsWith("TRUNCATE")) {
+            || query.startsWith("DROP")
+            || query.startsWith("EXECUTE")
+            || query.startsWith("ALTER")
+            || query.startsWith("BEGIN")
+            || query.startsWith("COMMIT")
+            || query.startsWith("ROLLBACK")
+            //                || (query.startsWith("UPDATE") && query.contains("?")) // this needs some fixes on Calcite
+            || query.startsWith("TRUNCATE")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
         String cacheKey = "scan:" + scan
-                + ",defaultTableSpace:" + defaultTableSpace
-                + ",query:" + query
-                + ",returnValues:" + returnValues
-                + ",maxRows:" + maxRows;
+            + ",defaultTableSpace:" + defaultTableSpace
+            + ",query:" + query
+            + ",returnValues:" + returnValues
+            + ",maxRows:" + maxRows;
         if (allowCache) {
             ExecutionPlan cached = cache.get(cacheKey);
             if (cached != null) {
@@ -234,33 +234,38 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SchemaPlus schema = getRootSchema();
             List<RelTraitDef> traitDefs = new ArrayList<>();
             traitDefs.add(ConventionTraitDef.INSTANCE);
+            SchemaPlus subSchema = schema.getSubSchema(defaultTableSpace);
+            if (subSchema == null) {
+                TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(defaultTableSpace);
+                throw new StatementExecutionException("internal error, Calcite subSchema for " + defaultTableSpace + " is null, tableSpaceManager is " + tableSpaceManager);
+            }
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()
-                    .parserConfig(SQL_PARSER_CONFIG)
-                    .defaultSchema(schema.getSubSchema(defaultTableSpace))
-                    .traitDefs(traitDefs)
-                    // define the rules you want to apply
+                .parserConfig(SQL_PARSER_CONFIG)
+                .defaultSchema(subSchema)
+                .traitDefs(traitDefs)
+                // define the rules you want to apply
 
-                    .programs(Programs.ofRules(Programs.RULE_SET))
-                    .build();
+                .programs(Programs.ofRules(Programs.RULE_SET))
+                .build();
             PlannerResult plan = runPlanner(config, query);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
-                    convertRelNode(plan.topNode, plan.originalRowType, returnValues)
-                            .optimize());
+                convertRelNode(plan.topNode, plan.originalRowType, returnValues)
+                    .optimize());
             if (!scan) {
                 ScanStatement scanStatement = sqlPlannedOperationStatement.unwrap(ScanStatement.class);
                 if (scanStatement != null) {
                     Table tableDef = scanStatement.getTableDef();
                     CompiledSQLExpression where = scanStatement.getPredicate().unwrap(CompiledSQLExpression.class);
                     SQLRecordKeyFunction keyFunction = findIndexAccess(where, tableDef.getPrimaryKey(),
-                            tableDef, "=", tableDef);
+                        tableDef, "=", tableDef);
                     if (keyFunction == null || !keyFunction.isFullPrimaryKey()) {
                         throw new StatementExecutionException("unsupported GET not on PK, bad where clause: " + query);
                     }
                     GetStatement get = new GetStatement(scanStatement.getTableSpace(),
-                            scanStatement.getTable(), keyFunction, scanStatement.getPredicate(), true);
+                        scanStatement.getTable(), keyFunction, scanStatement.getPredicate(), true);
                     ExecutionPlan executionPlan = ExecutionPlan.simple(
-                            get
+                        get
                     );
                     if (allowCache) {
                         cache.put(cacheKey, executionPlan);
@@ -270,12 +275,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             if (maxRows > 0) {
                 PlannerOp op = new LimitOp(sqlPlannedOperationStatement.getRootOp(),
-                        new ConstantExpression(maxRows), new ConstantExpression(0))
-                        .optimize();
+                    new ConstantExpression(maxRows), new ConstantExpression(0))
+                    .optimize();
                 sqlPlannedOperationStatement = new SQLPlannedOperationStatement(op);
             }
             ExecutionPlan executionPlan = ExecutionPlan.simple(
-                    sqlPlannedOperationStatement
+                sqlPlannedOperationStatement
             );
             if (allowCache) {
                 cache.put(cacheKey, executionPlan);
@@ -295,21 +300,19 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
     }
     private static final SqlParser.Config SQL_PARSER_CONFIG
-            = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
-                    .setCaseSensitive(false)
-                    .setConformance(SqlConformanceEnum.MYSQL_5)
-                    .setQuoting(Quoting.BACK_TICK)
-                    .build();
+        = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
+            .setCaseSensitive(false)
+            .setConformance(SqlConformanceEnum.MYSQL_5)
+            .setQuoting(Quoting.BACK_TICK)
+            .build();
 
     /**
      * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
      * }
-     * works on a projection of the table wich contains only the pk fields of
-     * the table for instance if the predicate wants to access first element of
-     * the pk, and this field is the 3rd in the column list then you will find
-     * {@link AccessCurrentRowExpression} with index=2. To this expression you
-     * have to apply the projection and map 2 (3rd element of the table) to 0
-     * (1st element of the pk)
+     * works on a projection of the table wich contains only the pk fields of the table for instance if the predicate
+     * wants to access first element of the pk, and this field is the 3rd in the column list then you will find
+     * {@link AccessCurrentRowExpression} with index=2. To this expression you have to apply the projection and map 2
+     * (3rd element of the table) to 0 (1st element of the pk)
      *
      * @param filterPk
      * @param table
@@ -354,7 +357,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         RelOptCluster cluster = root.getCluster();
         final RelOptPlanner optPlanner = cluster.getPlanner();
         RelTraitSet desiredTraits
-                = cluster.traitSet().replace(EnumerableConvention.INSTANCE);
+            = cluster.traitSet().replace(EnumerableConvention.INSTANCE);
         final RelNode newRoot = optPlanner.changeTraits(root, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
@@ -389,7 +392,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp convertRelNode(RelNode plan,
-            RelDataType rowType, boolean returnValues) throws StatementExecutionException {
+        RelDataType rowType, boolean returnValues) throws StatementExecutionException {
         if (plan instanceof EnumerableTableModify) {
             EnumerableTableModify dml = (EnumerableTableModify) plan;
             switch (dml.getOperation()) {
@@ -450,7 +453,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private PlannerOp planInsert(EnumerableTableModify dml,
-            boolean returnValues) {
+        boolean returnValues) {
 
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
@@ -462,7 +465,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 EnumerableValues values = (EnumerableValues) project.getInput();
                 if (values.getTuples().size() == 1) {
                     final TableImpl tableImpl
-                            = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
+                        = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
                     Table table = tableImpl.tableManager.getTable();
                     int index = 0;
                     List<RexNode> projects = project.getProjects();
@@ -473,12 +476,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     boolean invalid = false;
                     for (Column column : table.getColumns()) {
                         CompiledSQLExpression exp
-                                = SQLExpressionCompiler.compileExpression(projects.get(index));
+                            = SQLExpressionCompiler.compileExpression(projects.get(index));
                         if (exp instanceof ConstantExpression
-                                || exp instanceof JdbcParameterExpression
-                                || exp instanceof TypedJdbcParameterExpression) {
+                            || exp instanceof JdbcParameterExpression
+                            || exp instanceof TypedJdbcParameterExpression) {
                             boolean isAlwaysNull = (exp instanceof ConstantExpression)
-                                    && ((ConstantExpression) exp).isNull();
+                                && ((ConstantExpression) exp).isNull();
                             if (!isAlwaysNull) {
                                 if (table.isPrimaryKeyColumn(column.name)) {
                                     keyExpressionToColumn.add(column.name);
@@ -496,7 +499,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                     if (!invalid) {
                         RecordFunction keyfunction;
                         if (keyValueExpression.isEmpty()
-                                && table.auto_increment) {
+                            && table.auto_increment) {
                             keyfunction = new AutoIncrementPrimaryKeyRecordFunction();
                         } else {
                             if (keyValueExpression.size() != table.primaryKey.length) {
@@ -514,7 +517,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return new SimpleInsertOp(statement);
         }
         PlannerOp input = convertRelNode(dml.getInput(),
-                null, false);
+            null, false);
 
         try {
             return new InsertOp(tableSpace, tableName, input, returnValues);
@@ -529,7 +532,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
         final TableImpl tableImpl
-                = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
+            = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
         DeleteStatement delete = null;
         if (input instanceof TableScanOp) {
@@ -543,8 +546,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         } else if (input instanceof BindableTableScanOp) {
             BindableTableScanOp filter = (BindableTableScanOp) input;
             Predicate pred = filter
-                    .getStatement()
-                    .getPredicate();
+                .getStatement()
+                .getPredicate();
             delete = new DeleteStatement(tableSpace, tableName, null, pred);
         }
         if (delete != null) {
@@ -562,7 +565,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final String tableSpace = dml.getTable().getQualifiedName().get(0);
         final String tableName = dml.getTable().getQualifiedName().get(1);
         final TableImpl tableImpl
-                = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
+            = (TableImpl) dml.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
         List<CompiledSQLExpression> expressions = new ArrayList<>(sourceExpressionList.size());
 
@@ -598,7 +601,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 BindableTableScanOp filter = (BindableTableScanOp) proj.getInput();
                 ScanStatement scan = filter.getStatement();
                 if (scan.getComparator() == null && scan.getLimits() == null
-                        && scan.getTableDef() != null) {
+                    && scan.getTableDef() != null) {
                     Predicate pred = scan.getPredicate();
                     update = new UpdateStatement(tableSpace, tableName, null, function, pred);
                 }
@@ -615,7 +618,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     private PlannerOp planEnumerableTableScan(EnumerableTableScan scan, RelDataType rowType) {
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
         final TableImpl tableImpl
-                = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
+            = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
         ScanStatement scanStatement = new ScanStatement(tableSpace, table, null);
         return new TableScanOp(scanStatement);
@@ -627,7 +630,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
         final TableImpl tableImpl
-                = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
+            = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class);
         Table table = tableImpl.tableManager.getTable();
         SQLRecordPredicate predicate = null;
         if (!scan.filters.isEmpty()) {
@@ -662,8 +665,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         for (int fieldpos : scan.projects) {
             projections.add(new RexInputRef(fieldpos, rowType
-                    .getFieldList()
-                    .get(i++).getType()));
+                .getFieldList()
+                .get(i++).getType()));
         }
         Projection projection = buildProjection(projections, rowType);
         ScanStatement scanStatement = new ScanStatement(tableSpace, table.name, projection, predicate, null, null);
@@ -676,7 +679,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         for (String pk : table.primaryKey) {
             List<CompiledSQLExpression> conditions
-                    = where.scanForConstraintsOnColumn(pk, table);
+                = where.scanForConstraintsOnColumn(pk, table);
             if (conditions.isEmpty()) {
                 break;
             }
@@ -714,12 +717,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         int i = 0;
         for (RelDataTypeField field : fieldList) {
             Column col = Column.column(field.getName().toLowerCase(),
-                    convertToHerdType(field.getType()));
+                convertToHerdType(field.getType()));
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
         return new SemiJoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right);
+            leftKeys, left, rightKeys, right);
     }
 
     private PlannerOp planEnumerableJoin(EnumerableJoin op, RelDataType rowType) {
@@ -737,12 +740,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         int i = 0;
         for (RelDataTypeField field : fieldList) {
             Column col = Column.column(field.getName().toLowerCase(),
-                    convertToHerdType(field.getType()));
+                convertToHerdType(field.getType()));
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
+            leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, false);
     }
 
     private PlannerOp planEnumerableThetaJoin(EnumerableThetaJoin op, RelDataType rowType) {
@@ -758,12 +761,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         int i = 0;
         for (RelDataTypeField field : fieldList) {
             Column col = Column.column(field.getName().toLowerCase(),
-                    convertToHerdType(field.getType()));
+                convertToHerdType(field.getType()));
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
         return new ThetaJoinOp(fieldNames, columns,
-                left, right, condition, generateNullsOnLeft, generateNullsOnRight, false);
+            left, right, condition, generateNullsOnLeft, generateNullsOnRight, false);
     }
 
     private PlannerOp planEnumerableMergeJoin(EnumerableMergeJoin op, RelDataType rowType) {
@@ -781,17 +784,17 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         int i = 0;
         for (RelDataTypeField field : fieldList) {
             Column col = Column.column(field.getName().toLowerCase(),
-                    convertToHerdType(field.getType()));
+                convertToHerdType(field.getType()));
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, true);
+            leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, true);
     }
 
     private Projection buildProjection(
-            final List<RexNode> projects,
-            final RelDataType rowType) {
+        final List<RexNode> projects,
+        final RelDataType rowType) {
         boolean allowZeroCopyProjection = true;
         List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
         Column[] columns = new Column[projects.size()];
@@ -808,20 +811,20 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
             fields.add(exp);
             Column col = Column.column(rowType.getFieldNames().get(i).toLowerCase(),
-                    convertToHerdType(node.getType()));
+                convertToHerdType(node.getType()));
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
         if (allowZeroCopyProjection) {
             return new ProjectOp.ZeroCopyProjection(
-                    fieldNames,
-                    columns,
-                    zeroCopyProjections);
+                fieldNames,
+                columns,
+                zeroCopyProjections);
         } else {
             return new ProjectOp.BasicProjection(
-                    fieldNames,
-                    columns,
-                    fields);
+                fieldNames,
+                columns,
+                fields);
         }
     }
 
@@ -848,7 +851,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             columns[i++] = col;
         }
         return new ValuesOp(manager.getNodeId(), fieldNames,
-                columns, tuples);
+            columns, tuples);
 
     }
 
@@ -863,7 +866,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             RelFieldCollation.Direction direction = col.getDirection();
             int index = col.getFieldIndex();
             directions[i] = direction == RelFieldCollation.Direction.ASCENDING
-                    || direction == RelFieldCollation.Direction.STRICTLY_ASCENDING;
+                || direction == RelFieldCollation.Direction.STRICTLY_ASCENDING;
             fields[i++] = index;
         }
         return new SortOp(input, directions, fields);
@@ -958,8 +961,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private static SQLRecordKeyFunction findIndexAccess(CompiledSQLExpression where,
-            String[] columnsToMatch, ColumnsList table,
-            String operator, BindableTableScanColumnNameResolver res) throws StatementExecutionException {
+        String[] columnsToMatch, ColumnsList table,
+        String operator, BindableTableScanColumnNameResolver res) throws StatementExecutionException {
         List<CompiledSQLExpression> expressions = new ArrayList<>();
         List<String> columns = new ArrayList<>();
 
@@ -980,7 +983,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private IndexOperation scanForIndexAccess(CompiledSQLExpression expressionWhere, Table table, TableSpaceManager tableSpaceManager) {
         SQLRecordKeyFunction keyFunction = findIndexAccess(expressionWhere, table.primaryKey, table,
-                "=", table);
+            "=", table);
         IndexOperation result = null;
         if (keyFunction != null) {
             if (keyFunction.isFullPrimaryKey()) {
@@ -990,21 +993,21 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
         } else {
             SQLRecordKeyFunction rangeMin = findIndexAccess(expressionWhere, table.primaryKey,
-                    table, ">=", table
+                table, ">=", table
             );
             if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                 rangeMin = null;
             }
             if (rangeMin == null) {
                 rangeMin = findIndexAccess(expressionWhere, table.primaryKey, table,
-                        ">", table);
+                    ">", table);
                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                     rangeMin = null;
                 }
             }
 
             SQLRecordKeyFunction rangeMax = findIndexAccess(expressionWhere, table.primaryKey,
-                    table, "<=", table);
+                table, "<=", table);
             if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                 rangeMax = null;
             }
@@ -1039,11 +1042,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private static IndexOperation findSecondaryIndexOperation(AbstractIndexManager index,
-            CompiledSQLExpression where, Table table) throws StatementExecutionException {
+        CompiledSQLExpression where, Table table) throws StatementExecutionException {
         IndexOperation secondaryIndexOperation = null;
         String[] columnsToMatch = index.getColumnNames();
         SQLRecordKeyFunction indexSeekFunction = findIndexAccess(where, columnsToMatch,
-                index.getIndex(), "=", table);
+            index.getIndex(), "=", table);
         if (indexSeekFunction != null) {
             if (indexSeekFunction.isFullPrimaryKey()) {
                 secondaryIndexOperation = new SecondaryIndexSeek(index.getIndexName(), columnsToMatch, indexSeekFunction);
@@ -1052,27 +1055,27 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             }
         } else {
             SQLRecordKeyFunction rangeMin = findIndexAccess(where, columnsToMatch,
-                    index.getIndex(), ">=", table);
+                index.getIndex(), ">=", table);
             if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                 rangeMin = null;
 
             }
             if (rangeMin == null) {
                 rangeMin = findIndexAccess(where, columnsToMatch,
-                        index.getIndex(), ">", table);
+                    index.getIndex(), ">", table);
                 if (rangeMin != null && !rangeMin.isFullPrimaryKey()) {
                     rangeMin = null;
                 }
             }
 
             SQLRecordKeyFunction rangeMax = findIndexAccess(where, columnsToMatch,
-                    index.getIndex(), "<=", table);
+                index.getIndex(), "<=", table);
             if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                 rangeMax = null;
             }
             if (rangeMax == null) {
                 rangeMax = findIndexAccess(where, columnsToMatch,
-                        index.getIndex(), "<", table);
+                    index.getIndex(), "<", table);
                 if (rangeMax != null && !rangeMax.isFullPrimaryKey()) {
                     rangeMax = null;
                 }
@@ -1090,7 +1093,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     private static class TableImpl extends AbstractTable
-            implements ModifiableTable, ScannableTable, ProjectableFilterableTable {
+        implements ModifiableTable, ScannableTable, ProjectableFilterableTable {
 
         final AbstractTableManager tableManager;
         final ImmutableList<ImmutableBitSet> keys;
@@ -1123,7 +1126,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         @Override
         public Statistic getStatistic() {
             return Statistics.of(tableManager.getStats().getTablesize(),
-                    keys);
+                keys);
         }
 
         @Override
@@ -1134,7 +1137,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         @Override
         public TableModify toModificationRel(RelOptCluster cluster, RelOptTable table, Prepare.CatalogReader catalogReader, RelNode child, TableModify.Operation operation, List<String> updateColumnList, List<RexNode> sourceExpressionList, boolean flattened) {
             return LogicalTableModify.create(table, catalogReader, child, operation,
-                    updateColumnList, sourceExpressionList, flattened);
+                updateColumnList, sourceExpressionList, flattened);
         }
 
         @Override
@@ -1163,7 +1166,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
 
         private static RelDataType convertType(int type,
-                RelDataTypeFactory typeFactory, boolean nullable) {
+            RelDataTypeFactory typeFactory, boolean nullable) {
             RelDataType relDataType = convertTypeNotNull(type, typeFactory);
             if (nullable) {
                 return typeFactory.createTypeWithNullability(relDataType, true);
@@ -1173,7 +1176,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
 
         private static RelDataType convertTypeNotNull(int type,
-                RelDataTypeFactory typeFactory) {
+            RelDataTypeFactory typeFactory) {
 
             switch (type) {
                 case ColumnTypes.BOOLEAN:
