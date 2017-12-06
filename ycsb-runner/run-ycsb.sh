@@ -11,6 +11,17 @@ echo "Running YCSB workload $WORKLOAD from $YCSB_PATH"
 echo "Using HerdDB instance at $HERDDB_PATH"
 echo "Using JDBC Driver $JDBC_DRIVER"
 
+if [[ ! -d "$HERDDB_PATH" ]]; then
+   echo "Directory $HERDDB_PATH is not a valid directory"
+   exit 1
+fi
+if [[ ! -d "$YCSB_PATH" ]]; then
+   echo "Directory $YCSB_PATH is not a valid directory"
+   exit 1
+fi
+
+
+
 $HERDDB_PATH/bin/service server kill
 
 rm -Rf $HERDDB_PATH/dbdata

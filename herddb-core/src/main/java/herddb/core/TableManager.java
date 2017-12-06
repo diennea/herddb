@@ -2053,8 +2053,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     @Override
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
         Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
-        if (!ENABLE_STREAMING_DATA_SCANNER || (statement.getComparator() != null && this.stats.getTablesize() > HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET)) {
-            return scanNoStream(statement, context, transaction, lockRequired, forWrite);
+        TupleComparator comparator = statement.getComparator();
+        if (!ENABLE_STREAMING_DATA_SCANNER || (comparator != null
+            && this.stats.getTablesize() > HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET)) {
+            boolean sortedByClusteredIndex = comparator != null
+            && comparator.isOnlyPrimaryKeyAndAscending()
+            && keyToPage.isSortedAscending();
+            if (!sortedByClusteredIndex) {
+                return scanNoStream(statement, context, transaction, lockRequired, forWrite);
+            }
         }
         return scanWithStream(statement, context, transaction, lockRequired, forWrite);
     }

@@ -231,10 +231,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             allowCache = false;
         }
         try {
-            SchemaPlus schema = getRootSchema();
+
             List<RelTraitDef> traitDefs = new ArrayList<>();
             traitDefs.add(ConventionTraitDef.INSTANCE);
-            SchemaPlus subSchema = schema.getSubSchema(defaultTableSpace);
+            SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
             if (subSchema == null) {
                 TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(defaultTableSpace);
                 throw new StatementExecutionException("internal error, Calcite subSchema for " + defaultTableSpace + " is null, tableSpaceManager is " + tableSpaceManager);
@@ -299,6 +299,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             throw new StatementExecutionException(ex);
         }
     }
+
+    private SchemaPlus getSchemaForTableSpace(String defaultTableSpace) throws MetadataStorageManagerException {
+        SchemaPlus schema = getRootSchema();
+        synchronized (schema) {
+            // maybe caching Schema has some kind of concurrency issue
+            return schema.getSubSchema(defaultTableSpace);
+        }
+    }
+    
     private static final SqlParser.Config SQL_PARSER_CONFIG
         = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
             .setCaseSensitive(false)
