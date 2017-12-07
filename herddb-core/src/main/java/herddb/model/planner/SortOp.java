@@ -37,6 +37,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
+import java.util.Arrays;
 
 /**
  * Generic Sort
@@ -64,7 +65,7 @@ public class SortOp implements PlannerOp, TupleComparator {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         // TODO merge projection + scan + sort + limit
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
         ScanResult downstreamScanResult = (ScanResult) input;
@@ -72,8 +73,8 @@ public class SortOp implements PlannerOp, TupleComparator {
 
         try (DataScanner dataScanner = inputScanner;) {
             MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
-                    .createRecordSet(inputScanner.getFieldNames(),
-                            inputScanner.getSchema());
+                .createRecordSet(inputScanner.getFieldNames(),
+                    inputScanner.getSchema());
             while (dataScanner.hasNext()) {
                 DataAccessor row = dataScanner.next();
                 recordSet.add(row);
@@ -141,4 +142,10 @@ public class SortOp implements PlannerOp, TupleComparator {
         }
         return Wrapper.unwrap(this, clazz);
     }
+
+    @Override
+    public String toString() {
+        return "SortOp{fields=" + Arrays.toString(fields) + ", onlyPrimaryKeyAndAscending=" + onlyPrimaryKeyAndAscending + '}';
+    }
+
 }

@@ -87,7 +87,7 @@ public class TruncateTableSQLTest {
             long tx1 = TestUtils.beginTransaction(manager, "tblspace1");
             try {
                 // forbidden, transactions not allowed
-                execute(manager, "TRUNCATE TABLE tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx1));
+                execute(manager, "truncate TABLE tblspace1.tsql", Collections.emptyList(), new TransactionContext(tx1));
                 fail();
             } catch (StatementExecutionException ok) {
                 assertEquals("TRUNCATE TABLE cannot be executed within the context of a Transaction", ok.getMessage());

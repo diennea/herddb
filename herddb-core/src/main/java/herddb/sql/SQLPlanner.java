@@ -225,6 +225,13 @@ public class SQLPlanner implements AbstractSQLPlanner {
                     return "EXECUTE rollbacktransaction" + query.substring(idx + 20);
                 }
                 return query;
+            /* TRUNCATE */
+            case 'T':
+            case 't':
+                if (query.regionMatches(true, idx, "TRUNCATE", 0, 8)) {
+                    return "TRUNCATE" + query.substring(idx + 8);
+                }
+                return query;
             default:
                 return query;
         }

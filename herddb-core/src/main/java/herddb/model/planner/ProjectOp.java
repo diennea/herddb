@@ -60,7 +60,7 @@ public class ProjectOp implements PlannerOp {
         private final List<CompiledSQLExpression> fields;
 
         public BasicProjection(String[] fieldNames, Column[] columns,
-                List<CompiledSQLExpression> fields) {
+            List<CompiledSQLExpression> fields) {
             this.fieldNames = fieldNames;
             this.columns = columns;
             this.fields = fields;
@@ -176,7 +176,7 @@ public class ProjectOp implements PlannerOp {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        TransactionContext transactionContext, StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
 
         // TODO merge projection + scan + sort + limit
         StatementExecutionResult input = this.input.execute(tableSpaceManager, transactionContext, context, lockRequired, forWrite);
@@ -184,8 +184,35 @@ public class ProjectOp implements PlannerOp {
         DataScanner dataScanner = downstream.dataScanner;
 
         DataScanner projected = new ProjectedDataScanner(dataScanner,
-                projection.getFieldNames(), projection.getColumns(), context);
+            projection.getFieldNames(), projection.getColumns(), context);
         return new ScanResult(downstream.transactionId, projected);
+    }
+
+    @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
+    public static class IdentityProjection implements Projection {
+
+        public IdentityProjection(String[] fieldNames, Column[] columns) {
+            this.fieldNames = fieldNames;
+            this.columns = columns;
+        }
+
+        private final Column[] columns;
+        private final String[] fieldNames;
+
+        @Override
+        public Column[] getColumns() {
+            return columns;
+        }
+
+        @Override
+        public String[] getFieldNames() {
+            return fieldNames;
+        }
+
+        @Override
+        public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
+            return tuple;
+        }
     }
 
     @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
@@ -258,6 +285,12 @@ public class ProjectOp implements PlannerOp {
             }
         }
 
+        @Override
+        public String toString() {
+            return "ZeroCopyProjection{" + "fieldNames=" + Arrays.toString(fieldNames)
+                + ", zeroCopyProjections=" + Arrays.toString(zeroCopyProjections) + '}';
+        }
+
     }
 
     private class ProjectedDataScanner extends DataScanner {
@@ -266,7 +299,7 @@ public class ProjectOp implements PlannerOp {
         final StatementEvaluationContext context;
 
         public ProjectedDataScanner(DataScanner downstream, String[] fieldNames,
-                Column[] schema, StatementEvaluationContext context) {
+            Column[] schema, StatementEvaluationContext context) {
             super(downstream.transactionId, fieldNames, schema);
             this.downstream = downstream;
             this.context = context;
@@ -292,6 +325,12 @@ public class ProjectOp implements PlannerOp {
             downstream.close();
         }
 
+    }
+
+    @Override
+    public String toString() {
+        return "ProjectOp{" + "projection=" + projection + ",\n"
+            + "input=" + input + '}';
     }
 
 }

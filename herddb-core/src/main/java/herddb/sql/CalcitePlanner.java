@@ -84,6 +84,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
+import static java.util.logging.Level.INFO;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.DataContext;
@@ -202,14 +203,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     @Override
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
         query = SQLPlanner.rewriteExecuteSyntax(query);
-        if (query.startsWith("CREATE")
+        if (query.startsWith("EXECUTE")
+            || query.startsWith("CREATE")
             || query.startsWith("DROP")
-            || query.startsWith("EXECUTE")
             || query.startsWith("ALTER")
-            || query.startsWith("BEGIN")
-            || query.startsWith("COMMIT")
-            || query.startsWith("ROLLBACK")
-            //                || (query.startsWith("UPDATE") && query.contains("?")) // this needs some fixes on Calcite
             || query.startsWith("TRUNCATE")) {
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
@@ -231,7 +228,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             allowCache = false;
         }
         try {
-
             List<RelTraitDef> traitDefs = new ArrayList<>();
             traitDefs.add(ConventionTraitDef.INSTANCE);
             SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
@@ -252,6 +248,12 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                 convertRelNode(plan.topNode, plan.originalRowType, returnValues)
                     .optimize());
+            if (LOG.isLoggable(Level.INFO)) {
+                if (LOG.isLoggable(Level.INFO)) {
+                    LOG.log(Level.INFO, "Query: {0} --HerdDB Plan {1}",
+                        new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
+                }
+            }
             if (!scan) {
                 ScanStatement scanStatement = sqlPlannedOperationStatement.unwrap(ScanStatement.class);
                 if (scanStatement != null) {
@@ -307,7 +309,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             return schema.getSubSchema(defaultTableSpace);
         }
     }
-    
+
     private static final SqlParser.Config SQL_PARSER_CONFIG
         = SqlParser.configBuilder(SqlParser.Config.DEFAULT)
             .setCaseSensitive(false)
@@ -357,8 +359,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         SqlNode n = planner.parse(query);
         n = planner.validate(n);
         RelNode root = planner.rel(n).project();
-        if (LOG.isLoggable(Level.FINER)) {
-            LOG.log(Level.FINER, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(Level.INFO)) {
+            LOG.log(Level.INFO, "Query: {0} {1}", new Object[]{query,
                 RelOptUtil.dumpPlan("-- Logical Plan", root, SqlExplainFormat.TEXT,
                 SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -370,8 +372,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final RelNode newRoot = optPlanner.changeTraits(root, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
-        if (LOG.isLoggable(Level.FINER)) {
-            LOG.log(Level.FINER, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(Level.INFO)) {
+            LOG.log(Level.INFO, "Query: {0} {1}", new Object[]{query,
                 RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                 SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -677,7 +679,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 .getFieldList()
                 .get(i++).getType()));
         }
-        Projection projection = buildProjection(projections, rowType);
+        Projection projection = buildProjection(projections, rowType, true, table.columns);
         ScanStatement scanStatement = new ScanStatement(tableSpace, table.name, projection, predicate, null, null);
         scanStatement.setTableDef(table);
         return new BindableTableScanOp(scanStatement);
@@ -709,7 +711,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         final List<RexNode> projects = op.getProjects();
         final RelDataType _rowType = rowType == null ? op.getRowType() : rowType;
-        Projection projection = buildProjection(projects, _rowType);
+        Projection projection = buildProjection(projects, _rowType, false, null);
         return new ProjectOp(projection, input);
     }
 
@@ -803,28 +805,41 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     private Projection buildProjection(
         final List<RexNode> projects,
-        final RelDataType rowType) {
+        final RelDataType rowType,
+        final boolean allowIdentity,
+        final Column[] tableSchema) {
         boolean allowZeroCopyProjection = true;
         List<CompiledSQLExpression> fields = new ArrayList<>(projects.size());
         Column[] columns = new Column[projects.size()];
         String[] fieldNames = new String[columns.length];
         int i = 0;
         int[] zeroCopyProjections = new int[fieldNames.length];
+        boolean identity = allowIdentity
+            && tableSchema != null
+            && tableSchema.length == projects.size();
         for (RexNode node : projects) {
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
             if (exp instanceof AccessCurrentRowExpression) {
                 AccessCurrentRowExpression accessCurrentRowExpression = (AccessCurrentRowExpression) exp;
-                zeroCopyProjections[i] = accessCurrentRowExpression.getIndex();
+                int mappedIndex = accessCurrentRowExpression.getIndex();
+                zeroCopyProjections[i] = mappedIndex;
+                if (i != mappedIndex) {
+                    identity = false;
+                }
             } else {
                 allowZeroCopyProjection = false;
             }
             fields.add(exp);
             Column col = Column.column(rowType.getFieldNames().get(i).toLowerCase(),
                 convertToHerdType(node.getType()));
+            identity = identity && col.name.equals(tableSchema[i].name);
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
         if (allowZeroCopyProjection) {
+            if (identity) {
+                return new ProjectOp.IdentityProjection(fieldNames, columns);
+            }
             return new ProjectOp.ZeroCopyProjection(
                 fieldNames,
                 columns,

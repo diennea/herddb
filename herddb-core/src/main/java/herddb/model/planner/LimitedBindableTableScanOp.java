@@ -54,8 +54,8 @@ public class LimitedBindableTableScanOp implements PlannerOp {
 
     @Override
     public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext,
-            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        TransactionContext transactionContext,
+        StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
         return new ScanResult(transactionContext.transactionId, scan);
     }
@@ -67,6 +67,11 @@ public class LimitedBindableTableScanOp implements PlannerOp {
             return unwrapped;
         }
         return Wrapper.unwrap(this, clazz);
+    }
+
+    @Override
+    public String toString() {
+        return "LimitedBindableTableScanOp{" + "statement=" + statement + '}';
     }
 
 }

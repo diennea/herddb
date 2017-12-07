@@ -26,6 +26,7 @@ import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.DataScanner;
+import herddb.model.Projection;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableSpace;
@@ -37,6 +38,7 @@ import herddb.model.planner.DeleteOp;
 import herddb.model.planner.InsertOp;
 import herddb.model.planner.LimitedSortedBindableTableScanOp;
 import herddb.model.planner.PlannerOp;
+import herddb.model.planner.ProjectOp.IdentityProjection;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
@@ -51,6 +53,8 @@ import java.util.List;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import org.junit.Assert;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import org.junit.Test;
@@ -80,7 +84,7 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=? where k1=? and n1=?"), SimpleUpdateOp.class);
             assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
-                    + " where n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
+                + " where n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=?"), SimpleDeleteOp.class);
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=? and n1=?"), SimpleDeleteOp.class);
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
@@ -88,6 +92,11 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
+            BindableTableScanOp plan = (BindableTableScanOp) assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
+            Projection projection = plan.getStatement().getProjection();
+            System.out.println("projection:" + projection);
+            assertThat(projection, instanceOf(IdentityProjection.class));
+            assertNull(plan.getStatement().getComparator());
 
         }
     }
@@ -109,9 +118,9 @@ public class CalcitePlannerTest {
             execute(manager, "INSERT INTO tblspace1.tsql2 (k2,n2) values(?,?)", Arrays.asList("mykey2", 1234), TransactionContext.NO_TRANSACTION);
             {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2,n1 "
-                        + "  from tblspace1.tsql2 join tblspace1.tsql on k2<>k1 "
-                        + "  where n2 > 1 "
-                        + " ", Collections.emptyList()).consume();
+                    + "  from tblspace1.tsql2 join tblspace1.tsql on k2<>k1 "
+                    + "  where n2 > 1 "
+                    + " ", Collections.emptyList()).consume();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(3, t.getFieldNames().length);
@@ -122,18 +131,18 @@ public class CalcitePlannerTest {
                 assertEquals(1, tuples.size());
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234, "n1", 1234
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey2", "n2", 1234, "n1", 1234
                 ))));
 
             }
             {
                 // theta join
                 List<DataAccessor> tuples = scan(manager, "select k2,n2,n1 "
-                        + "  from tblspace1.tsql2"
-                        + "  left join tblspace1.tsql on n2 < n1-1000"
-                        + "  "
-                        + " ", Collections.emptyList()).consume();
+                    + "  from tblspace1.tsql2"
+                    + "  left join tblspace1.tsql on n2 < n1-1000"
+                    + "  "
+                    + " ", Collections.emptyList()).consume();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(3, t.getFieldNames().length);
@@ -144,22 +153,22 @@ public class CalcitePlannerTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234, "n1", null
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey2", "n2", 1234, "n1", null
                 ))));
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234, "n1", null
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey", "n2", 1234, "n1", null
                 ))));
 
             }
             {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2,round(n1/2) as halfn1"
-                        + "  from tblspace1.tsql2"
-                        + "  left join tblspace1.tsql on n2 < n1-?"
-                        + "  "
-                        + " ", Arrays.asList(-1000)).consume();
+                    + "  from tblspace1.tsql2"
+                    + "  left join tblspace1.tsql on n2 < n1-?"
+                    + "  "
+                    + " ", Arrays.asList(-1000)).consume();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(3, t.getFieldNames().length);
@@ -170,20 +179,20 @@ public class CalcitePlannerTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234, "halfn1", 617.0
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey2", "n2", 1234, "halfn1", 617.0
                 ))));
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234, "halfn1", 617.0
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey", "n2", 1234, "halfn1", 617.0
                 ))));
 
             }
             {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
-                        + "                     where k2 not in (select k1 from tblspace1.tsql)"
-                        + " ", Collections.emptyList()).consume();
+                    + "                     where k2 not in (select k1 from tblspace1.tsql)"
+                    + " ", Collections.emptyList()).consume();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -193,16 +202,16 @@ public class CalcitePlannerTest {
                 assertEquals(1, tuples.size());
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey2", "n2", 1234
                 ))));
 
             }
             {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
-                        + "                     where n2 in (select n1 from tblspace1.tsql"
-                        + "                                    )"
-                        + " ", Collections.emptyList()).consume();
+                    + "                     where n2 in (select n1 from tblspace1.tsql"
+                    + "                                    )"
+                    + " ", Collections.emptyList()).consume();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -212,21 +221,21 @@ public class CalcitePlannerTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey2", "n2", 1234
                 ))));
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey", "n2", 1234
                 ))));
 
             }
 
             {
                 List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
-                        + "                     where exists (select * from tblspace1.tsql"
-                        + "                                     where n1=n2)"
-                        + " ", Collections.emptyList()).consume();
+                    + "                     where exists (select * from tblspace1.tsql"
+                    + "                                     where n1=n2)"
+                    + " ", Collections.emptyList()).consume();
                 for (DataAccessor t : tuples) {
                     System.out.println("tuple -: " + t.toMap());
                     assertEquals(2, t.getFieldNames().length);
@@ -236,12 +245,12 @@ public class CalcitePlannerTest {
                 assertEquals(2, tuples.size());
 
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey2", "n2", 1234
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey2", "n2", 1234
                 ))));
                 assertTrue(
-                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
-                        "k2", "mykey", "n2", 1234
+                    tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                    "k2", "mykey", "n2", 1234
                 ))));
 
             }
@@ -250,17 +259,18 @@ public class CalcitePlannerTest {
 
     private static PlannerOp plan(final DBManager manager, String query) throws StatementExecutionException {
         TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT,
-                query,
-                Collections.emptyList(),
-                true, true, true, -1);
+            query,
+            Collections.emptyList(),
+            true, true, true, -1);
 
         return translate.plan.mainStatement.unwrap(SQLPlannedOperationStatement.class
         ).getRootOp();
     }
 
-    private static void assertInstanceOf(PlannerOp plan, Class<?> aClass) {
+    private static PlannerOp assertInstanceOf(PlannerOp plan, Class<?> aClass) {
         Assert.assertTrue("expecting " + aClass + " but found " + plan.getClass(),
-                plan.getClass().equals(aClass));
+            plan.getClass().equals(aClass));
+        return plan;
     }
 
 }
