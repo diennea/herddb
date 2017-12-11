@@ -311,6 +311,11 @@
                     <name>MagNews Public Repository</name>
                     <url>http://maven.sviluppo.dna/content/repositories/releases/</url>
                 </repository>                
+                <snapshotRepository>
+                    <id>maven.sviluppo.dna</id>
+                    <name>MagNews Public Repository</name>
+                    <url>http://maven.sviluppo.dna/content/repositories/snapshots/</url>
+                </snapshotRepository>
             </distributionManagement>
             <build>        
                 <plugins>  
