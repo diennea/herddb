@@ -60,9 +60,9 @@ public final class RecordSerializer {
             case ColumnTypes.BYTEARRAY:
                 return data;
             case ColumnTypes.INTEGER:
-                return Bytes.toInt(data, 0, 4);
+                return Bytes.toInt(data, 0);
             case ColumnTypes.LONG:
-                return Bytes.toLong(data, 0, 8);
+                return Bytes.toLong(data, 0);
             case ColumnTypes.STRING:
                 return Bytes.to_rawstring(data);
             case ColumnTypes.TIMESTAMP:
@@ -70,9 +70,9 @@ public final class RecordSerializer {
             case ColumnTypes.NULL:
                 return null;
             case ColumnTypes.BOOLEAN:
-                return Bytes.toBoolean(data, 0, 1);
+                return Bytes.toBoolean(data, 0);
             case ColumnTypes.DOUBLE:
-                return Bytes.toDouble(data, 0, 8);
+                return Bytes.toDouble(data, 0);
             default:
                 throw new IllegalArgumentException("bad column type " + type);
         }
@@ -273,7 +273,7 @@ public final class RecordSerializer {
                 if ((value instanceof java.sql.Timestamp)) {
                     return value;
                 } else if (value instanceof RawString
-                        || value instanceof String) {
+                    || value instanceof String) {
                     try {
 
                         ZonedDateTime dateTime = ZonedDateTime.parse(value.toString(), TIMESTAMP_FORMATTER);
@@ -357,7 +357,7 @@ public final class RecordSerializer {
             return deserialize(key.data, table.getColumn(property).type);
         } else {
             try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     byte[] value = din.readArray();
                     if (primaryKeyColumn.equals(property)) {
@@ -376,7 +376,7 @@ public final class RecordSerializer {
         } else {
             final String cname = column.name;
             try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     byte[] value = din.readArray();
                     if (primaryKeyColumn.equals(cname)) {
@@ -530,7 +530,7 @@ public final class RecordSerializer {
 
     public static Record toRecord(Map<String, Object> record, Table table) {
         return new Record(serializePrimaryKey(record, table, table.primaryKey),
-                serializeValue(record, table), record);
+            serializeValue(record, table), record);
     }
 
     private static Object deserializeSingleColumnPrimaryKey(byte[] data, Table table) {
@@ -574,7 +574,7 @@ public final class RecordSerializer {
 
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, Map<String, Object> res) {
         try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(data);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+            ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
             for (String primaryKeyColumn : table.primaryKey) {
                 byte[] value = din.readArray();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
@@ -586,7 +586,7 @@ public final class RecordSerializer {
 
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, ImmutableMap.Builder<String, Object> res) {
         try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+            ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
             for (String primaryKeyColumn : table.primaryKey) {
                 byte[] value = din.readArray();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
@@ -627,7 +627,7 @@ public final class RecordSerializer {
                 consumer.accept(pkField, value);
             } else {
                 try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
-                        ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
                     for (String primaryKeyColumn : table.primaryKey) {
                         byte[] value = din.readArray();
                         Object theValue = deserialize(value, table.getColumn(primaryKeyColumn).type);

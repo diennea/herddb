@@ -48,7 +48,7 @@ public class XXHash64Utils {
     public static boolean verifyBlockWithFooter(byte[] array, int offset, int len) {
         byte[] expectedFooter = Arrays.copyOfRange(array, len - HASH_LEN, len);
         long expectedHash = HASHER.hash(array, offset, len - HASH_LEN, DEFAULT_SEED);
-        long hash = Bytes.toLong(expectedFooter, 0, HASH_LEN);
+        long hash = Bytes.toLong(expectedFooter, 0);
         return hash == expectedHash;
     }
 

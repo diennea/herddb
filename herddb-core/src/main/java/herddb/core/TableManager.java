@@ -430,7 +430,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 @Override
                 public void acceptTableStatus(TableStatus tableStatus) {
                     LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
-                    nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
+                    nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
                     nextPageId = tableStatus.nextPageId;
                     bootSequenceNumber = tableStatus.sequenceNumber;
                     activePagesAtBoot.putAll(tableStatus.activePages);
@@ -463,7 +463,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             LOGGER.log(Level.SEVERE, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
             TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
             LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
-            nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0, 8));
+            nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
             nextPageId = tableStatus.nextPageId;
             bootSequenceNumber = tableStatus.sequenceNumber;
             activePagesAtBoot.putAll(tableStatus.activePages);

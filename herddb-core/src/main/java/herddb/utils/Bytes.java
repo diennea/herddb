@@ -24,6 +24,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import io.netty.util.internal.PlatformDependent;
+import java.nio.ByteOrder;
 
 /**
  * A wrapper for byte[], in order to use it as keys on HashMaps
@@ -32,6 +34,10 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
  */
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
+
+    private static final boolean UNALIGNED = PlatformDependent.isUnaligned();
+    private static final boolean HAS_UNSAFE = PlatformDependent.hasUnsafe();
+    private static final boolean BIG_ENDIAN_NATIVE_ORDER = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
 
     /**
      * <pre>
@@ -114,11 +120,11 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public long to_long() {
-        return toLong(data, 0, 8);
+        return toLong(data, 0);
     }
 
     public int to_int() {
-        return toInt(data, 0, 4);
+        return toInt(data, 0);
     }
 
     public String to_string() {
@@ -138,11 +144,11 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public boolean to_boolean() {
-        return toBoolean(data, 0, 1);
+        return toBoolean(data, 0);
     }
 
     public double to_double() {
-        return toDouble(data, 0, 8);
+        return toDouble(data, 0);
     }
 
     public Bytes(byte[] data) {
@@ -165,34 +171,39 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
             if (other.hashCode != this.hashCode) {
                 return false;
             }
-            return Arrays.equals(this.data, other.data);
+            if (data.length != other.data.length) {
+                return false;
+            }
+            return PlatformDependent.equals(data, 0, other.data, 0, data.length);
         } catch (ClassCastException otherClass) {
             return false;
         }
     }
 
-    public static void putLong(byte[] bytes, int offset, long val) {
-        for (int i = offset + 7; i > offset; i--) {
-            bytes[i] = (byte) val;
-            val >>>= 8;
+    public static void putLong(byte[] array, int index, long value) {
+        if (HAS_UNSAFE && UNALIGNED) {
+            PlatformDependent.putLong(array, index, BIG_ENDIAN_NATIVE_ORDER ? value : Long.reverseBytes(value));
+        } else {
+            array[index] = (byte) (value >>> 56);
+            array[index + 1] = (byte) (value >>> 48);
+            array[index + 2] = (byte) (value >>> 40);
+            array[index + 3] = (byte) (value >>> 32);
+            array[index + 4] = (byte) (value >>> 24);
+            array[index + 5] = (byte) (value >>> 16);
+            array[index + 6] = (byte) (value >>> 8);
+            array[index + 7] = (byte) value;
         }
-        bytes[offset] = (byte) val;
     }
 
-    public static void putInt(byte[] bytes, int offset, int val) {
-        for (int i = offset + 3; i > offset; i--) {
-            bytes[i] = (byte) val;
-            val >>>= 8;
+    public static void putInt(byte[] array, int index, int value) {
+        if (HAS_UNSAFE && UNALIGNED) {
+            PlatformDependent.putInt(array, index, BIG_ENDIAN_NATIVE_ORDER ? value : Integer.reverseBytes(value));
+        } else {
+            array[index] = (byte) (value >>> 24);
+            array[index + 1] = (byte) (value >>> 16);
+            array[index + 2] = (byte) (value >>> 8);
+            array[index + 3] = (byte) value;
         }
-        bytes[offset] = (byte) val;
-    }
-
-    public static void putTimestamp(byte[] bytes, int offset, int val) {
-        for (int i = offset + 7; i > offset; i--) {
-            bytes[i] = (byte) val;
-            val >>>= 8;
-        }
-        bytes[offset] = (byte) val;
     }
 
     public static void putBoolean(byte[] bytes, int offset, boolean val) {
@@ -207,47 +218,58 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         putLong(bytes, offset, Double.doubleToRawLongBits(val));
     }
 
-    public static long toLong(byte[] bytes, int offset, final int length) {
-        long l = 0;
-        for (int i = offset; i < offset + length; i++) {
-            l <<= 8;
-            l ^= bytes[i] & 0xFF;
+    public static long toLong(byte[] array, int index) {
+        if (HAS_UNSAFE && UNALIGNED) {
+            long v = PlatformDependent.getLong(array, index);
+            return BIG_ENDIAN_NATIVE_ORDER ? v : Long.reverseBytes(v);
         }
-        return l;
+
+        return ((long) array[index] & 0xff) << 56
+            | //
+            ((long) array[index + 1] & 0xff) << 48
+            | //
+            ((long) array[index + 2] & 0xff) << 40
+            | //
+            ((long) array[index + 3] & 0xff) << 32
+            | //
+            ((long) array[index + 4] & 0xff) << 24
+            | //
+            ((long) array[index + 5] & 0xff) << 16
+            | //
+            ((long) array[index + 6] & 0xff) << 8
+            | //
+            (long) array[index + 7] & 0xff;
     }
 
-    public static int toInt(byte[] bytes, int offset, final int length) {
-        int n = 0;
-        for (int i = offset; i < (offset + length); i++) {
-            n <<= 8;
-            n ^= bytes[i] & 0xFF;
+    public static int toInt(byte[] array, int index) {
+        if (HAS_UNSAFE && UNALIGNED) {
+            int v = PlatformDependent.getInt(array, index);
+            return BIG_ENDIAN_NATIVE_ORDER ? v : Integer.reverseBytes(v);
         }
-        return n;
+
+        return ((int) array[index] & 0xff) << 24
+            | //
+            ((int) array[index + 1] & 0xff) << 16
+            | //
+            ((int) array[index + 2] & 0xff) << 8
+            | //
+            (int) array[index + 3] & 0xff;
     }
 
     public static java.sql.Timestamp toTimestamp(byte[] bytes, int offset, final int length) {
-        long l = 0;
-        for (int i = offset; i < offset + length; i++) {
-            l <<= 8;
-            l ^= bytes[i] & 0xFF;
-        }
+        long l = toLong(bytes, offset);
         if (l < 0) {
             return null;
         }
         return new java.sql.Timestamp(l);
     }
 
-    public static boolean toBoolean(byte[] bytes, int offset, final int length) {
-        for (int i = offset; i < offset + length; i++) {
-            if (bytes[i] != 1) {
-                return false;
-            }
-        }
-        return true;
+    public static boolean toBoolean(byte[] bytes, int offset) {
+        return bytes[offset] != 1;
     }
 
-    public static double toDouble(byte[] bytes, int offset, final int length) {
-        return Double.longBitsToDouble(toLong(bytes, offset, length));
+    public static double toDouble(byte[] bytes, int offset) {
+        return Double.longBitsToDouble(toLong(bytes, offset));
     }
 
     @Override

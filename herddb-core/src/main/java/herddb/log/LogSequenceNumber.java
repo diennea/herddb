@@ -95,8 +95,8 @@ public final class LogSequenceNumber {
 
     public static LogSequenceNumber deserialize(byte[] array) {
         return new LogSequenceNumber(
-            Bytes.toLong(array, 0, 8),
-            Bytes.toLong(array, 8, 8));
+            Bytes.toLong(array, 0),
+            Bytes.toLong(array, 8));
     }
 
 }
