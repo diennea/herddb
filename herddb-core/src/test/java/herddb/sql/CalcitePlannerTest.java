@@ -19,6 +19,7 @@
  */
 package herddb.sql;
 
+import herddb.codec.DataAccessorForFullRecord;
 import herddb.core.DBManager;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
@@ -47,6 +48,7 @@ import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
+import herddb.utils.RawString;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -57,6 +59,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
 import org.junit.Test;
 
 public class CalcitePlannerTest {
@@ -256,6 +259,83 @@ public class CalcitePlannerTest {
             }
         }
     }
+
+    @Test
+    public void zeroCopyProjectionTest() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeTrue(manager.getPlanner() instanceof CalcitePlanner);
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,"
+                + "s1 string)", Collections.emptyList());
+
+            execute(manager, "INSERT INTO tblspace1.tsql (k1 ,"
+                + "s1) values('testk1','tests1')", Collections.emptyList());
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(1, consume.size());
+                DataAccessor record = consume.get(0);
+                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertEquals("k1", record.getFieldNames()[0]);
+                assertEquals("s1", record.getFieldNames()[1]);
+                assertEquals(RawString.of("testk1"), record.get(0));
+                assertEquals(RawString.of("tests1"), record.get(1));
+                assertEquals(RawString.of("testk1"), record.get("k1"));
+                assertEquals(RawString.of("tests1"), record.get("s1"));
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT k1,s1 FROM tblspace1.tsql", Collections.emptyList());) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(1, consume.size());
+                DataAccessor record = consume.get(0);
+                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertEquals("k1", record.getFieldNames()[0]);
+                assertEquals("s1", record.getFieldNames()[1]);
+                assertEquals(RawString.of("testk1"), record.get(0));
+                assertEquals(RawString.of("tests1"), record.get(1));
+                assertEquals(RawString.of("testk1"), record.get("k1"));
+                assertEquals(RawString.of("tests1"), record.get("s1"));
+
+            }
+            try (DataScanner scan = scan(manager, "SELECT s1,k1 FROM tblspace1.tsql", Collections.emptyList());) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(1, consume.size());
+                DataAccessor record = consume.get(0);
+                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertEquals("k1", record.getFieldNames()[1]);
+                assertEquals("s1", record.getFieldNames()[0]);
+                assertEquals(RawString.of("testk1"), record.get(1));
+                assertEquals(RawString.of("tests1"), record.get(0));
+                assertEquals(RawString.of("testk1"), record.get("k1"));
+                assertEquals(RawString.of("tests1"), record.get("s1"));
+            }
+            try (DataScanner scan = scan(manager, "SELECT s1 FROM tblspace1.tsql", Collections.emptyList());) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(1, consume.size());
+                DataAccessor record = consume.get(0);
+                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertEquals("s1", record.getFieldNames()[0]);
+                assertEquals(RawString.of("tests1"), record.get(0));
+                assertEquals(RawString.of("tests1"), record.get("s1"));
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT k1 FROM tblspace1.tsql", Collections.emptyList());) {
+                List<DataAccessor> consume = scan.consume();
+                assertEquals(1, consume.size());
+                DataAccessor record = consume.get(0);
+                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertEquals("k1", record.getFieldNames()[0]);
+                assertEquals(RawString.of("testk1"), record.get(0));
+                assertEquals(RawString.of("testk1"), record.get("k1"));
+            }
+        }
+    }
+
 
     private static PlannerOp plan(final DBManager manager, String query) throws StatementExecutionException {
         TranslatedQuery translate = manager.getPlanner().translate(TableSpace.DEFAULT,

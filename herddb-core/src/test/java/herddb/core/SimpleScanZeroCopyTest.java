@@ -36,7 +36,9 @@ import herddb.utils.RawString;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
@@ -68,7 +70,7 @@ public class SimpleScanZeroCopyTest {
                 assertEquals(1, data.size());
                 // read from the full record, keeping only some field
                 assertTrue(data.get(0) instanceof ProjectedDataAccessor
-                        || data.get(0) instanceof ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor);
+                        || data.get(0) instanceof DataAccessorForFullRecord);
                 assertEquals(RawString.of("a"), data.get(0).get("k1"));
                 assertEquals(RawString.of("a"), data.get(0).get(0));
             }

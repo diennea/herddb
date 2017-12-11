@@ -240,6 +240,9 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
+            if (tuple.applyZeroCopyProjection(fieldNames, zeroCopyProjections)) {
+                return tuple;
+            }
             return new RuntimeProjectedDataAccessor(tuple, context);
         }
 

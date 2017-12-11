@@ -36,6 +36,10 @@ public interface DataAccessor {
 
     public String[] getFieldNames();
 
+    public default boolean applyZeroCopyProjection(String[] fieldNames, int[] projections) {
+        return false;
+    }
+
     public default int getNumFields() {
         return getFieldNames().length;
     }
