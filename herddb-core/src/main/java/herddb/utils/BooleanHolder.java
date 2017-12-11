@@ -19,11 +19,14 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 /**
  * Holds a native {@code boolean} value.
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings("URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD")
 public class BooleanHolder {
 
     public boolean value;

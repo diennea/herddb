@@ -249,10 +249,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 convertRelNode(plan.topNode, plan.originalRowType, returnValues)
                     .optimize());
             if (LOG.isLoggable(Level.INFO)) {
-                if (LOG.isLoggable(Level.INFO)) {
-                    LOG.log(Level.INFO, "Query: {0} --HerdDB Plan {1}",
-                        new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
-                }
+                LOG.log(Level.INFO, "Query: {0} --HerdDB Plan {1}",
+                    new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
             }
             if (!scan) {
                 ScanStatement scanStatement = sqlPlannedOperationStatement.unwrap(ScanStatement.class);

@@ -19,6 +19,7 @@
  */
 package herddb.codec;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.Column;
 import herddb.model.Record;
 import herddb.model.Table;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class DataAccessorForFullRecord extends AbstractDataAccessor {
 
     private final Table table;
