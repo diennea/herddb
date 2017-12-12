@@ -34,6 +34,7 @@ import herddb.index.SecondaryIndexSeek;
 import herddb.metadata.MetadataStorageManagerException;
 import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
 import herddb.model.Column;
+import static herddb.model.Column.column;
 import herddb.model.ColumnTypes;
 import herddb.model.ColumnsList;
 import herddb.model.DMLStatement;
@@ -227,26 +228,42 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             allowCache = false;
         }
         try {
-            List<RelTraitDef> traitDefs = new ArrayList<>();
-            traitDefs.add(ConventionTraitDef.INSTANCE);
-            SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
-            if (subSchema == null) {
-                TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(defaultTableSpace);
-                throw new StatementExecutionException("internal error,"
-                    + "Calcite subSchema for " + defaultTableSpace + " is null,"
-                    + "tableSpaceManager is " + tableSpaceManager + ","
-                    + "maybe table space " + defaultTableSpace + " is not yet started on this node");
+            if (query.startsWith("EXPLAIN ")) {
+                query = query.substring("EXPLAIN ".length());
+                PlannerResult plan = runPlanner(defaultTableSpace, query);
+                PlannerOp finalPlan = convertRelNode(plan.topNode, plan.originalRowType, returnValues)
+                    .optimize();
+                ValuesOp values = new ValuesOp(manager.getNodeId(),
+                    new String[]{"name", "value"},
+                    new Column[]{
+                        column("name", ColumnTypes.STRING),
+                        column("value", ColumnTypes.STRING)},
+                    java.util.Arrays.asList(
+                        java.util.Arrays.asList(
+                            new ConstantExpression("query"),
+                            new ConstantExpression(query)
+                        ),
+                        java.util.Arrays.asList(
+                            new ConstantExpression("logicalplan"),
+                            new ConstantExpression(RelOptUtil.dumpPlan("", plan.logicalPlan, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES)
+                            )),
+                        java.util.Arrays.asList(
+                            new ConstantExpression("plan"),
+                            new ConstantExpression(RelOptUtil.dumpPlan("", plan.topNode, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES))
+                        ),
+                        java.util.Arrays.asList(
+                            new ConstantExpression("finalplan"),
+                            new ConstantExpression(finalPlan + "")
+                        )
+                    )
+                );
+                ExecutionPlan executionPlan = ExecutionPlan.simple(
+                    new SQLPlannedOperationStatement(values)
+                );
+                return new TranslatedQuery(executionPlan, new SQLStatementEvaluationContext(query, parameters));
+
             }
-
-            final FrameworkConfig config = Frameworks.newConfigBuilder()
-                .parserConfig(SQL_PARSER_CONFIG)
-                .defaultSchema(subSchema)
-                .traitDefs(traitDefs)
-                // define the rules you want to apply
-
-                .programs(Programs.ofRules(Programs.RULE_SET))
-                .build();
-            PlannerResult plan = runPlanner(config, query);
+            PlannerResult plan = runPlanner(defaultTableSpace, query);
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                 convertRelNode(plan.topNode, plan.originalRowType, returnValues)
                     .optimize());
@@ -343,33 +360,55 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
         private final RelNode topNode;
         private final RelDataType originalRowType;
+        private final RelNode logicalPlan;
 
-        public PlannerResult(RelNode topNode, RelDataType originalRowType) {
+        public PlannerResult(RelNode topNode, RelDataType originalRowType, RelNode logicalPlan) {
             this.topNode = topNode;
             this.originalRowType = originalRowType;
+            this.logicalPlan = logicalPlan;
         }
 
     }
 
-    private PlannerResult runPlanner(FrameworkConfig config, String query) throws RelConversionException, SqlParseException, ValidationException {
+    private static List<RelTraitDef> TRAITS = java.util.Arrays.asList(ConventionTraitDef.INSTANCE);
+
+    private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
+        SqlParseException, ValidationException, MetadataStorageManagerException {
+        SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
+        if (subSchema == null) {
+            TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(defaultTableSpace);
+            throw new StatementExecutionException("internal error,"
+                + "Calcite subSchema for " + defaultTableSpace + " is null,"
+                + "tableSpaceManager is " + tableSpaceManager + ","
+                + "maybe table space " + defaultTableSpace + " is not yet started on this node");
+        }
+
+        final FrameworkConfig config = Frameworks.newConfigBuilder()
+            .parserConfig(SQL_PARSER_CONFIG)
+            .defaultSchema(subSchema)
+            .traitDefs(TRAITS)
+            // define the rules you want to apply
+
+            .programs(Programs.ofRules(Programs.RULE_SET))
+            .build();
         Planner planner = Frameworks.getPlanner(config);
         if (LOG.isLoggable(Level.FINER)) {
             LOG.log(Level.FINER, "Query: {0}", query);
         }
         SqlNode n = planner.parse(query);
         n = planner.validate(n);
-        RelNode root = planner.rel(n).project();
+        RelNode logicalPlan = planner.rel(n).project();
         if (LOG.isLoggable(Level.FINE)) {
             LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
-                RelOptUtil.dumpPlan("-- Logical Plan", root, SqlExplainFormat.TEXT,
+                RelOptUtil.dumpPlan("-- Logical Plan", logicalPlan, SqlExplainFormat.TEXT,
                 SqlExplainLevel.ALL_ATTRIBUTES)});
         }
-        RelDataType originalRowType = root.getRowType();
-        RelOptCluster cluster = root.getCluster();
+        RelDataType originalRowType = logicalPlan.getRowType();
+        RelOptCluster cluster = logicalPlan.getCluster();
         final RelOptPlanner optPlanner = cluster.getPlanner();
         RelTraitSet desiredTraits
             = cluster.traitSet().replace(EnumerableConvention.INSTANCE);
-        final RelNode newRoot = optPlanner.changeTraits(root, desiredTraits);
+        final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
         if (LOG.isLoggable(Level.FINE)) {
@@ -380,7 +419,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 //        System.out.println("Query: "+query+"\n"+
 //                RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
 //                SqlExplainLevel.ALL_ATTRIBUTES));
-        return new PlannerResult(bestExp, originalRowType);
+        return new PlannerResult(bestExp, originalRowType, logicalPlan);
     }
 
     private SchemaPlus getRootSchema() throws MetadataStorageManagerException {
