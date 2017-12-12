@@ -55,10 +55,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     static boolean isConstant(Expression exp) {
         return exp instanceof StringValue
-                || exp instanceof LongValue
-                || exp instanceof NullValue
-                || exp instanceof TimestampValue
-                || exp instanceof JdbcParameter;
+            || exp instanceof LongValue
+            || exp instanceof NullValue
+            || exp instanceof TimestampValue
+            || exp instanceof JdbcParameter;
     }
 
     static boolean isConstant(CompiledSQLExpression exp) {
@@ -88,15 +88,15 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
         DataAccessor bean = RecordSerializer.buildRawDataAccessorForPrimaryKey(key, table);
-        
+
         boolean result = toBoolean(primaryKeyFilter.evaluate(bean, context));
 
         if (!result) {
             return PrimaryKeyMatchOutcome.FAILED;
         } else {
             return where == primaryKeyFilter
-                    ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
-                    : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
+                ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
+                : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
     }
 
@@ -183,8 +183,20 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (b == null) {
             b = 0;
         }
+        if (a instanceof Long && b instanceof Long) {
+            return ((Long) a) + ((Long) b);
+        }
+        if (a instanceof Integer && b instanceof Integer) {
+            return (long) (((Integer) a) + ((Integer) b));
+        }
+        if (a instanceof Integer && b instanceof Long) {
+            return (((Integer) a) + ((Long) b));
+        }
+        if (a instanceof Long && b instanceof Integer) {
+            return (((Long) a) + ((Integer) b));
+        }
         if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).longValue() + ((Number) b).longValue();
+            return ((Number) a).doubleValue() + ((Number) b).doubleValue();
         }
         throw new StatementExecutionException("cannot add " + a + " and " + b);
     }
@@ -199,8 +211,20 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (b == null) {
             b = 0;
         }
+        if (a instanceof Long && b instanceof Long) {
+            return ((Long) a) - ((Long) b);
+        }
+        if (a instanceof Integer && b instanceof Integer) {
+            return (long) (((Integer) a) - ((Integer) b));
+        }
+        if (a instanceof Integer && b instanceof Long) {
+            return (((Integer) a) - ((Long) b));
+        }
+        if (a instanceof Long && b instanceof Integer) {
+            return (((Long) a) - ((Integer) b));
+        }
         if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).longValue() - ((Number) b).longValue();
+            return ((Number) a).doubleValue() - ((Number) b).doubleValue();
         }
         throw new StatementExecutionException("cannot subtract " + a + " and " + b);
     }
@@ -215,8 +239,20 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (b == null) {
             b = 0;
         }
+        if (a instanceof Long && b instanceof Long) {
+            return ((Long) a) * ((Long) b);
+        }
+        if (a instanceof Integer && b instanceof Integer) {
+            return (long) (((Integer) a) * ((Integer) b));
+        }
+        if (a instanceof Integer && b instanceof Long) {
+            return (((Integer) a) * ((Long) b));
+        }
+        if (a instanceof Long && b instanceof Integer) {
+            return (((Long) a) * ((Integer) b));
+        }
         if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).longValue() * ((Number) b).longValue();
+            return ((Number) a).doubleValue() * ((Number) b).doubleValue();
         }
         throw new StatementExecutionException("cannot multiply " + a + " and " + b);
     }
@@ -232,7 +268,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             b = 0;
         }
         if (a instanceof Number && b instanceof Number) {
-            return (double) ((Number) a).doubleValue() / ((Number) b).doubleValue();
+            return ((Number) a).doubleValue() / ((Number) b).doubleValue();
         }
         throw new StatementExecutionException("cannot divide " + a + " and " + b);
     }
@@ -254,11 +290,11 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return ((java.util.Date) a).getTime() == ((java.util.Date) b).getTime();
         }
         if (a instanceof java.lang.Boolean
-                && (Boolean.parseBoolean(b.toString()) == ((Boolean) a))) {
+            && (Boolean.parseBoolean(b.toString()) == ((Boolean) a))) {
             return true;
         }
         if (b instanceof java.lang.Boolean
-                && (Boolean.parseBoolean(a.toString()) == ((Boolean) b))) {
+            && (Boolean.parseBoolean(a.toString()) == ((Boolean) b))) {
             return true;
         }
         return Objects.equals(a, b);
@@ -269,10 +305,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return false;
         }
         String like = b.toString()
-                .replace(".", "\\.")
-                .replace("\\*", "\\*")
-                .replace("%", ".*")
-                .replace("_", ".?");
+            .replace(".", "\\.")
+            .replace("\\*", "\\*")
+            .replace("%", ".*")
+            .replace("_", ".?");
         return a.toString().matches(like);
     }
 

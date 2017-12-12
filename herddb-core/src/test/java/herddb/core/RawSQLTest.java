@@ -544,8 +544,8 @@ public class RawSQLTest {
             assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get("n1"));
             assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n1=n1+1 where k1=?", Arrays.asList("mykey")).getUpdateCount());
             assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get("n1"));
-            assertEquals(Long.valueOf(1236), scan(manager, "SELECT n1+1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
-            assertEquals(Long.valueOf(1234), scan(manager, "SELECT n1-1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
+            assertEquals(1236.0, scan(manager, "SELECT n1+1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
+            assertEquals(1234.0, scan(manager, "SELECT n1-1 FROM tblspace1.tsql", Collections.emptyList()).consume().get(0).get(0));
             assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+1=1236", Collections.emptyList()).consume().get(0).get(0));
             assertEquals(1235, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE n1+n1=2470", Collections.emptyList()).consume().get(0).get(0));
         }

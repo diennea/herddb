@@ -248,6 +248,9 @@ public class HerdDBResultSet implements ResultSet {
             if (lastValue instanceof Long) {
                 return (Long) lastValue;
             }
+            if (lastValue instanceof Number) {
+                return ((Number) lastValue).longValue();
+            }
             return Long.parseLong(lastValue.toString());
         } else {
             wasNull = true;
@@ -262,7 +265,18 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public double getDouble(String columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        ensureNextCalled();
+        fillLastValue(columnLabel);
+        if (lastValue != null) {
+            wasNull = false;
+            if (lastValue instanceof Number) {
+                return ((Number) lastValue).doubleValue();
+            }
+            return Double.parseDouble(lastValue.toString());
+        } else {
+            wasNull = true;
+            return 0;
+        }
     }
 
     @Override

@@ -117,16 +117,16 @@ public class SimpleOperatorsTest {
 
             // Simple expressions
             try (DataScanner scan1 = scan(manager, "SELECT 4+3+2 FROM tblspace1.tsql", Collections.emptyList());) {
-                assertEquals(9L, scan1.consume().get(0).get(0));
+                assertEquals(9.0, scan1.consume().get(0).get(0));
             }
             try (DataScanner scan1 = scan(manager, "SELECT 7-3-2 FROM tblspace1.tsql", Collections.emptyList());) {
-                assertEquals(2L, scan1.consume().get(0).get(0));
+                assertEquals(2.0, scan1.consume().get(0).get(0));
             }
             try (DataScanner scan1 = scan(manager, "SELECT 1/2/2 FROM tblspace1.tsql", Collections.emptyList());) {
                 assertEquals(0.25, scan1.consume().get(0).get(0));
             }
             try (DataScanner scan1 = scan(manager, "SELECT 4*3*2 FROM tblspace1.tsql", Collections.emptyList());) {
-                assertEquals(24L, scan1.consume().get(0).get(0));
+                assertEquals(24.0, scan1.consume().get(0).get(0));
             }
 
             // Functions
@@ -325,16 +325,13 @@ public class SimpleOperatorsTest {
             }
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE 6 BETWEEN 1 AND 5", Collections.emptyList());) {
                 assertEquals(0, scan1.consume().size());
-            }
-
-            // Complex arithmetic expressions
+            }           
             try (DataScanner scan1 = scan(manager, "SELECT ((4+(3+2)-1)*2) FROM tblspace1.tsql", Collections.emptyList());) {
-                assertEquals(16L, scan1.consume().get(0).get(0));
+                assertEquals(16.0, scan1.consume().get(0).get(0));
+            }            
+            try (DataScanner scan1 = scan(manager, "SELECT ((3/2)*3+(1/2)) FROM tblspace1.tsql", Collections.emptyList());) {
+                assertEquals(5.0, scan1.consume().get(0).get(0));
             }
-            //Warning!! Requires proper double handling
-//            try (DataScanner scan1 = scan(manager, "SELECT ((3/2)*3+(1/2)) FROM tblspace1.tsql", Collections.emptyList());) {
-//                assertEquals(4.5, scan1.consume().get(0).get(0));
-//            }
 
         }
     }

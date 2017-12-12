@@ -134,11 +134,11 @@ public class ByteBufUtils {
     }
     
     public static final void writeDouble(ByteBuf buffer, double i) {
-        writeZLong(buffer, Double.doubleToLongBits(i));
+        buffer.writeLong(Double.doubleToLongBits(i));
     }
     
     public static final double readDouble(ByteBuf buffer) {
-        return Double.longBitsToDouble(readZLong(buffer));
+        return Double.longBitsToDouble(buffer.readLong());
     }
     
     /** Same as {@link #zigZagEncode(long)} but on integers. */

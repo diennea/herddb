@@ -74,17 +74,16 @@ import org.apache.calcite.sql.fun.SqlCastFunction;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 /**
- * Created a pure Java implementation of the expression which represents the
- * given jSQLParser Expression
+ * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
  *
  * @author enrico.olivelli
  */
 public class SQLExpressionCompiler {
 
     private static CompiledSQLExpression tryCompileBinaryExpression(
-            String validatedTableAlias,
-            BinaryExpression binExp,
-            BinaryExpressionBuilder compiledExpClass) {
+        String validatedTableAlias,
+        BinaryExpression binExp,
+        BinaryExpressionBuilder compiledExpClass) {
 
         CompiledSQLExpression left = compileExpression(validatedTableAlias, binExp.getLeftExpression());
         if (left == null) {
@@ -99,7 +98,7 @@ public class SQLExpressionCompiler {
 
     // this method never returns NULL
     public static CompiledSQLExpression compileExpression(String validatedTableAlias,
-            Expression exp) {
+        Expression exp) {
         if (exp instanceof BinaryExpression) {
             CompiledSQLExpression compiled = compileSpecialBinaryExpression(validatedTableAlias, exp);
             if (compiled != null) {
@@ -187,9 +186,9 @@ public class SQLExpressionCompiler {
         net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) exp;
         if (validatedTableAlias != null) {
             if (c.getTable() != null && c.getTable().getName() != null
-                    && !c.getTable().getName().equals(validatedTableAlias)) {
+                && !c.getTable().getName().equals(validatedTableAlias)) {
                 throw new StatementExecutionException("invalid column name " + c.getColumnName()
-                        + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
+                    + " invalid table name " + c.getTable().getName() + ", expecting " + validatedTableAlias);
             }
         }
 
@@ -211,7 +210,7 @@ public class SQLExpressionCompiler {
             net.sf.jsqlparser.schema.Column c = (net.sf.jsqlparser.schema.Column) be.getLeftExpression();
             if (validatedTableAlias != null) {
                 if (c.getTable() != null && c.getTable().getName() != null
-                        && !c.getTable().getName().equals(validatedTableAlias)) {
+                    && !c.getTable().getName().equals(validatedTableAlias)) {
                     return null;
                 }
             }
@@ -292,7 +291,12 @@ public class SQLExpressionCompiler {
                 case "+":
                     return new CompiledAddExpression(false, operands[0], operands[1]);
                 case "-":
-                    return new CompiledSubtractExpression(false, operands[0], operands[1]);
+                    if (operands.length == 1) {
+                        return new CompiledSignedExpression('-', operands[0]);
+                    } else if (operands.length == 2) {
+                        return new CompiledSubtractExpression(false, operands[0], operands[1]);
+                    }
+                    break;
                 case "*":
                     return new CompiledMultiplyExpression(false, operands[0], operands[1]);
                 case "/":

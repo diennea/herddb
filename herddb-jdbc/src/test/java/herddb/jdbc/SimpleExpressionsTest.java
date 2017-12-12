@@ -44,32 +44,26 @@ public class SimpleExpressionsTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
-    
+
     @Test
-    public void test() throws Exception
-    {
-        try ( Server server = new Server(new ServerConfiguration(folder.newFolder().toPath())) )
-        {
+    public void test() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            
-            try ( HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath())) )
-            {
-                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server) );
-                
-                try ( BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client) )
-                {
-                    
-                    try ( Connection con = dataSource.getConnection();
-                          Statement statement = con.createStatement(); )
-                    {
+
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client)) {
+
+                    try (Connection con = dataSource.getConnection();
+                        Statement statement = con.createStatement();) {
                         statement.execute("CREATE TABLE mytable (k1 string primary key, n1 int, l1 long, t1 timestamp, nu string, b1 bool, d1 double)");
-                        
+
                     }
-                    
-                    try ( Connection con = dataSource.getConnection();
-                          PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)"); )
-                    {
+
+                    try (Connection con = dataSource.getConnection();
+                        PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)");) {
                         int i = 1;
                         statement.setString(i++, "mykey");
                         statement.setInt(i++, 1);
@@ -79,12 +73,12 @@ public class SimpleExpressionsTest {
                         statement.setBoolean(i++, true);
                         statement.setDouble(i++, 1.5);
                         int rows = statement.executeUpdate();
-                        
+
                         Assert.assertEquals(1, rows);
                     }
-                    
+
                     // Types
-                    try ( Connection con = dataSource.getConnection() ) {
+                    try (Connection con = dataSource.getConnection()) {
                         // String
                         try (PreparedStatement statement = con.prepareStatement("SELECT k1 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
@@ -98,7 +92,7 @@ public class SimpleExpressionsTest {
                                 assertEquals("MYKEY", rs.getObject(1));
                             }
                         }
-                        
+
                         // Number
                         try (PreparedStatement statement = con.prepareStatement("SELECT n1 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
@@ -109,10 +103,11 @@ public class SimpleExpressionsTest {
                         try (PreparedStatement statement = con.prepareStatement("SELECT n1*5 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
                                 assertTrue(rs.next());
-                                assertEquals(5L, rs.getObject(1));
+                                assertEquals(5.0, rs.getObject(1));
+                                assertEquals(5, rs.getLong(1));
                             }
                         }
-                        
+
                         // Long
                         try (PreparedStatement statement = con.prepareStatement("SELECT l1 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
@@ -123,10 +118,11 @@ public class SimpleExpressionsTest {
                         try (PreparedStatement statement = con.prepareStatement("SELECT l1*5 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
                                 assertTrue(rs.next());
-                                assertEquals(10L, rs.getObject(1));
+                                assertEquals(10.0, rs.getObject(1));
+                                assertEquals(10, rs.getLong(1));
                             }
                         }
-                        
+
                         // Null
                         try (PreparedStatement statement = con.prepareStatement("SELECT nu FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
@@ -134,8 +130,8 @@ public class SimpleExpressionsTest {
                                 assertEquals(null, rs.getObject(1));
                             }
                         }
-                        
-                        // Double (TODO)
+
+                        // Double
                         try (PreparedStatement statement = con.prepareStatement("SELECT 3/2 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
                                 assertTrue(rs.next());
@@ -148,28 +144,111 @@ public class SimpleExpressionsTest {
                                 assertEquals(1.5, rs.getObject(1));
                             }
                         }
-//                        try (PreparedStatement statement = con.prepareStatement("SELECT d1*3/2 FROM mytable")) {
-//                            try (ResultSet rs = statement.executeQuery()) {
-//                                assertTrue(rs.next());
-//                                assertEquals(2.25, rs.getObject(1));
-//                            }
-//                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT d1*5/2 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(3.75, rs.getObject(1));
+                                assertEquals(3.75, rs.getDouble(1), 0);
+                                assertEquals(3, rs.getLong(1));
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT -n1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(-1, rs.getObject(1));
+                                assertEquals(-1, rs.getDouble(1), 0);
+                                assertEquals(-1, rs.getInt(1), 0);
+                                assertEquals(-1, rs.getLong(1), 0);
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT -n1-n1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(-2L, rs.getObject(1));
+                                assertEquals(-2, rs.getDouble(1), 0);
+                                assertEquals(-2, rs.getInt(1), 0);
+                                assertEquals(-2, rs.getLong(1), 0);
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT +n1+n1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(2L, rs.getObject(1));
+                                assertEquals(2, rs.getDouble(1), 0);
+                                assertEquals(2, rs.getInt(1), 0);
+                                assertEquals(2, rs.getLong(1), 0);
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT n1*n1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(1L, rs.getObject(1));
+                                assertEquals(1, rs.getDouble(1), 0);
+                                assertEquals(1, rs.getInt(1), 0);
+                                assertEquals(1, rs.getLong(1), 0);
+                            }
+                        }
 
-                        // Boolean (TODO)
+                        try (PreparedStatement statement = con.prepareStatement("SELECT -d1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(-1.5, rs.getObject(1));
+                                assertEquals(-1.5, rs.getDouble(1), 0);
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT +d1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(1.5, rs.getObject(1));
+                                assertEquals(1.5, rs.getDouble(1), 0);
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT +d1+d1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(3, rs.getDouble(1), 0);
+                                assertEquals(3.0, rs.getObject(1));
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT +d1*d1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(2.25, rs.getDouble(1), 0);
+                                assertEquals(2.25, rs.getObject(1));
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT -d1+d1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(0, rs.getDouble(1), 0);
+                                assertEquals(0.0, rs.getObject(1));
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT +d1+4 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(5.5, rs.getDouble(1), 0);
+                                assertEquals(5.5, rs.getObject(1));
+                            }
+                        }
+
+                        // Boolean
                         try (PreparedStatement statement = con.prepareStatement("SELECT true FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
                                 assertTrue(rs.next());
                                 assertEquals(true, rs.getObject(1));
+                                assertEquals(true, rs.getBoolean(1));
                             }
                         }
                         try (PreparedStatement statement = con.prepareStatement("SELECT false FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
                                 assertTrue(rs.next());
                                 assertEquals(false, rs.getObject(1));
+                                assertEquals(false, rs.getBoolean(1));
                             }
                         }
                     }
-                    
+
                 }
             }
         }
