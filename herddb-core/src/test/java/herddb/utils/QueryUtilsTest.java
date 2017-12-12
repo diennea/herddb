@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import herddb.model.TableSpace;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
@@ -32,7 +33,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromSelect() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "select * from test"));
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, ""));
@@ -44,7 +45,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromUpdate() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "update test"));
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, ""));
@@ -54,7 +55,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromInsert() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into test(a,b) values(?,?,?)"));
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "insert into test values(?,?,?)"));
@@ -65,7 +66,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromCreateTable() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create table test(a,b)"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create table myts.test(a,b)"));
@@ -73,7 +74,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromDropTable() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "drop table test"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "drop table myts.test"));
@@ -81,7 +82,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromTruncateTable() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "truncate table test"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "truncate table myts.test"));
@@ -89,7 +90,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromAlterTable() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "alter table test"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "alter table myts.test"));
@@ -97,7 +98,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromCreateIndex() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create index test on test"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "create index test on myts.test"));
@@ -108,7 +109,7 @@ public class QueryUtilsTest {
 
     @Test
     public void testDiscoverTablespaceFromDropIndex() {
-        String defaultTableSpace = "default";
+        String defaultTableSpace = TableSpace.DEFAULT;
         String theTableSpace = "myts";
         assertEquals(defaultTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "drop index test"));
         assertEquals(theTableSpace, QueryUtils.discoverTablespace(defaultTableSpace, "drop index myts.test"));

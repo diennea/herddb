@@ -59,12 +59,12 @@ public class JmxTest {
                 Assert.assertEquals(1, resultCreateTable);
 
                 {
-                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=Table,Name=default.mytable");
+                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=Table,Name="+TableSpace.DEFAULT+".mytable");
                     Object attribute = ManagementFactory.getPlatformMBeanServer().getAttribute(statusBeanName, "Tablesize");
                     assertEquals(0L, attribute);
                 }
                 {
-                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=TableSpace,Name=default");
+                    final ObjectName statusBeanName = new ObjectName("herddb.server:type=TableSpace,Name="+TableSpace.DEFAULT);
                     Object attribute = ManagementFactory.getPlatformMBeanServer().getAttribute(statusBeanName, "Tablesize");
                     assertEquals(0L, attribute);
                 }

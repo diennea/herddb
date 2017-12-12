@@ -980,9 +980,12 @@ public class SQLPlanner implements AbstractSQLPlanner {
         return new SQLRecordKeyFunction(table, columns, expressions);
     }
 
-    private Object resolveValue(Expression expression) throws StatementExecutionException {
+    private static Object resolveValue(Expression expression, boolean allowColumn) throws StatementExecutionException {
         if (expression instanceof JdbcParameter) {
             throw new StatementExecutionException("jdbcparameter expression not usable in this query");
+        } else if (allowColumn && expression instanceof net.sf.jsqlparser.schema.Column) {
+            // this is only for supporting back ticks in DDL
+            return ((net.sf.jsqlparser.schema.Column) expression).getColumnName();
         } else if (expression instanceof StringValue) {
             return ((StringValue) expression).getValue();
         } else if (expression instanceof LongValue) {
@@ -993,10 +996,10 @@ public class SQLPlanner implements AbstractSQLPlanner {
             SignedExpression se = (SignedExpression) expression;
             switch (se.getSign()) {
                 case '+': {
-                    return resolveValue(se.getExpression());
+                    return resolveValue(se.getExpression(), allowColumn);
                 }
                 case '-': {
-                    Object value = resolveValue(se.getExpression());
+                    Object value = resolveValue(se.getExpression(), allowColumn);
                     if (value == null) {
                         return null;
                     }
@@ -1330,16 +1333,16 @@ public class SQLPlanner implements AbstractSQLPlanner {
                         rowCount = -1;
                         rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex() - 1;
                     } else {
-                        rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
+                        rowCount = ((Number) resolveValue(limit.getRowCount(), false)).intValue();
                     }
-                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
+                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset(), false)).intValue() : 0;
                     scanLimits = new ScanLimitsImpl(rowCount, offset, rowCountJdbcParameter + 1);
                 } else if (top != null) {
                     if (top.isPercentage() || top.getExpression() == null) {
                         throw new StatementExecutionException("Invalid TOP clause (top=" + top + ")");
                     }
                     try {
-                        int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
+                        int rowCount = Integer.parseInt(resolveValue(top.getExpression(), false) + "");
                         scanLimits = new ScanLimitsImpl(rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
@@ -1389,9 +1392,9 @@ public class SQLPlanner implements AbstractSQLPlanner {
                         rowCount = -1;
                         rowCountJdbcParameter = ((JdbcParameter) limit.getRowCount()).getIndex() - 1;
                     } else {
-                        rowCount = ((Number) resolveValue(limit.getRowCount())).intValue();
+                        rowCount = ((Number) resolveValue(limit.getRowCount(), false)).intValue();
                     }
-                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset())).intValue() : 0;
+                    int offset = limit.getOffset() != null ? ((Number) resolveValue(limit.getOffset(), false)).intValue() : 0;
                     scanLimits = new ScanLimitsImpl(rowCount, offset, rowCountJdbcParameter + 1);
 
                 } else if (top != null) {
@@ -1399,7 +1402,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                         throw new StatementExecutionException("Invalid TOP clause");
                     }
                     try {
-                        int rowCount = Integer.parseInt(resolveValue(top.getExpression()) + "");
+                        int rowCount = Integer.parseInt(resolveValue(top.getExpression(), false) + "");
                         scanLimits = new ScanLimitsImpl(rowCount, 0);
                     } catch (NumberFormatException error) {
                         throw new StatementExecutionException("Invalid TOP clause: " + error, error);
@@ -1575,7 +1578,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 1) {
                     throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
                 }
-                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 if (tableSpaceName == null) {
                     throw new StatementExecutionException("BEGINTRANSACTION requires one parameter (EXECUTE BEGINTRANSACTION tableSpaceName)");
                 }
@@ -1585,11 +1588,11 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 2) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
-                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 if (tableSpaceName == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
-                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1));
+                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), true);
                 if (transactionId == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE COMMITTRANSACTION tableSpaceName transactionId)");
                 }
@@ -1604,11 +1607,11 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 2) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
-                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 if (tableSpaceName == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
-                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1));
+                Object transactionId = resolveValue(execute.getExprList().getExpressions().get(1), true);
                 if (transactionId == null) {
                     throw new StatementExecutionException("COMMITTRANSACTION requires two parameters (EXECUTE ROLLBACKTRANSACTION tableSpaceName transactionId)");
                 }
@@ -1622,14 +1625,14 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() < 1) {
                     throw new StatementExecutionException("CREATETABLESPACE syntax (EXECUTE CREATETABLESPACE tableSpaceName ['leader:LEADERID'],['wait:TIMEOUT'] )");
                 }
-                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0));
+                Object tableSpaceName = resolveValue(execute.getExprList().getExpressions().get(0), true);
                 String leader = null;
                 Set<String> replica = new HashSet<>();
                 int expectedreplicacount = 1;
                 long maxleaderinactivitytime = 0;
                 int wait = 0;
                 for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
-                    String property = (String) resolveValue(execute.getExprList().getExpressions().get(i));
+                    String property = (String) resolveValue(execute.getExprList().getExpressions().get(i), true);
                     int colon = property.indexOf(':');
                     if (colon <= 0) {
                         throw new StatementExecutionException("bad property " + property + " in " + execute + " statement");
@@ -1682,7 +1685,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() < 2) {
                     throw new StatementExecutionException("ALTERTABLESPACE syntax (EXECUTE ALTERTABLESPACE tableSpaceName,'property:value','property2:value2')");
                 }
-                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
+                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0), true);
                 try {
                     TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
                     if (tableSpace == null) {
@@ -1693,7 +1696,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                     int expectedreplicacount = tableSpace.expectedReplicaCount;
                     long maxleaderinactivitytime = tableSpace.maxLeaderInactivityTime;
                     for (int i = 1; i < execute.getExprList().getExpressions().size(); i++) {
-                        String property = (String) resolveValue(execute.getExprList().getExpressions().get(i));
+                        String property = (String) resolveValue(execute.getExprList().getExpressions().get(i), true);
                         int colon = property.indexOf(':');
                         if (colon <= 0) {
                             throw new StatementExecutionException("bad property " + property + " in " + execute + " statement");
@@ -1740,7 +1743,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 1) {
                     throw new StatementExecutionException("DROPTABLESPACE syntax (EXECUTE DROPTABLESPACE tableSpaceName)");
                 }
-                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
+                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0), true);
                 try {
                     TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
                     if (tableSpace == null) {
@@ -1755,9 +1758,9 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 if (execute.getExprList() == null || execute.getExprList().getExpressions().size() != 3) {
                     throw new StatementExecutionException("RENAMETABLE syntax (EXECUTE RENAMETABLE 'tableSpaceName','tablename','nametablename')");
                 }
-                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0));
-                String oldTableName = (String) resolveValue(execute.getExprList().getExpressions().get(1));
-                String newTableName = (String) resolveValue(execute.getExprList().getExpressions().get(2));
+                String tableSpaceName = (String) resolveValue(execute.getExprList().getExpressions().get(0), true);
+                String oldTableName = (String) resolveValue(execute.getExprList().getExpressions().get(1), true);
+                String newTableName = (String) resolveValue(execute.getExprList().getExpressions().get(2), true);
                 try {
                     TableSpace tableSpace = manager.getMetadataStorageManager().describeTableSpace(tableSpaceName + "");
                     if (tableSpace == null) {

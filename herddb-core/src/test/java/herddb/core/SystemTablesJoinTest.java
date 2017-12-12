@@ -32,6 +32,7 @@ import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
@@ -72,7 +73,7 @@ public class SystemTablesJoinTest {
 
                 assertTrue(
                     tuples.get(0).toMap().equals(MapUtils.map(
-                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", "default"
+                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", TableSpace.DEFAULT
                     )));
                 assertTrue(
                     tuples.get(1).toMap().equals(MapUtils.map(
@@ -102,7 +103,7 @@ public class SystemTablesJoinTest {
                     )));
                 assertTrue(
                     tuples.get(1).toMap().equals(MapUtils.map(
-                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", "default"
+                        "leader", "localhost", "address", "localhost:7000", "tablespace_name", TableSpace.DEFAULT
                     )));
 
             }
@@ -113,7 +114,7 @@ public class SystemTablesJoinTest {
                     + "sysnodes.address FROM"
                     + " systablespaces "
                     + " JOIN sysnodes ON systablespaces.leader = sysnodes.nodeid AND systablespaces.tablespace_name <> ?"
-                    + " ORDER BY tablespace_name DESC", Arrays.asList("default")).consume();
+                    + " ORDER BY tablespace_name DESC", Arrays.asList(TableSpace.DEFAULT)).consume();
                 for (DataAccessor t : tuples) {
                     assertEquals(3, t.getFieldNames().length);
                     assertEquals("leader", t.getFieldNames()[0]);

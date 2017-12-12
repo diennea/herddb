@@ -39,7 +39,7 @@ import herddb.utils.SimpleByteArrayInputStream;
  */
 public class TableSpace {
 
-    public static final String DEFAULT = "default";
+    public static final String DEFAULT = "herd";
 
     public final String uuid;
 

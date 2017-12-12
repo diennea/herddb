@@ -637,7 +637,7 @@ public class HerdDBCLI {
             return;
         }
         if (schema.equals("*")) {
-            connection.setSchema("default");
+            connection.setSchema(TableSpace.DEFAULT);
             List<String> tablespacesToDump = new ArrayList<>();
             try (ResultSet rs = statement.executeQuery("SELECT tablespace_name FROM systablespaces")) {
                 while (rs.next()) {

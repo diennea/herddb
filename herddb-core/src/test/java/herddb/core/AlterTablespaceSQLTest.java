@@ -95,4 +95,47 @@ public class AlterTablespaceSQLTest {
         }
     }
 
+    @Test
+    public void escapeTableSpaceName() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager(nodeId, new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            assertTrue(manager.waitForTablespace(TableSpace.DEFAULT, 10000));
+            execute(manager, "CREATE TABLESPACE `default`,'leader:" + nodeId + "'", Collections.emptyList());
+            try {
+                execute(manager, "EXECUTE CREATETABLESPACE `default`,'leader:othernode'", Collections.emptyList());
+                fail();
+            } catch (TableSpaceAlreadyExistsException err) {
+            }
+            execute(manager, "EXECUTE ALTERTABLESPACE `default`,`replica:" + nodeId + ",othernode`,'expectedReplicaCount:2'", Collections.emptyList());
+            execute(manager, "EXECUTE ALTERTABLESPACE 'default','leader:othernode'", Collections.emptyList());
+            execute(manager, "EXECUTE ALTERTABLESPACE 'default','expectedReplicaCount:12'", Collections.emptyList());
+            TableSpace ttt3 = manager.getMetadataStorageManager().describeTableSpace("default");
+            assertEquals("othernode", ttt3.leaderId);
+            assertEquals(12, ttt3.expectedReplicaCount);
+            assertTrue(ttt3.replicas.contains("othernode"));
+            assertTrue(ttt3.replicas.contains(nodeId));
+
+            try (DataScanner scan = scan(manager, "SELECT * FROM SYSTABLESPACES", Collections.emptyList());) {
+                List<DataAccessor> tuples = scan.consume();
+                assertEquals(2, tuples.size());
+                for (DataAccessor t : tuples) {
+                    System.out.println("tablespace: " + t.toMap());
+                    assertNotNull(t.get("expectedreplicacount"));
+                    assertNotNull(t.get("tablespace_name"));
+                    assertNotNull(t.get("replica"));
+                    assertNotNull(t.get("leader"));
+                }
+            }
+            try (DataScanner scan = scan(manager, "SELECT expectedreplicacount FROM SYSTABLESPACES where tablespace_name='default'", Collections.emptyList());) {
+                List<DataAccessor> tuples = scan.consume();
+                assertEquals(1, tuples.size());
+                for (DataAccessor t : tuples) {
+                    System.out.println("tablespace: " + t.toMap());
+                    assertEquals(12, t.get("expectedreplicacount"));
+                }
+            }
+        }
+    }
+
 }

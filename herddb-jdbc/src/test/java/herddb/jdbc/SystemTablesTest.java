@@ -21,6 +21,7 @@ package herddb.jdbc;
 
 import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
+import herddb.model.TableSpace;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
@@ -153,12 +154,12 @@ public class SystemTablesTest {
                             }
                             records.add(record);
                         }
-                        assertTrue(records.stream().filter(s -> s.contains("default")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains(TableSpace.DEFAULT)).findAny().isPresent());
                         assertEquals(1, records.size());
 
                     }
 
-                    try (ResultSet rs = metaData.getSchemas(null, "%ault")) {
+                    try (ResultSet rs = metaData.getSchemas(null, "%"+TableSpace.DEFAULT.substring(2))) {
                         List<List<String>> records = new ArrayList<>();
                         while (rs.next()) {
                             List<String> record = new ArrayList<>();
@@ -168,7 +169,7 @@ public class SystemTablesTest {
                             }
                             records.add(record);
                         }
-                        assertTrue(records.stream().filter(s -> s.contains("default")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains(TableSpace.DEFAULT)).findAny().isPresent());
                         assertEquals(1, records.size());
 
                     }

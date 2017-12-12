@@ -84,7 +84,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
-import static java.util.logging.Level.INFO;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.statement.Statement;
 import org.apache.calcite.DataContext;
@@ -233,7 +232,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
             if (subSchema == null) {
                 TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(defaultTableSpace);
-                throw new StatementExecutionException("internal error, Calcite subSchema for " + defaultTableSpace + " is null, tableSpaceManager is " + tableSpaceManager);
+                throw new StatementExecutionException("internal error,"
+                    + "Calcite subSchema for " + defaultTableSpace + " is null,"
+                    + "tableSpaceManager is " + tableSpaceManager + ","
+                    + "maybe table space " + defaultTableSpace + " is not yet started on this node");
             }
 
             final FrameworkConfig config = Frameworks.newConfigBuilder()
@@ -248,8 +250,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             SQLPlannedOperationStatement sqlPlannedOperationStatement = new SQLPlannedOperationStatement(
                 convertRelNode(plan.topNode, plan.originalRowType, returnValues)
                     .optimize());
-            if (LOG.isLoggable(Level.INFO)) {
-                LOG.log(Level.INFO, "Query: {0} --HerdDB Plan {1}",
+            if (LOG.isLoggable(Level.FINE)) {
+                LOG.log(Level.FINE, "Query: {0} --HerdDB Plan {1}",
                     new Object[]{query, sqlPlannedOperationStatement.getRootOp()});
             }
             if (!scan) {
@@ -357,8 +359,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         SqlNode n = planner.parse(query);
         n = planner.validate(n);
         RelNode root = planner.rel(n).project();
-        if (LOG.isLoggable(Level.INFO)) {
-            LOG.log(Level.INFO, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(Level.FINE)) {
+            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
                 RelOptUtil.dumpPlan("-- Logical Plan", root, SqlExplainFormat.TEXT,
                 SqlExplainLevel.ALL_ATTRIBUTES)});
         }
@@ -370,8 +372,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         final RelNode newRoot = optPlanner.changeTraits(root, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
-        if (LOG.isLoggable(Level.INFO)) {
-            LOG.log(Level.INFO, "Query: {0} {1}", new Object[]{query,
+        if (LOG.isLoggable(Level.FINE)) {
+            LOG.log(Level.FINE, "Query: {0} {1}", new Object[]{query,
                 RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                 SqlExplainLevel.ALL_ATTRIBUTES)});
         }

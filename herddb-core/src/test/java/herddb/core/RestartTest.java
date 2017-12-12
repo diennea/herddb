@@ -518,7 +518,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(30000));
 
             /* Access through key to page */
             GetResult result = manager.get(new GetStatement("tblspace1", table.name, Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
