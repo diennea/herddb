@@ -170,70 +170,80 @@ public class SQLPlanner implements AbstractSQLPlanner {
             return query;
         }
 
-        char ch = query.charAt(idx);
+        final String cleanQuery = query.substring(idx);
+
+        char ch = query.charAt(0);
 
         /* "empty" data skipped now we must recognize instructions to rewrite */
         switch (ch) {
             /* ALTER */
             case 'A':
-                if (query.regionMatches(idx, "ALTER TABLESPACE ", 0, 17)) {
-                    return "EXECUTE altertablespace " + query.substring(idx + 17);
+            case 'a':
+                if (cleanQuery.regionMatches(true, 0, "ALTER TABLESPACE ", 0, 17)) {
+                    return "EXECUTE altertablespace " + cleanQuery.substring(17);
                 }
 
-                return query;
+                return cleanQuery;
 
             /* BEGIN */
             case 'B':
-                if (query.regionMatches(idx, "BEGIN TRANSACTION", 0, 17)) {
-                    return "EXECUTE begintransaction" + query.substring(idx + 17);
+            case 'b':
+                if (cleanQuery.regionMatches(true, 0, "BEGIN TRANSACTION", 0, 17)) {
+                    return "EXECUTE begintransaction" + cleanQuery.substring(17);
                 }
 
-                return query;
+                return cleanQuery;
 
             /* COMMIT / CREATE */
             case 'C':
-                ch = query.charAt(idx + 1);
+            case 'c':
+                ch = cleanQuery.charAt(1);
                 switch (ch) {
                     case 'O':
-                        if (query.regionMatches(idx, "COMMIT TRANSACTION", 0, 18)) {
-                            return "EXECUTE committransaction" + query.substring(idx + 18);
+                    case 'o':
+                        if (cleanQuery.regionMatches(true, 0, "COMMIT TRANSACTION", 0, 18)) {
+                            return "EXECUTE committransaction" + cleanQuery.substring(18);
                         }
 
                         break;
 
                     case 'R':
-                        if (query.regionMatches(idx, "CREATE TABLESPACE ", 0, 18)) {
-                            return "EXECUTE createtablespace " + query.substring(idx + 18);
+                    case 'r':
+                        if (cleanQuery.regionMatches(true, 0, "CREATE TABLESPACE ", 0, 18)) {
+                            return "EXECUTE createtablespace " + cleanQuery.substring(18);
                         }
 
                         break;
                 }
 
-                return query;
+                return cleanQuery;
 
             /* DROP */
             case 'D':
-                if (query.regionMatches(idx, "DROP TABLESPACE ", 0, 16)) {
-                    return "EXECUTE droptablespace " + query.substring(idx + 16);
+            case 'd':
+                if (cleanQuery.regionMatches(true, 0, "DROP TABLESPACE ", 0, 16)) {
+                    return "EXECUTE droptablespace " + cleanQuery.substring(16);
                 }
 
-                return query;
+                return cleanQuery;
 
             /* ROLLBACK */
             case 'R':
-                if (query.regionMatches(idx, "ROLLBACK TRANSACTION", 0, 20)) {
-                    return "EXECUTE rollbacktransaction" + query.substring(idx + 20);
+            case 'r':
+                if (cleanQuery.regionMatches(true, 0, "ROLLBACK TRANSACTION", 0, 20)) {
+                    return "EXECUTE rollbacktransaction" + cleanQuery.substring(20);
                 }
-                return query;
+                return cleanQuery;
+
             /* TRUNCATE */
             case 'T':
             case 't':
-                if (query.regionMatches(true, idx, "TRUNCATE", 0, 8)) {
-                    return "TRUNCATE" + query.substring(idx + 8);
+                if (cleanQuery.regionMatches(true, 0, "TRUNCATE", 0, 8)) {
+                    return "TRUNCATE" + cleanQuery.substring(8);
                 }
-                return query;
+                return cleanQuery;
             default:
-                return query;
+                return cleanQuery;
         }
     }
 

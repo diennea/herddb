@@ -19,10 +19,25 @@
  */
 package herddb.sql;
 
-import herddb.codec.DataAccessorForFullRecord;
-import herddb.core.DBManager;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeThat;
+import static org.junit.Assume.assumeTrue;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import herddb.codec.DataAccessorForFullRecord;
+import herddb.core.DBManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
@@ -49,18 +64,6 @@ import herddb.model.planner.UpdateOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import org.junit.Assert;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeThat;
-import static org.junit.Assume.assumeTrue;
-import org.junit.Test;
 
 public class CalcitePlannerTest {
 
@@ -91,6 +94,46 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=?"), SimpleDeleteOp.class);
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where k1=? and n1=?"), SimpleDeleteOp.class);
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
+            assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
+            assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
+            BindableTableScanOp plan = (BindableTableScanOp) assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
+            Projection projection = plan.getStatement().getProjection();
+            System.out.println("projection:" + projection);
+            assertThat(projection, instanceOf(IdentityProjection.class));
+            assertNull(plan.getStatement().getComparator());
+
+        }
+    }
+
+    @Test
+    public void dirtySQLPlansTests() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            assumeThat(manager.getPlanner(), instanceOf(CalcitePlanner.class));
+
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "\n\nCREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
+            execute(manager, "\n\nINSERT INTO tblspace1.tsql (k1,n1) values(?,?)", Arrays.asList("mykey", 1234), TransactionContext.NO_TRANSACTION);
+            try (DataScanner scan = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql where k1='mykey'", Collections.emptyList())) {
+                assertEquals(1, scan.consume().size());
+            }
+
+            assertInstanceOf(plan(manager, "-- comment\nselect * from tblspace1.tsql"), TableScanOp.class);
+            assertInstanceOf(plan(manager, "/* multiline\ncomment */\nselect * from tblspace1.tsql where n1=1"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "\n\nselect n1 from tblspace1.tsql"), BindableTableScanOp.class);
+            assertInstanceOf(plan(manager, "-- comment\nupdate tblspace1.tsql set n1=? where k1=?"), SimpleUpdateOp.class);
+            assertInstanceOf(plan(manager, "/* multiline\ncomment */\nupdate tblspace1.tsql set n1=? where k1=? and n1=?"), SimpleUpdateOp.class);
+            assertInstanceOf(plan(manager, "update tblspace1.tsql set n1=?"
+                + " where n1 in (select b.n1*2 from tblspace1.tsql b)"), UpdateOp.class);
+            assertInstanceOf(plan(manager, "-- comment\ndelete from tblspace1.tsql where k1=?"), SimpleDeleteOp.class);
+            assertInstanceOf(plan(manager, "/* multiline\ncomment */\ndelete from tblspace1.tsql where k1=? and n1=?"), SimpleDeleteOp.class);
+            assertInstanceOf(plan(manager, "\n\ndelete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
