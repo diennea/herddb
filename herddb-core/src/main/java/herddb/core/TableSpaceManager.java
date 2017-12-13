@@ -1562,4 +1562,10 @@ public class TableSpaceManager {
         return log;
     }
 
+    @Override
+    public String toString() {
+        return "TableSpaceManager [nodeId=" + nodeId +
+                ", tableSpaceName=" + tableSpaceName +
+                ", tableSpaceUUID=" + tableSpaceUUID + "]";
+    }
 }

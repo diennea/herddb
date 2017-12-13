@@ -19,65 +19,8 @@
  */
 package herddb.sql;
 
-import com.google.common.collect.ImmutableList;
-import herddb.core.AbstractIndexManager;
-import herddb.core.AbstractTableManager;
-import herddb.core.DBManager;
-import herddb.core.TableSpaceManager;
-import herddb.index.IndexOperation;
-import herddb.index.PrimaryIndexPrefixScan;
-import herddb.index.PrimaryIndexRangeScan;
-import herddb.index.PrimaryIndexSeek;
-import herddb.index.SecondaryIndexPrefixScan;
-import herddb.index.SecondaryIndexRangeScan;
-import herddb.index.SecondaryIndexSeek;
-import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
-import herddb.model.Column;
 import static herddb.model.Column.column;
-import herddb.model.ColumnTypes;
-import herddb.model.ColumnsList;
-import herddb.model.DMLStatement;
-import herddb.model.ExecutionPlan;
-import herddb.model.Predicate;
-import herddb.model.Projection;
-import herddb.model.RecordFunction;
-import herddb.model.StatementExecutionException;
-import herddb.model.Table;
-import herddb.model.commands.DeleteStatement;
-import herddb.model.commands.GetStatement;
-import herddb.model.commands.InsertStatement;
-import herddb.model.commands.SQLPlannedOperationStatement;
-import herddb.model.commands.ScanStatement;
-import herddb.model.commands.UpdateStatement;
-import herddb.model.planner.AggregateOp;
-import herddb.model.planner.BindableTableScanOp;
-import herddb.model.planner.DeleteOp;
-import herddb.model.planner.SimpleDeleteOp;
-import herddb.model.planner.FilterOp;
-import herddb.model.planner.FilteredTableScanOp;
-import herddb.model.planner.InsertOp;
-import herddb.model.planner.JoinOp;
-import herddb.model.planner.LimitOp;
-import herddb.model.planner.PlannerOp;
-import herddb.model.planner.ProjectOp;
-import herddb.model.planner.SemiJoinOp;
-import herddb.model.planner.SimpleInsertOp;
-import herddb.model.planner.SortOp;
-import herddb.model.planner.TableScanOp;
-import herddb.model.planner.UnionAllOp;
-import herddb.model.planner.SimpleUpdateOp;
-import herddb.model.planner.ThetaJoinOp;
-import herddb.model.planner.UpdateOp;
-import herddb.model.planner.ValuesOp;
-import herddb.sql.expressions.AccessCurrentRowExpression;
-import herddb.sql.expressions.BindableTableScanColumnNameResolver;
-import herddb.sql.expressions.CompiledMultiAndExpression;
-import herddb.sql.expressions.CompiledSQLExpression;
-import herddb.sql.expressions.ConstantExpression;
-import herddb.sql.expressions.JdbcParameterExpression;
-import herddb.sql.expressions.SQLExpressionCompiler;
-import herddb.sql.expressions.TypedJdbcParameterExpression;
+
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -86,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import net.sf.jsqlparser.statement.Statement;
+
 import org.apache.calcite.DataContext;
 import org.apache.calcite.adapter.enumerable.EnumerableAggregate;
 import org.apache.calcite.adapter.enumerable.EnumerableConvention;
@@ -152,6 +95,67 @@ import org.apache.calcite.tools.Programs;
 import org.apache.calcite.tools.RelConversionException;
 import org.apache.calcite.tools.ValidationException;
 import org.apache.calcite.util.ImmutableBitSet;
+
+import com.google.common.collect.ImmutableList;
+
+import herddb.core.AbstractIndexManager;
+import herddb.core.AbstractTableManager;
+import herddb.core.DBManager;
+import herddb.core.TableSpaceManager;
+import herddb.index.IndexOperation;
+import herddb.index.PrimaryIndexPrefixScan;
+import herddb.index.PrimaryIndexRangeScan;
+import herddb.index.PrimaryIndexSeek;
+import herddb.index.SecondaryIndexPrefixScan;
+import herddb.index.SecondaryIndexRangeScan;
+import herddb.index.SecondaryIndexSeek;
+import herddb.metadata.MetadataStorageManagerException;
+import herddb.model.AutoIncrementPrimaryKeyRecordFunction;
+import herddb.model.Column;
+import herddb.model.ColumnTypes;
+import herddb.model.ColumnsList;
+import herddb.model.DMLStatement;
+import herddb.model.ExecutionPlan;
+import herddb.model.Predicate;
+import herddb.model.Projection;
+import herddb.model.RecordFunction;
+import herddb.model.StatementExecutionException;
+import herddb.model.Table;
+import herddb.model.commands.DeleteStatement;
+import herddb.model.commands.GetStatement;
+import herddb.model.commands.InsertStatement;
+import herddb.model.commands.SQLPlannedOperationStatement;
+import herddb.model.commands.ScanStatement;
+import herddb.model.commands.UpdateStatement;
+import herddb.model.planner.AggregateOp;
+import herddb.model.planner.BindableTableScanOp;
+import herddb.model.planner.DeleteOp;
+import herddb.model.planner.FilterOp;
+import herddb.model.planner.FilteredTableScanOp;
+import herddb.model.planner.InsertOp;
+import herddb.model.planner.JoinOp;
+import herddb.model.planner.LimitOp;
+import herddb.model.planner.PlannerOp;
+import herddb.model.planner.ProjectOp;
+import herddb.model.planner.SemiJoinOp;
+import herddb.model.planner.SimpleDeleteOp;
+import herddb.model.planner.SimpleInsertOp;
+import herddb.model.planner.SimpleUpdateOp;
+import herddb.model.planner.SortOp;
+import herddb.model.planner.TableScanOp;
+import herddb.model.planner.ThetaJoinOp;
+import herddb.model.planner.UnionAllOp;
+import herddb.model.planner.UpdateOp;
+import herddb.model.planner.ValuesOp;
+import herddb.sql.expressions.AccessCurrentRowExpression;
+import herddb.sql.expressions.BindableTableScanColumnNameResolver;
+import herddb.sql.expressions.CompiledMultiAndExpression;
+import herddb.sql.expressions.CompiledSQLExpression;
+import herddb.sql.expressions.ConstantExpression;
+import herddb.sql.expressions.JdbcParameterExpression;
+import herddb.sql.expressions.SQLExpressionCompiler;
+import herddb.sql.expressions.TypedJdbcParameterExpression;
+import net.sf.jsqlparser.statement.Statement;
 
 /**
  * SQL Planner based upon Apache Calcite
@@ -377,6 +381,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         SchemaPlus subSchema = getSchemaForTableSpace(defaultTableSpace);
         if (subSchema == null) {
             TableSpaceManager tableSpaceManager = manager.getTableSpaceManager(defaultTableSpace);
+            clearCache();
             throw new StatementExecutionException("internal error,"
                 + "Calcite subSchema for " + defaultTableSpace + " is null,"
                 + "tableSpaceManager is " + tableSpaceManager + ","
