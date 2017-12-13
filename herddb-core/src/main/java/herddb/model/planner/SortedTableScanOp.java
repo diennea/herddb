@@ -30,25 +30,33 @@ import herddb.model.commands.ScanStatement;
 import herddb.utils.Wrapper;
 
 /**
- * Full table scan
+ * TableScanOp + Sort
  *
  * @author eolivelli
  */
-public class TableScanOp implements PlannerOp {
+public class SortedTableScanOp implements PlannerOp {
 
     final ScanStatement statement;
 
-    public TableScanOp(ScanStatement statement) {
-        this.statement = statement;
-    }
-
-    ScanStatement getStatement() {
-        return statement;
+    public SortedTableScanOp(ScanStatement scan) {
+        this.statement = scan;
     }
 
     @Override
     public String getTablespace() {
         return statement.getTableSpace();
+    }
+
+    public ScanStatement getStatement() {
+        return statement;
+    }
+
+    @Override
+    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+        TransactionContext transactionContext,
+        StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
+        return new ScanResult(transactionContext.transactionId, scan);
     }
 
     @Override
@@ -61,16 +69,8 @@ public class TableScanOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-        TransactionContext transactionContext,
-        StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
-        DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
-        return new ScanResult(transactionContext.transactionId, scan);
-    }
-
-    @Override
     public String toString() {
-        return "TableScanOp{" + "statement=" + statement + '}';
+        return "SortedTableScanOp{" + "statement=" + statement + '}';
     }
 
 }

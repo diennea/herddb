@@ -19,32 +19,18 @@
  */
 package herddb.model;
 
+import herddb.model.planner.ProjectOp.IdentityProjection;
 import herddb.utils.DataAccessor;
 
 /**
- * Function which mapsthe result of a scan to a Tuple
+ * Function which maps the result of a scan to a Tuple
  *
  * @author enrico.olivelli
  */
 public interface Projection {
 
     public static Projection IDENTITY(String[] fieldNames, Column[] columns) {
-        return new Projection() {
-            @Override
-            public Column[] getColumns() {
-                return columns;
-            }
-
-            @Override
-            public String[] getFieldNames() {
-                return fieldNames;
-            }
-
-            @Override
-            public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
-                return tuple;
-            }
-        };
+        return new IdentityProjection(fieldNames, columns);
     }
 
     public static Projection PRIMARY_KEY(Table table) {

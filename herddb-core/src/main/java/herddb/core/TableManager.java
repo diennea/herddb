@@ -2057,8 +2057,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (!ENABLE_STREAMING_DATA_SCANNER || (comparator != null
             && this.stats.getTablesize() > HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET)) {
             boolean sortedByClusteredIndex = comparator != null
-            && comparator.isOnlyPrimaryKeyAndAscending()
-            && keyToPage.isSortedAscending();
+                && comparator.isOnlyPrimaryKeyAndAscending()
+                && keyToPage.isSortedAscending();
             if (!sortedByClusteredIndex) {
                 return scanNoStream(statement, context, transaction, lockRequired, forWrite);
             }
@@ -2198,15 +2198,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             && keyToPage.isSortedAscending();
         final Projection projection = statement.getProjection();
         final boolean applyProjectionDuringScan = projection != null && !sorted;
-        String[] fieldNames;
-        Column[] columns;
-        if (applyProjectionDuringScan) {
-            fieldNames = projection.getFieldNames();
-            columns = projection.getColumns();
-        } else {
-            fieldNames = table.columnNames;
-            columns = table.columns;
-        }
         ScanLimits limits = statement.getLimits();
         int maxRows = limits == null ? 0 : limits.computeMaxRows(context);
         int offset = limits == null ? 0 : limits.computeOffset(context);
@@ -2255,7 +2246,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (sortedByClusteredIndex) {
                 // already sorted from index
                 tableData = tableData.sorted(comparator);
-                // fromTransactionSorted is already sorted                
+                // fromTransactionSorted is already sorted
                 // we need to re-sort
                 result = Stream.concat(fromTransactionSorted, tableData)
                     .sorted(comparator);
@@ -2278,6 +2269,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         if (!applyProjectionDuringScan && projection != null) {
             result = result.map(r -> projection.map(r, context));
+        }
+        String[] fieldNames;
+        Column[] columns;
+        if (projection != null) {
+            fieldNames = projection.getFieldNames();
+            columns = projection.getColumns();
+        } else {
+            fieldNames = table.columnNames;
+            columns = table.columns;
         }
         return new StreamDataScanner(transaction != null ? transaction.transactionId : 0, fieldNames, columns, result);
     }

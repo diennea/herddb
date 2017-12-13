@@ -47,6 +47,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.model.TupleComparator;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.planner.BindableTableScanOp;
@@ -55,15 +56,21 @@ import herddb.model.planner.InsertOp;
 import herddb.model.planner.LimitedSortedBindableTableScanOp;
 import herddb.model.planner.PlannerOp;
 import herddb.model.planner.ProjectOp.IdentityProjection;
+import herddb.model.planner.ProjectOp.ZeroCopyProjection;
+import herddb.model.planner.ProjectOp.ZeroCopyProjection.RuntimeProjectedDataAccessor;
 import herddb.model.planner.SimpleDeleteOp;
 import herddb.model.planner.SimpleInsertOp;
 import herddb.model.planner.SimpleUpdateOp;
+import herddb.model.planner.SortOp;
 import herddb.model.planner.SortedBindableTableScanOp;
+import herddb.model.planner.SortedTableScanOp;
 import herddb.model.planner.TableScanOp;
 import herddb.model.planner.UpdateOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertFalse;
 
 public class CalcitePlannerTest {
 
@@ -98,11 +105,77 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
-            BindableTableScanOp plan = (BindableTableScanOp) assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
-            Projection projection = plan.getStatement().getProjection();
-            System.out.println("projection:" + projection);
-            assertThat(projection, instanceOf(IdentityProjection.class));
-            assertNull(plan.getStatement().getComparator());
+            {
+                BindableTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
+                Projection projection = plan.getStatement().getProjection();
+                System.out.println("projection:" + projection);
+                assertThat(projection, instanceOf(IdentityProjection.class));
+                assertNull(plan.getStatement().getComparator());
+            }
+
+            {
+                SortedBindableTableScanOp plan = assertInstanceOf(plan(manager, "select n1,k1 from tblspace1.tsql order by n1"), SortedBindableTableScanOp.class);
+                Projection projection = plan.getStatement().getProjection();
+                System.out.println("projection:" + projection);
+                assertThat(projection, instanceOf(ZeroCopyProjection.class));
+                ZeroCopyProjection zero = (ZeroCopyProjection) projection;
+                assertArrayEquals(new String[]{"n1", "k1"}, zero.getFieldNames());
+                assertEquals("n1", zero.getColumns()[0].name);
+                assertEquals("k1", zero.getColumns()[1].name);
+                TupleComparator comparator = plan.getStatement().getComparator();
+                System.out.println("comparator:" + comparator);
+                assertThat(comparator, instanceOf(SortOp.class));
+                SortOp sortOp = (SortOp) comparator;
+                assertFalse(sortOp.isOnlyPrimaryKeyAndAscending());
+            }
+
+            {
+                SortedBindableTableScanOp plan = assertInstanceOf(plan(manager, "select n1,k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
+                Projection projection = plan.getStatement().getProjection();
+                System.out.println("projection:" + projection);
+                assertThat(projection, instanceOf(ZeroCopyProjection.class));
+                ZeroCopyProjection zero = (ZeroCopyProjection) projection;
+                assertArrayEquals(new String[]{"n1", "k1"}, zero.getFieldNames());
+                assertEquals("n1", zero.getColumns()[0].name);
+                assertEquals("k1", zero.getColumns()[1].name);
+                TupleComparator comparator = plan.getStatement().getComparator();
+                System.out.println("comparator:" + comparator);
+                assertThat(comparator, instanceOf(SortOp.class));
+                SortOp sortOp = (SortOp) comparator;
+                assertTrue(sortOp.isOnlyPrimaryKeyAndAscending());
+            }
+            {
+                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by n1"), SortedTableScanOp.class);
+                Projection projection = plan.getStatement().getProjection();
+                System.out.println("projection:" + projection);
+                assertThat(projection, instanceOf(IdentityProjection.class));
+                IdentityProjection zero = (IdentityProjection) projection;
+                assertArrayEquals(new String[]{"k1", "n1", "s1"}, zero.getFieldNames());
+                assertEquals("k1", zero.getColumns()[0].name);
+                assertEquals("n1", zero.getColumns()[1].name);
+                assertEquals("s1", zero.getColumns()[2].name);
+                TupleComparator comparator = plan.getStatement().getComparator();
+                System.out.println("comparator:" + comparator);
+                assertThat(comparator, instanceOf(SortOp.class));
+                SortOp sortOp = (SortOp) comparator;
+                assertFalse(sortOp.isOnlyPrimaryKeyAndAscending());
+            }
+            {
+                SortedTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
+                Projection projection = plan.getStatement().getProjection();
+                System.out.println("projection:" + projection);
+                assertThat(projection, instanceOf(IdentityProjection.class));
+                IdentityProjection zero = (IdentityProjection) projection;
+                assertArrayEquals(new String[]{"k1", "n1", "s1"}, zero.getFieldNames());
+                assertEquals("k1", zero.getColumns()[0].name);
+                assertEquals("n1", zero.getColumns()[1].name);
+                assertEquals("s1", zero.getColumns()[2].name);
+                TupleComparator comparator = plan.getStatement().getComparator();
+                System.out.println("comparator:" + comparator);
+                assertThat(comparator, instanceOf(SortOp.class));
+                SortOp sortOp = (SortOp) comparator;
+                assertTrue(sortOp.isOnlyPrimaryKeyAndAscending());
+            }
 
         }
     }
@@ -384,7 +457,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);
-                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertThat(record, instanceOf(ZeroCopyProjection.RuntimeProjectedDataAccessor.class));
                 assertEquals("k1", record.getFieldNames()[1]);
                 assertEquals("s1", record.getFieldNames()[0]);
                 assertEquals(RawString.of("testk1"), record.get(1));
@@ -396,7 +469,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);
-                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertThat(record, instanceOf(RuntimeProjectedDataAccessor.class));
                 assertEquals("s1", record.getFieldNames()[0]);
                 assertEquals(RawString.of("tests1"), record.get(0));
                 assertEquals(RawString.of("tests1"), record.get("s1"));
@@ -406,7 +479,7 @@ public class CalcitePlannerTest {
                 List<DataAccessor> consume = scan.consume();
                 assertEquals(1, consume.size());
                 DataAccessor record = consume.get(0);
-                assertThat(record, instanceOf(DataAccessorForFullRecord.class));
+                assertThat(record, instanceOf(RuntimeProjectedDataAccessor.class));
                 assertEquals("k1", record.getFieldNames()[0]);
                 assertEquals(RawString.of("testk1"), record.get(0));
                 assertEquals(RawString.of("testk1"), record.get("k1"));
@@ -424,10 +497,11 @@ public class CalcitePlannerTest {
         ).getRootOp();
     }
 
-    private static PlannerOp assertInstanceOf(PlannerOp plan, Class<?> aClass) {
+    @SuppressWarnings("unchecked")
+    private static <T> T assertInstanceOf(PlannerOp plan, Class<T> aClass) {
         Assert.assertTrue("expecting " + aClass + " but found " + plan.getClass(),
             plan.getClass().equals(aClass));
-        return plan;
+        return (T) plan;
     }
 
 }

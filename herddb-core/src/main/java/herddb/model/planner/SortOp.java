@@ -26,6 +26,7 @@ import herddb.core.TableSpaceManager;
 import herddb.model.Column;
 import herddb.model.DataScanner;
 import herddb.model.DataScannerException;
+import herddb.model.Projection;
 import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -34,6 +35,8 @@ import herddb.model.Table;
 import herddb.model.TransactionContext;
 import herddb.model.TupleComparator;
 import herddb.model.commands.ScanStatement;
+import herddb.model.planner.ProjectOp.IdentityProjection;
+import herddb.model.planner.ProjectOp.ZeroCopyProjection;
 import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
@@ -99,13 +102,47 @@ public class SortOp implements PlannerOp, TupleComparator {
             if (fields.length == 1 && directions[0]) {
                 Table tableDef = statement.getTableDef();
                 if (tableDef.getPrimaryKey().length == 1) {
-                    Column col = tableDef.resolveColumName(fields[0]);
-                    if (col.name.equals(tableDef.getPrimaryKey()[0])) {
-                        this.onlyPrimaryKeyAndAscending = true;
+                    if (statement.getProjection() != null && statement.getProjection() instanceof ZeroCopyProjection) {
+                        ZeroCopyProjection zeroCopyProjection = (ZeroCopyProjection) statement.getProjection();
+                        int index = zeroCopyProjection.mapPosition(fields[0]);
+                        Column col = tableDef.resolveColumName(index);
+                        if (col.name.equals(tableDef.getPrimaryKey()[0])) {
+                            this.onlyPrimaryKeyAndAscending = true;
+                        }
+                    } else if (statement.getProjection() != null && statement.getProjection() instanceof IdentityProjection) {
+                        Column col = tableDef.resolveColumName(fields[0]);
+                        if (col.name.equals(tableDef.getPrimaryKey()[0])) {
+                            this.onlyPrimaryKeyAndAscending = true;
+                        }
                     }
                 }
             }
             return new SortedBindableTableScanOp(statement);
+        } else if (input instanceof TableScanOp) {
+            TableScanOp op = (TableScanOp) input;
+            // we can change the statement, this node will be lost and the tablescan too
+            ScanStatement statement = op.getStatement();
+            statement.setComparator(this);
+
+            if (fields.length == 1 && directions[0]) {
+                Table tableDef = statement.getTableDef();
+                if (tableDef.getPrimaryKey().length == 1) {
+                    if (statement.getProjection() != null && statement.getProjection() instanceof ZeroCopyProjection) {
+                        ZeroCopyProjection zeroCopyProjection = (ZeroCopyProjection) statement.getProjection();
+                        int index = zeroCopyProjection.mapPosition(fields[0]);
+                        Column col = tableDef.resolveColumName(index);
+                        if (col.name.equals(tableDef.getPrimaryKey()[0])) {
+                            this.onlyPrimaryKeyAndAscending = true;
+                        }
+                    } else if (statement.getProjection() != null && statement.getProjection() instanceof IdentityProjection) {
+                        Column col = tableDef.resolveColumName(fields[0]);
+                        if (col.name.equals(tableDef.getPrimaryKey()[0])) {
+                            this.onlyPrimaryKeyAndAscending = true;
+                        }
+                    }
+                }
+            }
+            return new SortedTableScanOp(statement);
         }
         return this;
     }

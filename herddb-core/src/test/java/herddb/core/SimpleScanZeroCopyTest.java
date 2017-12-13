@@ -29,16 +29,14 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.Tuple;
 import herddb.model.commands.CreateTableSpaceStatement;
-import herddb.model.planner.ProjectOp;
+import herddb.model.planner.ProjectOp.ZeroCopyProjection;
 import herddb.utils.DataAccessor;
 import herddb.utils.ProjectedDataAccessor;
 import herddb.utils.RawString;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
@@ -70,7 +68,7 @@ public class SimpleScanZeroCopyTest {
                 assertEquals(1, data.size());
                 // read from the full record, keeping only some field
                 assertTrue(data.get(0) instanceof ProjectedDataAccessor
-                        || data.get(0) instanceof DataAccessorForFullRecord);
+                        || data.get(0) instanceof ZeroCopyProjection.RuntimeProjectedDataAccessor);
                 assertEquals(RawString.of("a"), data.get(0).get("k1"));
                 assertEquals(RawString.of("a"), data.get(0).get(0));
             }

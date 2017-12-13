@@ -860,7 +860,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         int[] zeroCopyProjections = new int[fieldNames.length];
         boolean identity = allowIdentity
             && tableSchema != null
-            && tableSchema.length == projects.size();
+            && tableSchema.length == fieldNames.length;
         for (RexNode node : projects) {
             CompiledSQLExpression exp = SQLExpressionCompiler.compileExpression(node);
             if (exp instanceof AccessCurrentRowExpression) {

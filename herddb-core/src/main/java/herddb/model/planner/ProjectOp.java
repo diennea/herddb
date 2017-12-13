@@ -240,10 +240,11 @@ public class ProjectOp implements PlannerOp {
 
         @Override
         public DataAccessor map(DataAccessor tuple, StatementEvaluationContext context) throws StatementExecutionException {
-            if (tuple.applyZeroCopyProjection(fieldNames, zeroCopyProjections)) {
-                return tuple;
-            }
-            return new RuntimeProjectedDataAccessor(tuple, context);
+            return new RuntimeProjectedDataAccessor(tuple);
+        }
+
+        int mapPosition(int field) {
+            return zeroCopyProjections[field];
         }
 
         @SuppressFBWarnings(value = "EI_EXPOSE_REP2")
@@ -251,7 +252,7 @@ public class ProjectOp implements PlannerOp {
 
             private final DataAccessor wrapped;
 
-            public RuntimeProjectedDataAccessor(DataAccessor wrapper, StatementEvaluationContext context) {
+            public RuntimeProjectedDataAccessor(DataAccessor wrapper) {
                 this.wrapped = wrapper;
             }
 
