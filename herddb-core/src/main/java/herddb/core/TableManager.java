@@ -41,6 +41,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -72,6 +73,7 @@ import herddb.model.Projection;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.RecordTooBigException;
+import herddb.model.ScanLimits;
 import herddb.model.Statement;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
@@ -79,6 +81,7 @@ import herddb.model.StatementExecutionResult;
 import herddb.model.Table;
 import herddb.model.TableContext;
 import herddb.model.Transaction;
+import herddb.model.TupleComparator;
 import herddb.model.commands.DeleteStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -99,10 +102,6 @@ import herddb.utils.Holder;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
-import herddb.model.ScanLimits;
-import herddb.model.TupleComparator;
-import herddb.utils.BooleanHolder;
-import java.util.function.Function;
 
 /**
  * Handles Data of a Table
@@ -2033,7 +2032,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long delta_keytopagecheckpoint = keytopagecheckpoint - newPagesFlush;
             long delta_indexcheckpoint = indexcheckpoint - keytopagecheckpoint;
             long delta_tablecheckpoint = tablecheckpoint - indexcheckpoint;
-            long delta_unload = end - keytopagecheckpoint;
+            long delta_unload = end - tablecheckpoint;
 
             LOGGER.log(Level.INFO, "long checkpoint for {0}, time {1}", new Object[]{table.name,
                 delta + " ms (" + delta_lock
