@@ -62,6 +62,7 @@ public class HerdDBConnection implements java.sql.Connection {
     private boolean autocommit = true;
     private String tableSpace;
     private final BasicHerdDBDataSource datasource;
+    private boolean closed;
 
     HerdDBConnection(BasicHerdDBDataSource datasource, HDBConnection connection, String defaultTablespace) throws SQLException {
         if (connection == null) {
@@ -170,16 +171,20 @@ public class HerdDBConnection implements java.sql.Connection {
 
     @Override
     public void close() throws SQLException {
+        if (closed) {
+            return;
+        }
         if (transactionId != NOTRANSACTION_ID
             && transactionId != AUTOTRANSACTION_ID) {
             rollback();
         }
         this.datasource.releaseConnection(connection);
+        closed = true;
     }
 
     @Override
     public boolean isClosed() throws SQLException {
-        return connection.isClosed();
+        return closed || connection.isClosed();
     }
 
     @Override
