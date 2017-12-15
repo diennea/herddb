@@ -64,7 +64,7 @@
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <libs.netty4>4.1.17.Final</libs.netty4>
+        <libs.netty4>4.1.18.Final</libs.netty4>
         <libs.calcite>1.15.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
@@ -94,7 +94,7 @@
             <groupId>net.jcip</groupId>
             <artifactId>jcip-annotations</artifactId>
             <version>${libs.jcipi-annotations}</version>
-            <optional>true</optional>
+            <optional>true</optional>           
         </dependency>
         <dependency>
             <groupId>com.github.spotbugs</groupId>
@@ -102,6 +102,12 @@
             <version>${libs.spotbugsannotations}</version>
             <scope>provided</scope>
             <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.code.findbugs</groupId>
+                    <artifactId>jsr305</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
 
@@ -120,7 +126,7 @@
             <dependency>
                 <groupId>org.apache.calcite</groupId>
                 <artifactId>calcite-core</artifactId>
-                <version>${libs.calcite}</version>
+                <version>${libs.calcite}</version>                
             </dependency>           
             <dependency>            
                 <groupId>org.codehaus.jackson</groupId>

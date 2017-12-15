@@ -91,6 +91,36 @@
         <dependency>
             <groupId>org.apache.calcite</groupId>
             <artifactId>calcite-core</artifactId>            
+            <exclusions>                
+                <exclusion>
+                    <groupId>com.esri.geometry</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.core</groupId>
+                    <artifactId>*</artifactId>
+               </exclusion>
+                <exclusion>
+                    <groupId>com.yahoo.datasketches</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>net.hydromatic</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>                
+                <exclusion>
+                    <groupId>com.google.code.findbugs</groupId>
+                    <artifactId>jsr305</artifactId>
+                </exclusion>                    
+                <exclusion>
+                    <groupId>commons-dbcp</groupId>
+                    <artifactId>commons-dbcp</artifactId>
+                </exclusion>                    
+                <exclusion>
+                    <groupId>org.apache.httpcomponents</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>                    
+            </exclusions>
         </dependency>
     </dependencies>
     <build>
