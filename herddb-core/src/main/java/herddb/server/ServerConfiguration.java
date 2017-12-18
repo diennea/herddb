@@ -70,6 +70,12 @@ public final class ServerConfiguration {
     public static final String PROPERTY_NETWORK_ENABLED = "server.network.enabled";
     public static final boolean PROPERTY_NETWORK_ENABLED_DEFAULT = true;
 
+    public static final String PROPERTY_NETWORK_CALLBACK_THREADS = "server.network.thread.callback";
+    public static final int PROPERTY_NETWORK_CALLBACK_THREADS_DEFAULT = 64;
+
+    public static final String PROPERTY_NETWORK_WORKER_THREADS = "server.network.thread.worker";
+    public static final int PROPERTY_NETWORK_WORKER_THREADS_DEFAULT = 16;
+
     public static final String PROPERTY_ZOOKEEPER_ADDRESS = "server.zookeeper.address";
     public static final String PROPERTY_ZOOKEEPER_SESSIONTIMEOUT = "server.zookeeper.session.timeout";
     public static final String PROPERTY_ZOOKEEPER_PATH = "server.zookeeper.path";
@@ -180,7 +186,7 @@ public final class ServerConfiguration {
     public static final String PLANNER_TYPE_CALCITE = "calcite";
     public static final String PROPERTY_PLANNER_TYPE_DEFAULT =
             System.getProperty("herddb.defaultplanner.type", PLANNER_TYPE_CALCITE);
-    
+
     public ServerConfiguration(Properties properties) {
         this.properties = new Properties();
         this.properties.putAll(properties);

@@ -245,8 +245,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         String realHost = serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_HOST);
         int realPort = Integer.parseInt(serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_PORT));
 
-        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost,
-            realPort, serverHostData.isSsl());
+        NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost, realPort, serverHostData.isSsl());
         boolean nextworkEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_NETWORK_ENABLED,
             ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
         if (!nextworkEnabled || ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
@@ -257,6 +256,16 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             LOGGER.log(Level.SEVERE, "Binding network acceptor to {0}:{1} ssl:{2}",
                 new Object[]{realHost, realPort, serverHostData.isSsl()});
         }
+
+        int callbackThreads = configuration.getInt(
+                ServerConfiguration.PROPERTY_NETWORK_CALLBACK_THREADS,
+                ServerConfiguration.PROPERTY_NETWORK_CALLBACK_THREADS_DEFAULT);
+        int workerThreads = configuration.getInt(
+                ServerConfiguration.PROPERTY_NETWORK_WORKER_THREADS,
+                ServerConfiguration.PROPERTY_NETWORK_WORKER_THREADS_DEFAULT);
+        acceptor.setCallbackThreads(callbackThreads);
+        acceptor.setWorkerThreads(workerThreads);
+
         return acceptor;
     }
 
