@@ -155,7 +155,7 @@ public class EmbeddedBookie implements AutoCloseable {
         // dump actual BookKeeper configuration in order to use bookkeeper shell
         Path actual_bookkeeper_configuration = bookie_dir.resolve("embedded.bookie.properties");
         StringBuilder builder = new StringBuilder();
-        for (Iterator<Object> key_it = conf.getKeys(); key_it.hasNext();) {
+        for (Iterator<String> key_it = conf.getKeys(); key_it.hasNext();) {
             String key = key_it.next() + "";
             if (System.getProperty(key) == null) { // Bookkeeper 4.4 adds system properties to configuration
                 Object value = conf.getProperty(key + "");

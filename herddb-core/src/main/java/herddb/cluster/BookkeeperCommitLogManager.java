@@ -30,7 +30,6 @@ import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
-import org.apache.zookeeper.KeeperException;
 
 /**
  * CommitLog on Apache BookKeeper
@@ -82,7 +81,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
                     = BookKeeper
                             .forConfig(config)
                             .build();
-        } catch (IOException | InterruptedException | KeeperException t) {
+        } catch (IOException | InterruptedException | BKException t) {
             close();
             throw new LogNotAvailableException(t);
         }
