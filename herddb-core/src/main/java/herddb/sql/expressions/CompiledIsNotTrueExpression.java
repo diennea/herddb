@@ -50,4 +50,10 @@ public class CompiledIsNotTrueExpression implements CompiledSQLExpression {
         left.validate(context);
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledIsNotTrueExpression(not,
+            left.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
 }

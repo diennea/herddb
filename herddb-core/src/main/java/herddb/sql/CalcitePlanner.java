@@ -349,12 +349,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
      * @param filterPk
      * @param table
      */
-    private CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(CompiledSQLExpression filterPk, Table table) {
+    private CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(CompiledSQLExpression filterPk, Table table, RelNode debug) {
         try {
             int[] projectionToKey = table.getPrimaryKeyProjection();
             return filterPk.remapPositionalAccessToToPrimaryKeyAccessor(projectionToKey);
         } catch (IllegalStateException notImplemented) {
-            LOG.log(Level.INFO, "Not implemented best accessnfor PK ", notImplemented);
+            LOG.log(Level.INFO, "Not implemented best access for PK on "
+                +RelOptUtil.dumpPlan("", debug, SqlExplainFormat.TEXT, SqlExplainLevel.ALL_ATTRIBUTES), notImplemented);
             return null;
         }
     }
@@ -710,7 +711,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             CompiledSQLExpression filterPk = findFiltersOnPrimaryKey(table, where);
 
             if (filterPk != null) {
-                filterPk = remapPositionalAccessToToPrimaryKeyAccessor(filterPk, table);
+                filterPk = remapPositionalAccessToToPrimaryKeyAccessor(filterPk, table, scan);
             }
             predicate.setPrimaryKeyFilter(filterPk);
         }

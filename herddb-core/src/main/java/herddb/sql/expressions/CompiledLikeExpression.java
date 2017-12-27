@@ -44,4 +44,11 @@ public class CompiledLikeExpression extends CompiledBinarySQLExpression {
         }
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledLikeExpression(not,
+            left.remapPositionalAccessToToPrimaryKeyAccessor(projection),
+            right.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
 }

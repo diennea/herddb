@@ -50,4 +50,10 @@ public class CompiledParenthesisExpression implements CompiledSQLExpression {
         inner.validate(context);
     }
 
+    @Override
+    public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
+        return new CompiledParenthesisExpression(not,
+            inner.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+    }
+
 }
