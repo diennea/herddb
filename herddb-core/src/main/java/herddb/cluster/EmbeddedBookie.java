@@ -91,6 +91,8 @@ public class EmbeddedBookie implements AutoCloseable {
         conf.setFlushInterval(1000);
         conf.setMaxBackupJournals(5);
         conf.setMaxJournalSizeMB(1048);
+        conf.setMaxPendingReadRequestPerThread(10000); // new in 4.6
+        conf.setMaxPendingAddRequestPerThread(20000); // new in 4.6
         conf.setEnableLocalTransport(true);
         conf.setProperty("journalMaxGroupWaitMSec", 10L); // default 200ms
         conf.setJournalFlushWhenQueueEmpty(true);
@@ -157,10 +159,8 @@ public class EmbeddedBookie implements AutoCloseable {
         StringBuilder builder = new StringBuilder();
         for (Iterator<String> key_it = conf.getKeys(); key_it.hasNext();) {
             String key = key_it.next() + "";
-            if (System.getProperty(key) == null) { // Bookkeeper 4.4 adds system properties to configuration
-                Object value = conf.getProperty(key + "");
-                builder.append(key + "=" + value + "\n");
-            }
+            Object value = conf.getProperty(key + "");
+            builder.append(key + "=" + value + "\n");
         }
         Files.write(actual_bookkeeper_configuration, builder.toString().getBytes(StandardCharsets.UTF_8),
             StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
