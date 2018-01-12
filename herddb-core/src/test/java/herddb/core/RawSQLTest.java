@@ -274,6 +274,40 @@ public class RawSQLTest {
     }
 
     @Test
+    public void updateMultiColumns() throws Exception {
+        String nodeId = "localhost";
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
+            manager.start();
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.waitForTablespace("tblspace1", 10000);
+
+            execute(manager, "CREATE TABLE tblspace1.tsql (k1 string,n1 int,s1 string,t1 timestamp,n2 int,n3 int, primary key (k1) )", Collections.emptyList());
+            java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
+            assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,s1,n1,t1,n2,n3) values(?,?,?,?,?,?)", Arrays.asList("mykey", "a", Integer.valueOf(1234), now, 1, 2)).getUpdateCount());
+
+            DataAccessor before = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consume().get(0);
+            assertEquals(1, before.get(0));
+            assertEquals(2, before.get(1));
+
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n2=n2+1,n3=n3+5 WHERE k1=?",
+                Arrays.asList("mykey")).getUpdateCount());
+
+            DataAccessor after = scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consume().get(0);
+            assertEquals(2, after.get(0));
+            assertEquals(7, after.get(1));
+
+            assertEquals(1, executeUpdate(manager, "UPDATE tblspace1.tsql set n2=n2+n2,n3=n3+n2 WHERE k1=?",
+                Arrays.asList("mykey")).getUpdateCount());
+
+            DataAccessor after2= scan(manager, "SELECT n2,n3 FROM tblspace1.tsql WHERE k1=?", Arrays.asList("mykey")).consume().get(0);
+            assertEquals(4, after2.get(0));
+            assertEquals(9, after2.get(1));
+
+        }
+    }
+
+    @Test
     public void caseWhenTest() throws Exception {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
@@ -820,16 +854,16 @@ public class RawSQLTest {
                 assertEquals(RawString.of("mykey"), result.get(0).get(0));
             }
             try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
-                
+
                 List<DataAccessor> result = scan1.consume();
-                System.out.println("result:"+result.get(0));
+                System.out.println("result:" + result.get(0));
                 assertArrayEquals(new String[]{"n1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
                 assertEquals(1, result.get(0).get("n1"));
                 assertEquals(1, result.get(0).get(0));
             }
             try (DataScanner scan1 = scan(manager, "SELECT n1 FROM tblspace1.tsql ORDER BY n1", Collections.emptyList());) {
-                List<DataAccessor> result = scan1.consume();                
+                List<DataAccessor> result = scan1.consume();
                 assertArrayEquals(new String[]{"n1"}, scan1.getFieldNames());
                 assertEquals(3, result.size());
                 assertEquals(1, result.get(0).get("n1"));

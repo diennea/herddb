@@ -30,22 +30,20 @@ import herddb.utils.DataAccessor;
 public class AccessCorrelVariableExpression implements CompiledSQLExpression {
 
     private final int id;
+    private final String name;
 
-    public AccessCorrelVariableExpression(int id) {
+    public AccessCorrelVariableExpression(int id, String name) {
         this.id = id;
+        this.name = name;
     }
 
     @Override
     public Object evaluate(DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        // TODO: implement joins
-        if (id != 0) {
-            throw new StatementExecutionException("collarion id " + id + "...not yet supported");
-        }
         return bean;
     }
 
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
-        return this;
+        throw new IllegalStateException("not supported for " + this.getClass());
     }
 }

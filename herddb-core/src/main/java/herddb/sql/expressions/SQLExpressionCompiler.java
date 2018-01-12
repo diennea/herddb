@@ -345,7 +345,7 @@ public class SQLExpressionCompiler {
             return new AccessFieldExpression(object, p.getField().getName());
         } else if (expression instanceof RexCorrelVariable) {
             RexCorrelVariable p = (RexCorrelVariable) expression;
-            return new AccessCorrelVariableExpression(p.id.getId());
+            return new AccessCorrelVariableExpression(p.id.getId(), p.id.getName());
         }
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }
