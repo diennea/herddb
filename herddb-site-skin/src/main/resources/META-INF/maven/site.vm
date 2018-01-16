@@ -5,8 +5,8 @@
         <title>$decoration.custom.getChild('pageTitle').getValue()</title>
         <style type="text/css" media="all">
             @import url("$relativePath/css/site.css");
-            @import url("$relativePath/media/favicon.ico");
         </style>
+        <link rel="shortcut icon" href="$relativePath/media/favicon.ico">
 
         <meta http-equiv="Content-Language" content="$locale.language" />
     </head>

@@ -310,6 +310,8 @@
                 <module>herddb-services</module>
                 <module>herddb-cli</module>
                 <module>herddb-bench</module>                
+                <module>herddb-website</module>                
+                <module>herddb-site-skin</module>                
             </modules>
             <distributionManagement>                        
                 <repository>

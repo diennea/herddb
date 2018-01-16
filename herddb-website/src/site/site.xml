@@ -5,17 +5,17 @@
         <navigationBar>
             <items>
                 <item>
+                    <text>Documentation</text>
+                    <href>https://github.com/diennea/herddb/wiki</href>
+                </item>
+                <item>
+                    <text>Community</text>
+                    <href>http://lists.herddb.org/mailman/listinfo</href>
+                </item>                
+                <item>
                     <text>GitHub</text>
                     <href>https://github.com/diennea/herddb</href>
                 </item>
-                <item>
-                    <text>Getting started</text>
-                    <href>https://github.com/diennea/herddb/wiki/Getting-started</href>
-                </item>                
-                <item>
-                    <text>Documentation</text>
-                    <href>https://github.com/diennea/herddb/wiki</href>
-                </item>                
                 <item>
                     <text>Download</text>
                     <href>https://github.com/diennea/herddb/releases</href>
@@ -32,6 +32,18 @@
         <changelog>
             <projectNameForChangelog>HerdDB</projectNameForChangelog>
             <releases>                
+                <release>
+                    <version>0.1.2</version>
+                    <date>November 2017</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>HerdDB 0.1.2, Bugfix release</text>
+                </release>
+                <release>
+                    <version>0.1.1</version>
+                    <date>September 2017</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>HerdDB 0.1.1, Bugfix release</text>
+                </release>
                 <release>
                     <version>0.1.0</version>
                     <date>June 2017</date>
