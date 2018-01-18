@@ -27,6 +27,8 @@ import herddb.sql.AggregatedColumnCalculator;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import net.sf.jsqlparser.expression.Function;
+import org.apache.calcite.sql.fun.SqlSingleValueAggFunction;
+import org.apache.calcite.sql.fun.SqlSumEmptyIsZeroAggFunction;
 
 /**
  * SQL aggregate functions
@@ -38,9 +40,16 @@ public class BuiltinFunctions {
     // aggregate
     public static final String COUNT = "count";
     public static final String SUM = "sum";
+    /**
+     * @see SqlSumEmptyIsZeroAggFunction
+     */
     public static final String SUM0 = "$sum0";//Calcite Sum empty is zero
     public static final String MIN = "min";
     public static final String MAX = "max";
+    /**
+     * @see SqlSingleValueAggFunction
+     */
+    public static final String SINGLEVALUE = "single_value";
     // scalar
     public static final String LOWER = "lower";
     public static final String UPPER = "upper";
@@ -50,7 +59,7 @@ public class BuiltinFunctions {
     public static final String CURRENT_TIMESTAMP = "current_timestamp";
     public static final String BOOLEAN_TRUE = "true";
     public static final String BOOLEAN_FALSE = "false";
-    
+
     // aggregate
     public static final String NAME_COUNT = "COUNT";
     public static final String NAME_SUM = "SUM";
@@ -63,7 +72,7 @@ public class BuiltinFunctions {
     public static final String NAME_ROUND = "ROUND";
     // special
     public static final String NAME_CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP";
-    
+
     public static Column toAggregatedOutputColumn(String fieldName, Function f) {
         if (f.getName().equalsIgnoreCase(BuiltinFunctions.COUNT)) {
             return Column.column(fieldName, ColumnTypes.LONG);
@@ -81,15 +90,15 @@ public class BuiltinFunctions {
     }
 
     public static AggregatedColumnCalculator getColumnCalculator(Function f, String fieldName,
-            StatementEvaluationContext context) throws StatementExecutionException {
+        StatementEvaluationContext context) throws StatementExecutionException {
         String functionName = f.getName();
         CompiledSQLExpression firstParam = f.getParameters() == null || f.getParameters().getExpressions() == null || f.getParameters().getExpressions().isEmpty() ? null
-                : SQLExpressionCompiler.compileExpression(null, f.getParameters().getExpressions().get(0));
+            : SQLExpressionCompiler.compileExpression(null, f.getParameters().getExpressions().get(0));
         return getColumnCalculator(functionName, fieldName, firstParam, context);
     }
 
     public static AggregatedColumnCalculator getColumnCalculator(String functionName, String fieldName,
-            CompiledSQLExpression firstParam, StatementEvaluationContext context) throws StatementExecutionException {
+        CompiledSQLExpression firstParam, StatementEvaluationContext context) throws StatementExecutionException {
         switch (functionName) {
             case COUNT:
                 return new CountColumnCalculator(fieldName);
@@ -100,6 +109,8 @@ public class BuiltinFunctions {
                 return new MinColumnCalculator(fieldName, firstParam, context);
             case MAX:
                 return new MaxColumnCalculator(fieldName, firstParam, context);
+            case SINGLEVALUE:
+                return new SingleValueCalculator(fieldName, firstParam, context);
             default:
                 return null;
         }
