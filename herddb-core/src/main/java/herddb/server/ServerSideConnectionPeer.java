@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 
 import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
+import herddb.core.HerdDBInternalException;
 import herddb.core.TableManager;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
@@ -409,7 +410,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             } else {
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
             }
-        } catch (StatementExecutionException | DataScannerException err) {
+        } catch (DataScannerException | HerdDBInternalException err) {
             LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
             scanners.remove(scannerId);
 
@@ -529,7 +530,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 }
             }
             _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULTS(updateCounts, otherDatas, transactionId));
-        } catch (StatementExecutionException err) {
+        } catch (HerdDBInternalException err) {
             Message error = Message.ERROR(null, err);
             if (err instanceof NotLeaderException) {
                 error.setParameter("notLeader", "true");
