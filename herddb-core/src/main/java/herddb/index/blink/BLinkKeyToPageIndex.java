@@ -357,7 +357,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
     }
 
-    private static final class MetadataSerializer {
+    public static final class MetadataSerializer {
 
         public static final MetadataSerializer INSTANCE = new MetadataSerializer();
 

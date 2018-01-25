@@ -83,6 +83,10 @@ public final class BLinkMetadata<K> {
                 "]";
     }
 
+    public String nodesToStrings() {
+        return nodes+"";
+    }
+
     public static final class BLinkNodeMetadata<K> {
 
         public static final long NO_LINK = -1;

@@ -83,7 +83,11 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path tmpDirectory;
     private final int swapThreshold;
 
-    /** Standard buffer size for data copies */
+    public static final String FILEEXTENSION_PAGE = ".page";
+
+    /**
+     * Standard buffer size for data copies
+     */
     public static final int COPY_BUFFERS_SIZE = 64 * 1024;
 
     public FileDataStorageManager(Path baseDirectory) {
@@ -124,8 +128,9 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private Path getTablespaceCheckPointInfoFile(String tablespace, LogSequenceNumber sequenceNumber) {
-        return getTablespaceDirectory(tablespace).resolve("checkpoint." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".checkpoint");
+        return getTablespaceDirectory(tablespace).resolve("checkpoint." + sequenceNumber.ledgerId + "." + sequenceNumber.offset + EXTENSION_TABLEORINDExCHECKPOINTINFOFILE);
     }
+    public static final String EXTENSION_TABLEORINDExCHECKPOINTINFOFILE = ".checkpoint";
 
     private static boolean isTablespaceCheckPointInfoFile(Path path) {
         Path filename = path.getFileName();
@@ -135,8 +140,8 @@ public class FileDataStorageManager extends DataStorageManager {
         }
 
         final String name = filename.toString();
-        return (name.startsWith("checkpoint.") && name.endsWith(".checkpoint")) ||
-                name.equals(".checkpoint"); // legacy 1.0 file
+        return (name.startsWith("checkpoint.") && name.endsWith(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE))
+            || name.equals(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE); // legacy 1.0 file
     }
 
     private Path getTablespaceTablesMetadataFile(String tablespace, LogSequenceNumber sequenceNumber) {
@@ -178,16 +183,16 @@ public class FileDataStorageManager extends DataStorageManager {
     }
 
     private Path getPageFile(Path tableDirectory, Long pageId) {
-        return tableDirectory.resolve(pageId + ".page");
+        return tableDirectory.resolve(pageId + FILEEXTENSION_PAGE);
     }
 
     private Path getTableCheckPointsFile(Path tableDirectory, LogSequenceNumber sequenceNumber) {
-        return tableDirectory.resolve(sequenceNumber.ledgerId + "." + sequenceNumber.offset + ".checkpoint");
+        return tableDirectory.resolve(sequenceNumber.ledgerId + "." + sequenceNumber.offset + EXTENSION_TABLEORINDExCHECKPOINTINFOFILE);
     }
 
-    private boolean isTableCheckpointsFile(Path path) {
+    private boolean isTableOrIndexCheckpointsFile(Path path) {
         Path filename = path.getFileName();
-        return filename != null && filename.toString().endsWith(".checkpoint");
+        return filename != null && filename.toString().endsWith(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE);
     }
 
     @Override
@@ -195,6 +200,22 @@ public class FileDataStorageManager extends DataStorageManager {
         long _start = System.currentTimeMillis();
         Path tableDir = getTableDirectory(tableSpace, tableName);
         Path pageFile = getPageFile(tableDir, pageId);
+        List<Record> result;
+        try {
+            result = rawReadDataPage(pageFile);
+        } catch (NoSuchFileException nsfe) {
+            throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId, nsfe);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+        long _stop = System.currentTimeMillis();
+        long delta = _stop - _start;
+        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms", new Object[]{tableSpace, tableName, delta + ""});
+        return result;
+    }
+
+    public static List<Record> rawReadDataPage(Path pageFile) throws DataStorageManagerException,
+        NoSuchFileException, IOException {
         List<Record> result;
         long hashFromFile;
         long hashFromDigest;
@@ -216,17 +237,10 @@ public class FileDataStorageManager extends DataStorageManager {
             }
             hashFromDigest = hash.hash();
             hashFromFile = dataIn.readLong();
-        } catch (NoSuchFileException nsfe) {
-            throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId, nsfe);
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
         }
         if (hashFromDigest != hashFromFile) {
             throw new DataStorageManagerException("Corrupted datafile " + pageFile + ". Bad hash " + hashFromFile + " <> " + hashFromDigest);
         }
-        long _stop = System.currentTimeMillis();
-        long delta = _stop - _start;
-        LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms", new Object[]{tableSpace, tableName, delta + ""});
         return result;
     }
 
@@ -355,7 +369,7 @@ public class FileDataStorageManager extends DataStorageManager {
         }
     }
 
-    private TableStatus readTableStatusFromFile(Path checkpointsFile) throws IOException {
+    public static TableStatus readTableStatusFromFile(Path checkpointsFile) throws IOException {
         byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
         XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
         try (InputStream input = new SimpleByteArrayInputStream(fileContent);
@@ -381,7 +395,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Files.createDirectories(dir);
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path path : stream) {
-                if (isTableCheckpointsFile(path)) {
+                if (isTableOrIndexCheckpointsFile(path)) {
                     LOGGER.log(Level.FINER, "getMostRecentCheckPointFile on " + dir.toAbsolutePath() + " -> ACCEPT " + path);
                     FileTime lastModifiedTime = Files.getLastModifiedTime(path);
                     long ts = lastModifiedTime.toMillis();
@@ -398,7 +412,7 @@ public class FileDataStorageManager extends DataStorageManager {
         return result;
     }
 
-    private IndexStatus readIndexStatusFromFile(Path checkpointsFile) throws DataStorageManagerException {
+    public static IndexStatus readIndexStatusFromFile(Path checkpointsFile) throws DataStorageManagerException {
         try {
             byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
             XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
@@ -484,7 +498,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path p : stream) {
-                if (isTableCheckpointsFile(p) && !p.equals(checkpointFile)) {
+                if (isTableOrIndexCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     TableStatus status = readTableStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
@@ -565,7 +579,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path p : stream) {
-                if (isTableCheckpointsFile(p) && !p.equals(checkpointFile)) {
+                if (isTableOrIndexCheckpointsFile(p) && !p.equals(checkpointFile)) {
                     IndexStatus status = readIndexStatusFromFile(p);
                     if (logPosition.after(status.sequenceNumber) && !checkpoints.contains(status.sequenceNumber)) {
                         LOGGER.log(Level.FINEST, "checkpoint metadata file " + p.toAbsolutePath() + ". will be deleted after checkpoint end");
@@ -612,9 +626,9 @@ public class FileDataStorageManager extends DataStorageManager {
 
     private static long getPageId(Path p) {
         String filename = p.getFileName() + "";
-        if (filename.endsWith(".page")) {
+        if (filename.endsWith(FILEEXTENSION_PAGE)) {
             try {
-                return Long.parseLong(filename.substring(0, filename.length() - ".page".length()));
+                return Long.parseLong(filename.substring(0, filename.length() - FILEEXTENSION_PAGE.length()));
             } catch (NumberFormatException no) {
                 return -1;
             }
@@ -1028,7 +1042,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 throw new DataStorageManagerException(err);
             }
 
-             // write file atomically
+            // write file atomically
             Files.move(checkpointFileTemp, checkPointFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException err) {
             throw new DataStorageManagerException(err);

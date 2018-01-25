@@ -106,7 +106,7 @@ public class FileCommitLog extends CommitLog {
             LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
 
             this.channel = FileChannel.open(filename,
-                    StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 
             this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
             writtenBytes = 0;
@@ -141,10 +141,10 @@ public class FileCommitLog extends CommitLog {
         }
     }
 
-    private static final class LogEntryWithSequenceNumber {
+    public static final class LogEntryWithSequenceNumber {
 
-        LogSequenceNumber logSequenceNumber;
-        LogEntry entry;
+        public final LogSequenceNumber logSequenceNumber;
+        public final LogEntry entry;
 
         public LogEntryWithSequenceNumber(LogSequenceNumber logSequenceNumber, LogEntry entry) {
             this.logSequenceNumber = logSequenceNumber;
@@ -153,13 +153,32 @@ public class FileCommitLog extends CommitLog {
 
     }
 
-    private class CommitFileReader implements AutoCloseable {
+    public static class CommitFileReader implements AutoCloseable {
 
-        ExtendedDataInputStream in;
-        long ledgerId;
-        boolean lastFile;
+        final ExtendedDataInputStream in;
+        final long ledgerId;
+        final boolean lastFile;
 
-        private CommitFileReader(long ledgerId, boolean lastFile) throws IOException {
+        private CommitFileReader(ExtendedDataInputStream in, long ledgerId, boolean lastFile) {
+            this.in = in;
+            this.ledgerId = ledgerId;
+            this.lastFile = lastFile;
+        }
+
+        public static CommitFileReader openForDescribeRawfile(Path filename) throws IOException {
+            ExtendedDataInputStream in = new ExtendedDataInputStream(
+                new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ), 64 * 1024));
+            String lastPath = filename.getFileName().toString().replace(LOGFILEEXTENSION, "");
+            long ledgerId;
+            try {
+                ledgerId = Long.valueOf(lastPath, 16);
+            } catch (NumberFormatException err) {
+                ledgerId = 0;
+            }
+            return new CommitFileReader(in, ledgerId, false);
+        }
+
+        private CommitFileReader(Path logDirectory, long ledgerId, boolean lastFile) throws IOException {
             this.ledgerId = ledgerId;
             this.lastFile = lastFile;
             Path filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION);
@@ -259,7 +278,7 @@ public class FileCommitLog extends CommitLog {
 
                     }
                 }
-            } catch (LogNotAvailableException | IOException| InterruptedException t) {
+            } catch (LogNotAvailableException | IOException | InterruptedException t) {
                 failed = true;
                 LOGGER.log(Level.SEVERE, "general commit log failure on " + FileCommitLog.this.logDirectory);
             }
@@ -392,7 +411,7 @@ public class FileCommitLog extends CommitLog {
                 currentLedgerId = Math.max(currentLedgerId, ledgerId);
                 offset = -1;
 
-                try (CommitFileReader reader = new CommitFileReader(ledgerId, lastFile)) {
+                try (CommitFileReader reader = new CommitFileReader(logDirectory, ledgerId, lastFile)) {
                     LogEntryWithSequenceNumber n = reader.nextEntry();
                     while (n != null) {
                         offset = n.logSequenceNumber.offset;
@@ -484,7 +503,7 @@ public class FileCommitLog extends CommitLog {
         }
     }
 
-    private static final String LOGFILEEXTENSION = ".txlog";
+    public static final String LOGFILEEXTENSION = ".txlog";
 
     private volatile boolean closed = false;
     private volatile boolean failed = false;
