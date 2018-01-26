@@ -32,12 +32,17 @@ import herddb.file.FileCommitLog;
 import herddb.file.FileCommitLog.CommitFileReader;
 import herddb.file.FileCommitLog.LogEntryWithSequenceNumber;
 import herddb.file.FileDataStorageManager;
+import herddb.file.FileMetadataStorageManager;
 import herddb.index.blink.BLinkKeyToPageIndex.MetadataSerializer;
 import herddb.index.blink.BLinkMetadata;
 import herddb.jdbc.HerdDBConnection;
 import herddb.jdbc.HerdDBDataSource;
+import herddb.model.Column;
+import herddb.model.ColumnTypes;
 import herddb.model.Record;
+import herddb.model.Table;
 import herddb.model.TableSpace;
+import herddb.sql.SQLPlanner;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.IntHolder;
@@ -155,7 +160,7 @@ public class HerdDBCLI {
             options.addOption("adt", "create-tablespace", false, "Create a tablespace (needs -ns and -nl options)");
             options.addOption("at", "alter-tablespace", false, "Alter a tablespace (needs -s, -param and --values options)");
 
-            options.addOption("crf", "describe-raw-file", true, "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint");
+            options.addOption("drf", "describe-raw-file", true, "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint");
 
             org.apache.commons.cli.CommandLine commandLine;
             try {
@@ -397,7 +402,6 @@ public class HerdDBCLI {
                 break;
             }
             case "datapage": {
-
                 List<Record> records = FileDataStorageManager.rawReadDataPage(path);
                 for (Record record : records) {
                     println(record.key + "," + record.value);
@@ -423,6 +427,26 @@ public class HerdDBCLI {
                     println("BLink Metadata: " + blinkMetadata);
                     println("BLink Metadata nodex: " + blinkMetadata.nodesToStrings());
                 } catch (IOException err) {
+                }
+                break;
+            }
+            case "tablespacemetadata": {
+                TableSpace tableSpace = FileMetadataStorageManager.readTableSpaceMetadataFile(path);
+                println("Name:" + tableSpace.name);
+                println("UUID:" + tableSpace.uuid);
+                println("Leader:" + tableSpace.leaderId);
+                break;
+            }
+            case "tablesmetadata": {
+                List<Table> tables = FileDataStorageManager.readTablespaceStructure(path, schema, null);
+                for (Table table : tables) {
+                    println("Table");
+                    println("Name: " + table.name);
+                    println("Tablespace: " + table.tablespace);
+                    println("Table UUID: " + table.uuid);
+                    for (Column c : table.columns) {
+                        println("Column : " + c.name + ", serialPosition: " + c.serialPosition + ", type " + ColumnTypes.typeToString(c.type) + " (" + c.type + ")");
+                    }
                 }
                 break;
             }

@@ -841,33 +841,39 @@ public class FileDataStorageManager extends DataStorageManager {
                     throw new DataStorageManagerException("local table data not available for tableSpace " + tableSpace + ", recovering from sequenceNumber " + sequenceNumber);
                 }
             }
-            try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
-                long version = din.readVLong(); // version
-                long flags = din.readVLong(); // flags for future implementations
-                if (version != 1 || flags != 0) {
-                    throw new DataStorageManagerException("corrupted table list file " + file.toAbsolutePath());
-                }
-                String readname = din.readUTF();
-                if (!readname.equals(tableSpace)) {
-                    throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
-                }
-                long ledgerId = din.readZLong();
-                long offset = din.readZLong();
+            return readTablespaceStructure(file, tableSpace, sequenceNumber);
+        } catch (IOException err) {
+            throw new DataStorageManagerException(err);
+        }
+    }
+
+    public static List<Table> readTablespaceStructure(Path file, String tableSpace, LogSequenceNumber sequenceNumber) throws IOException, DataStorageManagerException {
+        try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
+            ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+            long version = din.readVLong(); // version
+            long flags = din.readVLong(); // flags for future implementations
+            if (version != 1 || flags != 0) {
+                throw new DataStorageManagerException("corrupted table list file " + file.toAbsolutePath());
+            }
+            String readname = din.readUTF();
+            if (!readname.equals(tableSpace)) {
+                throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for spablespace " + tableSpace);
+            }
+            long ledgerId = din.readZLong();
+            long offset = din.readZLong();
+            if (sequenceNumber != null) {
                 if (ledgerId != sequenceNumber.ledgerId || offset != sequenceNumber.offset) {
                     throw new DataStorageManagerException("file " + file.toAbsolutePath() + " is not for sequence number " + sequenceNumber);
                 }
-                int numTables = din.readInt();
-                List<Table> res = new ArrayList<>();
-                for (int i = 0; i < numTables; i++) {
-                    byte[] tableData = din.readArray();
-                    Table table = Table.deserialize(tableData);
-                    res.add(table);
-                }
-                return Collections.unmodifiableList(res);
             }
-        } catch (IOException err) {
-            throw new DataStorageManagerException(err);
+            int numTables = din.readInt();
+            List<Table> res = new ArrayList<>();
+            for (int i = 0; i < numTables; i++) {
+                byte[] tableData = din.readArray();
+                Table table = Table.deserialize(tableData);
+                res.add(table);
+            }
+            return Collections.unmodifiableList(res);
         }
     }
 

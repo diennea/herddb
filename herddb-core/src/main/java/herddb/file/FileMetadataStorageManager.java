@@ -192,7 +192,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         }
     }
 
-    private TableSpace readTableSpaceMetadataFile(Path p) throws IOException, MetadataStorageManagerException {
+    public static TableSpace readTableSpaceMetadataFile(Path p) throws IOException, MetadataStorageManagerException {
         TableSpace ts;
         byte[] pageData;
         try {
