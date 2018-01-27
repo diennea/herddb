@@ -110,6 +110,7 @@ import org.jline.reader.impl.history.DefaultHistory;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import herddb.storage.IndexStatus;
+import herddb.utils.DataAccessor;
 
 /**
  *
@@ -160,7 +161,10 @@ public class HerdDBCLI {
             options.addOption("adt", "create-tablespace", false, "Create a tablespace (needs -ns and -nl options)");
             options.addOption("at", "alter-tablespace", false, "Alter a tablespace (needs -s, -param and --values options)");
 
-            options.addOption("drf", "describe-raw-file", true, "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint");
+            options.addOption("d", "describe", false, "Checks and describes a raw file");
+            options.addOption("ft", "filetype", true, "Checks and describes a raw file (valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata");
+            options.addOption("mdf", "metadatafile", true, "Tables metadata file, required for 'datapage' filetype");
+            options.addOption("tsui", "tablespaceuuid", true, "Tablespace UUID, used for describing raw files");
 
             org.apache.commons.cli.CommandLine commandLine;
             try {
@@ -176,15 +180,22 @@ public class HerdDBCLI {
             }
 
             String schema = commandLine.getOptionValue("schema", TableSpace.DEFAULT);
+            String tablespaceuuid = commandLine.getOptionValue("tablespaceuuid", "");
             final boolean verbose = commandLine.hasOption("verbose");
             if (!verbose) {
                 LogManager.getLogManager().reset();
             }
             String file = commandLine.getOptionValue("file", "");
-            String rawfile = commandLine.getOptionValue("describe-raw-file", "?");
-            if (!rawfile.isEmpty()) {
+            String tablesmetadatafile = commandLine.getOptionValue("metadatafile", "");
+            String table = commandLine.getOptionValue("table", "");
+            boolean describe = commandLine.hasOption("describe");
+            String filetype = commandLine.getOptionValue("filetype", "");
+            if (describe) {
                 try {
-                    describeRawFile(schema, null, file, rawfile);
+                    if (file.isEmpty()) {
+                        throw new IllegalArgumentException("file option is required");
+                    }
+                    describeRawFile(tablespaceuuid, table, tablesmetadatafile, file, filetype);
                 } catch (Exception error) {
                     if (verbose) {
                         error.printStackTrace();
@@ -218,7 +229,6 @@ public class HerdDBCLI {
             }
 
             String nodeId = commandLine.getOptionValue("nodeid", "");
-            String table = commandLine.getOptionValue("table", "");
             String param = commandLine.getOptionValue("param", "");
             String values = commandLine.getOptionValue("values", "");
 
@@ -301,7 +311,7 @@ public class HerdDBCLI {
                 datasource.setPassword(password);
 
                 try (Connection connection = datasource.getConnection();
-                    Statement statement = connection.createStatement()) {
+                        Statement statement = connection.createStatement()) {
                     connection.setSchema(schema);
                     if (sqlconsole) {
                         runSqlConsole(connection, statement, PRETTY_PRINT);
@@ -353,14 +363,14 @@ public class HerdDBCLI {
     }
 
     private static boolean checkNodeExistence(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
-        String nodeId) throws SQLException, ScriptException {
+            String nodeId) throws SQLException, ScriptException {
 
         ExecuteStatementResult check = executeStatement(verbose, ignoreerrors, false, false, "select * from sysnodes where nodeid='" + nodeId + "'", statement, tableSpaceMapper, true, false);
         return !check.results.isEmpty();
     }
 
     private static void createTablespace(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
-        String newschema, String leader) throws SQLException, ScriptException {
+            String newschema, String leader) throws SQLException, ScriptException {
 
         if (!checkNodeExistence(verbose, ignoreerrors, statement, tableSpaceMapper, leader)) {
             println("Unknown node " + leader);
@@ -369,7 +379,7 @@ public class HerdDBCLI {
         }
 
         ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
-            "CREATE TABLESPACE '" + newschema + "','leader:" + leader + "'", statement, tableSpaceMapper, true, false);
+                "CREATE TABLESPACE '" + newschema + "','leader:" + leader + "'", statement, tableSpaceMapper, true, false);
 
         if (res != null && res.updateCount > 0) {
             println("Successfully created " + newschema + " tablespace");
@@ -377,21 +387,20 @@ public class HerdDBCLI {
     }
 
     private static void alterTablespace(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
-        String schema, String param, String values) throws SQLException, ScriptException {
+            String schema, String param, String values) throws SQLException, ScriptException {
 
         ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
-            "EXECUTE ALTERTABLESPACE '" + schema + "','" + param + ":" + values + "'", statement, tableSpaceMapper, true, false);
+                "EXECUTE ALTERTABLESPACE '" + schema + "','" + param + ":" + values + "'", statement, tableSpaceMapper, true, false);
 
         if (res != null && res.updateCount > 0) {
             println("Successfully altered " + schema + " tablespace");
         }
     }
 
-    private static void describeRawFile(String schema, String tableName, String rawfile, String mode) throws Exception {
+    private static void describeRawFile(String tablespaceuuid, String tableName, String tablesmetadatafile, String rawfile, String mode) throws Exception {
         Path path = Paths.get(rawfile);
         switch (mode) {
             case "txlog": {
-                println("This seems to be a TXLOG file");
                 try (FileCommitLog.CommitFileReader reader = CommitFileReader.openForDescribeRawfile(path);) {
                     LogEntryWithSequenceNumber nextEntry = reader.nextEntry();
                     while (nextEntry != null) {
@@ -402,9 +411,38 @@ public class HerdDBCLI {
                 break;
             }
             case "datapage": {
+                if (tablesmetadatafile.isEmpty()) {
+                    throw new IllegalArgumentException("metadatafile option is required in order to analize a datapage");
+                }
+                if (tableName.isEmpty()) {
+                    throw new IllegalArgumentException("table option is required in order to analize a database");
+                }
+                if (tablespaceuuid.isEmpty()) {
+                    throw new IllegalArgumentException("tablespaceuuid option is required in order to analize a database");
+                }
+                Path pathtablesmetadata = Paths.get(tablesmetadatafile);
+                List<Table> tables = FileDataStorageManager.readTablespaceStructure(pathtablesmetadata, tablespaceuuid, null);
+                println("File " + pathtablesmetadata.getFileName() + " contains the following table schematas:");
+                for (Table t : tables) {
+                    println("Table: " + t.uuid + " - " + t.tablespace + "." + t.name);
+                }
+                Table table = tables.stream().filter(t -> t.name.equals(tableName)).findAny().orElse(null);
+                if (table == null) {
+                    println("No such table " + tableName);
+                    return;
+                }
                 List<Record> records = FileDataStorageManager.rawReadDataPage(path);
                 for (Record record : records) {
-                    println(record.key + "," + record.value);
+                    StringBuilder line = new StringBuilder();
+                    DataAccessor dataAccessor = record.getDataAccessor(table);
+                    for (int i = 0; i < table.columns.length; i++) {
+                        Object value = dataAccessor.get(i);
+                        if (i > 0) {
+                            line.append(',');
+                        }
+                        line.append(value);
+                    }
+                    println(line);
                 }
                 break;
             }
@@ -438,7 +476,10 @@ public class HerdDBCLI {
                 break;
             }
             case "tablesmetadata": {
-                List<Table> tables = FileDataStorageManager.readTablespaceStructure(path, schema, null);
+                if (tablespaceuuid.isEmpty()) {
+                    throw new IllegalArgumentException("tablespaceuuid option is required in order to analize a database");
+                }
+                List<Table> tables = FileDataStorageManager.readTablespaceStructure(path, tablespaceuuid, null);
                 for (Table table : tables) {
                     println("Table");
                     println("Name: " + table.name);
@@ -451,7 +492,7 @@ public class HerdDBCLI {
                 break;
             }
             default:
-                System.out.println("Unknown file type " + mode);
+                System.out.println("Unknown file type " + mode + " valid options are txlog, datapage, tablecheckpoint, indexcheckpoint, tablesmetadata");
         }
     }
 
@@ -460,7 +501,7 @@ public class HerdDBCLI {
     }
 
     private static void changeReplica(boolean verbose, boolean ignoreerrors, Statement statement, TableSpaceMapper tableSpaceMapper,
-        String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
+            String schema, String nodeId, ChangeReplicaAction action) throws SQLException, ScriptException {
 
         if (!checkNodeExistence(verbose, ignoreerrors, statement, tableSpaceMapper, nodeId)) {
             println("Unknown node " + nodeId);
@@ -469,7 +510,7 @@ public class HerdDBCLI {
         }
 
         ExecuteStatementResult replicaNodes = executeStatement(verbose, ignoreerrors, false, false,
-            "select * from systablespaces where tablespace_name='" + schema + "'", statement, tableSpaceMapper, true, false);
+                "select * from systablespaces where tablespace_name='" + schema + "'", statement, tableSpaceMapper, true, false);
 
         String replicaNodesStr = (String) replicaNodes.results.get(0).get("replica");
         List<String> nodes = new ArrayList<>(Arrays.asList(replicaNodesStr.split(",")));
@@ -496,7 +537,7 @@ public class HerdDBCLI {
         replicaNodesStr = nodes.stream().collect(Collectors.joining(","));
 
         ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, false, false,
-            "EXECUTE ALTERTABLESPACE '" + schema + "','replica:" + replicaNodesStr + "'", statement, tableSpaceMapper, true, false);
+                "EXECUTE ALTERTABLESPACE '" + schema + "','replica:" + replicaNodesStr + "'", statement, tableSpaceMapper, true, false);
 
         if (res != null && res.updateCount > 0) {
             println("Successfully altered " + schema + " tablespace");
@@ -639,11 +680,11 @@ public class HerdDBCLI {
         File f = new File(file);
         long fileSize = f.length();
         try (FileInputStream rawStream = new FileInputStream(file);
-            BufferedInputStream buffer = new BufferedInputStream(rawStream);
-            CounterInputStream counter = new CounterInputStream(buffer);
-            InputStream fIn = wrapStream(f.getName(), counter);
-            CounterInputStream counterUnzipped = new CounterInputStream(fIn);
-            InputStreamReader ii = new InputStreamReader(counterUnzipped, "utf-8");) {
+                BufferedInputStream buffer = new BufferedInputStream(rawStream);
+                CounterInputStream counter = new CounterInputStream(buffer);
+                InputStream fIn = wrapStream(f.getName(), counter);
+                CounterInputStream counterUnzipped = new CounterInputStream(fIn);
+                InputStreamReader ii = new InputStreamReader(counterUnzipped, "utf-8");) {
             int _autotransactionbatchsize = autotransactionbatchsize;
             SQLFileParser.parseSQLFile(ii, (st) -> {
                 if (!st.comment) {
@@ -663,10 +704,10 @@ public class HerdDBCLI {
 
                         if (countUnzipped != counter.count) {
                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speedZipped) + "/min (UNZIPPED " + formatBytes(speed) + "/min)");
+                                    + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speedZipped) + "/min (UNZIPPED " + formatBytes(speed) + "/min)");
                         } else {
                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
+                                    + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
                         }
                         connection.commit();
                         doneCount.value = 0;
@@ -709,7 +750,7 @@ public class HerdDBCLI {
             return;
         }
         try (InputStream fin = wrapStream(file, Files.newInputStream(inputfile));
-            InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
+                InputStream bin = new BufferedInputStream(fin, 16 * 1024 * 1024)) {
             HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
             HDBConnection hdbconnection = hcon.getConnection();
             BackupUtils.restoreTableSpace(newschema, leader, hdbconnection, bin, new ProgressListener() {
@@ -755,8 +796,8 @@ public class HerdDBCLI {
     private static void backupTableSpace(final Statement statement, String schema, String file, String suffix, final Connection connection, int dumpfetchsize) throws Exception, SQLException {
         List<String> tablesToDump = new ArrayList<>();
         try (ResultSet rs = statement.executeQuery("SELECT table_name"
-            + " FROM " + schema + ".systables"
-            + " WHERE systemtable='false'")) {
+                + " FROM " + schema + ".systables"
+                + " WHERE systemtable='false'")) {
             while (rs.next()) {
                 String tablename = rs.getString(1).toLowerCase();
                 tablesToDump.add(tablename);
@@ -773,7 +814,7 @@ public class HerdDBCLI {
         println("Backup tables " + tablesToDump + " from tablespace " + schema + " to " + outputfile);
 
         try (OutputStream fout = wrapOutputStream(Files.newOutputStream(outputfile, StandardOpenOption.CREATE_NEW), ext);
-            SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout, 16 * 1024 * 1024);) {
+                SimpleBufferedOutputStream oo = new SimpleBufferedOutputStream(fout, 16 * 1024 * 1024);) {
             HerdDBConnection hcon = connection.unwrap(HerdDBConnection.class);
             HDBConnection hdbconnection = hcon.getConnection();
             BackupUtils.dumpTableSpace(schema, dumpfetchsize, hdbconnection, oo, new ProgressListener() {
@@ -788,12 +829,12 @@ public class HerdDBCLI {
     }
 
     private static ExecuteStatementResult executeStatement(
-        boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement,
-        final TableSpaceMapper tableSpaceMapper, boolean getResults, boolean prettyPrint) throws SQLException, ScriptException {
+            boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement,
+            final TableSpaceMapper tableSpaceMapper, boolean getResults, boolean prettyPrint) throws SQLException, ScriptException {
         query = query.trim();
 
         if (query.isEmpty()
-            || query.startsWith("--")) {
+                || query.startsWith("--")) {
             return null;
         }
         String formattedQuery = query.toLowerCase();
@@ -970,12 +1011,12 @@ public class HerdDBCLI {
 
     private static void runSqlConsole(Connection connection, Statement statement, boolean pretty) throws IOException {
         Terminal terminal = TerminalBuilder.builder()
-            .system(true)
-            .build();
+                .system(true)
+                .build();
         LineReader reader = LineReaderBuilder.builder()
-            .history(new DefaultHistory())
-            .terminal(terminal)
-            .build();
+                .history(new DefaultHistory())
+                .terminal(terminal)
+                .build();
         String prompt = "herd: ";
         while (true) {
             String line = null;
@@ -1015,9 +1056,9 @@ public class HerdDBCLI {
     }
 
     private final static Cache<String, net.sf.jsqlparser.statement.Statement> PARSER_CACHE = CacheBuilder
-        .newBuilder()
-        .maximumSize(50)
-        .build();
+            .newBuilder()
+            .maximumSize(50)
+            .build();
 
     private static QueryWithParameters rewriteQuery(String query, TableSpaceMapper mapper, boolean frommysqldump) throws ScriptException {
         try {
