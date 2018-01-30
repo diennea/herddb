@@ -161,7 +161,7 @@ public final class Tuple extends AbstractDataAccessor {
             int i = 0;
             String[] fieldNames = tuple.getFieldNames();
             for (String fieldName : fieldNames) {
-                if (!columns[i].name.equals(fieldName)) {
+                if (!columns[i].name.toLowerCase().equals(fieldName)) {
                     throw new IOException("invalid schema for tuple " + Arrays.toString(fieldNames) + " <> " + Arrays.toString(columns));
                 }
                 Object value = tuple.get(fieldName);

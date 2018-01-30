@@ -410,7 +410,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             } else {
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
             }
-        } catch (DataScannerException | HerdDBInternalException err) {
+        } catch (DataScannerException | RuntimeException err) {
             LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
             scanners.remove(scannerId);
 
