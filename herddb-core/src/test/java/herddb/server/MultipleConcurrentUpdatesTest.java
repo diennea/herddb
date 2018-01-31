@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import org.junit.Ignore;
 
 /**
  * Basic server/client boot test
@@ -85,21 +86,34 @@ public class MultipleConcurrentUpdatesTest {
 
     @Test
     public void test() throws Exception {
-        performTest(false);
+        performTest(false, 0);
     }
 
     @Test
     public void testWithTransactions() throws Exception {
-        performTest(true);
+        performTest(true, 0);
     }
 
-    private void performTest(boolean useTransactions) throws Exception {
+    @Test
+    @Ignore("causes deadlock")
+    public void testWithCheckpoints() throws Exception {
+        performTest(false, 60000);
+    }
+
+    @Test
+    @Ignore("causes deadlock")
+    public void testWithTransactionsWithCheckpoints() throws Exception {
+        performTest(true, 2000);
+    }
+
+    private void performTest(boolean useTransactions, long checkPointPeriod) throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
 
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 1024 * 1024);
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, 1024 * 1024);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, checkPointPeriod);
         serverConfiguration.set(ServerConfiguration.PROPERTY_DATADIR, folder.newFolder().getAbsolutePath());
         serverConfiguration.set(ServerConfiguration.PROPERTY_LOGDIR, folder.newFolder().getAbsolutePath());
 

@@ -38,6 +38,9 @@ import java.util.Set;
  */
 public class ManagedFile implements AutoCloseable {
 
+    private final static boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
+        "herddb.file.requirefsynch", true);
+
     private final FileChannel channel;
     private final OutputStream stream;
 
@@ -106,6 +109,9 @@ public class ManagedFile implements AutoCloseable {
      * @see FileChannel#force(boolean)
      */
     public void sync() throws IOException {
+        if (!REQUIRE_FSYNCH) {
+            return;
+        }
         channel.force(false);
     }
 
@@ -117,6 +123,9 @@ public class ManagedFile implements AutoCloseable {
      * @see FileChannel#force(boolean)
      */
     public void sync(boolean metaData) throws IOException {
+        if (!REQUIRE_FSYNCH) {
+            return;
+        }
         channel.force(metaData);
     }
 

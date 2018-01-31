@@ -72,17 +72,17 @@ public class FileCommitLog extends CommitLog {
     private volatile CommitFileWriter writer;
     private Thread spool;
 
-    private final int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
+    private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
         FileCommitLog.class.getName() + ".writequeuesize", 100000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
 
-    private final int MAX_UNSYNCHED_BATCH = SystemProperties.getIntSystemProperty(
+    private final static int MAX_UNSYNCHED_BATCH = SystemProperties.getIntSystemProperty(
         FileCommitLog.class.getName() + ".maxsynchbatchsize", 1000);
 
-    private final int MAX_SYNCH_TIME = SystemProperties.getIntSystemProperty(
+    private final static int MAX_SYNCH_TIME = SystemProperties.getIntSystemProperty(
         FileCommitLog.class.getName() + ".maxsynchtime", 1);
 
-    private final boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
+    private final static boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
         "herddb.file.requirefsynch", true);
 
     private final static byte ENTRY_START = 13;

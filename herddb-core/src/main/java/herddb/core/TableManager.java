@@ -102,6 +102,7 @@ import herddb.utils.Holder;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Handles Data of a Table
@@ -113,11 +114,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private static final Logger LOGGER = Logger.getLogger(TableManager.class.getName());
 
+    private static final long CHECKPOINT_LOCK_WRITE_TIMEOUT = SystemProperties.
+        getIntSystemProperty("herddb.tablemanager.checkpoint.lock.write.timeout", 60);
+
     private static final int SORTED_PAGE_ACCESS_WINDOW_SIZE = SystemProperties.
-        getIntSystemProperty("herddb.tablemanager..sortedPageAccessWindowSize", 2000);
+        getIntSystemProperty("herddb.tablemanager.sortedPageAccessWindowSize", 2000);
 
     private static final boolean ENABLE_LOCAL_SCAN_PAGE_CACHE = SystemProperties.
-        getBooleanSystemProperty("herddb.tablemanager..enableLocalScanPageCache", true);
+        getBooleanSystemProperty("herddb.tablemanager.enableLocalScanPageCache", true);
 
     private static final int HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET = SystemProperties.
         getIntSystemProperty("herddb.tablemanager..hugeTableSizeForceMaterializedResultSet", 100_000);
@@ -1764,7 +1768,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         TableCheckpoint result;
 
-        checkpointLock.writeLock().lock();
+        boolean lockAcquired;
+        try {
+            lockAcquired = checkpointLock.writeLock().tryLock(CHECKPOINT_LOCK_WRITE_TIMEOUT, TimeUnit.SECONDS);
+        } catch (InterruptedException err) {
+            throw new DataStorageManagerException("interrupted while waiting for checkpoint lock", err);
+        }
+        if (!lockAcquired) {
+            throw new DataStorageManagerException("timed out while waiting for checkpoint lock");
+        }
         try {
 
             LogSequenceNumber sequenceNumber = log.getLastSequenceNumber();
