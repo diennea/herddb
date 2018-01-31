@@ -103,6 +103,7 @@ import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
 import java.util.concurrent.TimeUnit;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
  * Handles Data of a Table
@@ -116,6 +117,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private static final long CHECKPOINT_LOCK_WRITE_TIMEOUT = SystemProperties.
         getIntSystemProperty("herddb.tablemanager.checkpoint.lock.write.timeout", 60);
+
+    private static final long CHECKPOINT_LOCK_READ_TIMEOUT = SystemProperties.
+        getIntSystemProperty("herddb.tablemanager.checkpoint.lock.read.timeout", 10);
 
     private static final int SORTED_PAGE_ACCESS_WINDOW_SIZE = SystemProperties.
         getIntSystemProperty("herddb.tablemanager.sortedPageAccessWindowSize", 2000);
@@ -968,7 +972,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             forceFlushTableData = true;
         }
 
-        checkpointLock.readLock().lock();
+        boolean lockAcquired;
+        try {
+            lockAcquired = checkpointLock.readLock().tryLock(CHECKPOINT_LOCK_READ_TIMEOUT, SECONDS);
+        } catch (InterruptedException err) {
+            throw new DataStorageManagerException("interrupted while acquiring checkpoint lock during a commit", err);
+        }
+        if (!lockAcquired) {
+            throw new DataStorageManagerException("timed out while acquiring checkpoint lock during a commit");
+        }
         try {
             Map<Bytes, Record> changedRecords = transaction.changedRecords.get(table.name);
             // transaction is still holding locks on each record, so we can change records
@@ -1775,7 +1787,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new DataStorageManagerException("interrupted while waiting for checkpoint lock", err);
         }
         if (!lockAcquired) {
-            throw new DataStorageManagerException("timed out while waiting for checkpoint lock");
+            throw new DataStorageManagerException("timed out while waiting for checkpoint lock, write lock "+checkpointLock.writeLock());
         }
         try {
 
