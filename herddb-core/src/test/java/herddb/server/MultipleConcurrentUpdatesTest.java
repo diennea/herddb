@@ -173,12 +173,18 @@ public class MultipleConcurrentUpdatesTest {
                     assertTrue(updates.get() > 0);
                     assertTrue(gets.get() > 0);
 
+                    List<String> erroredKeys = new ArrayList<>();
                     for (Map.Entry<String, Integer> entry : expectedValue.entrySet()) {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
                             TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
-                        assertEquals(Long.valueOf(entry.getValue()), res.data.get("n1"));
+
+                        if (!Long.valueOf(entry.getValue()).equals(res.data.get("n1"))) {
+                            System.out.println("expected value "+res.data.get("n1")+", but got "+Long.valueOf(entry.getValue())+" for key "+entry.getKey());
+                            erroredKeys.add(entry.getKey());
+                        }                        
                     }
+                    assertTrue(erroredKeys.isEmpty());
 
                     TableManagerStats stats = server.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTableManager("mytable").getStats();
                     System.out.println("stats::tablesize:" + stats.getTablesize());
