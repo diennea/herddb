@@ -104,6 +104,7 @@ import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
 import java.util.concurrent.TimeUnit;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import java.util.concurrent.locks.StampedLock;
 
 /**
  * Handles Data of a Table
@@ -174,7 +175,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     /**
      * Allow checkpoint
      */
-    private final ReentrantReadWriteLock checkpointLock = new ReentrantReadWriteLock(false);
+    private final StampedLock checkpointLock = new StampedLock();
 
     /**
      * auto_increment support
@@ -491,7 +492,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
-        checkpointLock.readLock().lock();
+        checkpointLock.asReadLock().lock();
         try {
             if (statement instanceof UpdateStatement) {
                 UpdateStatement update = (UpdateStatement) statement;
@@ -516,8 +517,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException("internal data error: " + err, err);
         } finally {
-
-            checkpointLock.readLock().unlock();
+            checkpointLock.asReadLock().unlock();
             if (statement instanceof TruncateTableStatement) {
                 try {
                     flush();
@@ -974,7 +974,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         boolean lockAcquired;
         try {
-            lockAcquired = checkpointLock.readLock().tryLock(CHECKPOINT_LOCK_READ_TIMEOUT, SECONDS);
+            lockAcquired = checkpointLock.asReadLock().tryLock(CHECKPOINT_LOCK_READ_TIMEOUT, SECONDS);
         } catch (InterruptedException err) {
             throw new DataStorageManagerException("interrupted while acquiring checkpoint lock during a commit", err);
         }
@@ -1002,7 +1002,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }
         } finally {
-            checkpointLock.readLock().unlock();
+            checkpointLock.asReadLock().unlock();
         }
         transaction.releaseLocksOnTable(table.name, locksManager);
         if (forceFlushTableData) {
@@ -1338,13 +1338,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     public void writeFromDump(List<Record> record) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
-        checkpointLock.readLock().lock();
+        checkpointLock.asReadLock().lock();
         try {
             for (Record r : record) {
                 applyInsert(r.key, r.value, false);
             }
         } finally {
-            checkpointLock.readLock().unlock();
+            checkpointLock.asReadLock().unlock();
         }
     }
 
@@ -1782,7 +1782,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         boolean lockAcquired;
         try {
-            lockAcquired = checkpointLock.writeLock().tryLock(CHECKPOINT_LOCK_WRITE_TIMEOUT, TimeUnit.SECONDS);
+            lockAcquired = checkpointLock.asWriteLock().tryLock(CHECKPOINT_LOCK_WRITE_TIMEOUT, TimeUnit.SECONDS);
         } catch (InterruptedException err) {
             throw new DataStorageManagerException("interrupted while waiting for checkpoint lock", err);
         }
@@ -2042,7 +2042,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
         } finally {
-            checkpointLock.writeLock().unlock();
+            checkpointLock.asWriteLock().unlock();
         }
 
         long delta = end - start;

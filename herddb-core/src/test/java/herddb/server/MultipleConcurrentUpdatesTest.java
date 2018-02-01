@@ -52,35 +52,16 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Ignore;
 
 /**
- * Basic server/client boot test
+ * Concurrent updates
  *
  * @author enrico.olivelli
  */
 public class MultipleConcurrentUpdatesTest {
 
     private static int TABLESIZE = 10_000;
-    private static int MULTIPLIER = 100;
+    private static int MULTIPLIER = 2;
     private static int THREADPOLSIZE = 100;
 
-//         @Before
-//    public void setupLogger() throws Exception {
-//        Level level = Level.FINEST;
-//        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-//
-//            @Override
-//            public void uncaughtException(Thread t, Throwable e) {
-//                System.err.println("uncaughtException from thread " + t.getName() + ": " + e);
-//                e.printStackTrace();
-//            }
-//        });
-//        java.util.logging.LogManager.getLogManager().reset();
-//        ConsoleHandler ch = new ConsoleHandler();
-//        ch.setLevel(level);
-//        SimpleFormatter f = new SimpleFormatter();
-//        ch.setFormatter(f);
-//        java.util.logging.Logger.getLogger("").setLevel(level);
-//        java.util.logging.Logger.getLogger("").addHandler(ch);
-//    }
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
@@ -95,13 +76,11 @@ public class MultipleConcurrentUpdatesTest {
     }
 
     @Test
-    @Ignore("causes deadlock")
     public void testWithCheckpoints() throws Exception {
-        performTest(false, 60000);
+        performTest(false, 2000);
     }
 
     @Test
-    @Ignore("causes deadlock")
     public void testWithTransactionsWithCheckpoints() throws Exception {
         performTest(true, 2000);
     }
@@ -117,6 +96,7 @@ public class MultipleConcurrentUpdatesTest {
         serverConfiguration.set(ServerConfiguration.PROPERTY_DATADIR, folder.newFolder().getAbsolutePath());
         serverConfiguration.set(ServerConfiguration.PROPERTY_LOGDIR, folder.newFolder().getAbsolutePath());
 
+        ConcurrentHashMap<String, Integer> expectedValue = new ConcurrentHashMap<>();
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             server.waitForStandaloneBoot();
@@ -129,8 +109,7 @@ public class MultipleConcurrentUpdatesTest {
                     "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
-                long tx = connection.beginTransaction(TableSpace.DEFAULT);
-                ConcurrentHashMap<String, Integer> expectedValue = new ConcurrentHashMap<>();
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);                
                 for (int i = 0; i < TABLESIZE; i++) {
                     connection.executeUpdate(TableSpace.DEFAULT,
                         "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false,
@@ -213,6 +192,23 @@ public class MultipleConcurrentUpdatesTest {
                 } finally {
                     threadPool.shutdown();
                     threadPool.awaitTermination(1, TimeUnit.MINUTES);
+                }
+            }
+        }
+        
+        // restart and recovery
+        try (Server server = new Server(serverConfiguration)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
+            try (HDBClient client = new HDBClient(clientConfiguration);
+                HDBConnection connection = client.openConnection()) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+                for (Map.Entry<String, Integer> entry : expectedValue.entrySet()) {
+                    GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
+                        TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
+                    assertNotNull(res.data);
+                    assertEquals(Long.valueOf(entry.getValue()), res.data.get("n1"));
                 }
             }
         }
