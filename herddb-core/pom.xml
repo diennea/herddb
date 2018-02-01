@@ -62,7 +62,7 @@
         </dependency>        
         <dependency>
             <groupId>org.apache.bookkeeper</groupId>
-            <artifactId>bookkeeper-server</artifactId>
+            <artifactId>bookkeeper-server-shaded</artifactId>
         </dependency>
         <dependency>             
             <groupId>commons-logging</groupId>

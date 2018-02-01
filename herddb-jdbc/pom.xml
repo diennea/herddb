@@ -62,7 +62,7 @@
                             <shadedClassifierName>uber</shadedClassifierName>                            
                             <artifactSet>
                                 <excludes>                                    
-                                    <exclude>org.apache.bookkeeper:bookkeeper-server</exclude>
+                                    <exclude>org.apache.bookkeeper:bookkeeper-server-shaded</exclude>
                                     <exclude>com.google.guava:guava</exclude>
                                     <exclude>com.github.jsqlparser:jsqlparser</exclude>
                                     <exclude>jline:jline</exclude>
