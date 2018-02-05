@@ -46,20 +46,24 @@ import herddb.utils.Sized;
  */
 public class BLinkTest {
 
-    private static final class DummyBLinkIndexDataStorage<K extends Comparable<K> & SizeAwareObject, V> implements BLinkIndexDataStorage<K, V> {
+    static final class DummyBLinkIndexDataStorage<K extends Comparable<K> & SizeAwareObject, V> implements BLinkIndexDataStorage<K, V> {
 
         AtomicLong newPageId = new AtomicLong();
-
+        AtomicLong swapIn = new AtomicLong();
         private ConcurrentHashMap<Long, Object> datas = new ConcurrentHashMap<>();
 
         @Override
         public Map<Comparable<K>, Long> loadNodePage(long pageId) throws IOException {
-            return (Map<Comparable<K>, Long>) datas.get(pageId);
+            swapIn.incrementAndGet();
+            Map<Comparable<K>, Long> res = (Map<Comparable<K>, Long>) datas.get(pageId);
+            return res != null ? new HashMap<>(res) : null;
         }
 
         @Override
         public Map<Comparable<K>, V> loadLeafPage(long pageId) throws IOException {
-            return (Map<Comparable<K>, V>) datas.get(pageId);
+            swapIn.incrementAndGet();
+            Map<Comparable<K>, V> res = (Map<Comparable<K>, V>) datas.get(pageId);
+            return res != null ? new HashMap<>(res) : null;
         }
 
         @Override
@@ -87,7 +91,7 @@ public class BLinkTest {
         }
     }
 
-    private static final class StringSizeEvaluator implements SizeEvaluator<Sized<String>, Long> {
+    static final class StringSizeEvaluator implements SizeEvaluator<Sized<String>, Long> {
 
         @Override
         public long evaluateKey(Sized<String> key) {
@@ -105,7 +109,7 @@ public class BLinkTest {
         }
     }
 
-    private static final class LongSizeEvaluator implements SizeEvaluator<Sized<Long>, Long> {
+    static final class LongSizeEvaluator implements SizeEvaluator<Sized<Long>, Long> {
 
         @Override
         public long evaluateKey(Sized<Long> key) {
@@ -350,9 +354,9 @@ public class BLinkTest {
 
         try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
 
-            final long headInserts  = 100;
+            final long headInserts = 100;
             final long nonExistents = 100;
-            final long tailInserts  = 100;
+            final long tailInserts = 100;
 
             for (long l = 0; l < headInserts; l++) {
                 blink.insert(Sized.valueOf(l), l);
@@ -361,7 +365,6 @@ public class BLinkTest {
             for (long l = headInserts + nonExistents; l < headInserts + nonExistents + tailInserts; l++) {
                 blink.insert(Sized.valueOf(l), l);
             }
-
 
             BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
 
@@ -401,9 +404,9 @@ public class BLinkTest {
 
         try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
 
-            final long headInserts   = 100;
-            final long nonExistents  = 10;
-            final long tailInserts   = 100;
+            final long headInserts = 100;
+            final long nonExistents = 10;
+            final long tailInserts = 100;
 
             for (long l = 0; l < headInserts; l++) {
                 blink.insert(Sized.valueOf(l), l);
@@ -412,7 +415,6 @@ public class BLinkTest {
             for (long l = headInserts + nonExistents; l < headInserts + nonExistents + tailInserts; l++) {
                 blink.insert(Sized.valueOf(l), l);
             }
-
 
             BLinkMetadata<Sized<Long>> metadata = blink.checkpoint();
 
