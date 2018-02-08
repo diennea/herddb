@@ -37,6 +37,9 @@ import herddb.client.HDBConnection;
 import herddb.core.stats.TableManagerStats;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.utils.Bytes;
+import herddb.utils.LocalLockManager;
+import herddb.utils.LockHandle;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -96,6 +99,7 @@ public class MultipleConcurrentUpdatesTest {
         serverConfiguration.set(ServerConfiguration.PROPERTY_DATADIR, folder.newFolder().getAbsolutePath());
         serverConfiguration.set(ServerConfiguration.PROPERTY_LOGDIR, folder.newFolder().getAbsolutePath());
 
+        LocalLockManager keyManager = new LocalLockManager();
         ConcurrentHashMap<String, Integer> expectedValue = new ConcurrentHashMap<>();
         try (Server server = new Server(serverConfiguration)) {
             server.start();
@@ -109,7 +113,7 @@ public class MultipleConcurrentUpdatesTest {
                     "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
-                long tx = connection.beginTransaction(TableSpace.DEFAULT);                
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 for (int i = 0; i < TABLESIZE; i++) {
                     connection.executeUpdate(TableSpace.DEFAULT,
                         "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false,
@@ -133,15 +137,23 @@ public class MultipleConcurrentUpdatesTest {
                                     long transactionId;
                                     if (update) {
                                         updates.incrementAndGet();
-                                        DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                            "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false,
-                                            Arrays.asList(value, "test_" + k));
+                                        String key = "test_" + k;
+                                        Bytes _key = Bytes.from_string(key);
+                                        LockHandle lock = keyManager.acquireWriteLockForKey(_key);
+                                        DMLResult updateResult;
+                                        try {
+                                            updateResult = connection.executeUpdate(TableSpace.DEFAULT,
+                                                "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false,
+                                                Arrays.asList(value, key));
+                                            expectedValue.put(key, value);
+                                        } finally {
+                                            keyManager.releaseWriteLockForKey(_key, lock);
+                                        }
                                         long count = updateResult.updateCount;
                                         transactionId = updateResult.transactionId;
                                         if (count <= 0) {
                                             throw new RuntimeException("not updated ?");
                                         }
-                                        expectedValue.put("test_" + k, value);
                                     } else {
                                         gets.incrementAndGet();
                                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT * FROM mytable where id=?",
@@ -180,9 +192,9 @@ public class MultipleConcurrentUpdatesTest {
                         assertNotNull(res.data);
 
                         if (!Long.valueOf(entry.getValue()).equals(res.data.get("n1"))) {
-                            System.out.println("expected value "+res.data.get("n1")+", but got "+Long.valueOf(entry.getValue())+" for key "+entry.getKey());
+                            System.out.println("expected value " + res.data.get("n1") + ", but got " + Long.valueOf(entry.getValue()) + " for key " + entry.getKey());
                             erroredKeys.add(entry.getKey());
-                        }                        
+                        }
                     }
                     assertTrue(erroredKeys.isEmpty());
 
@@ -201,7 +213,7 @@ public class MultipleConcurrentUpdatesTest {
                 }
             }
         }
-        
+
         // restart and recovery
         try (Server server = new Server(serverConfiguration)) {
             server.start();
