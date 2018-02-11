@@ -116,7 +116,7 @@ public class DirectMultipleConcurrentUpdatesTest {
         serverConfiguration.set(ServerConfiguration.PROPERTY_DATADIR, folder.newFolder().getAbsolutePath());
         serverConfiguration.set(ServerConfiguration.PROPERTY_LOGDIR, folder.newFolder().getAbsolutePath());
 
-        ConcurrentHashMap<String, Integer> expectedValue = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, Long> expectedValue = new ConcurrentHashMap<>();
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             server.waitForStandaloneBoot();
@@ -132,13 +132,14 @@ public class DirectMultipleConcurrentUpdatesTest {
                 TestUtils.executeUpdate(manager,
                         "INSERT INTO mytable (id,n1,n2) values(?,?,?)",
                         Arrays.asList("test_" + i, 1, 2), new TransactionContext(tx));
-                expectedValue.put("test_" + i, 1);
+                expectedValue.put("test_" + i, 1L);
             }
             TestUtils.commitTransaction(manager, TableSpace.DEFAULT, tx);
             ExecutorService threadPool = Executors.newFixedThreadPool(THREADPOLSIZE);
             try {
                 List<Future> futures = new ArrayList<>();
                 AtomicLong updates = new AtomicLong();
+                AtomicLong skipped = new AtomicLong();
                 AtomicLong gets = new AtomicLong();
                 for (int i = 0; i < TABLESIZE * MULTIPLIER; i++) {
                     futures.add(threadPool.submit(new Runnable() {
@@ -147,8 +148,15 @@ public class DirectMultipleConcurrentUpdatesTest {
                             try {
                                 boolean update = ThreadLocalRandom.current().nextBoolean();
                                 int k = ThreadLocalRandom.current().nextInt(TABLESIZE);
-                                int value = ThreadLocalRandom.current().nextInt(TABLESIZE);
+                                long value = ThreadLocalRandom.current().nextInt(TABLESIZE);
                                 long transactionId;
+                                String key = "test_" + k;
+                                Long actual = expectedValue.remove(key);
+                                if (actual == null) {
+                                    // another thread working on this entry, skip
+                                    skipped.incrementAndGet();
+                                    return;
+                                }
                                 if (update) {
                                     updates.incrementAndGet();
                                     DMLStatementExecutionResult updateResult
@@ -161,7 +169,6 @@ public class DirectMultipleConcurrentUpdatesTest {
                                     if (count <= 0) {
                                         throw new RuntimeException("not updated ?");
                                     }
-                                    expectedValue.put("test_" + k, value);
                                 } else {
                                     gets.incrementAndGet();
                                     DataScanner res = TestUtils.scan(manager,
@@ -172,6 +179,8 @@ public class DirectMultipleConcurrentUpdatesTest {
                                     }
                                     res.close();
                                     transactionId = res.transactionId;
+                                    // value did not change actually
+                                    value = actual;
                                 }
                                 if (useTransactions) {
                                     if (transactionId <= 0) {
@@ -179,6 +188,8 @@ public class DirectMultipleConcurrentUpdatesTest {
                                     }
                                     commitTransaction(manager, TableSpace.DEFAULT, transactionId);
                                 }
+                                expectedValue.put(key, value);
+
                             } catch (Exception err) {
                                 throw new RuntimeException(err);
                             }
@@ -196,7 +207,7 @@ public class DirectMultipleConcurrentUpdatesTest {
                 assertTrue(gets.get() > 0);
 
                 List<String> erroredKeys = new ArrayList<>();
-                for (Map.Entry<String, Integer> entry : expectedValue.entrySet()) {
+                for (Map.Entry<String, Long> entry : expectedValue.entrySet()) {
                     List<DataAccessor> records;
                     DataAccessor data;
                     try (DataScanner res = scan(manager, "SELECT n1 FROM mytable where id=?", Arrays.asList(entry.getKey()))) {
@@ -205,7 +216,7 @@ public class DirectMultipleConcurrentUpdatesTest {
                     }
                     assertEquals(1, records.size());
 
-                    if (!Long.valueOf(entry.getValue()).equals(data.get("n1"))) {
+                    if (!entry.getValue().equals(data.get("n1"))) {
                         System.out.println("expected value " + data.get("n1") + ", but got " + Long.valueOf(entry.getValue()) + " for key " + entry.getKey());
                         erroredKeys.add(entry.getKey());
                     }
@@ -233,21 +244,21 @@ public class DirectMultipleConcurrentUpdatesTest {
             server.waitForStandaloneBoot();
             DBManager manager = server.getManager();
             List<String> erroredKeys = new ArrayList<>();
-                for (Map.Entry<String, Integer> entry : expectedValue.entrySet()) {
-                    List<DataAccessor> records;
-                    DataAccessor data;
-                    try (DataScanner res = scan(manager, "SELECT n1 FROM mytable where id=?", Arrays.asList(entry.getKey()))) {
-                        records = res.consume();
-                        data = records.get(0);
-                    }
-                    assertEquals(1, records.size());
-
-                    if (!Long.valueOf(entry.getValue()).equals(data.get("n1"))) {
-                        System.out.println("expected value " + data.get("n1") + ", but got " + Long.valueOf(entry.getValue()) + " for key " + entry.getKey());
-                        erroredKeys.add(entry.getKey());
-                    }
+            for (Map.Entry<String, Long> entry : expectedValue.entrySet()) {
+                List<DataAccessor> records;
+                DataAccessor data;
+                try (DataScanner res = scan(manager, "SELECT n1 FROM mytable where id=?", Arrays.asList(entry.getKey()))) {
+                    records = res.consume();
+                    data = records.get(0);
                 }
-                assertTrue(erroredKeys.isEmpty());
+                assertEquals(1, records.size());
+
+                if (!entry.getValue().equals(data.get("n1"))) {
+                    System.out.println("expected value " + data.get("n1") + ", but got " + Long.valueOf(entry.getValue()) + " for key " + entry.getKey());
+                    erroredKeys.add(entry.getKey());
+                }
+            }
+            assertTrue(erroredKeys.isEmpty());
         }
     }
 }

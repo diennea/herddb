@@ -50,7 +50,7 @@ public class ConcurrentUpdatesBLinkTest {
         int ITERATIONS = 100000;
         BLinkTest.DummyBLinkIndexDataStorage<Sized<String>, Long> storage = new BLinkTest.DummyBLinkIndexDataStorage<>();
 
-        try (BLink<Sized<String>, Long> blink = new BLink<>(2048L, new BLinkTest.StringSizeEvaluator(), new RandomPageReplacementPolicy(3), storage)) {
+        try (BLink<Sized<String>, Long> blink = new BLink<>(2048L, new BLinkTest.StringSizeEvaluator(), new RandomPageReplacementPolicy(30), storage)) {
 
             Random random = new Random();
             RandomString rs = new RandomString(random);
@@ -78,6 +78,7 @@ public class ConcurrentUpdatesBLinkTest {
                         LockHandle lock = locksManager.acquireWriteLockForKey(_key);
                         try {
                             blink.insert(Sized.valueOf(key), value);
+                            expectedValues.put(key, value);
                         } finally {
                             locksManager.releaseWriteLockForKey(_key, lock);
                         }
