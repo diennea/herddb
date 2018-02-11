@@ -67,25 +67,45 @@ public class MultipleConcurrentUpdatesTest {
 
     @Test
     public void test() throws Exception {
-        performTest(false, 0);
+        performTest(false, 0, false);
     }
 
     @Test
     public void testWithTransactions() throws Exception {
-        performTest(true, 0);
+        performTest(true, 0, false);
     }
 
     @Test
     public void testWithCheckpoints() throws Exception {
-        performTest(false, 2000);
+        performTest(false, 2000, false);
     }
 
     @Test
     public void testWithTransactionsWithCheckpoints() throws Exception {
-        performTest(true, 2000);
+        performTest(true, 2000, false);
     }
 
-    private void performTest(boolean useTransactions, long checkPointPeriod) throws Exception {
+    @Test
+    public void testWithIndexes() throws Exception {
+        performTest(false, 0, true);
+    }
+
+    @Test
+    public void testWithTransactionsAndIndexes() throws Exception {
+        performTest(true, 0, true);
+    }
+
+    @Test
+    public void testWithCheckpointsAndIndexes() throws Exception {
+        performTest(false, 2000, true);
+    }
+
+    @Test
+    public void testWithTransactionsWithCheckpointsAndIndexes() throws Exception {
+        performTest(true, 2000, true);
+    }
+
+    private void performTest(boolean useTransactions, long checkPointPeriod, boolean withIndexes) throws Exception {
         Path baseDir = folder.newFolder().toPath();
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
 
@@ -102,18 +122,25 @@ public class MultipleConcurrentUpdatesTest {
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
-                long tx = connection.beginTransaction(TableSpace.DEFAULT);                
+                if (withIndexes) {
+                    long resultCreateIndex = connection.executeUpdate(TableSpace.DEFAULT,
+                            "CREATE INDEX theindex ON mytable (n1 long)", 0, false, Collections.emptyList()).updateCount;
+                    Assert.assertEquals(1, resultCreateIndex);
+
+                }
+
+                long tx = connection.beginTransaction(TableSpace.DEFAULT);
                 for (int i = 0; i < TABLESIZE; i++) {
                     connection.executeUpdate(TableSpace.DEFAULT,
-                        "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false,
-                        Arrays.asList("test_" + i, 1, 2));
+                            "INSERT INTO mytable (id,n1,n2) values(?,?,?)", tx, false,
+                            Arrays.asList("test_" + i, 1, 2));
                     expectedValue.put("test_" + i, 1);
                 }
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
@@ -134,8 +161,8 @@ public class MultipleConcurrentUpdatesTest {
                                     if (update) {
                                         updates.incrementAndGet();
                                         DMLResult updateResult = connection.executeUpdate(TableSpace.DEFAULT,
-                                            "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false,
-                                            Arrays.asList(value, "test_" + k));
+                                                "UPDATE mytable set n1=? WHERE id=?", useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, false,
+                                                Arrays.asList(value, "test_" + k));
                                         long count = updateResult.updateCount;
                                         transactionId = updateResult.transactionId;
                                         if (count <= 0) {
@@ -145,7 +172,7 @@ public class MultipleConcurrentUpdatesTest {
                                     } else {
                                         gets.incrementAndGet();
                                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT * FROM mytable where id=?",
-                                            useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, Arrays.asList("test_" + k));
+                                                useTransactions ? TransactionContext.AUTOTRANSACTION_ID : TransactionContext.NOTRANSACTION_ID, Arrays.asList("test_" + k));
                                         if (res.data == null) {
                                             throw new RuntimeException("not found?");
                                         }
@@ -176,13 +203,13 @@ public class MultipleConcurrentUpdatesTest {
                     List<String> erroredKeys = new ArrayList<>();
                     for (Map.Entry<String, Integer> entry : expectedValue.entrySet()) {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
-                            TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
+                                TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
 
                         if (!Long.valueOf(entry.getValue()).equals(res.data.get("n1"))) {
-                            System.out.println("expected value "+res.data.get("n1")+", but got "+Long.valueOf(entry.getValue())+" for key "+entry.getKey());
+                            System.out.println("expected value " + res.data.get("n1") + ", but got " + Long.valueOf(entry.getValue()) + " for key " + entry.getKey());
                             erroredKeys.add(entry.getKey());
-                        }                        
+                        }
                     }
                     assertTrue(erroredKeys.isEmpty());
 
@@ -201,18 +228,18 @@ public class MultipleConcurrentUpdatesTest {
                 }
             }
         }
-        
+
         // restart and recovery
         try (Server server = new Server(serverConfiguration)) {
             server.start();
             server.waitForStandaloneBoot();
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
-                HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 for (Map.Entry<String, Integer> entry : expectedValue.entrySet()) {
                     GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
-                        TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
+                            TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
                     assertNotNull(res.data);
                     assertEquals(Long.valueOf(entry.getValue()), res.data.get("n1"));
                 }
