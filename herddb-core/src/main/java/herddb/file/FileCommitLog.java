@@ -168,7 +168,7 @@ public class FileCommitLog extends CommitLog {
         public static CommitFileReader openForDescribeRawfile(Path filename) throws IOException {
             ExtendedDataInputStream in = new ExtendedDataInputStream(
                 new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ), 64 * 1024));
-            String lastPath = filename.getFileName().toString().replace(LOGFILEEXTENSION, "");
+            String lastPath = (filename.getFileName()+"").replace(LOGFILEEXTENSION, "");
             long ledgerId;
             try {
                 ledgerId = Long.valueOf(lastPath, 16);
