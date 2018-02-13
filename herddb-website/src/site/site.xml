@@ -31,7 +31,13 @@
         
         <changelog>
             <projectNameForChangelog>HerdDB</projectNameForChangelog>
-            <releases>                
+            <releases>
+                <release>
+                    <version>0.2.0</version>
+                    <date>February 2019</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>HerdDB 0.2.0, this is a major release, now we are using Apache Calcite</text>
+                </release>
                 <release>
                     <version>0.1.2</version>
                     <date>November 2017</date>
