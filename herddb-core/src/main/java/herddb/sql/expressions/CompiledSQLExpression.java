@@ -19,6 +19,7 @@
  */
 package herddb.sql.expressions;
 
+import herddb.model.Predicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import java.util.Collections;
@@ -72,8 +73,7 @@ public interface CompiledSQLExpression {
     }
 
     /**
-     * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)
-     * }
+     * the function {@link Predicate#matchesRawPrimaryKey(herddb.utils.Bytes, herddb.model.StatementEvaluationContext)}
      * works on a projection of the table wich contains only the pk fields of
      * the table for instance if the predicate wants to access first element of
      * the pk, and this field is the 3rd in the column list then you will find
