@@ -45,7 +45,7 @@ We already have great experience of <a href="http://bookkeeper.apache.org">Apach
 for instance <a href="http://majordodo.org">Majordodo</a> (which is open source and you can find it on GitHub and Maven Central),
 and we decided to use BookKeeper as  write-ahead transaction log and ZookKeeper for group membership and coordination..
 
-Herd DB leverages <a href='http://calcite.apache.org'>Apache Calcite</a> as SQL Planner, beeing able to support complex query plans, accessing data using optimized access plans.
+HerdDB leverages <a href='http://calcite.apache.org'>Apache Calcite</a> as SQL Planner, beeing able to support complex query plans, accessing data using optimized access plans.
 
 <h2>HerdDB overview</h2>
 
