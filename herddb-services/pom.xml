@@ -64,7 +64,7 @@
         </dependency>
         <dependency>
             <groupId>org.apache.bookkeeper</groupId>
-            <artifactId>bookkeeper-server-shaded</artifactId>       
+            <artifactId>bookkeeper-server</artifactId>       
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
