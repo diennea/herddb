@@ -20,9 +20,6 @@
 package herddb.index.blink;
 
 import herddb.core.RandomPageReplacementPolicy;
-import herddb.utils.Bytes;
-import herddb.utils.LocalLockManager;
-import herddb.utils.LockHandle;
 import herddb.utils.RandomString;
 import herddb.utils.Sized;
 import java.util.ArrayList;
@@ -34,6 +31,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
@@ -45,7 +44,7 @@ public class ConcurrentUpdatesBLinkTest {
     public void concurrentUpdatesTests() throws Exception {
 
         int DATA_SIZE = 50000;
-        int THREADS = 100;
+        int THREADS = 4;
         int KEY_SIZE = 25;
         int ITERATIONS = 100000;
         BLinkTest.DummyBLinkIndexDataStorage<Sized<String>, Long> storage = new BLinkTest.DummyBLinkIndexDataStorage<>();
@@ -59,42 +58,73 @@ public class ConcurrentUpdatesBLinkTest {
             for (int i = 0; i < DATA_SIZE; ++i) {
                 String key = rs.nextString(KEY_SIZE);
                 keys.add(key);
-                long value = random.nextLong();
+                long value = random.nextInt(Integer.MAX_VALUE) + 1;
+                assertTrue(value > 0); // zero means null
                 blink.insert(Sized.valueOf(key), value);
                 expectedValues.put(key, value);
             }
-            LocalLockManager locksManager = new LocalLockManager();
             int numKeys = keys.size();
             ExecutorService threadpool = Executors.newFixedThreadPool(THREADS);
             System.out.println("generated " + numKeys + " keys");
+            AtomicLong updates = new AtomicLong();
+            AtomicLong inserts = new AtomicLong();
+            AtomicLong skipped = new AtomicLong();
+            AtomicLong deletes = new AtomicLong();
             List<Future<?>> futures = new ArrayList<>();
             for (int i = 0; i < ITERATIONS; i++) {
                 String key = keys.get(random.nextInt(numKeys));
                 long value = random.nextLong();
+                boolean delete = random.nextInt(100) < 10; // 10 % deletes
                 futures.add(threadpool.submit(new Runnable() {
                     @Override
                     public void run() {
-                        Bytes _key = Bytes.from_string(key);
-                        LockHandle lock = locksManager.acquireWriteLockForKey(_key);
-                        try {
+                        Long current = expectedValues.remove(key);
+                        if (current == null) {
+                            skipped.incrementAndGet();
+                            return;
+                        }
+                        if (delete) {
+                            blink.delete(Sized.valueOf(key));
+                            expectedValues.put(key, 0L);
+                            deletes.incrementAndGet();
+                        } else {
                             blink.insert(Sized.valueOf(key), value);
+                            if (current == 0L) {
+                                inserts.incrementAndGet();
+                            } else {
+                                updates.incrementAndGet();
+                            }
                             expectedValues.put(key, value);
-                        } finally {
-                            locksManager.releaseWriteLockForKey(_key, lock);
                         }
                     }
                 }));
 
             }
+            int progress = 0;
             for (Future f : futures) {
                 f.get();
+                if (++progress % 10000 == 0) {
+                    System.out.println("done " + progress + "/" + ITERATIONS);
+                }
             }
+            int nulls = 0;
             for (String key : keys) {
                 Long value = blink.search(Sized.valueOf(key));
                 Long expected = expectedValues.get(key);
-                assertEquals(expected, value);
+                if (expected == 0) {
+                    assertNull(value);
+                    nulls++;
+                } else {
+                    assertEquals(expected, value);
+                }
             }
             System.out.println("total swapin " + storage.swapIn);
+            System.out.println("inserts " + inserts);
+            System.out.println("updates " + updates);
+            System.out.println("skipped " + skipped);
+            System.out.println("deletes " + deletes);
+            System.out.println("iterations " + ITERATIONS + " (" + (inserts.intValue() + updates.intValue() + deletes.intValue()+ skipped.intValue()) + ")");
+            System.out.println("nulls " + nulls);
             threadpool.shutdown();
         }
 
