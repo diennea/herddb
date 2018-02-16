@@ -19,12 +19,12 @@
  */
 package herddb.utils;
 
-import com.google.common.base.Objects;
 import java.io.Serializable;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -67,7 +67,7 @@ public class SingleEntryMap<K, V> implements Map<K, V>, Serializable {
 
     @Override
     public V get(Object key) {
-        if (Objects.equal(this.key, key)) {
+        if (Objects.equals(this.key, key)) {
             return value;
         }
         return null;

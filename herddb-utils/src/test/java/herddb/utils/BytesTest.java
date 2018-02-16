@@ -19,23 +19,31 @@
  */
 package herddb.utils;
 
-import java.util.concurrent.atomic.AtomicLong;
-import org.junit.Test;
-import static org.junit.Assert.*;
+import herddb.utils.Bytes;
+import static org.junit.Assert.assertArrayEquals;
 
-public class ConditionalLongIncrementAccumulatorTest {
+import java.nio.charset.StandardCharsets;
+
+import org.junit.Test;
+
+/**
+ *
+ * @author enrico.olivelli
+ */
+public class BytesTest {
+
+    public BytesTest() {
+    }
 
     @Test
-    public void testApplyAsLong() {
-        AtomicLong value = new AtomicLong(0);
-        assertEquals(0, value.accumulateAndGet(10, new MinDeltaLongIncrementAccumulator(50)));
-        value.set(0);
-        assertEquals(10, value.accumulateAndGet(10, new MinDeltaLongIncrementAccumulator(5)));
-        value.set(0);
-        assertEquals(0, value.accumulateAndGet(0, new MinDeltaLongIncrementAccumulator(5)));
-        value.set(0);
-        assertEquals(0, value.accumulateAndGet(15, new MinDeltaLongIncrementAccumulator(15)));
-        assertEquals(16, value.accumulateAndGet(16, new MinDeltaLongIncrementAccumulator(15)));
+    public void testNext() {
+        byte[] array1 = "test".getBytes(StandardCharsets.UTF_8);
+        Bytes bytes1 = Bytes.from_array(array1);
+        Bytes next = bytes1.next();
+        byte[] array2 = "tesu".getBytes(StandardCharsets.UTF_8);
+        System.out.println("a:"+bytes1.to_string());
+        System.out.println("b:"+next.to_string());
+        assertArrayEquals(array2, next.data);
     }
 
 }

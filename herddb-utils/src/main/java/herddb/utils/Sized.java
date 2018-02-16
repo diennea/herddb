@@ -19,6 +19,8 @@
  */
 package herddb.utils;
 
+import herddb.utils.SizeAwareObject;
+import herddb.utils.SizeAwareObject;
 import java.nio.charset.StandardCharsets;
 
 /**

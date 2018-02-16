@@ -303,6 +303,7 @@
                 <activeByDefault>true</activeByDefault>                
             </activation> 
             <modules>
+                <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>
@@ -395,6 +396,7 @@
                 <activeByDefault>false</activeByDefault>                
             </activation>   
             <modules>
+                <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>                
@@ -495,6 +497,7 @@
                 <activeByDefault>false</activeByDefault>                
             </activation> 
             <modules>
+                <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
                 <module>herddb-jdbc</module>

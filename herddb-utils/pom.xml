@@ -7,8 +7,8 @@
         <relativePath>..</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-    <name>HerdDB Networking</name>
-    <artifactId>herddb-net</artifactId>
+    <name>HerdDB Utils</name>
+    <artifactId>herddb-utils</artifactId>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -17,15 +17,10 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
-        </dependency>        
-        <dependency>
-            <groupId>org.codehaus.jackson</groupId>
-            <artifactId>jackson-mapper-asl</artifactId>
         </dependency>
         <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>herddb-utils</artifactId>
-            <version>${project.version}</version>
+            <groupId>net.jpountz.lz4</groupId>
+            <artifactId>lz4</artifactId>
         </dependency>
-    </dependencies>    
+    </dependencies>
 </project>

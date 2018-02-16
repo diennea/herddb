@@ -19,6 +19,9 @@
  */
 package herddb.utils;
 
+import herddb.utils.DiskArrayList;
+import herddb.utils.ExtendedDataInputStream;
+import herddb.utils.ExtendedDataOutputStream;
 import java.io.IOException;
 import org.junit.Rule;
 import org.junit.Test;

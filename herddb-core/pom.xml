@@ -17,6 +17,11 @@
     <dependencies>        
         <dependency>
             <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-utils</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
             <artifactId>herddb-net</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -36,11 +41,7 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-jdk14</artifactId>
             <scope>test</scope>
-        </dependency>     
-        <dependency>
-            <groupId>net.jpountz.lz4</groupId>
-            <artifactId>lz4</artifactId>
-        </dependency>   
+        </dependency>           
         <dependency>
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-test</artifactId>         
