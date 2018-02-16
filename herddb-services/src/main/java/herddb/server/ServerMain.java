@@ -39,6 +39,13 @@ import org.eclipse.jetty.webapp.WebAppContext;
  */
 public class ServerMain implements AutoCloseable {
 
+    static {
+        // see https://github.com/netty/netty/pull/7650
+        if (System.getProperty("io.netty.tryReflectionSetAccessible") == null) {
+            System.setProperty("io.netty.tryReflectionSetAccessible", "true");
+        }
+    }
+
     private final Properties configuration;
     private final PidFileLocker pidFileLocker;
     private Server server;
