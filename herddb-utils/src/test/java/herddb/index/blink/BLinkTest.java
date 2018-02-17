@@ -177,24 +177,30 @@ public class BLinkTest {
     @Test
     public void testSearchInsertReverse() throws Exception {
         List<Long> l = new ArrayList<>();
-        for (long i = 100 -1; i >= 0; i--) {
+        for (long i = 100 - 1; i >= 0; i--) {
             l.add(i);
         }
         testDataSet(l);
     }
-    
+
     @Test
     public void testConstants() throws Exception {
         List<Long> l = new ArrayList<>();
-        for (long i = 100 -1; i >= 0; i--) {
+        for (long i = 100 - 1; i >= 0; i--) {
             l.add(19L);
         }
         testDataSet(l);
     }
 
     private void testDataSet(List<Long> data) {
+        for (int i = 1; i < data.size(); i++) {
+            testDataSet(data, i);
+        }
+    }
+
+    private void testDataSet(List<Long> data, int maxSize) {
         BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
-        try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(maxSize, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
 
             for (long l : data) {
                 blink.insert(Sized.valueOf(l), l);
