@@ -168,7 +168,7 @@ public class BLinkTest {
     @Test
     public void testSearch() throws Exception {
         List<Long> l = new ArrayList<>();
-        for (long i = 0; i < 100; i++) {
+        for (long i = 0; i < 50; i++) {
             l.add(i);
         }
         testDataSet(l);
@@ -177,7 +177,7 @@ public class BLinkTest {
     @Test
     public void testSearchInsertReverse() throws Exception {
         List<Long> l = new ArrayList<>();
-        for (long i = 100 - 1; i >= 0; i--) {
+        for (long i = 50 - 1; i >= 0; i--) {
             l.add(i);
         }
         testDataSet(l);
@@ -193,7 +193,7 @@ public class BLinkTest {
     }
 
     private void testDataSet(List<Long> data) {
-        for (int i = 1; i < data.size(); i++) {
+        for (int i = 1; i < data.size() * 5; i++) {
             testDataSet(data, i);
         }
     }
