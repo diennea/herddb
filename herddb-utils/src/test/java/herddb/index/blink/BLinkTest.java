@@ -38,6 +38,8 @@ import herddb.index.blink.BLink.SizeEvaluator;
 import herddb.utils.Holder;
 import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Simpler tests for {@link BLink}
@@ -165,18 +167,40 @@ public class BLinkTest {
 
     @Test
     public void testSearch() throws Exception {
+        List<Long> l = new ArrayList<>();
+        for (long i = 0; i < 100; i++) {
+            l.add(i);
+        }
+        testDataSet(l);
+    }
 
-        final long inserts = 100;
+    @Test
+    public void testSearchInsertReverse() throws Exception {
+        List<Long> l = new ArrayList<>();
+        for (long i = 100 -1; i >= 0; i--) {
+            l.add(i);
+        }
+        testDataSet(l);
+    }
+    
+    @Test
+    public void testConstants() throws Exception {
+        List<Long> l = new ArrayList<>();
+        for (long i = 100 -1; i >= 0; i--) {
+            l.add(19L);
+        }
+        testDataSet(l);
+    }
 
+    private void testDataSet(List<Long> data) {
         BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
-
         try (BLink<Sized<Long>, Long> blink = new BLink<>(2048L, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
 
-            for (long l = 0; l < inserts; l++) {
+            for (long l : data) {
                 blink.insert(Sized.valueOf(l), l);
             }
 
-            for (long l = 0; l < inserts; l++) {
+            for (long l : data) {
                 assertEquals(l, (long) blink.search(Sized.valueOf(l)));
             }
         }
