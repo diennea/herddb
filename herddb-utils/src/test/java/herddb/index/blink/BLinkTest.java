@@ -39,6 +39,7 @@ import herddb.utils.Holder;
 import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -192,14 +193,17 @@ public class BLinkTest {
         testDataSet(l);
     }
 
-    private void testDataSet(List<Long> data) {
-        for (int i = 1; i < data.size() * 5; i++) {
+    private void testDataSet(List<Long> data) throws Exception {
+        int[] maxSizes = {1024, 2048};
+        for (int i : maxSizes) {
             testDataSet(data, i);
         }
     }
 
-    private void testDataSet(List<Long> data, int maxSize) {
+    private void testDataSet(List<Long> data, int maxSize) throws Exception {
+        System.out.println("testDataSet " + data.size() + " maxSize:" + maxSize+": "+data);
         BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
+        BLinkMetadata<Sized<Long>> metadata;
         try (BLink<Sized<Long>, Long> blink = new BLink<>(maxSize, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
 
             for (long l : data) {
@@ -209,7 +213,28 @@ public class BLinkTest {
             for (long l : data) {
                 assertEquals(l, (long) blink.search(Sized.valueOf(l)));
             }
+            metadata = blink.checkpoint();
+            System.out.println("metadata:" + metadata);
+            metadata.nodes.forEach(n -> {
+                System.out.println("node:" + n + " rightsep:" + n.rightsep);
+            });
         }
+        // reboot
+        try (BLink<Sized<Long>, Long> blink = new BLink<>(maxSize, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage, metadata)) {
+            for (long l : data) {
+                assertEquals(l, (long) blink.search(Sized.valueOf(l)));
+            }
+        }
+    }
+
+    @Test
+    public void testConstructTree() throws Exception {
+        testDataSet(Arrays.asList(1L), 512);
+        testDataSet(Arrays.asList(1L, 2L, 3L), 512);
+        testDataSet(Arrays.asList(1L, 2L, 3L, 4L), 512);
+        testDataSet(Arrays.asList(4L, 3L, 2L, 1L), 512);
+        testDataSet(Arrays.asList(4L, 3L, 2L, 2L, 1L), 512);
+        testDataSet(Arrays.asList(3L, 2L, 4L, 2L, 1L), 512);
     }
 
     @Test
