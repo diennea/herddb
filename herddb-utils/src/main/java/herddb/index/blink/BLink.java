@@ -1137,8 +1137,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         } else {
             unlock_anchor(READ_LOCK);
             lock_anchor(WRITE_LOCK);
-            anchor.fastheight = h;
-            anchor.fast = n;
+            if (anchor.fastheight != h) {                
+                anchor.fastheight = h;
+                anchor.fast = n;
+            }
             unlock_anchor(WRITE_LOCK);
         }
     }
