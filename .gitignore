@@ -21,3 +21,4 @@ dependency-reduced-pom.xml
 .mvn/timing.properties
 herddb-core/nbproject/
 /herddb-cli/nbproject/
+/herddb-utils/nbproject/
