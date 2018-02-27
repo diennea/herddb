@@ -691,6 +691,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final Lock lock = page.pageLock.writeLock();
         lock.lock();
         try {
+            if (page.unloaded) {
+                throw new IllegalStateException("cannot flush an unloaded page");
+            }
             page.unloaded = true;
         } finally {
             lock.unlock();

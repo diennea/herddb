@@ -269,7 +269,10 @@ public class MemoryDataStorageManager extends DataStorageManager {
     @Override
     public void writePage(String tableSpace, String tableName, long pageId, Collection<Record> newPage) throws DataStorageManagerException {
         Page page = new Page(new ArrayList<>(newPage));
-        pages.put(tableSpace + "." + tableName + "_" + pageId, page);
+        Page prev = pages.putIfAbsent(tableSpace + "." + tableName + "_" + pageId, page);
+        if (prev != null) {
+            throw new DataStorageManagerException("pages are immutable");
+        }
         //LOGGER.log(Level.SEVERE, "writePage " + tableName + " " + pageId + " -> " + newPage);
     }
 
@@ -290,7 +293,10 @@ public class MemoryDataStorageManager extends DataStorageManager {
             throw new DataStorageManagerException(ex);
         }
 
-        indexpages.put(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
+        Bytes prev = indexpages.putIfAbsent(tableSpace + "." + indexName + "_" + pageId, page_wrapper);
+        if (prev != null) {
+            throw new DataStorageManagerException("pages are immutable");
+        }
     }
 
     @Override

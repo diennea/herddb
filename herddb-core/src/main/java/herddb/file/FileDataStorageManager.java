@@ -718,7 +718,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
-        try (ManagedFile file = ManagedFile.open(pageFile);
+        try (ManagedFile file = ManagedFile.open(pageFile, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
             XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
@@ -760,7 +760,7 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
-        try (ManagedFile file = ManagedFile.open(pageFile);
+        try (ManagedFile file = ManagedFile.open(pageFile, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
             XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
             ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
