@@ -32,7 +32,7 @@ import java.nio.ByteOrder;
  *
  * @author enrico.olivelli
  */
-@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})
+@SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP", "UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD"})
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     private static final boolean UNALIGNED = PlatformDependent.isUnaligned();

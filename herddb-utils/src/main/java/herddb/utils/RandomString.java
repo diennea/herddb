@@ -19,6 +19,7 @@
  */
 package herddb.utils;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.Random;
 
 /**
@@ -26,6 +27,7 @@ import java.util.Random;
  *
  * @author diego.salvi
  */
+@SuppressFBWarnings("EI_EXPOSE_REP2")
 public class RandomString {
 
     private static final char[] ALPHABET = new char[] {
