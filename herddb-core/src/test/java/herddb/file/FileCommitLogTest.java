@@ -51,7 +51,7 @@ public class FileCommitLogTest {
         try (CommitLog log = manager.createCommitLog("tt");) {
             log.startWriting();
             for (int i = 0; i < 1_000_000; i++) {
-                log.log(LogEntryFactory.beginTransaction("tt", 0), false);
+                log.log(LogEntryFactory.beginTransaction(0), false);
                 writeCount++;
             }
         }
@@ -79,7 +79,7 @@ public class FileCommitLogTest {
         try (CommitLog log = manager.createCommitLog("tt");) {
             log.startWriting();
             for (int i = 0; i < 100; i++) {
-                log.log(LogEntryFactory.beginTransaction("tt", 0), true);
+                log.log(LogEntryFactory.beginTransaction(0), true);
                 writeCount++;
             }
         }
@@ -108,7 +108,7 @@ public class FileCommitLogTest {
         try (FileCommitLog log = manager.createCommitLog("tt");) {
             log.startWriting();
             for (int i = 0; i < 1_000_000; i++) {
-                log.log(LogEntryFactory.beginTransaction("tt", 0), false);
+                log.log(LogEntryFactory.beginTransaction(0), false);
                 writeCount++;
             }
         }

@@ -35,18 +35,33 @@ import java.io.IOException;
 @SuppressFBWarnings("EI_EXPOSE_REP2")
 public class LogEntry {
 
+    private static final int EMPTY_STRING_LEN;
+    private static final byte[] EMPTY_STRING_SERIALIZED;
+
+    static {
+        try (ByteArrayOutputStream oo = new ByteArrayOutputStream();) {
+            try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(oo);) {
+                doo.writeUTF("");
+            }
+            EMPTY_STRING_LEN = oo.size();
+            EMPTY_STRING_SERIALIZED = oo.toByteArray();
+        } catch (IOException impossible) {
+            throw new RuntimeException(impossible);
+        }
+
+    }
+    private static final int WRITE_UTF_HEADER_LEN = EMPTY_STRING_LEN;
+
     public final short type;
-    public final String tableSpace;
     public final long transactionId;
     public final String tableName;
     public final byte[] key;
     public final byte[] value;
     public final long timestamp;
 
-    public LogEntry(long timestamp, short type, String tableSpace, long transactionId, String tableName, byte[] key, byte[] value) {
+    public LogEntry(long timestamp, short type, long transactionId, String tableName, byte[] key, byte[] value) {
         this.timestamp = timestamp;
         this.type = type;
-        this.tableSpace = tableSpace;
         this.transactionId = transactionId;
         this.key = key;
         this.value = value;
@@ -70,51 +85,52 @@ public class LogEntry {
      * @throws IOException
      */
     public int serialize(ExtendedDataOutputStream doo) throws IOException {
+        int startingsize = doo.size();
         doo.writeLong(timestamp); // 8
         doo.writeShort(type);  // 2
         doo.writeLong(transactionId); // 8
-        doo.writeUTF(tableSpace); // var
+        doo.write(EMPTY_STRING_SERIALIZED); // keep compatibility with v 0.2
         switch (type) {
             case LogEntryType.UPDATE:
                 doo.writeUTF(tableName);
                 doo.writeArray(key);
                 doo.writeArray(value);
-                return 18 + key.length + value.length + tableSpace.length() + tableName.length();
+                break;
             case LogEntryType.INSERT:
                 doo.writeUTF(tableName);
                 doo.writeArray(key);
                 doo.writeArray(value);
-                return 18 + key.length + value.length + tableSpace.length() + tableName.length();
+                break;
             case LogEntryType.DELETE:
                 doo.writeUTF(tableName);
                 doo.writeArray(key);
-                return 18 + key.length + tableSpace.length() + tableName.length();
+                break;
             case LogEntryType.CREATE_TABLE:
             case LogEntryType.ALTER_TABLE:
                 // value contains the table definition
                 doo.writeUTF(tableName);
                 doo.writeArray(value);
-                return 18 + value.length + tableSpace.length() + tableName.length();
-
+                break;
             case LogEntryType.CREATE_INDEX:
                 // value contains the index definition
                 doo.writeUTF(tableName);
                 doo.writeArray(value);
-                return 18 + value.length + tableSpace.length() + tableName.length();
+                break;
             case LogEntryType.DROP_TABLE:
             case LogEntryType.TRUNCATE_TABLE:
                 doo.writeUTF(tableName);
-                return 18 + tableSpace.length() + tableName.length();
+                break;
             case LogEntryType.DROP_INDEX:
                 doo.writeArray(this.value);
-                return 18 + tableSpace.length() + value.length;
+                break;
             case LogEntryType.BEGINTRANSACTION:
             case LogEntryType.COMMITTRANSACTION:
             case LogEntryType.ROLLBACKTRANSACTION:
-                return 18 + tableSpace.length();
+                break;
             default:
                 throw new IllegalArgumentException("unsupported type " + type);
         }
+        return doo.size() - startingsize;
     }
 
     public static LogEntry deserialize(byte[] data) {
@@ -128,7 +144,7 @@ public class LogEntry {
             long timestamp = dis.readLong();
             short type = dis.readShort();
             long transactionId = dis.readLong();
-            String tableSpace = dis.readUTF();
+            dis.readUTF(); // in 0.2 it was 'tablespace uuid'
 
             byte[] key = null;
             byte[] value = null;
@@ -172,7 +188,7 @@ public class LogEntry {
                 default:
                     throw new IllegalArgumentException("unsupported type " + type);
             }
-            return new LogEntry(timestamp, type, tableSpace, transactionId, tableName, key, value);
+            return new LogEntry(timestamp, type, transactionId, tableName, key, value);
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
@@ -180,7 +196,7 @@ public class LogEntry {
 
     @Override
     public String toString() {
-        return "LogEntry{" + "type=" + type + ", tableSpace=" + tableSpace + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key != null ? Bytes.from_array(key) : null) + ", value=" + Bytes.from_array(value) + ", timestamp=" + timestamp + '}';
+        return "LogEntry{" + "type=" + type + ", transactionId=" + transactionId + ", tableName=" + tableName + ", key=" + (key != null ? Bytes.from_array(key) : null) + ", value=" + Bytes.from_array(value) + ", timestamp=" + timestamp + '}';
     }
 
 }
