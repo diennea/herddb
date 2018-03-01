@@ -26,7 +26,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import herddb.model.Record;
 import herddb.utils.Bytes;
-import java.util.Collections;
 
 /**
  * A page of data loaded in memory
@@ -55,35 +54,38 @@ public class DataPage extends Page<TableManager> {
     }
 
     public final long maxSize;
-    public boolean readonly;
+    public final boolean immutable;
 
     public Map<Bytes, Record> data;
 
     public final AtomicLong usedMemory;
 
     /**
-     * Access lock, exists only for mutable pages ({@code readonly == false})
+     * Access lock, exists only for mutable pages ({@code immutable == false})
      */
     public final ReadWriteLock pageLock;
 
     /**
-     * Unloaded flag, to be accessed only under {@link #pageLock}
+     * Writability flag of mutable pages, mutable pages can switch to a not writable
+     * state when flushed, to be accessed only under {@link #pageLock}
      */
-    public boolean unloaded = false;
+    public boolean writable;
 
-    public DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
+    public DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean immutable) {
         super(owner, pageId);
         this.maxSize = maxSize;
-        this.readonly = readonly;
+        this.immutable = immutable;
+        this.writable = !immutable;
+
         this.data = data;
         this.usedMemory = new AtomicLong(estimatedSize);
 
-        pageLock = readonly ? null : new ReentrantReadWriteLock(false);
+        pageLock = immutable ? null : new ReentrantReadWriteLock(false);
     }
 
     Record remove(Bytes key) {
-        if (readonly) {
-            throw new IllegalStateException("page " + pageId + " is readonly!");
+        if (immutable) {
+            throw new IllegalStateException("page " + pageId + " is immutable!");
         }
 
         final Record prev = data.remove(key);
@@ -100,8 +102,8 @@ public class DataPage extends Page<TableManager> {
     }
 
     boolean put(Record record) {
-        if (readonly) {
-            throw new IllegalStateException("page " + pageId + " is readonly!");
+        if (immutable) {
+            throw new IllegalStateException("page " + pageId + " is immutable!");
         }
 
         final Record prev = data.put(record.key, record);
@@ -142,8 +144,8 @@ public class DataPage extends Page<TableManager> {
     }
 
     void clear() {
-        if (readonly) {
-            throw new IllegalStateException("page " + pageId + " is readonly!");
+        if (immutable) {
+            throw new IllegalStateException("page " + pageId + " is immutable!");
         }
         data.clear();
         usedMemory.set(0);
@@ -151,7 +153,7 @@ public class DataPage extends Page<TableManager> {
 
     @Override
     public String toString() {
-        return "DataPage{" + "pageId=" + pageId + ", readonly=" + readonly + ", usedMemory=" + usedMemory + '}';
+        return "DataPage{" + "pageId=" + pageId + ", immutable=" + immutable + ", writable=" + writable + ", usedMemory=" + usedMemory + '}';
     }
 
     @Override
@@ -173,23 +175,6 @@ public class DataPage extends Page<TableManager> {
         }
         DataPage other = (DataPage) obj;
         return pageId == other.pageId;
-    }
-
-    void makeImmutable() {
-        pageLock.writeLock().lock();
-        try {
-            if (!unloaded) {
-                throw new IllegalStateException("cannot convert to immutable if loaded=false, pageid " + pageId);
-            }
-            if (readonly) {
-                throw new IllegalStateException("cannot convert to immutable if readonly=true, pageid " + pageId);
-            }
-            this.readonly = true;
-            this.unloaded = false;
-            this.data = Collections.unmodifiableMap(data);
-        } finally {
-            pageLock.writeLock().unlock();
-        }
     }
 
 }
