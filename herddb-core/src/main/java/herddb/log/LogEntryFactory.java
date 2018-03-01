@@ -33,54 +33,54 @@ public class LogEntryFactory {
 
     public static LogEntry createTable(Table table, Transaction transaction) {
         byte[] payload = table.serialize();
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_TABLE, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, null, payload);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_TABLE, transaction != null ? transaction.transactionId : 0, table.name, null, payload);
     }
 
     public static LogEntry alterTable(Table table, Transaction transaction) {
         byte[] payload = table.serialize();
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.ALTER_TABLE, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, null, payload);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.ALTER_TABLE, transaction != null ? transaction.transactionId : 0, table.name, null, payload);
     }
 
-    public static LogEntry dropTable(String tableSpace, String table, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_TABLE, tableSpace, transaction != null ? transaction.transactionId : 0, table, null, null);
+    public static LogEntry dropTable(String table, Transaction transaction) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_TABLE, transaction != null ? transaction.transactionId : 0, table, null, null);
     }
 
-    public static LogEntry dropIndex(String tableSpace, String indexName, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_INDEX, tableSpace, transaction != null ? transaction.transactionId : 0, null, null, Bytes.from_string(indexName).data);
+    public static LogEntry dropIndex(String indexName, Transaction transaction) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DROP_INDEX, transaction != null ? transaction.transactionId : 0, null, null, Bytes.from_string(indexName).data);
     }
 
-    public static LogEntry beginTransaction(String tablespace, long transactionId) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, tablespace, transactionId, null, null, null);
+    public static LogEntry beginTransaction(long transactionId) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.BEGINTRANSACTION, transactionId, null, null, null);
     }
 
-    public static LogEntry commitTransaction(String tablespace, long transactionId) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.COMMITTRANSACTION, tablespace, transactionId, null, null, null);
+    public static LogEntry commitTransaction(long transactionId) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.COMMITTRANSACTION, transactionId, null, null, null);
     }
 
-    public static LogEntry rollbackTransaction(String tablespace, long transactionId) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.ROLLBACKTRANSACTION, tablespace, transactionId, null, null, null);
+    public static LogEntry rollbackTransaction(long transactionId) {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.ROLLBACKTRANSACTION, transactionId, null, null, null);
     }
 
     public static LogEntry insert(Table table, byte[] key, byte[] value, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.INSERT, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, key, value);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.INSERT, transaction != null ? transaction.transactionId : 0, table.name, key, value);
     }
 
     public static LogEntry update(Table table, byte[] key, byte[] value, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.UPDATE, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, key, value);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.UPDATE, transaction != null ? transaction.transactionId : 0, table.name, key, value);
     }
 
     public static LogEntry delete(Table table, byte[] key, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.DELETE, table.tablespace, transaction != null ? transaction.transactionId : 0, table.name, key, null);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.DELETE, transaction != null ? transaction.transactionId : 0, table.name, key, null);
     }
 
     public static LogEntry createIndex(Index index, Transaction transaction) {
         byte[] payload = index.serialize();
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_INDEX, index.tablespace, transaction != null ? transaction.transactionId : 0, index.table, null, payload);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.CREATE_INDEX, transaction != null ? transaction.transactionId : 0, index.table, null, payload);
     }
 
     public static LogEntry truncate(Table table, Transaction transaction) {
-        return new LogEntry(System.currentTimeMillis(), LogEntryType.TRUNCATE_TABLE, table.tablespace,
-            transaction != null ? transaction.transactionId : 0, table.name, null, null);
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.TRUNCATE_TABLE,
+                transaction != null ? transaction.transactionId : 0, table.name, null, null);
     }
 
 }

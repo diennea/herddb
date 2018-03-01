@@ -969,7 +969,7 @@ public class TableSpaceManager {
             LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, pending_transactions.size()});
             for (long tx : pending_transactions) {
                 LOGGER.log(Level.FINER, "rolling back transaction {0}", tx);
-                LogEntry rollback = LogEntryFactory.rollbackTransaction(tableSpaceName, tx);
+                LogEntry rollback = LogEntryFactory.rollbackTransaction(tx);
                 // let followers see the rollback on the log
                 CommitLogResult pos = log.log(rollback, true);
                 apply(pos, rollback, false);
@@ -1125,13 +1125,13 @@ public class TableSpaceManager {
             Map<String, AbstractIndexManager> indexesOnTable = indexesByTable.get(statement.getTable());
             if (indexesOnTable != null) {
                 for (String index : indexesOnTable.keySet()) {
-                    LogEntry entry = LogEntryFactory.dropIndex(statement.getTableSpace(), index, transaction);
+                    LogEntry entry = LogEntryFactory.dropIndex(index, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                     apply(pos, entry, false);
                 }
             }
 
-            LogEntry entry = LogEntryFactory.dropTable(statement.getTableSpace(), statement.getTable(), transaction);
+            LogEntry entry = LogEntryFactory.dropTable(statement.getTable(), transaction);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
 
@@ -1158,7 +1158,7 @@ public class TableSpaceManager {
                 }
                 throw new IndexDoesNotExistException("index does not exist " + statement.getIndexName() + " on tableSpace " + statement.getTableSpace());
             }
-            LogEntry entry = LogEntryFactory.dropIndex(statement.getTableSpace(), statement.getIndexName(), transaction);
+            LogEntry entry = LogEntryFactory.dropIndex(statement.getIndexName(), transaction);
             CommitLogResult pos;
             try {
                 pos = log.log(entry, entry.transactionId <= 0);
@@ -1375,7 +1375,7 @@ public class TableSpaceManager {
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {
         long id = newTransactionId.incrementAndGet();
 
-        LogEntry entry = LogEntryFactory.beginTransaction(tableSpaceName, id);
+        LogEntry entry = LogEntryFactory.beginTransaction(id);
         CommitLogResult pos;
         try {
             pos = log.log(entry, false);
@@ -1392,7 +1392,7 @@ public class TableSpaceManager {
         if (tx == null) {
             throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
         }
-        LogEntry entry = LogEntryFactory.rollbackTransaction(tableSpaceName, tx.transactionId);
+        LogEntry entry = LogEntryFactory.rollbackTransaction(tx.transactionId);
         try {
             CommitLogResult pos = log.log(entry, true);
             apply(pos, entry, false);
@@ -1408,7 +1408,7 @@ public class TableSpaceManager {
         if (tx == null) {
             throw new StatementExecutionException("no such transaction " + commitTransactionStatement.getTransactionId());
         }
-        LogEntry entry = LogEntryFactory.commitTransaction(tableSpaceName, tx.transactionId);
+        LogEntry entry = LogEntryFactory.commitTransaction(tx.transactionId);
 
         try {
             CommitLogResult pos = log.log(entry, true);
