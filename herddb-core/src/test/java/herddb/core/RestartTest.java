@@ -88,7 +88,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
 
             Table table = Table
                 .builder()
@@ -112,7 +112,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             DMLStatementExecutionResult executeStatement = (DMLStatementExecutionResult) manager.executeStatement(new UpdateStatement("tblspace1", "t1", new Record(key, key), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, executeStatement.getUpdateCount());
@@ -126,7 +126,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
@@ -152,7 +152,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
                 .builder()
@@ -178,7 +178,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             DMLStatementExecutionResult executeStatement = (DMLStatementExecutionResult) manager.executeStatement(new UpdateStatement("tblspace1", "t1", new Record(key, key), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertEquals(1, executeStatement.getUpdateCount());
@@ -192,7 +192,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
@@ -218,7 +218,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
                 .builder()
@@ -246,7 +246,7 @@ public class RestartTest {
 //                tmoDir, null)) {
 //            manager.start();
 //
-//            manager.waitForTablespace("tblspace1", 10000);
+//            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 //
 //            DMLStatementExecutionResult executeStatement = (DMLStatementExecutionResult) manager.executeStatement(new UpdateStatement("tblspace1", "t1", new Record(key, key), null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 //            assertEquals(1, executeStatement.getUpdateCount());
@@ -259,7 +259,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertTrue(result.found());
@@ -285,7 +285,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));
 
             Table table = Table
                 .builder()
@@ -315,7 +315,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
@@ -341,7 +341,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
 
             Table table = Table
                 .builder()
@@ -371,7 +371,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             GetResult result = manager.get(new GetStatement("tblspace1", "t1", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             assertFalse(result.found());
@@ -400,7 +400,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
 
             table = Table
                 .builder()
@@ -439,8 +439,8 @@ public class RestartTest {
             new FileCommitLogManager(logsPath, 64 * 1024 * 1024),
             tmoDir, null)) {
             manager.start();
-
-            manager.waitForTablespace("tblspace1", 10000);
+           
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             /* Access through key to page */
             GetResult result = manager.get(new GetStatement("tblspace1", table.name, Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -479,7 +479,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
 
             table = Table
                 .builder()
@@ -560,7 +560,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
 
             table = Table
                 .builder()
@@ -598,7 +598,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             /* Access through key to page */
             GetResult result = manager.get(new GetStatement("tblspace1", table.name, Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -637,7 +637,7 @@ public class RestartTest {
 
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForTablespace("tblspace1", 10000));;
 
             table1 = Table
                 .builder()
@@ -698,7 +698,7 @@ public class RestartTest {
             tmoDir, null)) {
             manager.start();
 
-            manager.waitForTablespace("tblspace1", 10000);
+            assertTrue(manager.waitForBootOfLocalTablespaces(10000));
 
             assertTrue(manager.get(new GetStatement("tblspace1", table1.name, Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
             assertTrue(manager.get(new GetStatement("tblspace1", table2.name, Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
