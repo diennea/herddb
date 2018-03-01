@@ -19,6 +19,8 @@
  */
 package herddb.core;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,13 +35,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.StampedLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -102,10 +105,6 @@ import herddb.utils.Holder;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import java.util.concurrent.locks.StampedLock;
 
 /**
  * Handles Data of a Table
@@ -543,7 +542,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final Long pageId = nextPageId++;
         final DataPage dataPage = buildImmutableDataPage(pageId, newPage, newPageSize);
 
-        LOGGER.log(Level.INFO, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+        LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
             new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.uuid, pageId, newPage.values());
         pageSet.pageCreated(pageId, dataPage);
@@ -651,9 +650,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void unload(long pageId) {
-        LOGGER.log(Level.SEVERE,"unload page="+pageId);
-        DataPage remove = pages.remove(pageId);
-        if (remove != null) {
+        pages.computeIfPresent(pageId, (k,remove) -> {
+
             unloadedPagesCount.increment();
             LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             if (!remove.readonly) {
@@ -663,8 +661,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             } else {
                 LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
-            }            
+            }
+
+            return null;
         }
+        );
     }
 
     /**
@@ -679,15 +680,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @return spare memory size used (and removed)
      */
     private long flushNewPage(DataPage page, Map<Bytes, Record> spareData) {
-        LOGGER.log(Level.SEVERE, "flushNewPage page="+page.pageId+", "+page.unloaded, new Exception("flushNewPage "+page.pageId+", "+page.unloaded+" pages "+pages.keySet()).fillInStackTrace());
-        
         /* Remove it from "new" pages */
         DataPage remove = newPages.remove(page.pageId);
         if (remove == null) {
             LOGGER.log(Level.SEVERE, "detected concurrent flush of page "+page.pageId+", unloaded: "+page.unloaded);
             throw new IllegalStateException("page "+page.pageId+" is not a new page !");
         }
-        
+
         /* Set the new page as a fully active page */
         pageSet.pageCreated(page.pageId, page);
 
@@ -701,31 +700,34 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             if (page.unloaded) {
                 throw new IllegalStateException("cannot flush an unloaded page, id "+page.pageId);
             }
+
+            long usedMemory = page.getUsedMemory();
+
+            /* Flag to enable spare data addition to currently flushed page */
+            boolean add = true;
+            final Iterator<Record> records = spareData.values().iterator();
+            while (add && records.hasNext()) {
+                Record record = records.next();
+                add = page.put(record);
+                if (add) {
+                    keyToPage.put(record.key, page.pageId);
+                    records.remove();
+                }
+            }
+
+            long spareUsedMemory = page.getUsedMemory() - usedMemory;
+            LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+                new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
+            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
+
             page.unloaded = true;
+
+            return spareUsedMemory;
+
         } finally {
             lock.unlock();
         }
 
-        long usedMemory = page.getUsedMemory();
-
-        /* Flag to enable spare data addition to currently flushed page */
-        boolean add = true;
-        final Iterator<Record> records = spareData.values().iterator();
-        while (add && records.hasNext()) {
-            Record record = records.next();
-            add = page.put(record);
-            if (add) {
-                keyToPage.put(record.key, page.pageId);
-                records.remove();
-            }
-        }
-
-        long spareUsedMemory = page.getUsedMemory() - usedMemory;
-        LOGGER.log(Level.INFO, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
-            new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
-        dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
-        
-        return spareUsedMemory;
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
@@ -1216,11 +1218,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (indexes == null) {
             /* We don't need the page if isn't loaded or isn't a mutable new page*/
             prevPage = newPages.get(prevPageId);
-            previous = null;
 
             if (prevPage != null) {
                 pageReplacementPolicy.pageHit(prevPage);
+                previous = prevPage.get(key);
+            } else {
+                previous = null;
             }
+
         } else {
             /* We really need the page for update index old values */
             prevPage = loadPageToMemory(prevPageId, false);
@@ -1348,7 +1353,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     public void writeFromDump(List<Record> record) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, table.name + " received " + record.size() + " records");
+        LOGGER.log(Level.INFO, table.name + " received " + record.size() + " records");
         checkpointLock.asReadLock().lock();
         try {
             for (Record r : record) {
@@ -1624,17 +1629,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE,"loadPageToMemory page="+pageId);
         DataPage result = pages.get(pageId);
         if (result != null) {
             if (result.unloaded) {
                 throw new IllegalStateException("found an unloaded page="+pageId+" from cache");
             }
-            LOGGER.log(Level.SEVERE,"loadPageToMemory page="+pageId+" cache hit readonly="+result.readonly+", "+result.unloaded+" "+Thread.currentThread().getName());
             pageReplacementPolicy.pageHit(result);
             return result;
-        } else {
-            LOGGER.log(Level.SEVERE,"loadPageToMemory page="+pageId+" cache miss "+Thread.currentThread().getName());
         }
 
         long _start = System.currentTimeMillis();
@@ -1975,8 +1976,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long flushedNewPages = 0;
             for (DataPage dataPage : newPages.values()) {
                 if (!dataPage.isEmpty()) {
-                    bufferPageSize -= flushNewPage(dataPage, buffer);                                        
-                    dataPage.makeImmutable();                    
+                    bufferPageSize -= flushNewPage(dataPage, buffer);
+                    dataPage.makeImmutable();
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
                 }
@@ -2574,11 +2575,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private Record fetchRecord(Bytes key, Long pageId, LocalScanPageCache localScanPageCache) throws StatementExecutionException, DataStorageManagerException {
-        int maxTrials = 1000;
+        int maxTrials = 2;
         while (true) {
-
             DataPage dataPage = fetchDataPage(pageId, localScanPageCache);
-
             if (dataPage != null) {
                 Record record = dataPage.get(key);
                 if (record != null) {
