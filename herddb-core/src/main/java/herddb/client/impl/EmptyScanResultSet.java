@@ -36,9 +36,11 @@ public class EmptyScanResultSet extends ScanResultSet {
         super(transactionId);
     }
 
+    private static final ScanResultSetMetadata EMPTY = new ScanResultSetMetadata(new String[0]);
+
     @Override
     public ScanResultSetMetadata getMetadata() {
-        return new ScanResultSetMetadata(Collections.emptyList());
+        return EMPTY;
     }
 
     @Override
@@ -48,7 +50,7 @@ public class EmptyScanResultSet extends ScanResultSet {
 
     @Override
     public Map<String, Object> next() throws HDBException {
-        throw new UnsupportedOperationException("Not supported"); //To change body of generated methods, choose Tools | Templates.
+        throw new HDBException("this is an empty result set");
     }
 
 }

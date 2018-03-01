@@ -26,25 +26,25 @@ import java.util.Objects;
  */
 public abstract class AbstractDataAccessor implements DataAccessor {
 
-//    @Override
-//    public boolean equals(Object obj) {
-//        if (obj instanceof DataAccessor) {
-//            DataAccessor da = (DataAccessor) obj;
-//            int size = this.getNumFields();
-//            int size2 = da.getNumFields();
-//            if (size != size2) {
-//                return false;
-//            }
-//            // leverage zero-copy and to not create temporary arrays
-//            for (int i = 0; i < size; i++) {
-//                if (!Objects.equals(get(i), da.get(i))) {
-//                    return false;
-//                }
-//            }
-//            return true;
-//        }
-//        return false;
-//    }
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DataAccessor) {
+            DataAccessor da = (DataAccessor) obj;
+            int size = this.getNumFields();
+            int size2 = da.getNumFields();
+            if (size != size2) {
+                return false;
+            }
+            // leverage zero-copy and to not create temporary arrays
+            for (int i = 0; i < size; i++) {
+                if (!Objects.equals(get(i), da.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
 //    
 //    public String toString(){
 //        return this.getClass().getSimpleName();

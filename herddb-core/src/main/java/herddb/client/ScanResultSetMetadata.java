@@ -28,18 +28,17 @@ import java.util.List;
  */
 public class ScanResultSetMetadata {
 
-    private List<String> columnNames;
+    private String[] columnNames;
 
-    public ScanResultSetMetadata(List<String> columnNames) {
+    public ScanResultSetMetadata(String[] columnNames) {
         this.columnNames = columnNames;
     }
-    
 
-    public List<String> getColumnNames() {
+    public String[] getColumnNames() {
         return columnNames;
     }
 
-    public void setColumnNames(List<String> columnNames) {
+    public void setColumnNames(String[] columnNames) {
         this.columnNames = columnNames;
     }
 
