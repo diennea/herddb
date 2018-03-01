@@ -654,18 +654,58 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
             unloadedPagesCount.increment();
             LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
-            if (!remove.readonly) {
-                flushNewPage(remove, Collections.emptyMap());
 
+            boolean dataFlushed = false;
+            if (!remove.immutable) {
+                dataFlushed = flushNewPageForUnload(remove);
+            }
+
+            if (dataFlushed) {
                 LOGGER.log(Level.FINER, "table {0} remove and save 'new' page {1}, {2}",
-                    new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                        new Object[] {table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             } else {
-                LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
+                LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}",
+                        new Object[] {table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             }
 
             return null;
         }
         );
+    }
+
+
+    /**
+     * Remove the page from {@link #newPages}, set it as "unloaded" and write it to disk
+     * <p>
+     * Add as much spare data as possible to fillup the page. If added must change key to page pointers too for spare
+     * data
+     * </p>
+     *
+     * @param page new page to flush
+     * @param spareData old spare data to fit in the new page if possible
+     * @return spare memory size used (and removed), {@code 0} if no spare used
+     */
+    private long flushNewPageForCheckpoint(DataPage page, Map<Bytes, Record> spareData) {
+        final long used = flushNewPage(page, spareData);
+
+        /*
+         * 0 = no memory; -1 = already flushed, they are the same for checkpoint (but
+         * checkpoint need to known how much data has been used so 0 bytes has been used
+         * if the page was already flushed)
+         */
+        return used > 0L ? used : 0L;
+    }
+
+    /**
+     * Remove the page from {@link #newPages}, set it as "unloaded" and write it to
+     * disk
+     *
+     * @param page new page to flush
+     * @return {@code true} if the page has been flushed, {@code false} if already
+     *         flushed by another thread
+     */
+    private boolean flushNewPageForUnload(DataPage page) {
+        return flushNewPage(page, Collections.emptyMap()) != -1;
     }
 
     /**
@@ -677,56 +717,83 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      *
      * @param page new page to flush
      * @param spareData old spare data to fit in the new page if possible
-     * @return spare memory size used (and removed)
+     * @return spare memory size used (and removed), {@code 0} if no spare used,
+     *         {@code -1L} if no flush has been done because the page isn't writable anymore
      */
     private long flushNewPage(DataPage page, Map<Bytes, Record> spareData) {
-        /* Remove it from "new" pages */
-        DataPage remove = newPages.remove(page.pageId);
-        if (remove == null) {
-            LOGGER.log(Level.SEVERE, "detected concurrent flush of page "+page.pageId+", unloaded: "+page.unloaded);
-            throw new IllegalStateException("page "+page.pageId+" is not a new page !");
+
+        if (page.immutable) {
+            LOGGER.log(Level.SEVERE, "Attempt to flush an immutable page " + page.pageId + " as it was mutable");
+            throw new IllegalStateException("page " + page.pageId + " is not a new page!");
         }
 
-        /* Set the new page as a fully active page */
-        pageSet.pageCreated(page.pageId, page);
+        page.pageLock.readLock();
+        try {
+
+            if (!page.writable) {
+                return -1L;
+            }
+
+        } finally {
+            page.pageLock.readLock();
+        }
 
         /*
          * We need to keep the page lock just to write the unloaded flag... after that write any other
-         * thread that check the page will avoid writes (thus using page data is safe)
+         * thread that check the page will avoid writes (thus using page data is safe).
          */
         final Lock lock = page.pageLock.writeLock();
         lock.lock();
         try {
-            if (page.unloaded) {
-                throw new IllegalStateException("cannot flush an unloaded page, id "+page.pageId);
+            if (!page.writable) {
+                LOGGER.log(Level.INFO, "Mutable page " + page.pageId + " already flushed in a concurrent thread");
+                return -1L;
             }
 
-            long usedMemory = page.getUsedMemory();
+            /*
+             * NewPages removal technically could be done before current write lock but
+             * doing it in lock permit to check safely if a page has been removed. Without
+             * lock we can't known if no page has been removed because already removed by a
+             * concurrent thread or because it wasn't present in the first place.
+             */
 
-            /* Flag to enable spare data addition to currently flushed page */
-            boolean add = true;
-            final Iterator<Record> records = spareData.values().iterator();
-            while (add && records.hasNext()) {
-                Record record = records.next();
-                add = page.put(record);
-                if (add) {
-                    keyToPage.put(record.key, page.pageId);
-                    records.remove();
-                }
+            /* Remove it from "new" pages */
+            DataPage remove = newPages.remove(page.pageId);
+            if (remove == null) {
+                LOGGER.log(Level.SEVERE,
+                        "Detected concurrent flush of page " + page.pageId + ", writable: " + page.writable);
+                throw new IllegalStateException("page " + page.pageId + " is not a new page!");
             }
 
-            long spareUsedMemory = page.getUsedMemory() - usedMemory;
-            LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
-                new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
-            dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
+            /* Set the new page as a fully active page */
+            pageSet.pageCreated(page.pageId, page);
 
-            page.unloaded = true;
-
-            return spareUsedMemory;
+            page.writable = false;
 
         } finally {
             lock.unlock();
         }
+
+        long usedMemory = page.getUsedMemory();
+
+        /* Flag to enable spare data addition to currently flushed page */
+        boolean add = true;
+        final Iterator<Record> records = spareData.values().iterator();
+        while (add && records.hasNext()) {
+            Record record = records.next();
+            add = page.put(record);
+            if (add) {
+                keyToPage.put(record.key, page.pageId);
+                records.remove();
+            }
+        }
+
+        long spareUsedMemory = page.getUsedMemory() - usedMemory;
+        LOGGER.log(Level.FINER, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+            new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
+        dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
+
+        return spareUsedMemory;
 
     }
 
@@ -1159,7 +1226,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         }
 
-        if (page == null || page.readonly) {
+        if (page == null || page.immutable) {
             /* Unloaded or immutable, set it as dirty */
             pageSet.setPageDirty(pageId, previous);
         } else {
@@ -1167,12 +1234,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             final Lock lock = page.pageLock.readLock();
             lock.lock();
             try {
-                if (page.unloaded) {
-                    /* Unfortunately unloaded, set it as dirty */
-                    pageSet.setPageDirty(pageId, previous);
-                } else {
+                if (page.writable) {
                     /* We can modify the page directly */
                     page.remove(key);
+                } else {
+                    /* Unfortunately is not writable (anymore), set it as dirty */
+                    pageSet.setPageDirty(pageId, previous);
                 }
             } finally {
                 lock.unlock();
@@ -1236,7 +1303,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
         }
 
-        if (prevPage == null || prevPage.readonly) {
+        if (prevPage == null || prevPage.immutable) {
             /* Unloaded or immutable, set it as dirty */
             pageSet.setPageDirty(prevPageId, previous);
         } else {
@@ -1244,12 +1311,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             final Lock lock = prevPage.pageLock.readLock();
             lock.lock();
             try {
-                if (prevPage.unloaded) {
-                    /* Unfortunately unloaded, set it as dirty */
-                    pageSet.setPageDirty(prevPageId, previous);
-                } else {
+                if (prevPage.writable) {
                     /* We can try to modify the page directly */
                     insertedInSamePage = prevPage.put(record);
+                } else {
+                    /* Unfortunately is not writable (anymore), set it as dirty */
+                    pageSet.setPageDirty(prevPageId, previous);
                 }
             } finally {
                 lock.unlock();
@@ -1273,12 +1340,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     pageReplacementPolicy.pageHit(newPage);
 
                     /* The temporary memory page could have been unloaded and loaded again in meantime */
-                    if (!newPage.readonly) {
+                    if (!newPage.immutable) {
                         /* Mutable page, need to check if still modifiable or already unloaded */
                         final Lock lock = newPage.pageLock.readLock();
                         lock.lock();
                         try {
-                            if (!newPage.unloaded) {
+                            if (newPage.writable) {
                                 /* We can try to modify the page directly */
                                 if (newPage.put(record)) {
                                     break;
@@ -1443,7 +1510,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }
 
-            if (prevPage == null || prevPage.readonly) {
+            if (prevPage == null || prevPage.immutable) {
                 /* Unloaded or immutable, set it as dirty */
                 pageSet.setPageDirty(prevPageId, previous);
             } else {
@@ -1451,12 +1518,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 final Lock lock = prevPage.pageLock.readLock();
                 lock.lock();
                 try {
-                    if (prevPage.unloaded) {
-                        /* Unfortunately unloaded, set it as dirty */
-                        pageSet.setPageDirty(prevPageId, previous);
-                    } else {
+                    if (prevPage.writable) {
                         /* We can try to modify the page directly */
                         insertedInSamePage = prevPage.put(record);
+                    } else {
+                        /* Unfortunately is not writable (anymore), set it as dirty */
+                        pageSet.setPageDirty(prevPageId, previous);
                     }
                 } finally {
                     lock.unlock();
@@ -1488,12 +1555,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     pageReplacementPolicy.pageHit(newPage);
 
                     /* The temporary memory page could have been unloaded and loaded again in meantime */
-                    if (!newPage.readonly) {
+                    if (!newPage.immutable) {
                         /* Mutable page, need to check if still modifiable or already unloaded */
                         final Lock lock = newPage.pageLock.readLock();
                         lock.lock();
                         try {
-                            if (!newPage.unloaded) {
+                            if (newPage.writable) {
                                 /* We can try to modify the page directly */
                                 if (newPage.put(record)) {
                                     break;
@@ -1631,9 +1698,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
         DataPage result = pages.get(pageId);
         if (result != null) {
-            if (result.unloaded) {
-                throw new IllegalStateException("found an unloaded page="+pageId+" from cache");
-            }
             pageReplacementPolicy.pageHit(result);
             return result;
         }
@@ -1976,8 +2040,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long flushedNewPages = 0;
             for (DataPage dataPage : newPages.values()) {
                 if (!dataPage.isEmpty()) {
-                    bufferPageSize -= flushNewPage(dataPage, buffer);
-                    dataPage.makeImmutable();
+                    bufferPageSize -= flushNewPageForCheckpoint(dataPage, buffer);
+//                    dataPage.makeImmutable();
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
                 }
@@ -2037,7 +2101,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
             /*
-             * Can happen when at checkpoint start all pages are set as dirty or immutable (readonly or
+             * Can happen when at checkpoint start all pages are set as dirty or immutable (immutable or
              * unloaded) due do a deletion: all pages will be removed and no page will remain alive.
              */
             if (newPages.isEmpty()) {

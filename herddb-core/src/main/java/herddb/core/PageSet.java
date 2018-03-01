@@ -130,7 +130,10 @@ public final class PageSet {
     }
 
     void pageCreated(Long pageId, DataPage page) {
-        activePages.putIfAbsent(pageId, new DataPageMetaData(page));
+        final DataPageMetaData old = activePages.put(pageId, new DataPageMetaData(page));
+        if (old != null) {
+            throw new IllegalStateException("Creating a new page already existing! Page " + pageId);
+        }
     }
 
     void checkpointDone(Collection<Long> pagesFlushed) {
