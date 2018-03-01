@@ -46,7 +46,12 @@ public class MapDataAccessor extends AbstractDataAccessor {
 
     @Override
     public void forEach(BiConsumer<String, Object> consumer) {
-        map.forEach(consumer);
+        for (String columnName : fieldNames) {
+            Object value = map.get(columnName);
+            if (value != null) {
+                consumer.accept(columnName, value);
+            }
+        }
     }
 
     @Override

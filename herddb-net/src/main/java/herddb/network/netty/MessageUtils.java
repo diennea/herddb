@@ -32,10 +32,12 @@ import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.utils.ByteBufUtils;
 import herddb.utils.DataAccessor;
+import herddb.utils.IntHolder;
+import herddb.utils.MapDataAccessor;
 import herddb.utils.RawString;
+import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
-import java.util.Arrays;
-import jdk.nashorn.internal.runtime.regexp.joni.encoding.IntHolder;
+import java.util.function.BiConsumer;
 
 /**
  *
@@ -69,28 +71,31 @@ public class MessageUtils {
     private static final byte OPCODE_DOUBLE_VALUE = 22;
     private static final byte OPCODE_MAP2_VALUE = 23;
     private static final byte OPCODE_MAP2_VALUE_END = 24;
+    private static final byte OPCODE_TUPLELIST_VALUE = 25;
 
     /**
-     * When writing int <b>greater than this</b> value are better written directly as int because in vint encoding will
-     * use at least 4 bytes
+     * When writing int <b>greater than this</b> value are better written
+     * directly as int because in vint encoding will use at least 4 bytes
      */
     private static final int WRITE_MAX_V_INT_LIMIT = -1 >>> 11;
 
     /**
-     * When writing negative int <b>smaller than this</b> value are better written directly as int because in zint
-     * encoding will use at least 8 bytes
+     * When writing negative int <b>smaller than this</b> value are better
+     * written directly as int because in zint encoding will use at least 8
+     * bytes
      */
     private static final int WRITE_MIN_Z_INT_LIMIT = -1 << 20;
 
     /**
-     * When writing long <b>greater than this</b> value are better written directly as long because in vint encoding
-     * will use at least 4 bytes
+     * When writing long <b>greater than this</b> value are better written
+     * directly as long because in vint encoding will use at least 4 bytes
      */
     private static final long WRITE_MAX_V_LONG_LIMIT = -1L >>> 15;
 
     /**
-     * When writing negative long <b>smaller than this</b> value are better written directly as long because in zlong
-     * encoding will use at least 8 bytes
+     * When writing negative long <b>smaller than this</b> value are better
+     * written directly as long because in zlong encoding will use at least 8
+     * bytes
      */
     private static final long WRITE_MIN_Z_LONG_LIMIT = -1L << 48;
 
@@ -172,26 +177,26 @@ public class MessageUtils {
     }
 
     @SuppressWarnings("rawtypes")
-    private static void writeEncodedSimpleValue(ByteBuf encoded, Object o) {
+    private static void writeEncodedSimpleValue(ByteBuf output, Object o) {
         if (o == null) {
-            encoded.writeByte(OPCODE_NULL_VALUE);
+            output.writeByte(OPCODE_NULL_VALUE);
         } else if (o instanceof String) {
-            encoded.writeByte(OPCODE_STRING_VALUE);
-            writeUTF8String(encoded, (String) o);
+            output.writeByte(OPCODE_STRING_VALUE);
+            writeUTF8String(output, (String) o);
         } else if (o instanceof RawString) {
-            encoded.writeByte(OPCODE_STRING_VALUE);
-            writeUTF8String(encoded, (RawString) o);
+            output.writeByte(OPCODE_STRING_VALUE);
+            writeUTF8String(output, (RawString) o);
         } else if (o instanceof java.sql.Timestamp) {
-            encoded.writeByte(OPCODE_TIMESTAMP_VALUE);
-            ByteBufUtils.writeVLong(encoded, ((java.sql.Timestamp) o).getTime());
+            output.writeByte(OPCODE_TIMESTAMP_VALUE);
+            ByteBufUtils.writeVLong(output, ((java.sql.Timestamp) o).getTime());
         } else if (o instanceof java.lang.Byte) {
-            encoded.writeByte(OPCODE_BYTE_VALUE);
-            encoded.writeByte(((Byte) o));
+            output.writeByte(OPCODE_BYTE_VALUE);
+            output.writeByte(((Byte) o));
         } else if (o instanceof KeyValue) {
             KeyValue kv = (KeyValue) o;
-            encoded.writeByte(OPCODE_KEYVALUE_VALUE);
-            ByteBufUtils.writeArray(encoded, kv.key);
-            ByteBufUtils.writeArray(encoded, kv.value);
+            output.writeByte(OPCODE_KEYVALUE_VALUE);
+            ByteBufUtils.writeArray(output, kv.key);
+            ByteBufUtils.writeArray(output, kv.value);
 
         } else if (o instanceof Integer) {
 
@@ -199,19 +204,19 @@ public class MessageUtils {
 
             if (i < 0) {
                 if (i < WRITE_MIN_Z_INT_LIMIT) {
-                    encoded.writeByte(OPCODE_INT_VALUE);
-                    encoded.writeInt(i);
+                    output.writeByte(OPCODE_INT_VALUE);
+                    output.writeInt(i);
                 } else {
-                    encoded.writeByte(OPCODE_Z_INT_VALUE);
-                    ByteBufUtils.writeZInt(encoded, i);
+                    output.writeByte(OPCODE_Z_INT_VALUE);
+                    ByteBufUtils.writeZInt(output, i);
                 }
             } else {
                 if (i > WRITE_MAX_V_INT_LIMIT) {
-                    encoded.writeByte(OPCODE_INT_VALUE);
-                    encoded.writeInt(i);
+                    output.writeByte(OPCODE_INT_VALUE);
+                    output.writeInt(i);
                 } else {
-                    encoded.writeByte(OPCODE_V_INT_VALUE);
-                    ByteBufUtils.writeVInt(encoded, i);
+                    output.writeByte(OPCODE_V_INT_VALUE);
+                    ByteBufUtils.writeVInt(output, i);
                 }
             }
 
@@ -221,63 +226,95 @@ public class MessageUtils {
 
             if (l < 0) {
                 if (l < WRITE_MIN_Z_LONG_LIMIT) {
-                    encoded.writeByte(OPCODE_LONG_VALUE);
-                    encoded.writeLong(l);
+                    output.writeByte(OPCODE_LONG_VALUE);
+                    output.writeLong(l);
                 } else {
-                    encoded.writeByte(OPCODE_Z_LONG_VALUE);
-                    ByteBufUtils.writeZLong(encoded, l);
+                    output.writeByte(OPCODE_Z_LONG_VALUE);
+                    ByteBufUtils.writeZLong(output, l);
                 }
             } else {
                 if (l > WRITE_MAX_V_LONG_LIMIT) {
-                    encoded.writeByte(OPCODE_LONG_VALUE);
-                    encoded.writeLong(l);
+                    output.writeByte(OPCODE_LONG_VALUE);
+                    output.writeLong(l);
                 } else {
-                    encoded.writeByte(OPCODE_V_LONG_VALUE);
-                    ByteBufUtils.writeVLong(encoded, l);
+                    output.writeByte(OPCODE_V_LONG_VALUE);
+                    ByteBufUtils.writeVLong(output, l);
                 }
             }
 
         } else if (o instanceof Boolean) {
-            encoded.writeByte(OPCODE_BOOLEAN_VALUE);
-            encoded.writeByte(((Boolean) o).booleanValue() ? 1 : 0);
+            output.writeByte(OPCODE_BOOLEAN_VALUE);
+            output.writeByte(((Boolean) o).booleanValue() ? 1 : 0);
         } else if (o instanceof Double) {
-            encoded.writeByte(OPCODE_DOUBLE_VALUE);
-            ByteBufUtils.writeDouble(encoded, ((Double) o).doubleValue());
+            output.writeByte(OPCODE_DOUBLE_VALUE);
+            ByteBufUtils.writeDouble(output, ((Double) o).doubleValue());
         } else if (o instanceof Set) {
             Set set = (Set) o;
-            encoded.writeByte(OPCODE_SET_VALUE);
-            ByteBufUtils.writeVInt(encoded, set.size());
+            output.writeByte(OPCODE_SET_VALUE);
+            ByteBufUtils.writeVInt(output, set.size());
             for (Object o2 : set) {
-                writeEncodedSimpleValue(encoded, o2);
+                writeEncodedSimpleValue(output, o2);
             }
         } else if (o instanceof List) {
             List set = (List) o;
-            encoded.writeByte(OPCODE_LIST_VALUE);
-            ByteBufUtils.writeVInt(encoded, set.size());
+            output.writeByte(OPCODE_LIST_VALUE);
+            ByteBufUtils.writeVInt(output, set.size());
             for (Object o2 : set) {
-                writeEncodedSimpleValue(encoded, o2);
+                writeEncodedSimpleValue(output, o2);
             }
         } else if (o instanceof Map) {
             Map set = (Map) o;
-            encoded.writeByte(OPCODE_MAP_VALUE);
-            ByteBufUtils.writeVInt(encoded, set.size());
+            output.writeByte(OPCODE_MAP_VALUE);
+            ByteBufUtils.writeVInt(output, set.size());
             for (Map.Entry entry : (Iterable<Map.Entry>) set.entrySet()) {
-                writeEncodedSimpleValue(encoded, entry.getKey());
-                writeEncodedSimpleValue(encoded, entry.getValue());
+                writeEncodedSimpleValue(output, entry.getKey());
+                writeEncodedSimpleValue(output, entry.getValue());
             }
         } else if (o instanceof DataAccessor) {
             DataAccessor set = (DataAccessor) o;
-            encoded.writeByte(OPCODE_MAP2_VALUE);
+            output.writeByte(OPCODE_MAP2_VALUE);
             // number of entries is not known
             set.forEach((key, value) -> {
-                writeEncodedSimpleValue(encoded, key);
-                writeEncodedSimpleValue(encoded, value);
+                writeEncodedSimpleValue(output, key);
+                writeEncodedSimpleValue(output, value);
             });
-            encoded.writeByte(OPCODE_MAP2_VALUE_END);
+            output.writeByte(OPCODE_MAP2_VALUE_END);
+        } else if (o instanceof TuplesList) {
+            TuplesList set = (TuplesList) o;
+            output.writeByte(OPCODE_TUPLELIST_VALUE);
+            final int numColumns = set.columnNames.length;
+            ByteBufUtils.writeVInt(output, numColumns);
+            for (String columnName : set.columnNames) {
+                writeUTF8String(output, columnName);
+            }
+            ByteBufUtils.writeVInt(output, set.tuples.size());
+            for (DataAccessor da : set.tuples) {
+                IntHolder currentColumn = new IntHolder();
+                da.forEach((String key, Object value) -> {
+                    String expectedColumnName = set.columnNames[currentColumn.value];
+                    while (!key.equals(expectedColumnName)) {
+                        // nulls are not returned for some special accessors, lie DataAccessorForFullRecord
+                        writeEncodedSimpleValue(output, null);
+                        currentColumn.value++;
+                        expectedColumnName = set.columnNames[currentColumn.value];
+                    }
+                    writeEncodedSimpleValue(output, value);
+                    currentColumn.value++;
+                });
+
+                // fill with nulls
+                while (currentColumn.value < numColumns) {
+                    writeEncodedSimpleValue(output, null);
+                    currentColumn.value++;
+                }
+                if (currentColumn.value > numColumns) {
+                    throw new RuntimeException("unexpected number of columns " + currentColumn.value + " > " + numColumns);
+                }
+            }
         } else if (o instanceof byte[]) {
             byte[] set = (byte[]) o;
-            encoded.writeByte(OPCODE_BYTEARRAY_VALUE);
-            ByteBufUtils.writeArray(encoded, set);
+            output.writeByte(OPCODE_BYTEARRAY_VALUE);
+            ByteBufUtils.writeArray(output, set);
         } else {
             throw new RuntimeException("unsupported class " + o.getClass());
         }
@@ -321,6 +358,24 @@ public class MessageUtils {
                     ret.put(mapkey, value);
                 }
                 return ret;
+            }
+            case OPCODE_TUPLELIST_VALUE: {
+                int numColumns = ByteBufUtils.readVInt(encoded);
+                String[] columns = new String[numColumns];
+                for (int i = 0; i < numColumns; i++) {
+                    columns[i] = readUTF8String(encoded);
+                }
+                int numRecords = ByteBufUtils.readVInt(encoded);
+                List<DataAccessor> records = new ArrayList<>(numRecords);
+                for (int i = 0; i < numRecords; i++) {
+                    Map<String, Object> map = new HashMap<>();
+                    for (int j = 0; j < numColumns; j++) {
+                        Object value = readEncodedSimpleValue(encoded);
+                        map.put(columns[j], value);
+                    }
+                    records.add(new MapDataAccessor(map, columns));
+                }
+                return new TuplesList(columns, records);
             }
             case OPCODE_MAP2_VALUE: {
                 Map<Object, Object> ret = new HashMap<>();

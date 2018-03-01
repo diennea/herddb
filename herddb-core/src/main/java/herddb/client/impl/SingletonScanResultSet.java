@@ -40,9 +40,11 @@ public class SingletonScanResultSet extends ScanResultSet {
         this.key = key;
     }
 
+    private static final String[] HEADER = {"key"};
+
     @Override
     public ScanResultSetMetadata getMetadata() {
-        return new ScanResultSetMetadata(Collections.singletonList("key"));
+        return new ScanResultSetMetadata(HEADER);
     }
 
     @Override

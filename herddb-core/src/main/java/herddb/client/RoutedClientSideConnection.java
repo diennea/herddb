@@ -50,6 +50,8 @@ import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
+import herddb.utils.TuplesList;
 
 /**
  * A real connection to a server
@@ -82,9 +84,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private void performAuthentication(Channel _channel, String serverHostname) throws Exception {
 
         SaslNettyClient saslNettyClient = new SaslNettyClient(
-            connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
-            connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT),
-            serverHostname
+                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_USERNAME, ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT),
+                connection.getClient().getConfiguration().getString(ClientConfiguration.PROPERTY_CLIENT_PASSWORD, ClientConfiguration.PROPERTY_CLIENT_PASSWORD_DEFAULT),
+                serverHostname
         );
 
         byte[] firstToken = new byte[0];
@@ -147,16 +149,16 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             long dumpOffset = (Long) values.get("dumpOffset");
                             List<byte[]> indexesDef = (List<byte[]>) values.get("indexes");
                             List<Index> indexes = indexesDef
-                                .stream()
-                                .map(Index::deserialize)
-                                .collect(Collectors.toList());
+                                    .stream()
+                                    .map(Index::deserialize)
+                                    .collect(Collectors.toList());
                             Map<String, Object> stats = new HashMap<>();
                             stats.put("estimatedSize", estimatedSize);
                             stats.put("dumpLedgerId", dumpLedgerId);
                             stats.put("dumpOffset", dumpOffset);
                             receiver.beginTable(new DumpedTableMetadata(table,
-                                new LogSequenceNumber(dumpLedgerId, dumpOffset), indexes),
-                                stats);
+                                    new LogSequenceNumber(dumpLedgerId, dumpOffset), indexes),
+                                    stats);
                             break;
                         }
                         case "endTable": {
@@ -366,7 +368,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "BEGIN TRANSACTION '" + tableSpace + "'",
-                0, false, null);
+                    0, false, null);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -387,7 +389,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "COMMIT TRANSACTION '" + tableSpace + "'," + tx,
-                0, false, null);
+                    0, false, null);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -406,7 +408,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "ROLLBACK TRANSACTION '" + tableSpace + "'," + tx,
-                0, false, null);
+                    0, false, null);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -438,8 +440,9 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 throw new HDBException(reply);
             }
-            List<Map<String, Object>> initialFetchBuffer = (List<Map<String, Object>>) reply.parameters.get("records");
-            List<String> columnNames = (List<String>) reply.parameters.get("columns");
+            TuplesList data = (TuplesList) reply.parameters.get("data");
+            List<DataAccessor> initialFetchBuffer = data.tuples;
+            String[] columnNames = data.columnNames;
             boolean last = (Boolean) reply.parameters.get("last");
             long transactionId = (Long) reply.parameters.get("tx");
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
@@ -490,7 +493,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         DumpedTableMetadata table = source.nextTable();
                         Channel _channel = ensureOpen();
                         Message message_create_table = Message.REQUEST_TABLE_RESTORE(clientId, tableSpace,
-                            table.table.serialize(), table.logSequenceNumber.ledgerId, table.logSequenceNumber.offset);
+                                table.table.serialize(), table.logSequenceNumber.ledgerId, table.logSequenceNumber.offset);
                         Message reply_create_table = _channel.sendMessageWithReply(message_create_table, timeout);
                         if (reply_create_table.type == Message.TYPE_ERROR) {
                             throw new HDBException(reply_create_table);
@@ -537,7 +540,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             List<byte[]> indexes = table.indexes.stream().map(Index::serialize).collect(Collectors.toList());
 
                             Message message_table_finished = Message.TABLE_RESTORE_FINISHED(clientId, tableSpace,
-                                table.table.name, indexes);
+                                    table.table.name, indexes);
                             Message reply_table_finished = _channel.sendMessageWithReply(message_table_finished, timeout);
                             if (reply_table_finished.type == Message.TYPE_ERROR) {
                                 throw new HDBException(reply_table_finished);
@@ -567,7 +570,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         private final String scannerId;
         private final ScanResultSetMetadata metadata;
 
-        private ScanResultSetImpl(String scannerId, List<String> columns, List<Map<String, Object>> fetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
+        private ScanResultSetImpl(String scannerId, String[] columns, List<DataAccessor> fetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
             super(tx);
             this.scannerId = scannerId;
             this.metadata = new ScanResultSetMetadata(columns);
@@ -589,7 +592,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             return metadata;
         }
 
-        final List<Map<String, Object>> fetchBuffer = new ArrayList<>();
+        final List<DataAccessor> fetchBuffer = new ArrayList<>();
         Map<String, Object> next;
         boolean finished;
         boolean noMoreData;
@@ -629,7 +632,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     finished = true;
                     throw new HDBException("protocol error: " + result);
                 }
-                List<Map<String, Object>> records = (List<Map<String, Object>>) result.parameters.get("records");
+                TuplesList data = (TuplesList) result.parameters.get("data");
+                List<DataAccessor> records = data.tuples;
                 lastChunk = (Boolean) result.parameters.get("last");
                 if (records.isEmpty()) {
                     noMoreData = true;
@@ -652,7 +656,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     return false;
                 }
             }
-            next = fetchBuffer.get(bufferPosition++);
+            next = fetchBuffer.get(bufferPosition++).toMap();
             return true;
         }
 

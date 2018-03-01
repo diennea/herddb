@@ -91,9 +91,9 @@ public class HerdDBResultSet implements ResultSet {
 
     private String resolveColumnNameByIndex(int columnIndex) throws SQLException {
         try {
-            return metadata.getColumnNames().get(columnIndex - 1);
-        } catch (IndexOutOfBoundsException err) {
-            throw new SQLException("invalid index " + columnIndex + ", min value is 1, max value is " + metadata.getColumnNames().size());
+            return metadata.getColumnNames()[columnIndex - 1];
+        } catch (ArrayIndexOutOfBoundsException err) {
+            throw new SQLException("invalid index " + columnIndex + ", min value is 1, max value is " + metadata.getColumnNames().length);
         }
     }
 
@@ -367,7 +367,7 @@ public class HerdDBResultSet implements ResultSet {
         return new ResultSetMetaData() {
             @Override
             public int getColumnCount() throws SQLException {
-                return metadata.getColumnNames().size();
+                return metadata.getColumnNames().length;
             }
 
             @Override
@@ -407,12 +407,20 @@ public class HerdDBResultSet implements ResultSet {
 
             @Override
             public String getColumnLabel(int column) throws SQLException {
-                return metadata.getColumnNames().get(column - 1);
+                try {
+                    return metadata.getColumnNames()[column - 1];
+                } catch (final ArrayIndexOutOfBoundsException err) {
+                    throw new SQLException("not such index " + column, err);
+                }
             }
 
             @Override
             public String getColumnName(int column) throws SQLException {
-                return metadata.getColumnNames().get(column - 1);
+                try {
+                    return metadata.getColumnNames()[column - 1];
+                } catch (final ArrayIndexOutOfBoundsException err) {
+                    throw new SQLException("not such index " + column, err);
+                }
             }
 
             @Override

@@ -71,6 +71,7 @@ import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.TuplesList;
 
 /**
  * Handles a client Connection
@@ -396,17 +397,16 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 DataScanner dataScanner = scanResult.dataScanner;
 
                 ServerSideScannerPeer scanner = new ServerSideScannerPeer(dataScanner);
-                List<String> columns = new ArrayList<>();
-                for (Column c : dataScanner.getSchema()) {
-                    columns.add(c.name);
-                }
+
+                String[] columns = dataScanner.getFieldNames();
                 List<DataAccessor> records = dataScanner.consume(fetchSize);
+                TuplesList tuplesList = new TuplesList(columns, records);
                 boolean last = dataScanner.isFinished();
                 LOGGER.log(Level.FINEST, "sending first {0} records to scanner {1} query {2}", new Object[]{records.size(), scannerId, query});
                 if (!last) {
                     scanners.put(scannerId, scanner);
                 }
-                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, records, last, dataScanner.transactionId));
+                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, tuplesList, last, dataScanner.transactionId));
             } else {
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
             }
@@ -430,19 +430,17 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             try {
                 DataScanner dataScanner = scanner.getScanner();
                 List<DataAccessor> records = dataScanner.consume(fetchSize);
-                List<String> columns = new ArrayList<>();
-                for (Column c : dataScanner.getSchema()) {
-                    columns.add(c.name);
-                }
+                String[] columns = dataScanner.getFieldNames();
+                TuplesList tuplesList = new TuplesList(columns, records);
 
                 boolean last = false;
                 if (dataScanner.isFinished()) {
-                    LOGGER.log(Level.FINEST, "unregistering scanner " + scannerId + ", resultset is finished");
+                    LOGGER.log(Level.FINEST, "unregistering scanner {0}, resultset is finished", scannerId);
                     scanners.remove(scannerId);
                     last = true;
                 }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
-                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, columns, records, last, dataScanner.transactionId));
+                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(null, scannerId, tuplesList, last, dataScanner.transactionId));
             } catch (DataScannerException error) {
                 _channel.sendReplyMessage(message, Message.ERROR(null, error).setParameter("scannerId", scannerId));
             }
@@ -565,8 +563,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             if (result instanceof DMLStatementExecutionResult) {
                 DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
                 Map<String, Object> otherData = null;
+
                 if (returnValues && dml.getKey() != null) {
-                    TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class);
+                    TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class
+                    );
                     Table table = server
                             .getManager()
                             .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();

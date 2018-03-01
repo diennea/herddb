@@ -20,6 +20,7 @@
 package herddb.network;
 
 import herddb.utils.DataAccessor;
+import herddb.utils.TuplesList;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.HashMap;
@@ -60,8 +61,8 @@ public final class Message {
     }
 
     public static Message EXECUTE_STATEMENT(String clientId, String tableSpace, String query, long tx,
-        boolean returnValues,
-        List<Object> params) {
+            boolean returnValues,
+            List<Object> params) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
@@ -80,7 +81,7 @@ public final class Message {
     }
 
     public static Message EXECUTE_STATEMENTS(String clientId, String tableSpace, String query,
-        long tx, boolean returnValues, List<List<Object>> params) {
+            long tx, boolean returnValues, List<List<Object>> params) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
@@ -113,7 +114,7 @@ public final class Message {
     }
 
     public static Message REQUEST_TABLESPACE_DUMP(String clientId, String tableSpace, String dumpId, int fetchSize,
-        boolean includeTransactionLog) {
+            boolean includeTransactionLog) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
@@ -133,13 +134,12 @@ public final class Message {
         return new Message(clientId, TYPE_TABLESPACE_DUMP_DATA, data);
     }
 
-    public static Message RESULTSET_CHUNK(String clientId, String scannerId, List<String> columns, List<DataAccessor> records, boolean last, long tx) {
+    public static Message RESULTSET_CHUNK(String clientId, String scannerId, TuplesList tuplesList, boolean last, long tx) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
-        data.put("columns", columns);
+        data.put("data", tuplesList);
         data.put("scannerId", scannerId);
-        data.put("records", records);
         data.put("last", last);
         data.put("tx", tx);
         return new Message(clientId, TYPE_RESULTSET_CHUNK, data);
@@ -210,7 +210,7 @@ public final class Message {
     }
 
     public static Message REQUEST_TABLE_RESTORE(String clientId, String tableSpace, byte[] table,
-        long dumpLedgerId, long dumpOffset) {
+            long dumpLedgerId, long dumpOffset) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
@@ -222,7 +222,7 @@ public final class Message {
     }
 
     public static Message TABLE_RESTORE_FINISHED(String clientId, String tableSpace, String table,
-        List<byte[]> indexes) {
+            List<byte[]> indexes) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
