@@ -26,6 +26,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import herddb.model.Record;
 import herddb.utils.Bytes;
+import java.util.Collections;
 
 /**
  * A page of data loaded in memory
@@ -46,29 +47,32 @@ public class DataPage extends Page<TableManager> {
     public static final long CONSTANT_ENTRY_BYTE_SIZE = 32;
 
     public static final long estimateEntrySize(Bytes key, byte[] value) {
-        return Record.estimateSize(key,value) + DataPage.CONSTANT_ENTRY_BYTE_SIZE;
+        return Record.estimateSize(key, value) + DataPage.CONSTANT_ENTRY_BYTE_SIZE;
     }
 
     public static final long estimateEntrySize(Record record) {
         return record.getEstimatedSize() + DataPage.CONSTANT_ENTRY_BYTE_SIZE;
     }
 
-
     public final long maxSize;
-    public final boolean readonly;
+    public boolean readonly;
 
-    public final Map<Bytes, Record> data;
+    public Map<Bytes, Record> data;
 
     public final AtomicLong usedMemory;
 
-    /** Access lock, exists only for mutable pages ({@code readonly == false}) */
+    /**
+     * Access lock, exists only for mutable pages ({@code readonly == false})
+     */
     public final ReadWriteLock pageLock;
 
-    /** Unloaded flag, to be accessed only under {@link #pageLock} */
+    /**
+     * Unloaded flag, to be accessed only under {@link #pageLock}
+     */
     public boolean unloaded = false;
 
     public DataPage(TableManager owner, long pageId, long maxSize, long estimatedSize, Map<Bytes, Record> data, boolean readonly) {
-        super(owner,pageId);
+        super(owner, pageId);
         this.maxSize = maxSize;
         this.readonly = readonly;
         this.data = data;
@@ -108,15 +112,14 @@ public class DataPage extends Page<TableManager> {
                     "record too big to fit in any page " + newSize + " / " + maxSize + " bytes");
         }
 
-        final long diff = prev == null ?
-                newSize : newSize - estimateEntrySize(prev);
+        final long diff = prev == null
+                ? newSize : newSize - estimateEntrySize(prev);
 
         final long target = maxSize - diff;
 
+        final long old = usedMemory.getAndAccumulate(diff, (curr, change) -> curr > target ? curr : curr + diff);
 
-        final long old = usedMemory.getAndAccumulate(diff, (curr,change) -> curr > target ? curr : curr + diff);
-
-        if( old > target ) {
+        if (old > target) {
             /* Remove the added key */
             data.remove(record.key);
 
@@ -170,6 +173,23 @@ public class DataPage extends Page<TableManager> {
         }
         DataPage other = (DataPage) obj;
         return pageId == other.pageId;
+    }
+
+    void makeImmutable() {
+        pageLock.writeLock().lock();
+        try {
+            if (!unloaded) {
+                throw new IllegalStateException("cannot convert to immutable if loaded=false, pageid " + pageId);
+            }
+            if (readonly) {
+                throw new IllegalStateException("cannot convert to immutable if readonly=true, pageid " + pageId);
+            }
+            this.readonly = true;
+            this.unloaded = false;
+            this.data = Collections.unmodifiableMap(data);
+        } finally {
+            pageLock.writeLock().unlock();
+        }
     }
 
 }

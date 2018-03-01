@@ -206,7 +206,7 @@ public class FileDataStorageManager extends DataStorageManager {
         } catch (NoSuchFileException nsfe) {
             throw new DataPageDoesNotExistException("No such page: " + tableSpace + "_" + tableName + "." + pageId, nsfe);
         } catch (IOException err) {
-            throw new DataStorageManagerException(err);
+            throw new DataStorageManagerException("error reading data page: " + tableSpace + "_" + tableName + "." + pageId, err);
         }
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;

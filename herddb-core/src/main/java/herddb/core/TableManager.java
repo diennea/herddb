@@ -102,6 +102,7 @@ import herddb.utils.Holder;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import java.util.concurrent.locks.StampedLock;
@@ -542,7 +543,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         final Long pageId = nextPageId++;
         final DataPage dataPage = buildImmutableDataPage(pageId, newPage, newPageSize);
 
-        LOGGER.log(Level.FINER, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+        LOGGER.log(Level.INFO, "createNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
             new Object[]{table.name, pageId, newPage.size(), newPageSize});
         dataStorageManager.writePage(tableSpaceUUID, table.uuid, pageId, newPage.values());
         pageSet.pageCreated(pageId, dataPage);
@@ -650,7 +651,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void unload(long pageId) {
-        pages.computeIfPresent(pageId, (k, remove) -> {
+        LOGGER.log(Level.SEVERE,"unload page="+pageId);
+        DataPage remove = pages.remove(pageId);
+        if (remove != null) {
             unloadedPagesCount.increment();
             LOGGER.log(Level.FINER, "table {0} removed page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             if (!remove.readonly) {
@@ -660,9 +663,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     new Object[]{table.name, remove.pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
             } else {
                 LOGGER.log(Level.FINER, "table {0} unload page {1}, {2}", new Object[]{table.name, pageId, remove.getUsedMemory() / (1024 * 1024) + " MB"});
-            }
-            return null;
-        });
+            }            
+        }
     }
 
     /**
@@ -677,12 +679,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * @return spare memory size used (and removed)
      */
     private long flushNewPage(DataPage page, Map<Bytes, Record> spareData) {
-
+        LOGGER.log(Level.SEVERE, "flushNewPage page="+page.pageId+", "+page.unloaded, new Exception("flushNewPage "+page.pageId+", "+page.unloaded+" pages "+pages.keySet()).fillInStackTrace());
+        
+        /* Remove it from "new" pages */
+        DataPage remove = newPages.remove(page.pageId);
+        if (remove == null) {
+            LOGGER.log(Level.SEVERE, "detected concurrent flush of page "+page.pageId+", unloaded: "+page.unloaded);
+            throw new IllegalStateException("page "+page.pageId+" is not a new page !");
+        }
+        
         /* Set the new page as a fully active page */
         pageSet.pageCreated(page.pageId, page);
-
-        /* Remove it from "new" pages */
-        newPages.remove(page.pageId);
 
         /*
          * We need to keep the page lock just to write the unloaded flag... after that write any other
@@ -692,7 +699,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         lock.lock();
         try {
             if (page.unloaded) {
-                throw new IllegalStateException("cannot flush an unloaded page");
+                throw new IllegalStateException("cannot flush an unloaded page, id "+page.pageId);
             }
             page.unloaded = true;
         } finally {
@@ -714,9 +721,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         long spareUsedMemory = page.getUsedMemory() - usedMemory;
-
+        LOGGER.log(Level.INFO, "flushNewPage table {0}, pageId={1} with {2} records, {3} logical page size",
+            new Object[]{table.name, page.pageId, page.size(), page.getUsedMemory()});
         dataStorageManager.writePage(tableSpaceUUID, table.uuid, page.pageId, page.data.values());
-
+        
         return spareUsedMemory;
     }
 
@@ -1616,10 +1624,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private DataPage loadPageToMemory(Long pageId, boolean recovery) throws DataStorageManagerException {
+        LOGGER.log(Level.SEVERE,"loadPageToMemory page="+pageId);
         DataPage result = pages.get(pageId);
         if (result != null) {
+            if (result.unloaded) {
+                throw new IllegalStateException("found an unloaded page="+pageId+" from cache");
+            }
+            LOGGER.log(Level.SEVERE,"loadPageToMemory page="+pageId+" cache hit readonly="+result.readonly+", "+result.unloaded+" "+Thread.currentThread().getName());
             pageReplacementPolicy.pageHit(result);
             return result;
+        } else {
+            LOGGER.log(Level.SEVERE,"loadPageToMemory page="+pageId+" cache miss "+Thread.currentThread().getName());
         }
 
         long _start = System.currentTimeMillis();
@@ -1960,7 +1975,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             long flushedNewPages = 0;
             for (DataPage dataPage : newPages.values()) {
                 if (!dataPage.isEmpty()) {
-                    bufferPageSize -= flushNewPage(dataPage, buffer);
+                    bufferPageSize -= flushNewPage(dataPage, buffer);                                        
+                    dataPage.makeImmutable();                    
                     ++flushedNewPages;
                     flushedRecords += dataPage.size();
                 }
@@ -2558,7 +2574,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private Record fetchRecord(Bytes key, Long pageId, LocalScanPageCache localScanPageCache) throws StatementExecutionException, DataStorageManagerException {
-        int maxTrials = 2;
+        int maxTrials = 1000;
         while (true) {
 
             DataPage dataPage = fetchDataPage(pageId, localScanPageCache);

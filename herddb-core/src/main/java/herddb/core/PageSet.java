@@ -130,7 +130,7 @@ public final class PageSet {
     }
 
     void pageCreated(Long pageId, DataPage page) {
-        activePages.put(pageId, new DataPageMetaData(page));
+        activePages.putIfAbsent(pageId, new DataPageMetaData(page));
     }
 
     void checkpointDone(Collection<Long> pagesFlushed) {
