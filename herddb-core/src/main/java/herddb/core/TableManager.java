@@ -727,7 +727,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new IllegalStateException("page " + page.pageId + " is not a new page!");
         }
 
-        page.pageLock.readLock();
+        page.pageLock.readLock().lock();
         try {
 
             if (!page.writable) {
@@ -735,7 +735,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             }
 
         } finally {
-            page.pageLock.readLock();
+            page.pageLock.readLock().unlock();
         }
 
         /*

@@ -45,25 +45,21 @@ public abstract class AbstractDataAccessor implements DataAccessor {
         }
         return false;
     }
-//    
-//    public String toString(){
-//        return this.getClass().getSimpleName();
-//    }
-//
-//    private int _hashcode = Integer.MIN_VALUE;
-//
-//    @Override
-//    public int hashCode() {
-//        if (_hashcode == Integer.MIN_VALUE) {
-//            int size = this.getNumFields();
-//            int res = 0;
-//            // leverage zero-copy and to not create temporary arrays
-//            for (int i = 0; i < size; i++) {
-//                res += Objects.hashCode(get(i));
-//            }
-//            _hashcode = res;
-//        }
-//        return _hashcode;
-//    }
+  
+    private int _hashcode = Integer.MIN_VALUE;
+
+    @Override
+    public int hashCode() {
+        if (_hashcode == Integer.MIN_VALUE) {
+            int size = this.getNumFields();
+            int res = 0;
+            // leverage zero-copy and to not create temporary arrays
+            for (int i = 0; i < size; i++) {
+                res += Objects.hashCode(get(i));
+            }
+            _hashcode = res;
+        }
+        return _hashcode;
+    }
 
 }

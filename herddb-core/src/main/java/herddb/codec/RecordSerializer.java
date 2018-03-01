@@ -20,6 +20,7 @@
 package herddb.codec;
 
 import com.google.common.collect.ImmutableMap;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.Column;
 import herddb.model.ColumnTypes;
 import herddb.model.Record;
@@ -538,6 +539,7 @@ public final class RecordSerializer {
         return deserialize(data, table.getColumn(primaryKeyColumn).type);
     }
 
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
     public static Map<String, Object> toBean(Record record, Table table) {
         try {
             ImmutableMap.Builder<String, Object> res = new ImmutableMap.Builder<>();
@@ -584,6 +586,7 @@ public final class RecordSerializer {
         }
     }
 
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, ImmutableMap.Builder<String, Object> res) {
         try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
             ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {

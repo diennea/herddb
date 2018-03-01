@@ -57,7 +57,15 @@ public class TuplesList {
 
     @Override
     public String toString() {
-        return "TuplesList{" + "columnNames=" + columnNames + ", tuples=" + tuples + '}';
+        return "TuplesList{" + "columnNames=" + Arrays.toString(columnNames) + ", tuples=" + tuples + '}';
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 73 * hash + Arrays.deepHashCode(this.columnNames);
+        hash = 73 * hash + Objects.hashCode(this.tuples);
+        return hash;
     }
 
 }

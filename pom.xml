@@ -80,7 +80,7 @@
         <libs.spotbugs>3.1.0</libs.spotbugs> 
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations> 
         <libs.spotbugsannotations>3.1.0</libs.spotbugsannotations>
-        <libs.spotbugsmaven>3.1.0-RC6</libs.spotbugsmaven>   
+        <libs.spotbugsmaven>3.1.2</libs.spotbugsmaven>   
     </properties>
         
     <dependencies>

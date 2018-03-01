@@ -19,13 +19,14 @@
  */
 package herddb.client;
 
-import java.util.List;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 /**
  * Metadta about a ResultSet
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP", "EI_EXPOSE_REP2"})
 public class ScanResultSetMetadata {
 
     private String[] columnNames;
