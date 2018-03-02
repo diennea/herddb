@@ -344,7 +344,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public void waitForTableSpaceBoot(String tableSpace, boolean leader) throws Exception {
-        waitForTableSpaceBoot(tableSpace, 30000, leader);
+        waitForTableSpaceBoot(tableSpace, 180000, leader);
     }
 
     public void waitForTableSpaceBoot(String tableSpace, int timeout, boolean leader) throws Exception {
