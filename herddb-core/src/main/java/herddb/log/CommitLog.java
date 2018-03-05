@@ -19,8 +19,6 @@
  */
 package herddb.log;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-import java.util.concurrent.Future;
 import java.util.function.BiConsumer;
 
 /**
