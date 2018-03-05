@@ -220,7 +220,7 @@ public class TableSpaceManager {
     void recover(TableSpace tableSpaceInfo) throws DataStorageManagerException, LogNotAvailableException, MetadataStorageManagerException {
         LogSequenceNumber logSequenceNumber = dataStorageManager.getLastcheckpointSequenceNumber(tableSpaceUUID);
         actualLogSequenceNumber = logSequenceNumber;
-        LOGGER.log(Level.SEVERE, nodeId + " recover " + tableSpaceName + ", logSequenceNumber from DataStorage: " + logSequenceNumber);
+        LOGGER.log(Level.INFO, "{0} recover {1}, logSequenceNumber from DataStorage: {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
         List<Table> tablesAtBoot = dataStorageManager.loadTables(logSequenceNumber, tableSpaceUUID);
         List<Index> indexesAtBoot = dataStorageManager.loadIndexes(logSequenceNumber, tableSpaceUUID);
         String tableNames = tablesAtBoot.stream().map(t -> {
@@ -231,7 +231,7 @@ public class TableSpaceManager {
             return t.name + " on table " + t.table;
         }).collect(Collectors.joining(","));
 
-        LOGGER.log(Level.SEVERE, nodeId + " " + tableSpaceName + " tablesAtBoot " + tableNames + ", indexesAtBoot " + indexNames);
+        LOGGER.log(Level.INFO, "{0} {1} tablesAtBoot {2}, indexesAtBoot {3}", new Object[]{nodeId, tableSpaceName, tableNames, indexNames});
 
         for (Table table : tablesAtBoot) {
             TableManager tableManager = bootTable(table, 0, null);
@@ -243,6 +243,7 @@ public class TableSpaceManager {
         }
         dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
+            LOGGER.log(Level.INFO, "{0} {1} tx {2} at boot", new Object[]{nodeId, tableSpaceName, t.transactionId});
             try {
                 if (t.newTables != null) {
                     for (Table table : t.newTables.values()) {
@@ -264,9 +265,7 @@ public class TableSpaceManager {
                 throw new RuntimeException(err);
             }
         });
-
-        LOGGER.log(Level.SEVERE, nodeId + " recovering tablespace " + tableSpaceName + " log from sequence number " + logSequenceNumber);
-
+        
         try {
             log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
         } catch (FullRecoveryNeededException fullRecoveryNeeded) {
@@ -280,7 +279,7 @@ public class TableSpaceManager {
 
     void recoverForLeadership() throws DataStorageManagerException, LogNotAvailableException {
         actualLogSequenceNumber = log.getLastSequenceNumber();
-        LOGGER.log(Level.SEVERE, "recovering tablespace " + tableSpaceName + " log from sequence number " + actualLogSequenceNumber + ", with fencing");
+        LOGGER.log(Level.INFO, "recovering tablespace " + tableSpaceName + " log from sequence number " + actualLogSequenceNumber + ", with fencing");
         log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), true);
     }
 
