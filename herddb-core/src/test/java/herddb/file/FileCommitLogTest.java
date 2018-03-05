@@ -19,6 +19,7 @@
  */
 package herddb.file;
 
+import static herddb.file.FileCommitLog.ENTRY_START;
 import static org.junit.Assert.assertEquals;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,6 +33,7 @@ import herddb.log.CommitLog;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
 import herddb.log.LogSequenceNumber;
+import java.nio.ByteBuffer;
 
 /**
  * Basic Tests on FileCommitLog
@@ -50,7 +52,7 @@ public class FileCommitLogTest {
         final long _startWrite = System.currentTimeMillis();
         try (CommitLog log = manager.createCommitLog("tt");) {
             log.startWriting();
-            for (int i = 0; i < 1_000_000; i++) {
+            for (int i = 0; i < 10_000; i++) {
                 log.log(LogEntryFactory.beginTransaction(0), false);
                 writeCount++;
             }
@@ -69,6 +71,58 @@ public class FileCommitLogTest {
         assertEquals(writeCount, readCount.get());
         System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
         System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+    }
+
+    @Test
+    public void testDiskFullLog() throws Exception {
+        FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);
+        int writeCount = 0;
+        final long _startWrite = System.currentTimeMillis();
+        try (CommitLog log = manager.createCommitLog("tt");) {
+            log.startWriting();
+            for (int i = 0; i < 100; i++) {
+                log.log(LogEntryFactory.beginTransaction(0), false);
+                writeCount++;
+            }
+            FileCommitLog fileCommitLog = (FileCommitLog) log;
+
+            // simulate end of disk
+            byte[] dummyEntry = LogEntryFactory.beginTransaction(0).serialize();
+            // header
+            fileCommitLog.getWriter().out.write(ENTRY_START);
+            fileCommitLog.getWriter().out.writeLong(0);
+            // entry
+            fileCommitLog.getWriter().out.write(dummyEntry);
+            // missing entry footer
+            fileCommitLog.getWriter().out.flush();
+
+        }
+        final long _endWrite = System.currentTimeMillis();
+        AtomicInteger readCount = new AtomicInteger();
+        try (CommitLog log = manager.createCommitLog("tt");) {
+            log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                @Override
+                public void accept(LogSequenceNumber t, LogEntry u) {
+                    readCount.incrementAndGet();
+                }
+            }, true);
+        }
+        final long _endRead = System.currentTimeMillis();
+        assertEquals(writeCount, readCount.get());
+        System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+        System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
+
+        // must be able to read twice
+        AtomicInteger readCount2 = new AtomicInteger();
+        try (CommitLog log = manager.createCommitLog("tt");) {
+            log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                @Override
+                public void accept(LogSequenceNumber t, LogEntry u) {
+                    readCount2.incrementAndGet();
+                }
+            }, true);
+        }
+        assertEquals(writeCount, readCount.get());
     }
 
     @Test
@@ -107,7 +161,7 @@ public class FileCommitLogTest {
         final long _startWrite = System.currentTimeMillis();
         try (FileCommitLog log = manager.createCommitLog("tt");) {
             log.startWriting();
-            for (int i = 0; i < 1_000_000; i++) {
+            for (int i = 0; i < 10_000; i++) {
                 log.log(LogEntryFactory.beginTransaction(0), false);
                 writeCount++;
             }

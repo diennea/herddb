@@ -73,22 +73,22 @@ public class FileCommitLog extends CommitLog {
     private Thread spool;
 
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
-        FileCommitLog.class.getName() + ".writequeuesize", 100000);
+            FileCommitLog.class.getName() + ".writequeuesize", 100000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
 
     private final static int MAX_UNSYNCHED_BATCH = SystemProperties.getIntSystemProperty(
-        FileCommitLog.class.getName() + ".maxsynchbatchsize", 1000);
+            FileCommitLog.class.getName() + ".maxsynchbatchsize", 1000);
 
     private final static int MAX_SYNCH_TIME = SystemProperties.getIntSystemProperty(
-        FileCommitLog.class.getName() + ".maxsynchtime", 1);
+            FileCommitLog.class.getName() + ".maxsynchtime", 1);
 
     private final static boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
-        "herddb.file.requirefsynch", true);
+            "herddb.file.requirefsynch", true);
 
-    private final static byte ENTRY_START = 13;
-    private final static byte ENTRY_END = 25;
+    final static byte ENTRY_START = 13;
+    final static byte ENTRY_END = 25;
 
-    private class CommitFileWriter implements AutoCloseable {
+    class CommitFileWriter implements AutoCloseable {
 
         final long ledgerId;
         long sequenceNumber;
@@ -106,7 +106,7 @@ public class FileCommitLog extends CommitLog {
             LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
 
             this.channel = FileChannel.open(filename,
-                StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+                    StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
 
             this.out = new ExtendedDataOutputStream(new SimpleBufferedOutputStream(Channels.newOutputStream(this.channel)));
             writtenBytes = 0;
@@ -157,30 +157,27 @@ public class FileCommitLog extends CommitLog {
 
         final ExtendedDataInputStream in;
         final long ledgerId;
-        final boolean lastFile;
 
-        private CommitFileReader(ExtendedDataInputStream in, long ledgerId, boolean lastFile) {
+        private CommitFileReader(ExtendedDataInputStream in, long ledgerId) {
             this.in = in;
             this.ledgerId = ledgerId;
-            this.lastFile = lastFile;
         }
 
         public static CommitFileReader openForDescribeRawfile(Path filename) throws IOException {
             ExtendedDataInputStream in = new ExtendedDataInputStream(
-                new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ), 64 * 1024));
-            String lastPath = (filename.getFileName()+"").replace(LOGFILEEXTENSION, "");
+                    new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ), 64 * 1024));
+            String lastPath = (filename.getFileName() + "").replace(LOGFILEEXTENSION, "");
             long ledgerId;
             try {
                 ledgerId = Long.valueOf(lastPath, 16);
             } catch (NumberFormatException err) {
                 ledgerId = 0;
             }
-            return new CommitFileReader(in, ledgerId, false);
+            return new CommitFileReader(in, ledgerId);
         }
 
-        private CommitFileReader(Path logDirectory, long ledgerId, boolean lastFile) throws IOException {
+        private CommitFileReader(Path logDirectory, long ledgerId) throws IOException {
             this.ledgerId = ledgerId;
-            this.lastFile = lastFile;
             Path filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION);
             // in case of IOException the stream is not opened, not need to close it
             this.in = new ExtendedDataInputStream(new BufferedInputStream(Files.newInputStream(filename, StandardOpenOption.READ), 64 * 1024));
@@ -206,13 +203,9 @@ public class FileCommitLog extends CommitLog {
                 return new LogEntryWithSequenceNumber(new LogSequenceNumber(ledgerId, seqNumber), edit);
             } catch (EOFException truncatedLog) {
                 // if we hit EOF the entry has not been written, and so not acked, we can ignore it and say that the file is finished
-                // it is important that this is the last file in the set
-                if (lastFile) {
-                    LOGGER.log(Level.SEVERE, "found unfinished entry in file " + this.ledgerId + ". entry was not acked. ignoring " + truncatedLog);
-                    return null;
-                } else {
-                    throw truncatedLog;
-                }
+                // it is important that this is the last file in the set                
+                LOGGER.log(Level.SEVERE, "found unfinished entry in file " + this.ledgerId + ". entry was not acked. ignoring " + truncatedLog);
+                return null;
             }
         }
 
@@ -390,20 +383,15 @@ public class FileCommitLog extends CommitLog {
             List<Path> names = new ArrayList<>();
             for (Path path : stream) {
                 if (Files.isRegularFile(path)
-                    && (path.getFileName() + "").endsWith(LOGFILEEXTENSION)) {
+                        && (path.getFileName() + "").endsWith(LOGFILEEXTENSION)) {
                     names.add(path);
                 }
             }
             names.sort(Comparator.comparing(Path::toString));
 
-            final Path last = names.isEmpty() ? null : names.get(names.size() - 1);
-
             long offset = -1;
             for (Path p : names) {
-
-                boolean lastFile = p.equals(last);
-
-                LOGGER.log(Level.SEVERE, "logfile is {0}, lastFile {1}", new Object[]{p.toAbsolutePath(), lastFile});
+                LOGGER.log(Level.SEVERE, "logfile is {0}", new Object[]{p.toAbsolutePath()});
 
                 String name = (p.getFileName() + "").replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
@@ -411,7 +399,7 @@ public class FileCommitLog extends CommitLog {
                 currentLedgerId = Math.max(currentLedgerId, ledgerId);
                 offset = -1;
 
-                try (CommitFileReader reader = new CommitFileReader(logDirectory, ledgerId, lastFile)) {
+                try (CommitFileReader reader = new CommitFileReader(logDirectory, ledgerId)) {
                     LogEntryWithSequenceNumber n = reader.nextEntry();
                     while (n != null) {
                         offset = n.logSequenceNumber.offset;
@@ -439,13 +427,13 @@ public class FileCommitLog extends CommitLog {
     @Override
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
         LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, currentLedgerId: {1}",
-            new Object[]{lastCheckPointSequenceNumber, currentLedgerId});
+                new Object[]{lastCheckPointSequenceNumber, currentLedgerId});
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
             List<Path> names = new ArrayList<>();
             for (Path path : stream) {
                 if (Files.isRegularFile(path)
-                    && (path.getFileName() + "").endsWith(LOGFILEEXTENSION)) {
+                        && (path.getFileName() + "").endsWith(LOGFILEEXTENSION)) {
                     names.add(path);
                 }
             }
@@ -540,6 +528,10 @@ public class FileCommitLog extends CommitLog {
             throw new LogNotAvailableException(err);
         }
     }
+
+    CommitFileWriter getWriter() {
+        return writer;
+    }        
 
     @Override
     public LogSequenceNumber getLastSequenceNumber() {
