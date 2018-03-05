@@ -39,6 +39,9 @@ import org.apache.bookkeeper.util.ReflectionUtils;
 
 import herddb.network.netty.NetworkUtils;
 import herddb.server.ServerConfiguration;
+import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Collection;
+import java.util.stream.Collectors;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -74,8 +77,8 @@ public class EmbeddedBookie implements AutoCloseable {
             if (_port == null) {
                 _port = NetworkUtils.assignFirstFreePort();
                 LOG.log(Level.SEVERE, "As configuration parameter "
-                    + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT + " is {0},I have choosen to listen on port {1}."
-                    + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
+                        + ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT + " is {0},I have choosen to listen on port {1}."
+                        + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
                 persistLocalBookiePort(bookie_dir, _port);
             }
             port = _port;
@@ -136,7 +139,7 @@ public class EmbeddedBookie implements AutoCloseable {
         }
 
         Class<? extends StatsProvider> statsProviderClass
-            = conf.getStatsProviderClass();
+                = conf.getStatsProviderClass();
         statsProvider = ReflectionUtils.newInstance(statsProviderClass);
         statsProvider.start(conf);
         bookieServer = new BookieServer(conf, statsProvider.getStatsLogger(""));
@@ -159,13 +162,16 @@ public class EmbeddedBookie implements AutoCloseable {
         StringBuilder builder = new StringBuilder();
         for (Iterator<String> key_it = conf.getKeys(); key_it.hasNext();) {
             String key = key_it.next() + "";
-            Object value = conf.getProperty(key + "");
+            Object value = conf.getProperty(key);
+            if (value instanceof Collection) {
+                value = ((Collection) value).stream().map(String::valueOf).collect(Collectors.joining(","));
+            }
             builder.append(key + "=" + value + "\n");
         }
         Files.write(actual_bookkeeper_configuration, builder.toString().getBytes(StandardCharsets.UTF_8),
-            StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+                StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
         LOG.severe(
-            "Dumped actual Bookie configuration to " + actual_bookkeeper_configuration.toAbsolutePath());
+                "Dumped actual Bookie configuration to " + actual_bookkeeper_configuration.toAbsolutePath());
     }
 
     @Override
