@@ -19,10 +19,12 @@
  */
 package herddb.index.blink;
 
-import herddb.core.RandomPageReplacementPolicy;
-import herddb.utils.RandomString;
-import herddb.utils.Sized;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,15 +32,39 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+
+import org.junit.Ignore;
 import org.junit.Test;
+
+import herddb.core.ClockProPolicy;
+import herddb.utils.RandomString;
+import herddb.utils.Sized;
 
 /**
  * Tests on concurcurrent massive updates on different keys
  */
 public class ConcurrentUpdatesBLinkTest {
+
+    @Test
+    @Ignore
+    public void testUntillDeadlock() throws Exception {
+
+        int i = 0;
+        while (true) {
+
+            long start, end;
+
+            start = System.currentTimeMillis();
+
+            System.err.println("NextLoop [" + ++i + "]: " + new Date(start));
+
+            concurrentUpdatesTests();
+
+            end = System.currentTimeMillis();
+
+            System.err.println("CurrentLoop [" + ++i + "]: " + new Date(start) + " Time: " + (end - start) / 1000);
+        }
+    }
 
     @Test
     public void concurrentUpdatesTests() throws Exception {
@@ -49,7 +75,7 @@ public class ConcurrentUpdatesBLinkTest {
         int ITERATIONS = 100000;
         BLinkTest.DummyBLinkIndexDataStorage<Sized<String>, Long> storage = new BLinkTest.DummyBLinkIndexDataStorage<>();
 
-        try (BLink<Sized<String>, Long> blink = new BLink<>(2048L, new BLinkTest.StringSizeEvaluator(), new RandomPageReplacementPolicy(30), storage)) {
+        try (BLink<Sized<String>, Long> blink = new BLink<>(2048L, new BLinkTest.StringSizeEvaluator(), new ClockProPolicy(30), storage)) {
 
             Random random = new Random();
             RandomString rs = new RandomString(random);
