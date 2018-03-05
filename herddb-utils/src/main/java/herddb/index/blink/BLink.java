@@ -2212,13 +2212,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             Metadata unload = null;
             final Lock read = loadLock.readLock();
 
-            if (DEBUG)
+            if (DEBUG) {
                 LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " read lock requested " + pageId + " loadAndLock");
+            }
 
             read.lock();
 
-            if (DEBUG)
+            if (DEBUG) {
                 LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " read lock taken " + pageId + " loadAndLock");
+            }
 
             if (!loaded) {
 
@@ -2228,18 +2230,20 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                  */
                 read.unlock();
 
-                if (DEBUG)
+                if (DEBUG) {
                     LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " read lock released " + pageId + " loadAndLock");
+                }
 
                 final Lock write = loadLock.writeLock();
 
-                if (DEBUG)
+                if (DEBUG) {
                     LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock requested " + pageId + " loadAndLock");
 
                 write.lock();
 
-                if (DEBUG)
+                if (DEBUG) {
                     LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock taken " + pageId + " loadAndLock");
+                }
 
                 try {
                     /* Recheck condition (Another thread just loaded the node?) */
@@ -2256,14 +2260,16 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                         owner.policy.pageHit(this);
                     }
 
-                    if (DEBUG)
+                    if (DEBUG) {
                         LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " read lock requested " + pageId + " loadAndLock");
+                    }
 
                     /* Downgrade the lock (permitted) */
                     read.lock();
 
-                    if (DEBUG)
+                    if (DEBUG) {
                         LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " read lock taken " + pageId + " loadAndLock");
+                    }
 
                 } catch (RuntimeException | IOException err) {
 
@@ -2272,8 +2278,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 } finally {
                     write.unlock();
 
-                    if (DEBUG)
+                    if (DEBUG) {
                         LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock released " + pageId + " loadAndLock");
+                    }
                 }
 
                 if (doUnload && unload != null) {
@@ -2291,8 +2298,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         boolean unload(boolean flush, boolean justTry) {
 
-            if (DEBUG)
+            if (DEBUG) {
                 LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock requested " + pageId + " unload");
+            }
 
             /* No data cannot change during checkpoint! */
             final Lock lock = loadLock.writeLock();
@@ -2311,8 +2319,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 lock.lock();
             }
 
-            if (DEBUG)
+            if (DEBUG) {
                 LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock taken " + pageId + " unload");
+            }
 
             try {
 
@@ -2344,8 +2353,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             } finally {
                 lock.unlock();
 
-                if (DEBUG)
+                if (DEBUG) {
                     LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock released " + pageId + " unload");
+                }
             }
         }
 
@@ -2378,15 +2388,17 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         BLinkMetadata.BLinkNodeMetadata<X> checkpoint() throws IOException {
 
-            if (DEBUG)
+            if (DEBUG) {
                 LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock requested " + pageId + " checkpoint");
+            }
 
             /* No data cannot change during checkpoint! */
             final Lock lock = loadLock.writeLock();
             lock.lock();
 
-            if (DEBUG)
+            if (DEBUG) {
                 LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock taken " + pageId + " checkpoint");
+            }
 
             try {
 
@@ -2451,8 +2463,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             } finally {
                 lock.unlock();
 
-                if (DEBUG)
+                if (DEBUG) {
                     LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock released " + pageId + " checkpoint");
+                }
             }
         }
 
@@ -2597,8 +2610,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         public void unlock() {
             lock.unlock();
 
-            if (DEBUG)
+            if (DEBUG) {
                 LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " read lock released " + pageId + " LockAndUnload.unlock");
+            }
         }
 
         @Override
