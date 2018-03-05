@@ -2238,6 +2238,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
                 if (DEBUG) {
                     LOGGER.fine(System.nanoTime() + " " + Thread.currentThread().getId() + " write lock requested " + pageId + " loadAndLock");
+                }
 
                 write.lock();
 
