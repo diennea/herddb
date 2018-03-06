@@ -243,7 +243,7 @@ public class TableSpaceManager {
         }
         dataStorageManager.loadTransactions(logSequenceNumber, tableSpaceUUID, t -> {
             transactions.put(t.transactionId, t);
-            LOGGER.log(Level.INFO, "{0} {1} tx {2} at boot", new Object[]{nodeId, tableSpaceName, t.transactionId});
+            LOGGER.log(Level.FINER, "{0} {1} tx {2} at boot", new Object[]{nodeId, tableSpaceName, t.transactionId});
             try {
                 if (t.newTables != null) {
                     for (Table table : t.newTables.values()) {
@@ -265,7 +265,7 @@ public class TableSpaceManager {
                 throw new RuntimeException(err);
             }
         });
-        
+
         try {
             log.recovery(logSequenceNumber, new ApplyEntryOnRecovery(), false);
         } catch (FullRecoveryNeededException fullRecoveryNeeded) {
