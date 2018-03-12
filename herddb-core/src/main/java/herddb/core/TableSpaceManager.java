@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import java.io.EOFException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -715,7 +716,7 @@ public class TableSpaceManager {
         }
     }
 
-    public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException {
+    public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException, EOFException {
         generalLock.readLock().lock();
         try {
             for (DumpedLogEntry ld : entries) {
