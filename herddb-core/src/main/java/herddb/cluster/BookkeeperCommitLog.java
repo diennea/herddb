@@ -19,13 +19,7 @@
  */
 package herddb.cluster;
 
-import herddb.log.CommitLog;
-import herddb.log.CommitLogResult;
-import herddb.log.FullRecoveryNeededException;
-import herddb.log.LogEntry;
-import herddb.log.LogNotAvailableException;
-import herddb.log.LogSequenceNumber;
-import herddb.utils.EnsureLongIncrementAccumulator;
+import java.io.EOFException;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
 import java.util.List;
@@ -33,15 +27,23 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
+
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerEntry;
 import org.apache.bookkeeper.client.LedgerHandle;
+
+import herddb.log.CommitLog;
+import herddb.log.CommitLogResult;
+import herddb.log.FullRecoveryNeededException;
+import herddb.log.LogEntry;
+import herddb.log.LogNotAvailableException;
+import herddb.log.LogSequenceNumber;
+import herddb.utils.EnsureLongIncrementAccumulator;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -348,7 +350,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
             }
             LOGGER.severe("After recovery of " + tableSpaceUUID + " lastSequenceNumber " + getLastSequenceNumber());
-        } catch (InterruptedException | RuntimeException | BKException err) {
+        } catch (InterruptedException | EOFException | RuntimeException | BKException err) {
             LOGGER.log(Level.SEVERE, "Fatal error during recovery", err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
@@ -497,7 +499,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     }
                 }
             }
-        } catch (InterruptedException | BKException err) {
+        } catch (InterruptedException | EOFException | BKException err) {
             LOGGER.log(Level.SEVERE, "internal error", err);
             throw new LogNotAvailableException(err);
         }

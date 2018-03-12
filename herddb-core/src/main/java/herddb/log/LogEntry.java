@@ -19,13 +19,15 @@
  */
 package herddb.log;
 
+import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 
 /**
  * An entry on the log
@@ -133,13 +135,13 @@ public class LogEntry {
         return doo.size() - startingsize;
     }
 
-    public static LogEntry deserialize(byte[] data) {
+    public static LogEntry deserialize(byte[] data) throws EOFException {
         SimpleByteArrayInputStream in = new SimpleByteArrayInputStream(data);
         ExtendedDataInputStream dis = new ExtendedDataInputStream(in);
         return deserialize(dis);
     }
 
-    public static LogEntry deserialize(ExtendedDataInputStream dis) {
+    public static LogEntry deserialize(ExtendedDataInputStream dis) throws EOFException {
         try {
             long timestamp = dis.readLong();
             short type = dis.readShort();
@@ -177,7 +179,7 @@ public class LogEntry {
                     break;
                 case LogEntryType.CREATE_TABLE:
                 case LogEntryType.ALTER_TABLE:
-                    // value contains the table definition                                        
+                    // value contains the table definition
                     tableName = dis.readUTF();
                     value = dis.readArray();
                     break;
@@ -189,7 +191,11 @@ public class LogEntry {
                     throw new IllegalArgumentException("unsupported type " + type);
             }
             return new LogEntry(timestamp, type, transactionId, tableName, key, value);
+        } catch (EOFException e) {
+            /* Entry "corrupted" cause stream premature end, propagate */
+            throw e;
         } catch (IOException err) {
+            /* Stream read error */
             throw new RuntimeException(err);
         }
     }
