@@ -304,13 +304,7 @@ public class TableSpaceManager {
                 if (transaction == null) {
                     throw new DataStorageManagerException("invalid transaction id " + id + ", only " + transactions.keySet());
                 }
-                List<AbstractTableManager> managers;
-                try {
-                    generalLock.readLock().lock();
-                    managers = new ArrayList<>(tables.values());
-                } finally {
-                    generalLock.readLock().unlock();
-                }
+                List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
 
                     if (transaction.isNewTable(manager.getTable().name)) {
@@ -341,42 +335,39 @@ public class TableSpaceManager {
                     indexManager.onTransactionCommit(transaction, recovery);
                 }
                 if ((transaction.droppedTables != null && !transaction.droppedTables.isEmpty()) || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
-                    generalLock.writeLock().lock();
-                    try {
-                        if (transaction.droppedTables != null) {
-                            for (String dropped : transaction.droppedTables) {
-                                for (AbstractTableManager manager : managers) {
-                                    if (manager.getTable().name.equals(dropped)) {
-                                        manager.dropTableData();
-                                        manager.close();
-                                        tables.remove(manager.getTable().name);
-                                    }
+
+                    if (transaction.droppedTables != null) {
+                        for (String dropped : transaction.droppedTables) {
+                            for (AbstractTableManager manager : managers) {
+                                if (manager.getTable().name.equals(dropped)) {
+                                    manager.dropTableData();
+                                    manager.close();
+                                    tables.remove(manager.getTable().name);
                                 }
                             }
                         }
-                        if (transaction.droppedIndexes != null) {
-                            for (String dropped : transaction.droppedIndexes) {
-                                for (AbstractIndexManager manager : indexManagers) {
-                                    if (manager.getIndex().name.equals(dropped)) {
-                                        manager.dropIndexData();
-                                        manager.close();
-                                        indexes.remove(manager.getIndex().name);
-                                        Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
-                                        if (indexesForTable != null) {
-                                            indexesForTable.remove(manager.getIndex().name);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } finally {
-                        generalLock.writeLock().unlock();
                     }
+                    if (transaction.droppedIndexes != null) {
+                        for (String dropped : transaction.droppedIndexes) {
+                            for (AbstractIndexManager manager : indexManagers) {
+                                if (manager.getIndex().name.equals(dropped)) {
+                                    manager.dropIndexData();
+                                    manager.close();
+                                    indexes.remove(manager.getIndex().name);
+                                    Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
+                                    if (indexesForTable != null) {
+                                        indexesForTable.remove(manager.getIndex().name);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                 }
                 if ((transaction.newTables != null && !transaction.newTables.isEmpty())
-                    || (transaction.droppedTables != null && !transaction.droppedTables.isEmpty())
-                    || (transaction.newIndexes != null && !transaction.newIndexes.isEmpty())
-                    || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
+                        || (transaction.droppedTables != null && !transaction.droppedTables.isEmpty())
+                        || (transaction.newIndexes != null && !transaction.newIndexes.isEmpty())
+                        || (transaction.droppedIndexes != null && !transaction.droppedIndexes.isEmpty())) {
                     writeTablesOnDataStorageManager(position);
                     dbmanager.getPlanner().clearCache();
                 }
@@ -421,16 +412,11 @@ public class TableSpaceManager {
                     Transaction transaction = transactions.get(id);
                     transaction.registerDropTable(tableName, position);
                 } else {
-                    try {
-                        generalLock.writeLock().lock();
-                        AbstractTableManager manager = tables.get(tableName);
-                        if (manager != null) {
-                            manager.dropTableData();
-                            manager.close();
-                            tables.remove(manager.getTable().name);
-                        }
-                    } finally {
-                        generalLock.writeLock().unlock();
+                    AbstractTableManager manager = tables.get(tableName);
+                    if (manager != null) {
+                        manager.dropTableData();
+                        manager.close();
+                        tables.remove(manager.getTable().name);
                     }
                 }
 
@@ -446,20 +432,15 @@ public class TableSpaceManager {
                     Transaction transaction = transactions.get(id);
                     transaction.registerDropIndex(indexName, position);
                 } else {
-                    try {
-                        generalLock.writeLock().lock();
-                        AbstractIndexManager manager = indexes.get(indexName);
-                        if (manager != null) {
-                            manager.dropIndexData();
-                            manager.close();
-                            indexes.remove(manager.getIndexName());
-                            Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
-                            if (indexesForTable != null) {
-                                indexesForTable.remove(manager.getIndex().name);
-                            }
+                    AbstractIndexManager manager = indexes.get(indexName);
+                    if (manager != null) {
+                        manager.dropIndexData();
+                        manager.close();
+                        indexes.remove(manager.getIndexName());
+                        Map<String, AbstractIndexManager> indexesForTable = indexesByTable.get(manager.getIndex().table);
+                        if (indexesForTable != null) {
+                            indexesForTable.remove(manager.getIndex().name);
                         }
-                    } finally {
-                        generalLock.writeLock().unlock();
                     }
                 }
 
@@ -481,10 +462,10 @@ public class TableSpaceManager {
         }
 
         if (entry.tableName != null
-            && entry.type != LogEntryType.CREATE_TABLE
-            && entry.type != LogEntryType.CREATE_INDEX
-            && entry.type != LogEntryType.ALTER_TABLE
-            && entry.type != LogEntryType.DROP_TABLE) {
+                && entry.type != LogEntryType.CREATE_TABLE
+                && entry.type != LogEntryType.CREATE_INDEX
+                && entry.type != LogEntryType.ALTER_TABLE
+                && entry.type != LogEntryType.DROP_TABLE) {
             AbstractTableManager tableManager = tables.get(entry.tableName);
             tableManager.apply(position, entry, recovery);
         }
@@ -492,7 +473,7 @@ public class TableSpaceManager {
     }
 
     private Collection<PostCheckpointAction> writeTablesOnDataStorageManager(CommitLogResult writeLog) throws DataStorageManagerException,
-        LogNotAvailableException {
+            LogNotAvailableException {
         LogSequenceNumber logSequenceNumber = writeLog.getLogSequenceNumber();
         List<Table> tablelist = new ArrayList<>();
         List<Index> indexlist = new ArrayList<>();
@@ -598,6 +579,7 @@ public class TableSpaceManager {
         return tables.values().stream().filter(s -> s.getCreatedInTransaction() == 0).map(AbstractTableManager::getTable).collect(Collectors.toList());
 
     }
+
     public List<Table> getAllTablesForPlanner() {
         // No LOCK is necessary, since tables is a concurrent map
         return tables.values().stream().map(AbstractTableManager::getTable).collect(Collectors.toList());
@@ -605,29 +587,33 @@ public class TableSpaceManager {
     }
 
     private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
-
-        if (transactionContext.transactionId > 0) {
-            throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
-        }
-        AbstractTableManager tableManager = tables.get(alterTableStatement.getTable());
-        if (tableManager == null) {
-            throw new TableDoesNotExistException("no table " + alterTableStatement.getTable() + " in tablespace " + tableSpaceName);
-        }
-
-        Table newTable;
+        generalLock.writeLock().lock();
         try {
-            newTable = tableManager.getTable().applyAlterTable(alterTableStatement);
-        } catch (IllegalArgumentException error) {
-            throw new StatementExecutionException(error);
+            if (transactionContext.transactionId > 0) {
+                throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
+            }
+            AbstractTableManager tableManager = tables.get(alterTableStatement.getTable());
+            if (tableManager == null) {
+                throw new TableDoesNotExistException("no table " + alterTableStatement.getTable() + " in tablespace " + tableSpaceName);
+            }
+
+            Table newTable;
+            try {
+                newTable = tableManager.getTable().applyAlterTable(alterTableStatement);
+            } catch (IllegalArgumentException error) {
+                throw new StatementExecutionException(error);
+            }
+            LogEntry entry = LogEntryFactory.alterTable(newTable, null);
+            try {
+                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+                apply(pos, entry, false);
+            } catch (Exception err) {
+                throw new StatementExecutionException(err);
+            }
+            return new DDLStatementExecutionResult(transactionContext.transactionId);
+        } finally {
+            generalLock.writeLock().unlock();
         }
-        LogEntry entry = LogEntryFactory.alterTable(newTable, null);
-        try {
-            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-            apply(pos, entry, false);
-        } catch (Exception err) {
-            throw new StatementExecutionException(err);
-        }
-        return new DDLStatementExecutionResult(transactionContext.transactionId);
 
     }
 
@@ -641,9 +627,9 @@ public class TableSpaceManager {
 
     boolean isTransactionRunningOnTable(String name) {
         return transactions
-            .values()
-            .stream()
-            .anyMatch((t) -> (t.isOnTable(name)));
+                .values()
+                .stream()
+                .anyMatch((t) -> (t.isOnTable(name)));
     }
 
     long handleLocalMemoryUsage() {
@@ -717,14 +703,14 @@ public class TableSpaceManager {
     }
 
     public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException, EOFException {
-        generalLock.readLock().lock();
+        generalLock.writeLock().lock();
         try {
             for (DumpedLogEntry ld : entries) {
                 apply(new CommitLogResult(ld.logSequenceNumber, false),
-                    LogEntry.deserialize(ld.entryData), true);
+                        LogEntry.deserialize(ld.entryData), true);
             }
         } finally {
-            generalLock.readLock().unlock();
+            generalLock.writeLock().unlock();
         }
     }
 
@@ -874,12 +860,12 @@ public class TableSpaceManager {
         Map<String, Object> transactionsData = new HashMap<>();
         transactionsData.put("command", "transactions");
         List<byte[]> encodedTransactions = batch
-            .stream()
-            .map(tr -> {
-                return tr.serialize();
-            })
-            .
-            collect(Collectors.toList());
+                .stream()
+                .map(tr -> {
+                    return tr.serialize();
+                })
+                .
+                collect(Collectors.toList());
         transactionsData.put("transactions", encodedTransactions);
         Message response_to_transactionsData = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, transactionsData), timeout);
         if (response_to_transactionsData.type != Message.TYPE_ACK) {
@@ -998,17 +984,11 @@ public class TableSpaceManager {
             throw new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName);
         }
         try {
-            if (statement instanceof CreateTableStatement) {
-                return createTable((CreateTableStatement) statement, transaction);
+            if (statement instanceof TableAwareStatement) {
+                return executeTableAwareStatement(statement, transaction, context);
             }
-            if (statement instanceof CreateIndexStatement) {
-                return createIndex((CreateIndexStatement) statement, transaction);
-            }
-            if (statement instanceof DropTableStatement) {
-                return dropTable((DropTableStatement) statement, transaction);
-            }
-            if (statement instanceof DropIndexStatement) {
-                return dropIndex((DropIndexStatement) statement, transaction);
+            if (statement instanceof SQLPlannedOperationStatement) {
+                return executePlannedOperationStatement(statement, transactionContext, context);
             }
             if (statement instanceof BeginTransactionStatement) {
                 if (transaction != null) {
@@ -1022,26 +1002,20 @@ public class TableSpaceManager {
             if (statement instanceof CommitTransactionStatement) {
                 return commitTransaction((CommitTransactionStatement) statement);
             }
+            if (statement instanceof CreateTableStatement) {
+                return createTable((CreateTableStatement) statement, transaction);
+            }
+            if (statement instanceof CreateIndexStatement) {
+                return createIndex((CreateIndexStatement) statement, transaction);
+            }
+            if (statement instanceof DropTableStatement) {
+                return dropTable((DropTableStatement) statement, transaction);
+            }
+            if (statement instanceof DropIndexStatement) {
+                return dropIndex((DropIndexStatement) statement, transaction);
+            }
             if (statement instanceof AlterTableStatement) {
                 return alterTable((AlterTableStatement) statement, transactionContext);
-            }
-            if (statement instanceof TableAwareStatement) {
-                TableAwareStatement st = (TableAwareStatement) statement;
-                String table = st.getTable();
-                AbstractTableManager manager = tables.get(table);
-                if (manager == null) {
-                    throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
-                }
-                if (manager.getCreatedInTransaction() > 0) {
-                    if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
-                        throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
-                    }
-                }
-                return manager.executeStatement(statement, transaction, context);
-            }
-            if (statement instanceof SQLPlannedOperationStatement){
-                SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-                return planned.getRootOp().execute(this, transactionContext, context, false, false);
             }
             throw new StatementExecutionException("unsupported statement " + statement);
         } catch (StatementExecutionException error) {
@@ -1049,6 +1023,36 @@ public class TableSpaceManager {
                 rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId));
             }
             throw error;
+        }
+    }
+
+    private StatementExecutionResult executePlannedOperationStatement(Statement statement, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+        generalLock.readLock().lock();
+        try {
+            SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
+            return planned.getRootOp().execute(this, transactionContext, context, false, false);
+        } finally {
+            generalLock.readLock().unlock();
+        }
+    }
+
+    private StatementExecutionResult executeTableAwareStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws TableDoesNotExistException, StatementExecutionException {
+        generalLock.readLock().lock();
+        try {
+            TableAwareStatement st = (TableAwareStatement) statement;
+            String table = st.getTable();
+            AbstractTableManager manager = tables.get(table);
+            if (manager == null) {
+                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
+            }
+            if (manager.getCreatedInTransaction() > 0) {
+                if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
+                    throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
+                }
+            }
+            return manager.executeStatement(statement, transaction, context);
+        } finally {
+            generalLock.readLock().unlock();
         }
     }
 
@@ -1107,8 +1111,8 @@ public class TableSpaceManager {
     }
 
     private StatementExecutionResult dropTable(DropTableStatement statement, Transaction transaction) throws StatementExecutionException {
+        generalLock.writeLock().lock();
         try {
-            generalLock.writeLock().lock();
             if (!tables.containsKey(statement.getTable())) {
                 if (statement.isIfExists()) {
                     return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
@@ -1144,8 +1148,8 @@ public class TableSpaceManager {
     }
 
     private StatementExecutionResult dropIndex(DropIndexStatement statement, Transaction transaction) throws StatementExecutionException {
+        generalLock.writeLock().lock();
         try {
-            generalLock.writeLock().lock();
             if (!indexes.containsKey(statement.getIndexName())) {
                 if (statement.isIfExists()) {
                     return new DDLStatementExecutionResult(transaction != null ? transaction.transactionId : 0);
@@ -1183,9 +1187,9 @@ public class TableSpaceManager {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
         TableManager tableManager = new TableManager(
-            table, log, dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID, transaction);
+                table, log, dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID, transaction);
         if (dbmanager.getServerConfiguration().getBoolean(
-            ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
+                ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT)) {
             JMXUtils.registerTableManagerStatsMXBean(tableSpaceName, table.name, tableManager.getStats());
         }
 
@@ -1293,7 +1297,7 @@ public class TableSpaceManager {
         private final Map<String, LogSequenceNumber> tablesCheckpoints;
 
         public TableSpaceCheckpoint(LogSequenceNumber sequenceNumber,
-            Map<String, LogSequenceNumber> tablesCheckpoints) {
+                Map<String, LogSequenceNumber> tablesCheckpoints) {
             super();
             this.sequenceNumber = sequenceNumber;
             this.tablesCheckpoints = tablesCheckpoints;
@@ -1326,7 +1330,6 @@ public class TableSpaceManager {
             // TODO: transactions checkpoint is not atomic
             actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
             actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false)));
-
 
             // we checkpoint all data to disk and save the actual log sequence number
             for (AbstractTableManager tableManager : tables.values()) {
@@ -1367,57 +1370,67 @@ public class TableSpaceManager {
         long _stop = System.currentTimeMillis();
 
         LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
-                new Object[] {nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber,  Long.toString(_stop - _start)});
+                new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
 
         return new TableSpaceCheckpoint(logSequenceNumber, checkpoints);
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {
+
         long id = newTransactionId.incrementAndGet();
 
         LogEntry entry = LogEntryFactory.beginTransaction(id);
         CommitLogResult pos;
+        generalLock.readLock().lock();
         try {
             pos = log.log(entry, false);
             apply(pos, entry, false);
+            return new TransactionResult(id, TransactionResult.OutcomeType.BEGIN);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
+        } finally {
+            generalLock.readLock().unlock();
         }
-
-        return new TransactionResult(id, TransactionResult.OutcomeType.BEGIN);
     }
 
     private StatementExecutionResult rollbackTransaction(RollbackTransactionStatement rollbackTransactionStatement) throws StatementExecutionException {
-        Transaction tx = transactions.get(rollbackTransactionStatement.getTransactionId());
-        if (tx == null) {
-            throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
-        }
-        LogEntry entry = LogEntryFactory.rollbackTransaction(tx.transactionId);
+        long txId = rollbackTransactionStatement.getTransactionId();
+        LogEntry entry = LogEntryFactory.rollbackTransaction(txId);
+        generalLock.readLock().lock();
         try {
+            Transaction tx = transactions.get(txId);
+            if (tx == null) {
+                throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
+            }
             CommitLogResult pos = log.log(entry, true);
             apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
+        } finally {
+            generalLock.readLock().unlock();
         }
 
-        return new TransactionResult(tx.transactionId, TransactionResult.OutcomeType.ROLLBACK);
+        return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
     }
 
     private StatementExecutionResult commitTransaction(CommitTransactionStatement commitTransactionStatement) throws StatementExecutionException {
-        Transaction tx = transactions.get(commitTransactionStatement.getTransactionId());
-        if (tx == null) {
-            throw new StatementExecutionException("no such transaction " + commitTransactionStatement.getTransactionId());
-        }
-        LogEntry entry = LogEntryFactory.commitTransaction(tx.transactionId);
-
+        long txId = commitTransactionStatement.getTransactionId();
+        LogEntry entry = LogEntryFactory.commitTransaction(txId);
+        generalLock.readLock().lock();
         try {
+            Transaction tx = transactions.get(txId);
+            if (tx == null) {
+                throw new StatementExecutionException("no such transaction " + commitTransactionStatement.getTransactionId());
+            }
             CommitLogResult pos = log.log(entry, true);
             apply(pos, entry, false);
         } catch (Exception err) {
             throw new StatementExecutionException(err);
+        } finally {
+            generalLock.readLock().unlock();
         }
 
-        return new TransactionResult(tx.transactionId, TransactionResult.OutcomeType.COMMIT);
+        return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
     }
 
     public boolean isLeader() {
@@ -1464,93 +1477,93 @@ public class TableSpaceManager {
         @Override
         public int getLoadedpages() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToInt(TableManagerStats::getLoadedpages)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToInt(TableManagerStats::getLoadedpages)
+                    .sum();
 
         }
 
         @Override
         public long getLoadedPagesCount() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToLong(TableManagerStats::getLoadedPagesCount)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToLong(TableManagerStats::getLoadedPagesCount)
+                    .sum();
         }
 
         @Override
         public long getUnloadedPagesCount() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToLong(TableManagerStats::getUnloadedPagesCount)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToLong(TableManagerStats::getUnloadedPagesCount)
+                    .sum();
         }
 
         @Override
         public long getTablesize() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToLong(TableManagerStats::getTablesize)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToLong(TableManagerStats::getTablesize)
+                    .sum();
         }
 
         @Override
         public int getDirtypages() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToInt(TableManagerStats::getDirtypages)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToInt(TableManagerStats::getDirtypages)
+                    .sum();
         }
 
         @Override
         public int getDirtyrecords() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToInt(TableManagerStats::getDirtyrecords)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToInt(TableManagerStats::getDirtyrecords)
+                    .sum();
         }
 
         @Override
         public long getDirtyUsedMemory() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToLong(TableManagerStats::getDirtyUsedMemory)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToLong(TableManagerStats::getDirtyUsedMemory)
+                    .sum();
         }
 
         @Override
         public long getMaxLogicalPageSize() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToLong(TableManagerStats::getMaxLogicalPageSize)
-                .findFirst()
-                .orElse(0);
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToLong(TableManagerStats::getMaxLogicalPageSize)
+                    .findFirst()
+                    .orElse(0);
         }
 
         @Override
         public long getBuffersUsedMemory() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToLong(TableManagerStats::getBuffersUsedMemory)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToLong(TableManagerStats::getBuffersUsedMemory)
+                    .sum();
         }
 
         @Override
         public long getKeysUsedMemory() {
             return tables.values()
-                .stream()
-                .map(AbstractTableManager::getStats)
-                .mapToLong(TableManagerStats::getKeysUsedMemory)
-                .sum();
+                    .stream()
+                    .map(AbstractTableManager::getStats)
+                    .mapToLong(TableManagerStats::getKeysUsedMemory)
+                    .sum();
         }
     };
 
@@ -1564,8 +1577,8 @@ public class TableSpaceManager {
 
     @Override
     public String toString() {
-        return "TableSpaceManager [nodeId=" + nodeId +
-                ", tableSpaceName=" + tableSpaceName +
-                ", tableSpaceUUID=" + tableSpaceUUID + "]";
+        return "TableSpaceManager [nodeId=" + nodeId
+                + ", tableSpaceName=" + tableSpaceName
+                + ", tableSpaceUUID=" + tableSpaceUUID + "]";
     }
 }
