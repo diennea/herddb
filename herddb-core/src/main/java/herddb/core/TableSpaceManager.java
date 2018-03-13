@@ -117,7 +117,6 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
-import java.util.concurrent.locks.StampedLock;
 
 /**
  * Manages a TableSet in memory
