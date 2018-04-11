@@ -121,7 +121,7 @@ public class BookkeeperFailuresTest {
             TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
             BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
             long ledgerId = log.getLastSequenceNumber().ledgerId;
-            assertTrue(ledgerId >= 1);
+            assertTrue(ledgerId >= 0);
 
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
@@ -207,7 +207,7 @@ public class BookkeeperFailuresTest {
             TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
             BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
             long ledgerId = log.getLastSequenceNumber().ledgerId;
-            assertTrue(ledgerId >= 1);
+            assertTrue(ledgerId >= 0);
 
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
@@ -295,7 +295,7 @@ public class BookkeeperFailuresTest {
             TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
             BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
             long ledgerId = log.getLastSequenceNumber().ledgerId;
-            assertTrue(ledgerId >= 1);
+            assertTrue(ledgerId >= 0);
 
             // we do not want auto-recovery
             server.getManager().setActivatorPauseStatus(true);
@@ -377,7 +377,7 @@ public class BookkeeperFailuresTest {
             TableSpaceManager tableSpaceManager = server.getManager().getTableSpaceManager(TableSpace.DEFAULT);
             BookkeeperCommitLog log = (BookkeeperCommitLog) tableSpaceManager.getLog();
             long ledgerId = log.getLastSequenceNumber().ledgerId;
-            assertTrue(ledgerId >= 1);
+            assertTrue(ledgerId >= 0);
 
             Transaction transaction = tableSpaceManager.getTransactions().stream().filter(t -> t.transactionId == transactionId).findFirst().get();
             // Transaction will synch, so every addEntry will be acked, but will not be "confirmed" yet
