@@ -118,9 +118,8 @@ public class EmbeddedBookie implements AutoCloseable {
 
         boolean forcemetaformat = configuration.getBoolean("bookie.forcemetaformat", false);
         LOG.log(Level.CONFIG, "bookie.forcemetaformat={0}", forcemetaformat);
-
-        org.apache.bookkeeper.conf.ClientConfiguration adminConf = new org.apache.bookkeeper.conf.ClientConfiguration(conf);
-        boolean result = BookKeeperAdmin.format(adminConf, false, forcemetaformat);
+        
+        boolean result = BookKeeperAdmin.format(conf, false, forcemetaformat);
         if (result) {
             LOG.info("BookKeeperAdmin.format: created a new workspace on ZK");
         } else {

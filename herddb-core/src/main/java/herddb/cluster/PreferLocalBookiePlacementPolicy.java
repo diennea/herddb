@@ -39,6 +39,7 @@ import org.apache.bookkeeper.proto.LocalBookiesRegistry;
 import org.apache.bookkeeper.stats.StatsLogger;
 
 import io.netty.util.HashedWheelTimer;
+import org.apache.bookkeeper.client.BookiesHealthInfo;
 import org.apache.bookkeeper.client.DistributionSchedule;
 
 /**
@@ -52,9 +53,9 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
 
     @Override
     public EnsemblePlacementPolicy initialize(ClientConfiguration conf,
-        Optional<DNSToSwitchMapping> optionalDnsResolver,
-        HashedWheelTimer hashedWheelTimer,
-        FeatureProvider featureProvider, StatsLogger statsLogger) {
+            Optional<DNSToSwitchMapping> optionalDnsResolver,
+            HashedWheelTimer hashedWheelTimer,
+            FeatureProvider featureProvider, StatsLogger statsLogger) {
         return this;
     }
 
@@ -65,7 +66,7 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
 
     @Override
     public synchronized Set<BookieSocketAddress> onClusterChanged(Set<BookieSocketAddress> writableBookies,
-        Set<BookieSocketAddress> readOnlyBookies) {
+            Set<BookieSocketAddress> readOnlyBookies) {
         HashSet<BookieSocketAddress> deadBookies;
         deadBookies = new HashSet<>(knownBookies);
         deadBookies.removeAll(writableBookies);
@@ -76,42 +77,34 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public BookieSocketAddress replaceBookie(int ensembleSize,
-        int writeQuorumSize,
-        int ackQuorumSize,
-        Map<String, byte[]> customMetadata,
-        Collection<BookieSocketAddress> currentEnsemble,
-        BookieSocketAddress bookieToReplace,
-        Set<BookieSocketAddress> excludeBookies)
-        throws BKNotEnoughBookiesException {
+    public BookieSocketAddress replaceBookie(int ensembleSize, int writeQuorumSize, int ackQuorumSize, Map<String, byte[]> customMetadata, Set<BookieSocketAddress> currentEnsemble, BookieSocketAddress bookieToReplace, Set<BookieSocketAddress> excludeBookies) throws BKNotEnoughBookiesException {
         excludeBookies.addAll(currentEnsemble);
         ArrayList<BookieSocketAddress> addresses = newEnsemble(1, 1, 1, customMetadata, excludeBookies);
         return addresses.get(0);
     }
 
     @Override
-    public DistributionSchedule.WriteSet reorderReadSequence(
-        ArrayList<BookieSocketAddress> ensemble,
-        Map<BookieSocketAddress, Long> bookieFailureHistory,
-        DistributionSchedule.WriteSet writeSet) {
+    public DistributionSchedule.WriteSet reorderReadSequence(ArrayList<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo,
+            DistributionSchedule.WriteSet writeSet) {
         return writeSet;
     }
 
     @Override
-    public DistributionSchedule.WriteSet reorderReadLACSequence(
-        ArrayList<BookieSocketAddress> ensemble,
-        Map<BookieSocketAddress, Long> bookieFailureHistory,
-        DistributionSchedule.WriteSet writeSet) {
+    public DistributionSchedule.WriteSet reorderReadLACSequence(ArrayList<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
         return writeSet;
     }
-    
+
+    @Override
+    public void registerSlowBookie(BookieSocketAddress bookieSocketAddress, long entryId) {
+    }
+
     @Override
     public ArrayList<BookieSocketAddress> newEnsemble(int ensembleSize,
-        int writeQuorumSize,
-        int ackQuorumSize,
-        Map<String, byte[]> customMetadata,
-        Set<BookieSocketAddress> excludeBookies)
-        throws BKNotEnoughBookiesException {
+            int writeQuorumSize,
+            int ackQuorumSize,
+            Map<String, byte[]> customMetadata,
+            Set<BookieSocketAddress> excludeBookies)
+            throws BKNotEnoughBookiesException {
 
         ArrayList<BookieSocketAddress> newBookies = new ArrayList<>(ensembleSize);
         if (ensembleSize <= 0) {

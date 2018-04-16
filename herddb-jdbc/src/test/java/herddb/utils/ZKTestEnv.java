@@ -57,8 +57,7 @@ public class ZKTestEnv implements AutoCloseable {
         conf.setAllowLoopback(true);
         conf.setProperty("journalMaxGroupWaitMSec", 10); // default 200ms            
 
-        ClientConfiguration adminConf = new ClientConfiguration(conf);
-        BookKeeperAdmin.format(adminConf, false, true);
+        BookKeeperAdmin.format(conf, false, true);
         this.bookie = new BookieServer(conf);
         this.bookie.start();
     }
