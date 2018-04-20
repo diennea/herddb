@@ -33,8 +33,14 @@
             <projectNameForChangelog>HerdDB</projectNameForChangelog>
             <releases>
                 <release>
+                    <version>0.5.0</version>
+                    <date>April 2018</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>Upgrade to Apache Calcite 1.16 and Apache BookKeeper 4.7.0</text>
+                </release>
+                <release>
                     <version>0.4.0</version>
-                    <date>March 2019</date>
+                    <date>March 2018</date>
                     <href>https://github.com/diennea/herddb/releases</href>
                     <text>This is a major release as supersedes 0.3.0, it includes important internal refactors</text>
                 </release>
