@@ -122,7 +122,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         } else {
             try {
                 Path userDirectoryFile = baseDirectory.resolve(usersfile).toAbsolutePath();
-                LOGGER.log(Level.SEVERE, "Reading users from file " + userDirectoryFile);
+                LOGGER.log(Level.INFO, "Reading users from file " + userDirectoryFile);
                 this.userManager = new FileBasedUserManager(userDirectoryFile);
             } catch (IOException error) {
                 throw new RuntimeException(error);
@@ -131,20 +131,21 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         this.metadataStorageManager = buildMetadataStorageManager();
         String host = configuration.getString(ServerConfiguration.PROPERTY_HOST, ServerConfiguration.PROPERTY_HOST_DEFAULT);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_PORT, ServerConfiguration.PROPERTY_PORT_DEFAULT);
-        LOGGER.severe("Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "=" + host + ", " + ServerConfiguration.PROPERTY_PORT + "=" + port);
+        LOGGER.log(Level.INFO, "Configured network parameters: " + ServerConfiguration.PROPERTY_HOST + "={0}, "
+                + ServerConfiguration.PROPERTY_PORT + "={1}", new Object[]{host, port});
         if (host.trim().isEmpty()) {
             String _host = "0.0.0.0";
-            LOGGER.log(Level.SEVERE, "As configuration parameter "
-                + ServerConfiguration.PROPERTY_HOST + " is {0}, I have choosen to use {1}."
-                + " Set to a non-empty value in order to use a fixed hostname", new Object[]{host, _host});
+            LOGGER.log(Level.INFO, "As configuration parameter "
+                    + ServerConfiguration.PROPERTY_HOST + " is {0}, I have choosen to use {1}."
+                    + " Set to a non-empty value in order to use a fixed hostname", new Object[]{host, _host});
             host = _host;
         }
         if (port <= 0) {
             try {
                 int _port = NetworkUtils.assignFirstFreePort();
-                LOGGER.log(Level.SEVERE, "As configuration parameter "
-                    + ServerConfiguration.PROPERTY_PORT + " is {0},I have choosen to listen on port {1}."
-                    + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
+                LOGGER.log(Level.INFO, "As configuration parameter "
+                        + ServerConfiguration.PROPERTY_PORT + " is {0},I have choosen to listen on port {1}."
+                        + " Set to a positive number in order to use a fixed port", new Object[]{Integer.toString(port), Integer.toString(_port)});
                 port = _port;
             } catch (IOException err) {
                 LOGGER.log(Level.SEVERE, "Cannot find a free port", err);
@@ -155,9 +156,9 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         if (advertised_host.trim().isEmpty() || advertised_host.equals("0.0.0.0")) {
             try {
                 String _host = NetworkUtils.getLocalNetworkAddress();
-                LOGGER.log(Level.SEVERE, "As configuration parameter "
-                    + ServerConfiguration.PROPERTY_ADVERTISED_HOST + " is {0}, I have choosen to use {1}."
-                    + " Set to a non-empty value in order to use a fixed hostname", new Object[]{advertised_host, _host});
+                LOGGER.log(Level.INFO, "As configuration parameter "
+                        + ServerConfiguration.PROPERTY_ADVERTISED_HOST + " is {0}, I have choosen to use {1}."
+                        + " Set to a non-empty value in order to use a fixed hostname", new Object[]{advertised_host, _host});
                 advertised_host = _host;
             } catch (IOException err) {
                 LOGGER.log(Level.SEVERE, "Cannot get local host name", err);
@@ -169,14 +170,14 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         HashMap<String, String> realData = new HashMap<>();
         realData.put(ServerConfiguration.PROPERTY_HOST, host);
         realData.put(ServerConfiguration.PROPERTY_PORT, port + "");
-        LOGGER.severe("Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_HOST + "=" + advertised_host);
-        LOGGER.severe("Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_PORT + "=" + advertised_port);
+        LOGGER.info("Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_HOST + "=" + advertised_host
+                + ", Public endpoint: " + ServerConfiguration.PROPERTY_ADVERTISED_PORT + "=" + advertised_port);
         this.serverHostData = new ServerHostData(
-            advertised_host,
-            advertised_port,
-            "",
-            configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
-            realData);
+                advertised_host,
+                advertised_port,
+                "",
+                configuration.getBoolean(ServerConfiguration.PROPERTY_SSL, false),
+                realData);
 
         if (nodeId.isEmpty()) {
             LocalNodeIdManager localNodeIdManager = new LocalNodeIdManager(dataDirectory);
@@ -186,7 +187,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                     // we need to eagerly start the metadataStorageManager, for instance to open the connection to ZK
                     metadataStorageManager.start();
                     nodeId = metadataStorageManager.generateNewNodeId(configuration);
-                    LOGGER.severe("Generated new node id " + nodeId);
+                    LOGGER.info("Generated new node id " + nodeId);
                     localNodeIdManager.persistLocalNodeId(nodeId);
                 }
             } catch (IOException | MetadataStorageManagerException error) {
@@ -196,10 +197,10 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         }
 
         this.manager = new DBManager(nodeId,
-            metadataStorageManager,
-            buildDataStorageManager(),
-            buildCommitLogManager(),
-            tmpDirectory, serverHostData, configuration
+                metadataStorageManager,
+                buildDataStorageManager(),
+                buildCommitLogManager(),
+                tmpDirectory, serverHostData, configuration
         );
 
         this.manager.setClearAtBoot(configuration.getBoolean(ServerConfiguration.PROPERTY_CLEAR_AT_BOOT, ServerConfiguration.PROPERTY_CLEAR_AT_BOOT_DEFAULT));
@@ -219,16 +220,16 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         switch (mode) {
             case ServerConfiguration.PROPERTY_MODE_LOCAL:
                 jdbcUrl = "jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort();
-                LOGGER.severe("JDBC URL is not available. This server will not be accessible outside the JVM");
+                LOGGER.info("JDBC URL is not available. This server will not be accessible outside the JVM");
                 break;
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 jdbcUrl = "jdbc:herddb:server:" + serverHostData.getHost() + ":" + serverHostData.getPort();
-                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this server: {0}", new Object[]{jdbcUrl});
+                LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this server: {0}", new Object[]{jdbcUrl});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration);
                 jdbcUrl = "jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT);
-                LOGGER.log(Level.SEVERE, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
+                LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
                 break;
             default:
                 throw new IllegalStateException("invalid " + ServerConfiguration.PROPERTY_MODE + "=" + mode);
@@ -247,14 +248,14 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
         NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost, realPort, serverHostData.isSsl());
         boolean nextworkEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_NETWORK_ENABLED,
-            ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
+                ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
         if (!nextworkEnabled || ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
             acceptor.setEnableRealNetwork(false);
-            LOGGER.log(Level.SEVERE, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
-                new Object[]{realHost, realPort, serverHostData.isSsl()});
+            LOGGER.log(Level.INFO, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
+                    new Object[]{realHost, realPort, serverHostData.isSsl()});
         } else {
-            LOGGER.log(Level.SEVERE, "Binding network acceptor to {0}:{1} ssl:{2}",
-                new Object[]{realHost, realPort, serverHostData.isSsl()});
+            LOGGER.log(Level.INFO, "Binding network acceptor to {0}:{1} ssl:{2}",
+                    new Object[]{realHost, realPort, serverHostData.isSsl()});
         }
 
         int callbackThreads = configuration.getInt(
@@ -278,8 +279,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 return new FileMetadataStorageManager(metadataDirectory);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 return new ZookeeperMetadataStorageManager(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
-                    configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
-                    configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
+                        configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
+                        configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT));
             default:
                 throw new RuntimeException();
         }
@@ -319,7 +320,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                     long limit = ledgersRetentionPeriod / 2;
                     if (checkPointperiod > limit) {
                         throw new RuntimeException(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD + "=" + checkPointperiod
-                            + " must be less then " + ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD + "/2=" + limit);
+                                + " must be less then " + ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD + "/2=" + limit);
                     }
                 }
 
@@ -331,7 +332,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
 
     public void start() throws Exception {
         boolean startBookie = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_START,
-            ServerConfiguration.PROPERTY_BOOKKEEPER_START_DEFAULT);
+                ServerConfiguration.PROPERTY_BOOKKEEPER_START_DEFAULT);
         if (startBookie && embeddedBookie != null) {
             this.embeddedBookie.start();
         }
@@ -405,12 +406,12 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     @Override
     public ConnectionsInfo getActualConnections() {
         return new ConnectionsInfo(connections
-            .values()
-            .stream()
-            .map(c -> {
-                return c.toConnectionInfo();
-            })
-            .collect(Collectors.toList()));
+                .values()
+                .stream()
+                .map(c -> {
+                    return c.toConnectionInfo();
+                })
+                .collect(Collectors.toList()));
     }
 
 }

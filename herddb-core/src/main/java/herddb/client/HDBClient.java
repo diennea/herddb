@@ -61,8 +61,7 @@ public class HDBClient implements AutoCloseable {
         init();
     }
 
-    private void init() {
-        LOG.log(Level.SEVERE, "init {0}", this);
+    private void init() {        
         this.thredpool = Executors.newCachedThreadPool(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -108,8 +107,7 @@ public class HDBClient implements AutoCloseable {
     }
 
     @Override
-    public void close() {
-        LOG.log(Level.SEVERE, "close {0}", this);
+    public void close() {        
         List<HDBConnection> connectionsAtClose = new ArrayList<>(this.connections.values());
         for (HDBConnection connection : connectionsAtClose) {
             connection.close();

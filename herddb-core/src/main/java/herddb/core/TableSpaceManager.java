@@ -207,7 +207,7 @@ public class TableSpaceManager {
         } else {
             recover(tableSpaceInfo);
 
-            LOGGER.log(Level.SEVERE, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
+            LOGGER.log(Level.INFO, " after recovery of tableSpace " + tableSpaceName + ", actualLogSequenceNumber:" + actualLogSequenceNumber);
 
             tableSpaceInfo = metadataStorageManager.describeTableSpace(tableSpaceName);
             if (tableSpaceInfo.leaderId.equals(nodeId)) {
@@ -308,7 +308,7 @@ public class TableSpaceManager {
                 for (AbstractTableManager manager : managers) {
 
                     if (transaction.isNewTable(manager.getTable().name)) {
-                        LOGGER.log(Level.SEVERE, "rollback CREATE TABLE " + manager.getTable().name);
+                        LOGGER.log(Level.INFO, "rollback CREATE TABLE " + manager.getTable().name);
                         manager.dropTableData();
                         manager.close();
                         tables.remove(manager.getTable().name);
@@ -559,7 +559,7 @@ public class TableSpaceManager {
                     throw new DataStorageManagerException("Error while receiving dump: " + receiver.getError(), receiver.getError());
                 }
                 this.actualLogSequenceNumber = receiver.logSequenceNumber;
-                LOGGER.log(Level.SEVERE, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
+                LOGGER.log(Level.INFO, "After download local actualLogSequenceNumber is " + actualLogSequenceNumber);
 
             } catch (ClientSideMetadataProviderException | HDBException | InterruptedException networkError) {
                 throw new DataStorageManagerException(networkError);
@@ -681,7 +681,7 @@ public class TableSpaceManager {
     void requestTableCheckPoint(String name) {
         boolean ok = tablesNeedingCheckPoint.add(name);
         if (ok) {
-            LOGGER.log(Level.SEVERE, "Table " + this.tableSpaceName + "." + name + " need a local checkpoint");
+            LOGGER.log(Level.INFO, "Table " + this.tableSpaceName + "." + name + " need a local checkpoint");
         }
         dbmanager.triggerActivator(ActivatorRunRequest.TABLECHECKPOINTS);
     }
@@ -738,14 +738,14 @@ public class TableSpaceManager {
 
     public void restoreRawDumpedTransactions(List<Transaction> entries) {
         for (Transaction ld : entries) {
-            LOGGER.log(Level.SEVERE, "restore transaction " + ld);
+            LOGGER.log(Level.INFO, "restore transaction " + ld);
             transactions.put(ld.transactionId, ld);
         }
     }
 
     void dumpTableSpace(String dumpId, Channel _channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
 
-        LOGGER.log(Level.SEVERE, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize + ", includeLog:" + includeLog);
+        LOGGER.log(Level.INFO, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize + ", includeLog:" + includeLog);
 
         TableSpaceCheckpoint checkpoint;
 
@@ -756,7 +756,7 @@ public class TableSpaceManager {
                 // we are going to capture all the changes to the tablespace during the dump, in order to replay
                 // eventually 'missed' changes during the dump
                 txlogentries.add(new DumpedLogEntry(logPos, data.serialize()));
-                LOGGER.log(Level.SEVERE, "dumping entry " + logPos + ", " + data + " nentries: " + txlogentries.size());
+                //LOGGER.log(Level.SEVERE, "dumping entry " + logPos + ", " + data + " nentries: " + txlogentries.size());
             }
         };
 
@@ -886,7 +886,7 @@ public class TableSpaceManager {
     }
 
     public void restoreFinished() throws DataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
+        LOGGER.log(Level.INFO, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
         transactions.clear();
         checkpoint(false, false);
     }
@@ -946,13 +946,13 @@ public class TableSpaceManager {
 
         } else {
 
-            LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1}", new Object[]{nodeId, tableSpaceName});
+            LOGGER.log(Level.INFO, "startAsLeader {0} tablespace {1}", new Object[]{nodeId, tableSpaceName});
             recoverForLeadership();
 
             // every pending transaction MUST be rollback back
             List<Long> pending_transactions = new ArrayList<>(this.transactions.keySet());
             log.startWriting();
-            LOGGER.log(Level.SEVERE, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, pending_transactions.size()});
+            LOGGER.log(Level.INFO, "startAsLeader {0} tablespace {1} log, there were {2} pending transactions to be rolledback", new Object[]{nodeId, tableSpaceName, pending_transactions.size()});
             for (long tx : pending_transactions) {
                 LOGGER.log(Level.FINER, "rolling back transaction {0}", tx);
                 LogEntry rollback = LogEntryFactory.rollbackTransaction(tx);
@@ -1182,7 +1182,7 @@ public class TableSpaceManager {
 
     TableManager bootTable(Table table, long transaction, LogSequenceNumber dumpLogSequenceNumber) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
+        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
         if (tables.containsKey(table.name)) {
             throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
         }
@@ -1198,14 +1198,14 @@ public class TableSpaceManager {
         }
         tables.put(table.name, tableManager);
         tableManager.start();
-        LOGGER.log(Level.SEVERE, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
+        LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, table.name, (System.currentTimeMillis() - _start) + ""});
         dbmanager.getPlanner().clearCache();
         return tableManager;
     }
 
     private AbstractIndexManager bootIndex(Index index, AbstractTableManager tableManager, long transaction, boolean rebuild) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2}.{3} uuid {4}", new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid});
+        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2}.{3} uuid {4}", new Object[]{nodeId, tableSpaceName, index.table, index.name, index.uuid});
         if (indexes.containsKey(index.name)) {
             throw new DataStorageManagerException("Index" + index.name + " already present in tableSpace " + tableSpaceName);
         }
@@ -1234,17 +1234,17 @@ public class TableSpaceManager {
         });
         indexManager.start(tableManager.getBootSequenceNumber());
         long _stop = System.currentTimeMillis();
-        LOGGER.log(Level.SEVERE, "bootIndex {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (_stop - _start) + ""});
+        LOGGER.log(Level.INFO, "bootIndex {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (_stop - _start) + ""});
         if (rebuild) {
             indexManager.rebuild();
-            LOGGER.log(Level.SEVERE, "bootIndex - rebuild {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (System.currentTimeMillis() - _stop) + ""});
+            LOGGER.log(Level.INFO, "bootIndex - rebuild {0} {1}.{2} time {3} ms", new Object[]{nodeId, tableSpaceName, index.name, (System.currentTimeMillis() - _stop) + ""});
         }
         dbmanager.getPlanner().clearCache();
         return indexManager;
     }
 
     private AbstractTableManager alterTable(Table table, Transaction transaction) throws DDLException {
-        LOGGER.log(Level.SEVERE, "alterTable {0} {1}.{2} uuid {3}", new Object[]{nodeId, tableSpaceName, table.name,
+        LOGGER.log(Level.INFO, "alterTable {0} {1}.{2} uuid {3}", new Object[]{nodeId, tableSpaceName, table.name,
             table.uuid});
         AbstractTableManager tableManager = null;
         String oldTableName = null;
