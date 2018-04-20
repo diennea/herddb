@@ -94,6 +94,7 @@ public class EmbeddedBookie implements AutoCloseable {
         conf.setFlushInterval(1000);
         conf.setMaxBackupJournals(5);
         conf.setMaxJournalSizeMB(1048);
+        conf.setNumAddWorkerThreads(8);
         conf.setMaxPendingReadRequestPerThread(10000); // new in 4.6
         conf.setMaxPendingAddRequestPerThread(20000); // new in 4.6
         conf.setEnableLocalTransport(true);
