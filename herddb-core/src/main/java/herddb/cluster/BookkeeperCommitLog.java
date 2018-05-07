@@ -88,7 +88,7 @@ public class BookkeeperCommitLog extends CommitLog {
         private CommitFileWriter() throws LogNotAvailableException {
             try {
                 this.out = bookKeeper.createLedger(ensemble, writeQuorumSize, ackQuorumSize,
-                    BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                    BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
                 this.ledgerId = this.out.getId();
             } catch (InterruptedException | BKException err) {
                 throw new LogNotAvailableException(err);
@@ -283,9 +283,9 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 LedgerHandle handle;
                 if (fencing) {
-                    handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                    handle = bookKeeper.openLedger(ledgerId, BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
                 } else {
-                    handle = bookKeeper.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                    handle = bookKeeper.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
                 }
                 try {
                     long first;
@@ -460,7 +460,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 LedgerHandle lh;
                 try {
                     lh = bookKeeper.openLedgerNoRecovery(previous,
-                        BookKeeper.DigestType.CRC32, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                        BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
                 } catch (BKException.BKLedgerRecoveryException e) {
                     LOGGER.log(Level.SEVERE, "error", e);
                     return;

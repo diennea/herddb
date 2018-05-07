@@ -128,7 +128,7 @@ public class BookkeeperFailuresTest {
 
             try (BookKeeper bk = createBookKeeper();) {
                 try (LedgerHandle fenceLedger = bk.openLedger(ledgerId,
-                    BookKeeper.DigestType.CRC32, "herddb".getBytes(StandardCharsets.UTF_8));) {
+                    BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
                 }
             }
 
@@ -214,7 +214,7 @@ public class BookkeeperFailuresTest {
 
             try (BookKeeper bk = createBookKeeper();) {
                 try (LedgerHandle fenceLedger = bk.openLedger(ledgerId,
-                    BookKeeper.DigestType.CRC32, "herddb".getBytes(StandardCharsets.UTF_8));) {
+                    BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
                 }
             }
 
@@ -442,7 +442,7 @@ public class BookkeeperFailuresTest {
             }
 
             try (BookKeeper bk = createBookKeeper();
-                LedgerHandle handle = bk.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32, "herddb".getBytes(StandardCharsets.UTF_8))) {
+                LedgerHandle handle = bk.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8))) {
                 BookKeeperAdmin admin = new BookKeeperAdmin(bk);
                 try {
                     LedgerMetadata ledgerMetadata = admin.getLedgerMetadata(handle);
