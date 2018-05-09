@@ -314,16 +314,17 @@
                 <module>herddb-website</module>                
                 <module>herddb-site-skin</module>                
             </modules>
-            <distributionManagement>                        
-                <repository>
-                    <id>maven.sviluppo.dna</id>
-                    <name>MagNews Public Repository</name>
-                    <url>https://maven.sviluppo.dna/content/repositories/releases/</url>
-                </repository>                
+            <distributionManagement>        
+                <repository>            
+                    <!-- temporary with are hosted at Majordodo house -->    
+                    <id>dev.majordodo.org</id>
+                    <name>Majordodo Public Repository</name>
+                    <url>https://dev.majordodo.org/nexus/content/repositories/releases/</url>                                       
+                </repository>
                 <snapshotRepository>
-                    <id>maven.sviluppo.dna</id>
-                    <name>MagNews Public Repository</name>
-                    <url>https://maven.sviluppo.dna/content/repositories/snapshots/</url>
+                    <id>dev.majordodo.org.snapshots</id>
+                    <name>Majordodo Public Repository</name>
+                    <url>https://dev.majordodo.org/nexus/content/repositories/snapshots/</url>                                       
                 </snapshotRepository>
             </distributionManagement>
             <build>        
