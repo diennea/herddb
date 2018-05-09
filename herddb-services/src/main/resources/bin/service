@@ -17,7 +17,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-# majordodo daemon start/stop script
+# herddb daemon start/stop script
 #
 # Comments to support chkconfig
 # chkconfig: 2345 95 05
