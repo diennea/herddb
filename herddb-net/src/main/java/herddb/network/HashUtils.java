@@ -94,7 +94,7 @@ public class HashUtils {
         return md5(data.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static String arraytohexstring(byte[] bytes) {
+    public static String arraytohexstring(byte[] bytes) {
         StringBuilder string = new StringBuilder();
         for (byte b : bytes) {
             String hexString = Integer.toHexString(0x00FF & b);
