@@ -39,7 +39,6 @@ import herddb.core.HerdDBInternalException;
 import herddb.core.TableManager;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
-import herddb.model.Column;
 import herddb.model.DDLStatementExecutionResult;
 import herddb.model.DMLStatementExecutionResult;
 import herddb.model.DataScanner;
@@ -59,6 +58,8 @@ import herddb.model.TableAwareStatement;
 import herddb.model.Transaction;
 import herddb.model.TransactionContext;
 import herddb.model.TransactionResult;
+import herddb.model.commands.BeginTransactionStatement;
+import herddb.model.commands.CommitTransactionStatement;
 import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
@@ -127,6 +128,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     break;
                 }
                 handleExecuteStatement(message, _channel);
+            }
+            break;
+            case Message.TYPE_TX_COMMAND: {
+                if (!authenticated) {
+                    sendAuthRequiredError(_channel, message);
+                    break;
+                }
+                handleTxCommand(message, _channel);
             }
             break;
             case Message.TYPE_EXECUTE_STATEMENTS: {
@@ -613,7 +622,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
             }
         } catch (DuplicatePrimaryKeyException err) {
-            LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ": err", err);
+            LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ":" + err, err);
             Message error = Message.ERROR(null, err);
             _channel.sendReplyMessage(message, error);
         } catch (NotLeaderException err) {
@@ -624,7 +633,72 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             Message error = Message.ERROR(null, err);
             _channel.sendReplyMessage(message, error);
         } catch (RuntimeException err) {
-            LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ": err", err);
+            LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
+            Message error = Message.ERROR(null, err);
+            _channel.sendReplyMessage(message, error);
+        }
+    }
+
+    private void handleTxCommand(Message message, Channel _channel) {
+        Long tx = (Long) message.parameters.get("tx");
+        long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
+        int type = (Integer) message.parameters.get("t");
+        String tableSpace = (String) message.parameters.get("tableSpace");
+        try {
+            TransactionContext transactionContext = new TransactionContext(txId);
+            Statement statement;
+            switch (type) {
+                case Message.TX_COMMAND_COMMIT_TRANSACTION:
+                    statement = new CommitTransactionStatement(tableSpace, txId);
+                    break;
+                case Message.TX_COMMAND_ROLLBACK_TRANSACTION:
+                    statement = new RollbackTransactionStatement(tableSpace, txId);
+                    break;
+                case Message.TX_COMMAND_BEGIN_TRANSACTION:
+                    statement = new BeginTransactionStatement(tableSpace);
+                    break;
+                default:
+                    statement = null;
+
+            }
+            if (statement == null) {
+                _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown command type " + type)));
+            } else {
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
+                StatementExecutionResult result = server
+                        .getManager()
+                        .executeStatement(statement, new StatementEvaluationContext(), transactionContext);
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
+                if (result instanceof TransactionResult) {
+                    TransactionResult txresult = (TransactionResult) result;
+                    Map<String, Object> data = new HashMap<>();
+                    Set<Long> transactionsForTableSpace = openTransactions.computeIfAbsent(
+                            statement.getTableSpace(), k -> new ConcurrentSkipListSet<>());
+                    switch (txresult.getOutcome()) {
+                        case BEGIN: {
+                            transactionsForTableSpace.add(txresult.getTransactionId());
+                            break;
+                        }
+                        case COMMIT:
+                        case ROLLBACK:
+                            transactionsForTableSpace.remove(txresult.getTransactionId());
+                            break;
+                    }
+                    data.put("tx", txresult.getTransactionId());
+                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data, txresult.transactionId));
+                } else {
+                    _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+                }
+            }
+        } catch (NotLeaderException err) {
+            Message error = Message.ERROR(null, err);
+            error.setParameter("notLeader", "true");
+            _channel.sendReplyMessage(message, error);
+        } catch (StatementExecutionException err) {
+            Message error = Message.ERROR(null, err);
+            _channel.sendReplyMessage(message, error);
+        } catch (RuntimeException err) {
+            LOGGER.log(Level.SEVERE, "unexpected error on tx command: ", err);
             Message error = Message.ERROR(null, err);
             _channel.sendReplyMessage(message, error);
         }

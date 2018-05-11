@@ -367,8 +367,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "BEGIN TRANSACTION '" + tableSpace + "'",
-                    0, false, null);
+            Message message = Message.TX_COMMAND(clientId, tableSpace, Message.TX_COMMAND_BEGIN_TRANSACTION, 0);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -388,8 +387,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "COMMIT TRANSACTION '" + tableSpace + "'," + tx,
-                    0, false, null);
+            Message message = Message.TX_COMMAND(clientId, tableSpace, Message.TX_COMMAND_COMMIT_TRANSACTION, tx);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
@@ -407,8 +405,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(clientId, tableSpace, "ROLLBACK TRANSACTION '" + tableSpace + "'," + tx,
-                    0, false, null);
+            Message message = Message.TX_COMMAND(clientId, tableSpace, Message.TX_COMMAND_ROLLBACK_TRANSACTION, tx);
             Message reply = _channel.sendMessageWithReply(message, timeout);
             if (reply.type == Message.TYPE_ERROR) {
                 boolean notLeader = reply.parameters.get("notLeader") != null;
