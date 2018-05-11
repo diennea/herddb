@@ -64,8 +64,6 @@ public final class Message {
             boolean returnValues,
             List<Object> params) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("tableSpace", tableSpace);
         if (tx != 0) {
             data.put("tx", tx);
@@ -80,11 +78,19 @@ public final class Message {
         return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
     }
 
+    public static Message TX_COMMAND(String clientId, String tableSpace, int type, long tx) {
+        HashMap<String, Object> data = new HashMap<>();
+        data.put("tableSpace", tableSpace);
+        if (tx > 0) { // begin does not carry a tx id
+            data.put("tx", tx);
+        }
+        data.put("t", type);
+        return new Message(clientId, TYPE_TX_COMMAND, data);
+    }
+
     public static Message EXECUTE_STATEMENTS(String clientId, String tableSpace, String query,
             long tx, boolean returnValues, List<List<Object>> params) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("tableSpace", tableSpace);
         if (tx != 0) {
             data.put("tx", tx);
@@ -99,8 +105,6 @@ public final class Message {
 
     public static Message OPEN_SCANNER(String clientId, String tableSpace, String query, String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("tableSpace", tableSpace);
         data.put("scannerId", scannerId);
         data.put("tx", tx);
@@ -116,8 +120,6 @@ public final class Message {
     public static Message REQUEST_TABLESPACE_DUMP(String clientId, String tableSpace, String dumpId, int fetchSize,
             boolean includeTransactionLog) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("dumpId", dumpId);
         data.put("includeTransactionLog", includeTransactionLog);
         data.put("fetchSize", fetchSize);
@@ -127,8 +129,6 @@ public final class Message {
 
     public static Message TABLESPACE_DUMP_DATA(String clientId, String tableSpace, String dumpId, Map<String, Object> values) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("dumpId", dumpId);
         data.put("values", values);
         return new Message(clientId, TYPE_TABLESPACE_DUMP_DATA, data);
@@ -136,8 +136,6 @@ public final class Message {
 
     public static Message RESULTSET_CHUNK(String clientId, String scannerId, TuplesList tuplesList, boolean last, long tx) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("data", tuplesList);
         data.put("scannerId", scannerId);
         data.put("last", last);
@@ -147,16 +145,12 @@ public final class Message {
 
     public static Message CLOSE_SCANNER(String clientId, String scannerId) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("scannerId", scannerId);
         return new Message(clientId, TYPE_CLOSESCANNER, data);
     }
 
     public static Message FETCH_SCANNER_DATA(String clientId, String scannerId, int fetchSize) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("scannerId", scannerId);
         data.put("fetchSize", fetchSize);
         return new Message(clientId, TYPE_FETCHSCANNERDATA, data);
@@ -164,8 +158,6 @@ public final class Message {
 
     public static Message EXECUTE_STATEMENT_RESULT(long updateCount, Map<String, Object> otherdata, long tx) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("updateCount", updateCount);
         if (otherdata != null && !otherdata.isEmpty()) {
             data.put("data", otherdata);
@@ -176,8 +168,6 @@ public final class Message {
 
     public static Message EXECUTE_STATEMENT_RESULTS(List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("updateCount", updateCounts);
         data.put("data", otherdata);
         data.put("tx", tx);
@@ -186,8 +176,6 @@ public final class Message {
 
     public static Message SASL_TOKEN_MESSAGE_REQUEST(String saslMech, byte[] firstToken) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("mech", saslMech);
         data.put("token", firstToken);
         return new Message(null, TYPE_SASL_TOKEN_MESSAGE_REQUEST, data);
@@ -195,16 +183,12 @@ public final class Message {
 
     public static Message SASL_TOKEN_SERVER_RESPONSE(byte[] saslTokenChallenge) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("token", saslTokenChallenge);
         return new Message(null, TYPE_SASL_TOKEN_SERVER_RESPONSE, data);
     }
 
     public static Message SASL_TOKEN_MESSAGE_TOKEN(byte[] token) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("token", token);
         return new Message(null, TYPE_SASL_TOKEN_MESSAGE_TOKEN, data);
     }
@@ -212,8 +196,6 @@ public final class Message {
     public static Message REQUEST_TABLE_RESTORE(String clientId, String tableSpace, byte[] table,
             long dumpLedgerId, long dumpOffset) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("table", table);
         data.put("dumpLedgerId", dumpLedgerId);
         data.put("dumpOffset", dumpOffset);
@@ -224,8 +206,6 @@ public final class Message {
     public static Message TABLE_RESTORE_FINISHED(String clientId, String tableSpace, String table,
             List<byte[]> indexes) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("table", table);
         data.put("tableSpace", tableSpace);
         data.put("indexes", indexes);
@@ -234,16 +214,12 @@ public final class Message {
 
     public static Message RESTORE_FINISHED(String clientId, String tableSpace) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("tableSpace", tableSpace);
         return new Message(clientId, TYPE_RESTORE_FINISHED, data);
     }
 
     public static Message PUSH_TABLE_DATA(String clientId, String tableSpace, String name, List<KeyValue> chunk) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("table", name);
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
@@ -252,8 +228,6 @@ public final class Message {
 
     public static Message PUSH_TXLOGCHUNK(String clientId, String tableSpace, List<KeyValue> chunk) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
         return new Message(clientId, TYPE_PUSH_TXLOGCHUNK, data);
@@ -261,8 +235,6 @@ public final class Message {
 
     public static Message PUSH_TRANSACTIONSBLOCK(String clientId, String tableSpace, List<byte[]> chunk) {
         HashMap<String, Object> data = new HashMap<>();
-        String ts = System.currentTimeMillis() + "";
-        data.put("ts", ts);
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
         return new Message(clientId, TYPE_PUSH_TRANSACTIONSBLOCK, data);
@@ -301,6 +273,12 @@ public final class Message {
     public static final int TYPE_PUSH_TRANSACTIONSBLOCK = 20;
     public static final int TYPE_RESTORE_FINISHED = 23;
 
+    public static final int TYPE_TX_COMMAND = 24;
+
+    public static final int TX_COMMAND_ROLLBACK_TRANSACTION = 1;
+    public static final int TX_COMMAND_COMMIT_TRANSACTION = 2;
+    public static final int TX_COMMAND_BEGIN_TRANSACTION = 3;
+
     public static final int TYPE_SASL_TOKEN_MESSAGE_REQUEST = 100;
     public static final int TYPE_SASL_TOKEN_SERVER_RESPONSE = 101;
     public static final int TYPE_SASL_TOKEN_MESSAGE_TOKEN = 102;
@@ -317,6 +295,8 @@ public final class Message {
                 return "CLIENT_SHUTDOWN";
             case TYPE_EXECUTE_STATEMENT:
                 return "EXECUTE_STATEMENT";
+            case TYPE_TX_COMMAND:
+                return "TX_COMMAND";
             case TYPE_EXECUTE_STATEMENT_RESULT:
                 return "EXECUTE_STATEMENT_RESULT";
             case TYPE_EXECUTE_STATEMENTS:
