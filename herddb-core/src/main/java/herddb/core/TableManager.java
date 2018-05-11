@@ -129,7 +129,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         getBooleanSystemProperty("herddb.tablemanager.enableLocalScanPageCache", true);
 
     private static final int HUGE_TABLE_SIZE_FORCE_MATERIALIZED_RESULTSET = SystemProperties.
-        getIntSystemProperty("herddb.tablemanager..hugeTableSizeForceMaterializedResultSet", 100_000);
+        getIntSystemProperty("herddb.tablemanager.hugeTableSizeForceMaterializedResultSet", 100_000);
 
     private static final boolean ENABLE_STREAMING_DATA_SCANNER = SystemProperties.
         getBooleanSystemProperty("herddb.tablemanager.enableStreamingDataScanner", true);
