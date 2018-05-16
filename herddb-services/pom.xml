@@ -12,13 +12,31 @@
     <packaging>jar</packaging>
     <properties>
         <buildTimestamp>${maven.build.timestamp}</buildTimestamp>
-        <jetty.version>9.4.1.v20170120</jetty.version>
+        <jetty.version>9.4.8.v20171121</jetty.version>
+        <libs.jaxws.jaxb-api>2.3.0</libs.jaxws.jaxb-api>
+        <libs.jaxws.jaxb-impl>2.3.0</libs.jaxws.jaxb-impl>
+        <libs.javaxactivation.api>1.2.0</libs.javaxactivation.api>
     </properties>    
-    <dependencies>       
+    <dependencies>
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+            <version>${libs.jaxws.jaxb-api}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
+            <version>${libs.jaxws.jaxb-impl}</version>
+        </dependency>    
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-core</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>javax.activation-api</artifactId>
+            <version>${libs.javaxactivation.api}</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

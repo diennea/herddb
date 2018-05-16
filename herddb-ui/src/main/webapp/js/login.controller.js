@@ -22,7 +22,7 @@ modulo.controller('loginController', function ($scope, $http, $route, $timeout, 
     $scope.datasource = $location.search().url || 'jdbc:herddb:server:localhost';
     $scope.username = 'sa';
     $scope.pwd = 'hdb';
-    $scope.defaultts = 'default';
+    $scope.defaultts = 'herddb';
     
     $scope.go = function (path, defaultts) {
         $location.path(path);
