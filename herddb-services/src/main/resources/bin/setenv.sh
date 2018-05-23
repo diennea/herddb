@@ -1,7 +1,7 @@
 # Basic Environment and Java variables
 
 #JAVA_HOME=
-JDK_JAVA_OPTIONS=--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.rmi/sun.rmi.transport=ALL-UNNAMED
+JDK_JAVA_OPTIONS="--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.rmi/sun.rmi.transport=ALL-UNNAMED"
 JAVA_OPTS="-XX:+UseG1GC -Duser.language=en -Xmx4g -Xms4g -XX:+AggressiveOpts -Djava.net.preferIPv4Stack=true -XX:MaxDirectMemorySize=1g  -Djava.util.logging.config.file=conf/logging.properties"
 
 if [ -z "$JAVA_HOME" ]; then
