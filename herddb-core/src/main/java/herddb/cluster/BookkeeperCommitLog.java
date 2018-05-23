@@ -60,8 +60,8 @@ public class BookkeeperCommitLog extends CommitLog {
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final String tableSpaceUUID;
     private volatile CommitFileWriter writer;
-    private long currentLedgerId = 0;
-    private long lastLedgerId = -1;
+    private volatile long currentLedgerId = 0;
+    private volatile long lastLedgerId = -1;
     private final AtomicLong lastSequenceNumber = new AtomicLong(-1);
     private LedgersInfo actualLedgersList;
     private int ensemble = 1;
@@ -88,8 +88,9 @@ public class BookkeeperCommitLog extends CommitLog {
         private CommitFileWriter() throws LogNotAvailableException {
             try {
                 this.out = bookKeeper.createLedger(ensemble, writeQuorumSize, ackQuorumSize,
-                    BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                        BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
                 this.ledgerId = this.out.getId();
+                lastLedgerId = ledgerId;
             } catch (InterruptedException | BKException err) {
                 throw new LogNotAvailableException(err);
             }
@@ -109,8 +110,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     errorOccurredDuringWrite = true;
                     res.completeExceptionally(BKException.create(rc));
                 }
-            }, null);
-            lastLedgerId = ledgerId;
+            }, null);            
             return res;
         }
 
@@ -122,10 +122,10 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             try {
                 LOGGER.log(Level.SEVERE, "Closing ledger " + _out.getId()
-                    + ", with LastAddConfirmed=" + _out.getLastAddConfirmed()
-                    + ", LastAddPushed=" + _out.getLastAddPushed()
-                    + " length=" + _out.getLength()
-                    + ", errorOccurred:" + errorOccurredDuringWrite);
+                        + ", with LastAddConfirmed=" + _out.getLastAddConfirmed()
+                        + ", LastAddPushed=" + _out.getLastAddPushed()
+                        + " length=" + _out.getLength()
+                        + ", errorOccurred:" + errorOccurredDuringWrite);
 
                 _out.close();
             } catch (InterruptedException | BKException err) {
@@ -141,6 +141,10 @@ public class BookkeeperCommitLog extends CommitLog {
         this.metadataManager = metadataStorageManager;
         this.tableSpaceUUID = tableSpace;
         this.bookKeeper = bookkeeper;
+    }
+
+    public long getLastLedgerId() {
+        return lastLedgerId;
     }
 
     public int getEnsemble() {
@@ -185,8 +189,8 @@ public class BookkeeperCommitLog extends CommitLog {
         if (closed || _writer == null) {
             res = new CompletableFuture();
             res.completeExceptionally(
-                new LogNotAvailableException(new Exception("this commitlog has been closed"))
-                    .fillInStackTrace());
+                    new LogNotAvailableException(new Exception("this commitlog has been closed"))
+                            .fillInStackTrace());
         } else {
             res = _writer.writeEntry(edit);
             res.handleAsync((pos, error) -> {
@@ -195,7 +199,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 } else if (pos != null) {
                     if (lastLedgerId == pos.ledgerId) {
                         lastSequenceNumber.accumulateAndGet(pos.offset,
-                            EnsureLongIncrementAccumulator.INSTANCE);
+                                EnsureLongIncrementAccumulator.INSTANCE);
                     }
                 }
                 return null;
@@ -208,7 +212,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 LogSequenceNumber logPos = res.get();
                 if (lastLedgerId == logPos.ledgerId) {
                     lastSequenceNumber.accumulateAndGet(logPos.offset,
-                        EnsureLongIncrementAccumulator.INSTANCE);
+                            EnsureLongIncrementAccumulator.INSTANCE);
                 }
                 notifyListeners(logPos, edit);
             } catch (ExecutionException errorOnSynch) {
@@ -374,12 +378,12 @@ public class BookkeeperCommitLog extends CommitLog {
         if (ledgersRetentionPeriod <= 0) {
             return;
         }
-        LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, ledgersRetentionPeriod: {1} ,lastLedgerId: {2}, currentLedgerId: {3}",
-            new Object[]{lastCheckPointSequenceNumber, ledgersRetentionPeriod, lastLedgerId, currentLedgerId});
+        LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, ledgersRetentionPeriod: {1} ,lastLedgerId: {2}, currentLedgerId: {3}, tablespace {4}, actualLedgersList {5}",
+                new Object[]{lastCheckPointSequenceNumber, ledgersRetentionPeriod, lastLedgerId, currentLedgerId, tableSpaceUUID, actualLedgersList});
         long min_timestamp = System.currentTimeMillis() - ledgersRetentionPeriod;
         List<Long> oldLedgers = actualLedgersList.getOldLedgers(min_timestamp);
-        LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: {0}, lastLedgerId: {1}, dropping ledgers before {2}: {3}",
-            new Object[]{currentLedgerId, lastLedgerId, new java.sql.Timestamp(min_timestamp), oldLedgers});
+        LOGGER.log(Level.SEVERE, "dropOldLedgers currentLedgerId: {0}, lastLedgerId: {1}, dropping ledgers before {2}: {3} tablespace {4}",
+                new Object[]{currentLedgerId, lastLedgerId, new java.sql.Timestamp(min_timestamp), oldLedgers, tableSpaceUUID});
         oldLedgers.remove(this.currentLedgerId);
         oldLedgers.remove(this.lastLedgerId);
         if (oldLedgers.isEmpty()) {
@@ -387,7 +391,7 @@ public class BookkeeperCommitLog extends CommitLog {
         }
         for (long ledgerId : oldLedgers) {
             try {
-                LOGGER.log(Level.SEVERE, "dropping ledger {0}", ledgerId);
+                LOGGER.log(Level.SEVERE, "dropping ledger {0}, tableSpace {1}", new Object[]{ledgerId, tableSpaceUUID});
                 actualLedgersList.removeLedger(ledgerId);
                 try {
                     bookKeeper.deleteLedger(ledgerId);
@@ -460,7 +464,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 LedgerHandle lh;
                 try {
                     lh = bookKeeper.openLedgerNoRecovery(previous,
-                        BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
+                            BookKeeper.DigestType.CRC32C, sharedSecret.getBytes(StandardCharsets.UTF_8));
                 } catch (BKException.BKLedgerRecoveryException e) {
                     LOGGER.log(Level.SEVERE, "error", e);
                     return;
@@ -473,7 +477,7 @@ public class BookkeeperCommitLog extends CommitLog {
                         continue;
                     }
                     Enumeration<LedgerEntry> entries
-                        = lh.readEntries(nextEntry, lh.getLastAddConfirmed());
+                            = lh.readEntries(nextEntry, lh.getLastAddConfirmed());
 
                     while (entries.hasMoreElements()) {
                         LedgerEntry e = entries.nextElement();

@@ -21,7 +21,6 @@ package herddb.cluster;
 
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +32,8 @@ import org.codehaus.jackson.map.ObjectMapper;
  * @author enrico.olivelli
  */
 public class LedgersInfo {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private List<Long> activeLedgers = new ArrayList<>();
     private List<Long> ledgersTimestamps = new ArrayList<>();
@@ -62,9 +63,9 @@ public class LedgersInfo {
 
     public synchronized byte[] serialize() {
         try {
-            ObjectMapper mapper = new ObjectMapper();
+
             VisibleByteArrayOutputStream oo = new VisibleByteArrayOutputStream();
-            mapper.writeValue(oo, this);
+            MAPPER.writeValue(oo, this);
             return oo.toByteArray();
         } catch (IOException impossible) {
             throw new RuntimeException(impossible);
@@ -78,11 +79,10 @@ public class LedgersInfo {
             return info;
         }
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            LedgersInfo info = mapper.readValue(new SimpleByteArrayInputStream(data), LedgersInfo.class);
+            LedgersInfo info = MAPPER.readValue(new SimpleByteArrayInputStream(data), LedgersInfo.class);
             info.setZkVersion(zkVersion);
             return info;
-        } catch (Exception impossible) {
+        } catch (IOException impossible) {
             throw new RuntimeException(impossible);
         }
 
