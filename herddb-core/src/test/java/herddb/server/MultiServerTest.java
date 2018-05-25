@@ -43,6 +43,7 @@ import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CommitTransactionStatement;
+import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
@@ -86,19 +87,19 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -115,7 +116,7 @@ public class MultiServerTest {
                 server_2.start();
 
                 server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
                 assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
 
@@ -130,8 +131,8 @@ public class MultiServerTest {
                 for (int i = 1; i <= 5; i++) {
                     System.out.println("checking key c=" + i);
                     assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(i), null, false),
-                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
-                        TransactionContext.NO_TRANSACTION).found());
+                            StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                            TransactionContext.NO_TRANSACTION).found());
                 }
 
             }
@@ -151,19 +152,19 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -171,7 +172,7 @@ public class MultiServerTest {
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
         }
 
@@ -206,15 +207,15 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
         Table table = Table.builder()
-            .name("t1")
-            .column("c", ColumnTypes.INTEGER)
-            .primaryKey("c")
-            .build();
+                .name("t1")
+                .column("c", ColumnTypes.INTEGER)
+                .primaryKey("c")
+                .build();
         try (Server server_1 = new Server(serverconfig_1)) {
             server_1.start();
             server_1.waitForStandaloneBoot();
@@ -226,7 +227,7 @@ public class MultiServerTest {
             server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
-                new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         }
 
         String tableSpaceUUID;
@@ -286,6 +287,110 @@ public class MultiServerTest {
             }
         }
 
+    }
+
+    @Test
+    public void test_follow_nultiple_tablespaces() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+        try (Server server_1 = new Server(serverconfig_1);
+                Server server_2 = new Server(serverconfig_2)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            server_2.start();
+
+            // two tablespaces, leader is server_1
+            CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", new HashSet<>(Arrays.asList(server_1.getNodeId(), server_2.getNodeId())), server_1.getNodeId(), 1, 0, 0);
+            server_1.getManager().executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            CreateTableSpaceStatement st2 = new CreateTableSpaceStatement("tblspace2", new HashSet<>(Arrays.asList(server_1.getNodeId(), server_2.getNodeId())), server_1.getNodeId(), 1, 0, 0);
+            server_2.getManager().executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            
+            server_1.waitForTableSpaceBoot("tblspace1", 30000, true);
+            server_1.waitForTableSpaceBoot("tblspace2", 30000, true);
+            
+            server_2.waitForTableSpaceBoot("tblspace1", 30000, false);
+            server_2.waitForTableSpaceBoot("tblspace2", 30000, false);
+
+            Table table1 = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .tablespace("tblspace1")
+                    .primaryKey("c")
+                    .build();
+            server_1.getManager().executeStatement(new CreateTableStatement(table1), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            Table table2 = Table.builder()
+                    .name("t2")
+                    .column("c", ColumnTypes.INTEGER)
+                    .tablespace("tblspace2")
+                    .primaryKey("c")
+                    .build();
+
+            server_1.getManager().executeStatement(new CreateTableStatement(table2), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            DMLStatementExecutionResult executeUpdateTransaction = server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            server_1.getManager().executeStatement(new CommitTransactionStatement("tblspace1", executeUpdateTransaction.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            
+            DMLStatementExecutionResult executeUpdateTransaction2 = server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            server_1.getManager().executeStatement(new CommitTransactionStatement("tblspace2", executeUpdateTransaction2.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            
+            
+            // force BK LAC
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            // wait for data to arrive on server_2
+            for (int i = 0; i < 100; i++) {
+                GetResult found = server_2.getManager().get(new GetStatement("tblspace1", "t1", Bytes.from_int(5), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                if (found.found()) {
+                    break;
+                }
+                Thread.sleep(100);
+            }
+            for (int i = 0; i < 100; i++) {
+                GetResult found = server_2.getManager().get(new GetStatement("tblspace2", "t2", Bytes.from_int(5), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                if (found.found()) {
+                    break;
+                }
+                Thread.sleep(100);
+            }
+            for (int i = 1; i <= 5; i++) {
+                System.out.println("checking key c=" + i);
+                assertTrue(server_2.getManager().get(new GetStatement("tblspace1", "t1", Bytes.from_int(i), null, false),
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                        TransactionContext.NO_TRANSACTION).found());
+                
+                assertTrue(server_2.getManager().get(new GetStatement("tblspace2", "t2", Bytes.from_int(i), null, false),
+                        StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                        TransactionContext.NO_TRANSACTION).found());
+            }
+
+        }
     }
 
 }
