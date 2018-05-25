@@ -213,11 +213,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     @Override
     public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
         query = SQLPlanner.rewriteExecuteSyntax(query);
-        if (query.startsWith("EXECUTE")
-                || query.startsWith("CREATE")
-                || query.startsWith("DROP")
-                || query.startsWith("ALTER")
-                || query.startsWith("TRUNCATE")) {
+        if (query.matches("(?i)(EXECUTE|CREATE|DROP|ALTER|TRUNCATE).*")) {        
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (parameters == null) {
