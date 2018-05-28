@@ -223,7 +223,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             query = SQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
-        System.out.println("NOT DDL:'"+query+"'");
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
