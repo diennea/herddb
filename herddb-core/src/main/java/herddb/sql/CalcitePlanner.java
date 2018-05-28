@@ -156,6 +156,7 @@ import herddb.sql.expressions.JdbcParameterExpression;
 import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.utils.SystemProperties;
+import java.util.regex.Pattern;
 import net.sf.jsqlparser.statement.Statement;
 
 /**
@@ -169,6 +170,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
      * Time to wait for the requested tablespace to be up
      */
     private static final long WAIT_FOR_SCHEMA_UP_TIMEOUT = SystemProperties.getLongSystemProperty("herddb.planner.waitfortablespacetimeout", 60000);
+    
+    private static final Pattern USE_DDL_PARSER = Pattern.compile("^[\\s]*(EXECUTE|CREATE|DROP|ALTER|TRUNCATE|BEGIN|COMMIT|ROLLBACK).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private final DBManager manager;
     private final AbstractSQLPlanner fallback;
@@ -209,11 +212,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     public ExecutionPlan plan(String defaultTableSpace, Statement stmt, boolean scan, boolean returnValues, int maxRows) {
         return fallback.plan(defaultTableSpace, stmt, scan, returnValues, maxRows);
     }
-
+    
+    static final boolean isDDL(String query) {
+        return USE_DDL_PARSER.matcher(query).matches();
+    }
+        
     @Override
-    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {
-        query = SQLPlanner.rewriteExecuteSyntax(query);
-        if (query.matches("(?i)(EXECUTE|CREATE|DROP|ALTER|TRUNCATE).*")) {        
+    public TranslatedQuery translate(String defaultTableSpace, String query, List<Object> parameters, boolean scan, boolean allowCache, boolean returnValues, int maxRows) throws StatementExecutionException {        
+        if (isDDL(query)) {        
+            query = SQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (parameters == null) {

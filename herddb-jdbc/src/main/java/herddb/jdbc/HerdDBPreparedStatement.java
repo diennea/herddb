@@ -200,7 +200,7 @@ public class HerdDBPreparedStatement extends HerdDBStatement implements Prepared
     @Override
     @SuppressFBWarnings("OBL_UNSATISFIED_OBLIGATION")
     public boolean execute() throws SQLException {
-        if (sql.toLowerCase().startsWith("select")) {
+        if (EXPECTS_RESULTSET.matcher(sql).matches()) {
             executeQuery();
             moreResults = true;
             return true;
