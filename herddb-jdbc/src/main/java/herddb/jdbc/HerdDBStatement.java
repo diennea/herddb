@@ -34,6 +34,7 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
 import java.util.Collections;
+import java.util.regex.Pattern;
 
 /**
  * SQL Statement
@@ -41,6 +42,8 @@ import java.util.Collections;
  * @author enrico.olivelli
  */
 public class HerdDBStatement implements java.sql.Statement {
+
+    protected static final Pattern EXPECTS_RESULTSET = Pattern.compile("[\\s]*(SELECT|EXPLAIN).*", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     protected final HerdDBConnection parent;
     protected int maxRows;
@@ -134,7 +137,7 @@ public class HerdDBStatement implements java.sql.Statement {
     @Override
     @SuppressFBWarnings("OBL_UNSATISFIED_OBLIGATION")
     public boolean execute(String sql) throws SQLException {
-        if (sql.toLowerCase().startsWith("select")) {
+        if (EXPECTS_RESULTSET.matcher(sql).matches()) {
             executeQuery(sql);
             moreResults = true;
             return true;
@@ -152,12 +155,12 @@ public class HerdDBStatement implements java.sql.Statement {
     }
 
     @Override
-    public int getUpdateCount() throws SQLException {        
+    public int getUpdateCount() throws SQLException {
         return (int) lastUpdateCount;
     }
 
     @Override
-    public boolean getMoreResults() throws SQLException {        
+    public boolean getMoreResults() throws SQLException {
         lastUpdateCount = -1;
         return moreResults;
     }
