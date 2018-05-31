@@ -22,7 +22,9 @@ package herddb.sql;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.scan;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -69,8 +71,6 @@ import herddb.model.planner.UpdateOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertFalse;
 
 public class CalcitePlannerTest {
 
@@ -211,7 +211,7 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
-            BindableTableScanOp plan = (BindableTableScanOp) assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
+            BindableTableScanOp plan = assertInstanceOf(plan(manager, "select * from tblspace1.tsql where k1=?"), BindableTableScanOp.class);
             Projection projection = plan.getStatement().getProjection();
             System.out.println("projection:" + projection);
             assertThat(projection, instanceOf(IdentityProjection.class));
@@ -506,6 +506,7 @@ public class CalcitePlannerTest {
 
     @Test
     public void testIsDdl() {
+
         assertTrue(CalcitePlanner.isDDL("CREATE TABLE"));
         assertTrue(CalcitePlanner.isDDL("   CREATE TABLE `sm_machine`"));
           assertTrue(CalcitePlanner.isDDL("CREATE TABLE `sm_machine` (\n"

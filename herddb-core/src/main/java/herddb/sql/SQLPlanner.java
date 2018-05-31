@@ -163,15 +163,6 @@ public class SQLPlanner implements AbstractSQLPlanner {
     }
 
     public static String rewriteExecuteSyntax(String query) {
-        int idx = SQLUtils.findQueryStart(query);
-
-        //* No match at all. Only ignorable charaters and comments */
-        if (idx == -1) {
-            return query;
-        }
-
-        final String cleanQuery = query.substring(idx);
-
         char ch = query.charAt(0);
 
         /* "empty" data skipped now we must recognize instructions to rewrite */
@@ -179,71 +170,71 @@ public class SQLPlanner implements AbstractSQLPlanner {
             /* ALTER */
             case 'A':
             case 'a':
-                if (cleanQuery.regionMatches(true, 0, "ALTER TABLESPACE ", 0, 17)) {
-                    return "EXECUTE altertablespace " + cleanQuery.substring(17);
+                if (query.regionMatches(true, 0, "ALTER TABLESPACE ", 0, 17)) {
+                    return "EXECUTE altertablespace " + query.substring(17);
                 }
 
-                return cleanQuery;
+                return query;
 
             /* BEGIN */
             case 'B':
             case 'b':
-                if (cleanQuery.regionMatches(true, 0, "BEGIN TRANSACTION", 0, 17)) {
-                    return "EXECUTE begintransaction" + cleanQuery.substring(17);
+                if (query.regionMatches(true, 0, "BEGIN TRANSACTION", 0, 17)) {
+                    return "EXECUTE begintransaction" + query.substring(17);
                 }
 
-                return cleanQuery;
+                return query;
 
             /* COMMIT / CREATE */
             case 'C':
             case 'c':
-                ch = cleanQuery.charAt(1);
+                ch = query.charAt(1);
                 switch (ch) {
                     case 'O':
                     case 'o':
-                        if (cleanQuery.regionMatches(true, 0, "COMMIT TRANSACTION", 0, 18)) {
-                            return "EXECUTE committransaction" + cleanQuery.substring(18);
+                        if (query.regionMatches(true, 0, "COMMIT TRANSACTION", 0, 18)) {
+                            return "EXECUTE committransaction" + query.substring(18);
                         }
 
                         break;
 
                     case 'R':
                     case 'r':
-                        if (cleanQuery.regionMatches(true, 0, "CREATE TABLESPACE ", 0, 18)) {
-                            return "EXECUTE createtablespace " + cleanQuery.substring(18);
+                        if (query.regionMatches(true, 0, "CREATE TABLESPACE ", 0, 18)) {
+                            return "EXECUTE createtablespace " + query.substring(18);
                         }
 
                         break;
                 }
 
-                return cleanQuery;
+                return query;
 
             /* DROP */
             case 'D':
             case 'd':
-                if (cleanQuery.regionMatches(true, 0, "DROP TABLESPACE ", 0, 16)) {
-                    return "EXECUTE droptablespace " + cleanQuery.substring(16);
+                if (query.regionMatches(true, 0, "DROP TABLESPACE ", 0, 16)) {
+                    return "EXECUTE droptablespace " + query.substring(16);
                 }
 
-                return cleanQuery;
+                return query;
 
             /* ROLLBACK */
             case 'R':
             case 'r':
-                if (cleanQuery.regionMatches(true, 0, "ROLLBACK TRANSACTION", 0, 20)) {
-                    return "EXECUTE rollbacktransaction" + cleanQuery.substring(20);
+                if (query.regionMatches(true, 0, "ROLLBACK TRANSACTION", 0, 20)) {
+                    return "EXECUTE rollbacktransaction" + query.substring(20);
                 }
-                return cleanQuery;
+                return query;
 
             /* TRUNCATE */
             case 'T':
             case 't':
-                if (cleanQuery.regionMatches(true, 0, "TRUNCATE", 0, 8)) {
-                    return "TRUNCATE" + cleanQuery.substring(8);
+                if (query.regionMatches(true, 0, "TRUNCATE", 0, 8)) {
+                    return "TRUNCATE" + query.substring(8);
                 }
-                return cleanQuery;
+                return query;
             default:
-                return cleanQuery;
+                return query;
         }
     }
 
@@ -253,6 +244,13 @@ public class SQLPlanner implements AbstractSQLPlanner {
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
+
+        /* Strips out leading comments */
+        int idx = SQLUtils.findQueryStart(query);
+        if (idx != -1) {
+            query = query.substring(idx);
+        }
+
         query = rewriteExecuteSyntax(query);
         String cacheKey = "scan:" + scan
             + ",defaultTableSpace:" + defaultTableSpace
