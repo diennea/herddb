@@ -183,6 +183,9 @@ public class ExtendedDataInputStream extends DataInputStream {
         int len = readVInt();
         if (len == 0) {
             return EMPTY_ARRAY;
+        } else if (len == -1) {
+            /* NULL array */
+            return null;
         }
         byte[] res = new byte[len];
         readFully(res);

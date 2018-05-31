@@ -93,16 +93,34 @@ public class BlockRangeIndexConcurrentTest {
     private void verifyIndex(BlockRangeIndex<Sized<Integer>, Sized<String>> index) {
         Integer lastmax = null;
         for (Block b : index.getBlocks().values()) {
-            System.out.println("check block " + lastmax + " -> " + ((Sized<Integer>) b.minKey).dummy + "," + ((Sized<Integer>) b.maxKey).dummy);
-            if (lastmax == null) {
-                lastmax = ((Sized<Integer>) b.maxKey).dummy;
+            if (b.key == BlockRangeIndex.BlockStartKey.HEAD_KEY.HEAD_KEY) {
+                System.out.println("check block " + lastmax + " -> -inf," + ((Sized<Integer>) b.maxKey).dummy);
             } else {
-                Integer entryMin = ((Sized<Integer>) b.minKey).dummy;
-                Integer entryMax = ((Sized<Integer>) b.maxKey).dummy;
-                if (entryMin < lastmax) {
-                    fail(entryMin + " < " + lastmax);
+                System.out.println("check block " + lastmax + " -> " + ((Sized<Integer>) b.key.minKey).dummy + "," + ((Sized<Integer>) b.maxKey).dummy);
+            }
+
+            /* Forcefully load the block to check internal data */
+            b.ensureBlockLoaded();
+
+            if (b.values.isEmpty() && index.getBlocks().size() != 1 && b.key != BlockRangeIndex.BlockStartKey.HEAD_KEY) {
+                fail("non head of degenerate tree empty block");
+            }
+
+            if (b.values.isEmpty()) {
+                if (index.getBlocks().size() != 1 && b.key != BlockRangeIndex.BlockStartKey.HEAD_KEY) {
+                    fail("non head of degenerate tree empty block");
                 }
-                lastmax = entryMax;
+            } else {
+                if (lastmax == null) {
+                    lastmax = ((Sized<Integer>)b.values.lastKey()).dummy;
+                } else {
+                    Integer entryMin = ((Sized<Integer>)b.values.firstKey()).dummy;
+                    Integer entryMax = ((Sized<Integer>)b.values.lastKey()).dummy;
+                    if (entryMin < lastmax) {
+                        fail(entryMin + " < " + lastmax);
+                    }
+                    lastmax = entryMax;
+                }
             }
         }
     }

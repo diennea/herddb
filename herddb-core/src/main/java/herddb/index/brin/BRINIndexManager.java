@@ -110,7 +110,12 @@ public class BRINIndexManager extends AbstractIndexManager {
                 case TYPE_METADATA:
                     out.writeVInt(metadata.size());
                     for (BlockRangeIndexMetadata.BlockMetadata<Bytes> md : metadata) {
-                        out.writeArray(md.firstKey.data);
+                        if (md.firstKey == null) {
+                            /* Writes a "null" array */
+                            out.writeArray(null);
+                        } else {
+                            out.writeArray(md.firstKey.data);
+                        }
                         out.writeArray(md.lastKey.data);
                         out.writeVInt(md.blockId);
                         out.writeVLong(md.size);
@@ -143,7 +148,9 @@ public class BRINIndexManager extends AbstractIndexManager {
                     int blocks = in.readVInt();
                     result.metadata = new ArrayList<>();
                     for (int i = 0; i < blocks; i++) {
-                        Bytes firstKey = Bytes.from_array(in.readArray());
+                        /* First key can be null if is the head block */
+                        byte[] fk = in.readArray();
+                        Bytes firstKey = fk == null ? null : Bytes.from_array(fk);
                         Bytes lastKey = Bytes.from_array(in.readArray());
                         int blockId = in.readVInt();
                         long size = in.readVLong();
