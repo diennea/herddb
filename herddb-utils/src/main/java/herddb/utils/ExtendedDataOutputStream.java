@@ -75,8 +75,12 @@ public final class ExtendedDataOutputStream extends DataOutputStream {
     }
 
     public void writeArray(byte[] data) throws IOException {
-        writeVInt(data.length);
-        write(data);
+        if (data == null) {
+            writeVInt(-1);
+        } else {
+            writeVInt(data.length);
+            write(data);
+        }
     }
 
     public void writeArray(byte[] data, int offset, int len) throws IOException {
