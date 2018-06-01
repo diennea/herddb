@@ -194,7 +194,6 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
     class Block implements Page.Owner {
 
         final BlockStartKey<K> key;
-        K maxKey;
         NavigableMap<K, List<V>> values;
         long size;
         Block next;
@@ -205,9 +204,8 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
         private final BRINPage page;
 
-        public Block(int blockId, K firstKey, K lastKey, long size, long pageId) {
+        public Block(int blockId, K firstKey, long size, long pageId) {
             this.key = BlockStartKey.valueOf(firstKey, blockId);
-            this.maxKey = lastKey;
             this.size = size;
             this.loaded = false;
             this.dirty = false;
@@ -224,7 +222,6 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             firstKeyValues.add(firstValue);
             values = new TreeMap<>();
             values.put(firstKey, firstKeyValues);
-            this.maxKey = firstKey;
             this.size = evaluateEntrySize(firstKey, firstValue);
             this.loaded = true;
             this.dirty = true;
@@ -234,10 +231,9 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             page = new BRINPage(this, key.blockId);
         }
 
-        private Block(K newOtherMinKey, K newOtherMaxKey, NavigableMap<K, List<V>> other_values, long size) {
+        private Block(K newOtherMinKey, NavigableMap<K, List<V>> other_values, long size) {
             this.key = BlockStartKey.valueOf(newOtherMinKey, blockIdGenerator.incrementAndGet());
             this.values = other_values;
-            this.maxKey = newOtherMaxKey;
             this.size = size;
             this.loaded = true;
             this.dirty = true;
@@ -289,9 +285,6 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 size += evaluateEntrySize(key, value);
                 dirty = true;
 
-                if (maxKey.compareTo(key) < 0) {
-                    maxKey = key;
-                }
                 if (size > maxPageBlockSize) {
                     newblock = split(blocks);
                 }
@@ -318,11 +311,22 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
             try {
 
+                final Block currentNext = this.next;
+
+                /*
+                 * Compare deletion key with next block min key. If no next block exists
+                 * comparison is set to an arbitrary value needed only for initialization
+                 */
+                final int nextMinKeyCompare = currentNext == null ?
+                        -1 : currentNext.key.compareMinKey(key);
+
                 /*
                  * If reached during split this block could be too "small". In such case we
-                 * don't need to attempt any load but send directly to next.
+                 * don't need to attempt any load but send directly to next. Pay attention that
+                 * if next block min key is equal to needed key we must look in this node too
+                 * (the key list could be split between both nodes)
                  */
-                if (key.compareTo(maxKey) <= 0) {
+                if (currentNext == null || nextMinKeyCompare >= 0) {
                     ensureBlockLoaded();
                     List<V> valuesForKey = values.get(key);
                     if (valuesForKey != null) {
@@ -337,13 +341,12 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                     }
                 }
 
-                Block currentNext = this.next;
 
                 /*
-                 * Propagate to next only if it exist AND current max key isn't greater than requested
+                 * Propagate to next only if it exist AND next min key isn't greater than requested
                  * key (ie: only if next could have any useful data)
                  */
-                if (currentNext != null && key.compareTo(maxKey) >= 0) {
+                if (currentNext != null && nextMinKeyCompare <= 0) {
                     return currentNext;
                 }
 
@@ -387,13 +390,26 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
             lock.lock();
 
+            /*
+             * If we got here means that at some point this block had a min key compatible
+             * with lookup limits. Because min key never change we could be skipped only if
+             * first requested key is greater than next min key (due to an occurring split
+             * while selecting the blocks)
+             */
+
             try {
+
+                final Block currentNext = this.next;
+
                 if (firstKey != null && lastKey != null) {
+
                     /*
                      * If reached during split this block could be too "small". In such case we
-                     * don't need to attempt any load but send directly to next.
+                     * don't need to attempt any load but send directly to next. Pay attention that
+                     * if next block min key is equal to needed key we must look in this node too
+                     * (the key list could be split between both nodes)
                      */
-                    if (firstKey.compareTo(maxKey) <= 0) {
+                    if ( currentNext == null || currentNext.key.compareMinKey(firstKey) >= 0) {
                         // index seek case
                         ensureBlockLoaded();
                         if (firstKey.equals(lastKey)) {
@@ -409,12 +425,16 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                             });
                         }
                     }
+
                 } else if (firstKey != null) {
+
                     /*
                      * If reached during split this block could be too "small". In such case we
-                     * don't need to attempt any load but send directly to next.
+                     * don't need to attempt any load but send directly to next. Pay attention that
+                     * if next block min key is equal to needed key we must look in this node too
+                     * (the key list could be split between both nodes)
                      */
-                    if (firstKey.compareTo(maxKey) <= 0) {
+                    if ( currentNext == null || currentNext.key.compareMinKey(firstKey) >= 0) {
                         // index seek case
                         ensureBlockLoaded();
                         values.tailMap(firstKey, true).forEach((k, seg) -> {
@@ -428,13 +448,16 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                     });
                 }
 
-                final Block currentNext = this.next;
-
                 /*
                  * Propagate to next only if it exist AND current max key isn't greater than requested
                  * last key (ie: only if next could have any useful data)
                  */
-                if (currentNext != null && lastKey != null && lastKey.compareTo(maxKey) >= 0) {
+
+                /*
+                 * Propagate to next only if it exist AND next min key is less or equal than requested
+                 * last key (ie: only if next could have any useful data)
+                 */
+                if (currentNext != null && (lastKey == null || currentNext.key.compareMinKey(lastKey) <= 0)) {
                     return currentNext;
                 }
 
@@ -482,10 +505,9 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             }
 
             K newOtherMinKey = other_values.firstKey();
-            K newOtherMaxKey = other_values.lastKey();
-            Block newblock = new Block(newOtherMinKey, newOtherMaxKey, other_values, otherSize);
 
-            K lastKey = keep_values.lastKey();
+            Block newblock = new Block(newOtherMinKey, other_values, otherSize);
+
             this.next = newblock;
             this.size = mySize;
             this.values = keep_values;
@@ -500,8 +522,6 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             // access to external field, this is the cause of most of the concurrency problems
             blocks.put(newblock.key, newblock);
 
-            this.maxKey = lastKey;
-
             return newblock;
 
         }
@@ -510,7 +530,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
             lock.lock();
             try {
                 if (!dirty || !loaded) {
-                    return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, maxKey, key.blockId, size, pageId);
+                    return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, key.blockId, size, pageId);
                 }
                 List<Map.Entry<K, V>> result = new ArrayList<>();
                 values.forEach((k, l) -> {
@@ -526,7 +546,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
                 this.dirty = false;
                 this.pageId = newPageId;
 
-                return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, maxKey, key.blockId, size, pageId);
+                return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, key.blockId, size, pageId);
             } finally {
                 lock.unlock();
             }
@@ -584,7 +604,7 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
 
         @Override
         public String toString() {
-            return "Block{" + "key=" + key + ", minKey=" + key.minKey + ", maxKey=" + maxKey + ", size=" + size;
+            return "Block{" + "key=" + key + ", minKey=" + key.minKey + ", size=" + size;
         }
 
     }
@@ -770,10 +790,10 @@ public class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V extend
              * TODO: if the system is restart with a different (smaller) page size old blocks will remain
              * bigger until a split occurs.
              */
-            Block block = new Block(blockData.blockId, blockData.firstKey, blockData.lastKey, blockData.size, blockData.pageId);
+            Block block = new Block(blockData.blockId, blockData.firstKey, blockData.size, blockData.pageId);
             blocks.put(block.key, block);
             if (LOG.isLoggable(Level.FINE)) {
-                LOG.fine("boot block at " + block.key + " " + block.key.minKey + " - " + block.maxKey);
+                LOG.fine("boot block at " + block.key + " " + block.key.minKey);
             }
             blockIdGenerator.accumulateAndGet(block.key.blockId, EnsureIntegerIncrementAccumulator.INSTANCE);
         }
