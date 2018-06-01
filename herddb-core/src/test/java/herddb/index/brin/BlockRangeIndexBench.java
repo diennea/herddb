@@ -34,7 +34,6 @@ import herddb.utils.Sized;
 public class BlockRangeIndexBench {
 
     @Test
-//    @Ignore
     public void testHuge() {
         final int testSize = 1_000_000;
 //        final int testSize = 100_000;
