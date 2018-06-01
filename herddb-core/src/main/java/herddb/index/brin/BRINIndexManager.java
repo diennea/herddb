@@ -116,7 +116,8 @@ public class BRINIndexManager extends AbstractIndexManager {
                         } else {
                             out.writeArray(md.firstKey.data);
                         }
-                        out.writeArray(md.lastKey.data);
+                        // Legacy maxLey, kept for metadata forward compatibility
+                        out.writeArray(null);
                         out.writeVInt(md.blockId);
                         out.writeVLong(md.size);
                         out.writeVLong(md.pageId);
@@ -151,12 +152,13 @@ public class BRINIndexManager extends AbstractIndexManager {
                         /* First key can be null if is the head block */
                         byte[] fk = in.readArray();
                         Bytes firstKey = fk == null ? null : Bytes.from_array(fk);
-                        Bytes lastKey = Bytes.from_array(in.readArray());
+                        // Consume next array, was the legacy lastKey, kept for metadata forward compatibility
+                        in.readArray();
                         int blockId = in.readVInt();
                         long size = in.readVLong();
                         long pageId = in.readVLong();
                         BlockRangeIndexMetadata.BlockMetadata<Bytes> md
-                            = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, lastKey, blockId, size, pageId);
+                            = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, blockId, size, pageId);
                         result.metadata.add(md);
                     }
                     break;

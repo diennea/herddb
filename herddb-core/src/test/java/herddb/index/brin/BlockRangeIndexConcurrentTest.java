@@ -94,9 +94,9 @@ public class BlockRangeIndexConcurrentTest {
         Integer lastmax = null;
         for (Block b : index.getBlocks().values()) {
             if (b.key == BlockRangeIndex.BlockStartKey.HEAD_KEY.HEAD_KEY) {
-                System.out.println("check block " + lastmax + " -> -inf," + ((Sized<Integer>) b.maxKey).dummy);
+                System.out.println("check block " + lastmax + " -> -inf");
             } else {
-                System.out.println("check block " + lastmax + " -> " + ((Sized<Integer>) b.key.minKey).dummy + "," + ((Sized<Integer>) b.maxKey).dummy);
+                System.out.println("check block " + lastmax + " -> " + ((Sized<Integer>) b.key.minKey).dummy);
             }
 
             /* Forcefully load the block to check internal data */
