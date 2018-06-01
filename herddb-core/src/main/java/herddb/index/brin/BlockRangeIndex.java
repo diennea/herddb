@@ -192,7 +192,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         return size;
     }
 
-
     private static final class DeleteState <KEY extends Comparable<KEY> & SizeAwareObject, VAL extends SizeAwareObject> {
         final Set<BlockStartKey<KEY>> visited;
         boolean deleted;
@@ -213,6 +212,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         NavigableMap<KEY, List<VAL>> values;
         long size;
         Block<KEY,VAL> next;
+      
         private final ReentrantLock lock = new ReentrantLock(true);
         private volatile boolean loaded;
         private volatile boolean dirty;
