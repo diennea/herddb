@@ -24,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 
 import org.junit.Rule;
@@ -259,7 +260,7 @@ public class SimpleBrinIndexRecoveryTest {
 
             while(brin.getNumBlocks() < 2) {
                 id++;
-                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList(id,"my_repeatad_key"), TransactionContext.NO_TRANSACTION);
             }
 
             // some data on disk
@@ -268,7 +269,7 @@ public class SimpleBrinIndexRecoveryTest {
             // some data to be recovered from log
             while(brin.getNumBlocks() < 3) {
                 id++;
-                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values('" + id + "','my_repeatad_key')", Collections.emptyList(), TransactionContext.NO_TRANSACTION);
+                TestUtils.executeUpdate(manager, "INSERT INTO tblspace1.t1(id,name) values(?,?)", Arrays.asList(id,"my_repeatad_key"), TransactionContext.NO_TRANSACTION);
             }
 
             try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.t1", Collections.emptyList());) {
