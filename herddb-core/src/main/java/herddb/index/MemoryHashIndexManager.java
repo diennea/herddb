@@ -71,13 +71,14 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     LogSequenceNumber bootSequenceNumber;
 
     @Override
-    public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+    protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, "loading in memory all the keys for mem index {0}", new Object[]{index.name});
         bootSequenceNumber = sequenceNumber;
 
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
+            return true;
         } else {
 
             IndexStatus status;
@@ -85,8 +86,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                 status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
             } catch (DataStorageManagerException e) {
                 LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[] {index.name, e});
-                rebuild();
-                return;
+                return false;
             }
 
             for (long pageId : status.activePages) {
@@ -120,6 +120,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
 
             newPageId.set(status.newPageId);
             LOGGER.log(Level.SEVERE, "loaded {0} keys for index {1}", new Object[]{data.size(), index.name});
+            return true;
         }
     }
 

@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 import herddb.codec.RecordSerializer;
 import herddb.core.AbstractIndexManager;
 import herddb.core.AbstractTableManager;
+import herddb.core.HerdDBInternalException;
 import herddb.core.MemoryManager;
 import herddb.core.PageReplacementPolicy;
 import herddb.core.PostCheckpointAction;
@@ -102,7 +103,7 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
 
         void serialize(ExtendedDataOutputStream out) throws IOException {
-            out.writeVLong(1); // version
+            out.writeVLong(2); // version
             out.writeVLong(0); // flags for future implementations
 
             out.writeVInt(this.type);
@@ -110,14 +111,8 @@ public class BRINIndexManager extends AbstractIndexManager {
                 case TYPE_METADATA:
                     out.writeVInt(metadata.size());
                     for (BlockRangeIndexMetadata.BlockMetadata<Bytes> md : metadata) {
-                        if (md.firstKey == null) {
-                            /* Writes a "null" array */
-                            out.writeArray(null);
-                        } else {
-                            out.writeArray(md.firstKey.data);
-                        }
-                        // Legacy maxLey, kept for metadata forward compatibility
-                        out.writeArray(null);
+                        /* First key is null if is the head block */
+                        out.writeArray(md.firstKey == null ? null : md.firstKey.data);
                         out.writeVInt(md.blockId);
                         out.writeVLong(md.size);
                         out.writeVLong(md.pageId);
@@ -138,7 +133,13 @@ public class BRINIndexManager extends AbstractIndexManager {
         static PageContents deserialize(ExtendedDataInputStream in) throws IOException {
             long version = in.readVLong(); // version
             long flags = in.readVLong(); // flags for future implementations
-            if (version != 1 || flags != 0) {
+
+            /* Only version 2 actually supported, older versions will need a full rebuild */
+            if (version < 2) {
+                throw new UnsupportedMetadataVersionException(version);
+            }
+
+            if (version > 2 || flags != 0) {
                 throw new DataStorageManagerException("corrupted index page");
             }
 
@@ -149,11 +150,9 @@ public class BRINIndexManager extends AbstractIndexManager {
                     int blocks = in.readVInt();
                     result.metadata = new ArrayList<>();
                     for (int i = 0; i < blocks; i++) {
-                        /* First key can be null if is the head block */
+                        /* First key is null if is the head block */
                         byte[] fk = in.readArray();
-                        Bytes firstKey = fk == null ? null : Bytes.from_array(fk);
-                        // Consume next array, was the legacy lastKey, kept for metadata forward compatibility
-                        in.readArray();
+                        Bytes firstKey = (fk == null) ? null : Bytes.from_array(fk);
                         int blockId = in.readVInt();
                         long size = in.readVLong();
                         long pageId = in.readVLong();
@@ -185,8 +184,25 @@ public class BRINIndexManager extends AbstractIndexManager {
         }
     }
 
+    /**
+     * Signal that an old unsupported version of page metadata has been read. In
+     * such cases the index will need a full rebuild.
+     */
+    private static final class UnsupportedMetadataVersionException extends HerdDBInternalException {
+
+        /** Default Serial Version UID */
+        private static final long serialVersionUID = 1L;
+
+        private final long version;
+
+        public UnsupportedMetadataVersionException(long version) {
+            super();
+            this.version = version;
+        }
+    }
+
     @Override
-    public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+    protected boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
         LOGGER.log(Level.SEVERE, " start index {0} uuid {1}", new Object[]{index.name, index.uuid});
         bootSequenceNumber = sequenceNumber;
 
@@ -194,6 +210,8 @@ public class BRINIndexManager extends AbstractIndexManager {
             /* Empty index (booting from the start) */
             this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
+
+            return true;
         } else {
 
             IndexStatus status;
@@ -201,19 +219,24 @@ public class BRINIndexManager extends AbstractIndexManager {
                 status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
             } catch (DataStorageManagerException e) {
                 LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[] {index.name, e});
-                this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
-                rebuild();
-                return;
+                return false;
             }
+
             try {
                 PageContents metadataBlock = PageContents.deserialize(status.indexData);
                 this.data.boot(new BlockRangeIndexMetadata<>(metadataBlock.metadata));
             } catch (IOException e) {
                 throw new DataStorageManagerException(e);
+            } catch (UnsupportedMetadataVersionException e) {
+                LOGGER.log(Level.SEVERE, "cannot load index {0} due to an old metadata version ({1}) found, it will be rebuilt", new Object[] {index.name, e.version});
+                return false;
             }
+
             newPageId.set(status.newPageId);
             LOGGER.log(Level.SEVERE, "loaded index {0} {1} blocks", new Object[]{index.name, this.data.getNumBlocks()});
+            return true;
         }
+
     }
 
     @Override

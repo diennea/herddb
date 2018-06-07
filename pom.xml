@@ -343,7 +343,7 @@
                             <reuseForks>false</reuseForks>
                             <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
                             <argLine> -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
-                            <redirectTestOutputToFile>false</redirectTestOutputToFile>
+                            <!--<redirectTestOutputToFile>false</redirectTestOutputToFile>-->
                             <trimStackTrace>false</trimStackTrace>
                         </configuration>
                     </plugin>            
