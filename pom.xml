@@ -313,6 +313,7 @@
                 <module>herddb-bench</module>                
                 <module>herddb-website</module>                
                 <module>herddb-site-skin</module>                
+		<module>herddb-backward-compatibility</module>
             </modules>
             <distributionManagement>        
                 <repository>            
@@ -507,7 +508,7 @@
                 <module>herddb-ui</module>
                 <module>herddb-website</module>
                 <module>herddb-site-skin</module>
-                <!-- <module>herddb-bench</module> -->
+		<module>herddb-backward-compatibility</module>
             </modules>           
             <build>        
                 <plugins>                                           
