@@ -44,8 +44,8 @@ public class BlockRangeIndexConcurrentTest {
 
     @Test
     public void testConcurrentWrites() throws Exception {
-        int testSize = 1000;
-        int parallelism = 6;
+        int testSize = 10000;
+        int parallelism = 10;
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
 //        PagedBlockRangeIndex<Sized<Integer>, Sized<String>> index =
@@ -72,6 +72,9 @@ public class BlockRangeIndexConcurrentTest {
         }
 
         assertTrue(l.await(10, TimeUnit.SECONDS));
+
+        index.checkpoint();
+
         dumpIndex(index);
         verifyIndex(index);
         List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
@@ -127,8 +130,8 @@ public class BlockRangeIndexConcurrentTest {
 
     @Test
     public void testConcurrentReadsWritesWithSplits() throws Exception {
-        int testSize = 1000;
-        int parallelism = 6;
+        int testSize = 10000;
+        int parallelism = 10;
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
         ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
@@ -154,7 +157,11 @@ public class BlockRangeIndexConcurrentTest {
         } finally {
             threadpool.shutdown();
         }
+
         assertTrue(l.await(10, TimeUnit.SECONDS));
+
+        index.checkpoint();
+
         dumpIndex(index);
         verifyIndex(index);
         List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
@@ -170,14 +177,14 @@ public class BlockRangeIndexConcurrentTest {
 
     @Test
     public void testConcurrentReadsWritesDeletesWithSplits() throws Exception {
-        int testSize = 1000;
-        int parallelism = 6;
+        int testSize = 10000;
+        int parallelism = 10;
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
         ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
         CountDownLatch l = new CountDownLatch(testSize);
-        ConcurrentLinkedQueue<Sized<String>> results = new ConcurrentLinkedQueue<>();
-        ConcurrentLinkedQueue<Sized<String>> results2 = new ConcurrentLinkedQueue<>();
+        ConcurrentLinkedQueue<Sized<String>> afterInsertSearch = new ConcurrentLinkedQueue<>();
+        ConcurrentLinkedQueue<Sized<String>> afterDeleteSearch = new ConcurrentLinkedQueue<>();
         try {
             for (int i = 0; i < testSize; i++) {
                 int _i = i;
@@ -185,14 +192,14 @@ public class BlockRangeIndexConcurrentTest {
                     try {
                         index.put(Sized.valueOf(_i), Sized.valueOf("a" + _i));
                         List<Sized<String>> search = index.search(Sized.valueOf(_i));
-                        results.addAll(search);
+                        afterInsertSearch.addAll(search);
                         if (search.isEmpty()) {
                             throw new IllegalStateException("Empty Search! i " + _i);
                         }
 
                         index.delete(Sized.valueOf(_i), Sized.valueOf("a" + _i));
                         List<Sized<String>> search2 = index.search(Sized.valueOf(_i));
-                        results2.addAll(search2);
+                        afterDeleteSearch.addAll(search2);
                         l.countDown();
                     } catch (Throwable t) {
                         t.printStackTrace();
@@ -202,17 +209,21 @@ public class BlockRangeIndexConcurrentTest {
         } finally {
             threadpool.shutdown();
         }
+
         assertTrue(l.await(10, TimeUnit.SECONDS));
+
+        index.checkpoint();
+
         dumpIndex(index);
         verifyIndex(index);
-        List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
-        assertTrue(result.isEmpty());
+        List<Sized<String>> lookupAfterDeletion = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
+        assertTrue(lookupAfterDeletion.isEmpty());
 
-        System.out.println(results);
+        System.out.println(afterInsertSearch);
         for (int i = 0; i < testSize; i++) {
-            assertTrue("cannot find a" + i, results.contains(Sized.valueOf("a" + i)));
+            assertTrue("cannot find a" + i, afterInsertSearch.contains(Sized.valueOf("a" + i)));
         }
-        assertTrue(results2.isEmpty());
+        assertTrue(afterDeleteSearch.isEmpty());
 
     }
 

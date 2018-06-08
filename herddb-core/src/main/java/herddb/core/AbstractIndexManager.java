@@ -83,7 +83,25 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      *
      * @throws DataStorageManagerException
      */
-    public abstract void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
+    public void start(LogSequenceNumber sequenceNumber) throws DataStorageManagerException {
+
+        boolean needRebuild = !doStart(sequenceNumber);
+
+        if (needRebuild) {
+            dropIndexData();
+            rebuild();
+        }
+    }
+
+    /**
+     * Boots the index, this method usually reload state from the DataStorageManager
+     *
+     * @param sequenceNumber sequence number from which boot the index
+     * @return {@code false} if index cannot be started and need a rebuild, @code true} otherwise
+     *
+     * @throws DataStorageManagerException
+     */
+    protected abstract boolean doStart(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
 
     /**
      * Release resources. Do not drop data
@@ -143,12 +161,12 @@ public abstract class AbstractIndexManager implements AutoCloseable {
      * @throws StatementExecutionException
      */
     public Stream<Map.Entry<Bytes, Long>> recordSetScanner(IndexOperation operation, StatementEvaluationContext context, TableContext tableContext, KeyToPageIndex keyToPageIndex) throws DataStorageManagerException, StatementExecutionException {
-        return scanner(operation, context, tableContext).map((Bytes b) -> {
+        return scanner(operation, context, tableContext).map((b) -> {
             Long idPage = keyToPageIndex.get(b);
             if (idPage == null) {
                 return null;
             }
-            return (Map.Entry<Bytes, Long>) new SimpleImmutableEntry<>(b, idPage);
+            return ((Map.Entry<Bytes, Long>) new SimpleImmutableEntry<>(b, idPage));
         }).filter(p -> p != null);
     }
 
