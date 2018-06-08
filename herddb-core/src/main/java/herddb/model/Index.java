@@ -31,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import java.util.Arrays;
 import java.util.UUID;
 
 /**
@@ -59,7 +60,7 @@ public class Index implements ColumnsList {
     }
 
     private Index(String uuid,
-        String name, String table, String tablespace, String type, Column[] columns) {
+            String name, String table, String tablespace, String type, Column[] columns) {
         this.name = name;
         this.uuid = uuid;
         this.table = table;
@@ -224,6 +225,11 @@ public class Index implements ColumnsList {
             return new Index(uuid, name, table, tablespace, type, columns.toArray(new Column[columns.size()]));
         }
 
+    }
+
+    @Override
+    public String toString() {
+        return type + "INDEX{" + "name=" + table + '.' + name + " (" + Arrays.toString(columnNames) + ")";
     }
 
 }
