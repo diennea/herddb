@@ -21,7 +21,7 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
+import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledIsNotTrueExpression implements CompiledSQLExpression {
 
@@ -36,7 +36,7 @@ public class CompiledIsNotTrueExpression implements CompiledSQLExpression {
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object leftValue = left.evaluate(bean, context);
-        boolean result = !SQLRecordPredicate.toBoolean(leftValue);
+        boolean result = !SQLRecordPredicateFunctions.toBoolean(leftValue);
         if (not) {
             return !result;
         } else {

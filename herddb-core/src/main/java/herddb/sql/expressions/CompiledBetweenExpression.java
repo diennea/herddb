@@ -21,9 +21,9 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.sql.SQLRecordPredicate.compare;
-import static herddb.sql.SQLRecordPredicate.objectEquals;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
+import static herddb.utils.SQLRecordPredicateFunctions.compare;
+import static herddb.utils.SQLRecordPredicateFunctions.objectEquals;
 import net.sf.jsqlparser.expression.operators.relational.Between;
 
 public class CompiledBetweenExpression implements CompiledSQLExpression {

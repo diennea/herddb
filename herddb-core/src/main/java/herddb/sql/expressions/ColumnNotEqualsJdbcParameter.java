@@ -22,6 +22,7 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
+import herddb.utils.SQLRecordPredicateFunctions;
 
 public class ColumnNotEqualsJdbcParameter extends CompiledSQLExpressionUsingRightJdbcParameter {
 
@@ -33,7 +34,7 @@ public class ColumnNotEqualsJdbcParameter extends CompiledSQLExpressionUsingRigh
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object left = bean.get(columnName);
         Object value = context.getJdbcParameter(index);
-        boolean res = !SQLRecordPredicate.objectEquals(left, value);
+        boolean res = !SQLRecordPredicateFunctions.objectEquals(left, value);
         if (not) {
             return !res;
         } else {

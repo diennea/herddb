@@ -21,8 +21,7 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
-import java.util.Map;
+import static herddb.utils.SQLRecordPredicateFunctions.compare;
 
 public class CompiledMinorThenExpression extends CompiledBinarySQLExpression {
 
@@ -35,9 +34,10 @@ public class CompiledMinorThenExpression extends CompiledBinarySQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object leftValue = left.evaluate(bean, context);
-        Object rightValue = right.evaluate(bean, context);
-        boolean res = SQLRecordPredicate.compare(leftValue, rightValue) < 0;
+//        Object leftValue = left.evaluate(bean, context);
+//        Object rightValue = right.evaluate(bean, context);
+//        boolean res = compare(leftValue, rightValue) < 0;
+        boolean res = left.opCompareTo(bean, context, right) < 0;
         if (not) {
             return !res;
         } else {
@@ -49,7 +49,7 @@ public class CompiledMinorThenExpression extends CompiledBinarySQLExpression {
     public String getOperator() {
         return "<";
     }
-    
+
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledMinorThenExpression(not,

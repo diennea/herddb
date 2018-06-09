@@ -140,7 +140,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     }
 
     public java.sql.Timestamp to_timestamp() {
-        return toTimestamp(data, 0, 8);
+        return toTimestamp(data, 0);
     }
 
     public boolean to_boolean() {
@@ -241,6 +241,22 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
             (long) array[index + 7] & 0xff;
     }
 
+    public static int compareInt(byte[] array, int index, int value) {
+        return Integer.compare(toInt(array, index), value);
+    }
+    
+    public static int compareInt(byte[] array, int index, long value) {
+        return Long.compare(toInt(array, index), value);
+    }
+    
+    public static int compareLong(byte[] array, int index, int value) {
+        return Long.compare(toLong(array, index), value);
+    }
+    
+    public static int compareLong(byte[] array, int index, long value) {
+        return Long.compare(toLong(array, index), value);
+    }
+    
     public static int toInt(byte[] array, int index) {
         if (HAS_UNSAFE && UNALIGNED) {
             int v = PlatformDependent.getInt(array, index);
@@ -256,7 +272,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
             (int) array[index + 3] & 0xff;
     }
 
-    public static java.sql.Timestamp toTimestamp(byte[] bytes, int offset, final int length) {
+    public static java.sql.Timestamp toTimestamp(byte[] bytes, int offset) {
         long l = toLong(bytes, offset);
         if (l < 0) {
             return null;

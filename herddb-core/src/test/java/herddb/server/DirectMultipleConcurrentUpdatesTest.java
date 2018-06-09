@@ -241,7 +241,7 @@ public class DirectMultipleConcurrentUpdatesTest {
         // restart and recovery
         try (Server server = new Server(serverConfiguration)) {
             server.start();
-            server.waitForStandaloneBoot();
+            server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
             DBManager manager = server.getManager();
             List<String> erroredKeys = new ArrayList<>();
             for (Map.Entry<String, Long> entry : expectedValue.entrySet()) {

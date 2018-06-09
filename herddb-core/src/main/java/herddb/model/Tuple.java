@@ -22,6 +22,7 @@ package herddb.model;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.codec.RecordSerializer;
 import herddb.utils.AbstractDataAccessor;
+import herddb.utils.ByteArrayCursor;
 import herddb.utils.DataAccessor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
@@ -197,7 +198,7 @@ public final class Tuple extends AbstractDataAccessor {
     }
 
     public static Tuple deserialize(final byte[] data, final String[] fieldNames, final int nColumns) throws IOException {
-        try (ExtendedDataInputStream eoo = new ExtendedDataInputStream(new SimpleByteArrayInputStream(data));) {
+        try (ByteArrayCursor eoo = ByteArrayCursor.wrap(data);) {
 
             List<Object> values = new ArrayList<>();
             for (int i = 0; i < nColumns; i++) {

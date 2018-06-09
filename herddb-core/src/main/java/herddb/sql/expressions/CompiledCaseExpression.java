@@ -21,12 +21,11 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.sql.SQLRecordPredicate.toBoolean;
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.Expression;
@@ -77,7 +76,7 @@ public class CompiledCaseExpression implements CompiledSQLExpression {
         if (whenExpressions != null) {
             for (Entry<CompiledSQLExpression, CompiledSQLExpression> entry : whenExpressions) {
                 Object whenValue = entry.getKey().evaluate(bean, context);
-                if (toBoolean(whenValue)) {
+                if (SQLRecordPredicateFunctions.toBoolean(whenValue)) {
                     return entry.getValue().evaluate(bean, context);
                 }
             }

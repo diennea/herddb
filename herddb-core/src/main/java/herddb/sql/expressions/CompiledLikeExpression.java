@@ -21,7 +21,7 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.sql.SQLRecordPredicate.like;
+import static herddb.utils.SQLRecordPredicateFunctions.like;
 
 public class CompiledLikeExpression extends CompiledBinarySQLExpression {
 

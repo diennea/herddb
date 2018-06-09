@@ -22,6 +22,7 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
+import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledSubtractExpression extends CompiledBinarySQLExpression {
 
@@ -36,7 +37,7 @@ public class CompiledSubtractExpression extends CompiledBinarySQLExpression {
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         Object leftValue = left.evaluate(bean, context);
         Object rightValue = right.evaluate(bean, context);
-        return SQLRecordPredicate.subtract(leftValue, rightValue);
+        return SQLRecordPredicateFunctions.subtract(leftValue, rightValue);
     }
 
 }

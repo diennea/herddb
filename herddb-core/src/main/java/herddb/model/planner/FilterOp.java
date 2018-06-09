@@ -31,6 +31,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.Wrapper;
 
 /**
@@ -110,7 +111,7 @@ public class FilterOp implements PlannerOp {
                 } else {
                     DataAccessor candidate = inputScanner.next();
                     Object evaluate = condition.evaluate(candidate, context);
-                    if (SQLRecordPredicate.toBoolean(evaluate)) {
+                    if (SQLRecordPredicateFunctions.toBoolean(evaluate)) {
                         next = candidate;
                         return;
                     }

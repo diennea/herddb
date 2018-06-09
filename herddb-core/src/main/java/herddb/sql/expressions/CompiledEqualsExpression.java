@@ -22,7 +22,7 @@ package herddb.sql.expressions;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 import herddb.sql.SQLRecordPredicate;
-import java.util.List;
+import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
 
@@ -35,9 +35,12 @@ public class CompiledEqualsExpression extends CompiledBinarySQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        Object leftValue = left.evaluate(bean, context);
-        Object rightValue = right.evaluate(bean, context);
-        boolean res = SQLRecordPredicate.objectEquals(leftValue, rightValue);
+
+//        Object leftValue = left.evaluate(bean, context);
+//        Object rightValue = right.evaluate(bean, context);
+//        boolean res = SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
+        
+        boolean res = left.opEqualsTo(bean, context, right);
         if (not) {
             return !res;
         } else {

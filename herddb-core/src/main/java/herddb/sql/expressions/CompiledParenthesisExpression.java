@@ -21,8 +21,7 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import static herddb.sql.SQLRecordPredicate.toBoolean;
-import java.util.Map;
+import static herddb.utils.SQLRecordPredicateFunctions.toBoolean;
 
 public class CompiledParenthesisExpression implements CompiledSQLExpression {
 
@@ -53,7 +52,7 @@ public class CompiledParenthesisExpression implements CompiledSQLExpression {
     @Override
     public CompiledSQLExpression remapPositionalAccessToToPrimaryKeyAccessor(int[] projection) {
         return new CompiledParenthesisExpression(not,
-            inner.remapPositionalAccessToToPrimaryKeyAccessor(projection));
+                inner.remapPositionalAccessToToPrimaryKeyAccessor(projection));
     }
 
 }

@@ -22,6 +22,8 @@ package herddb.sql.expressions;
 import herddb.model.Predicate;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
+import herddb.sql.SQLRecordPredicate;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Collections;
 import java.util.List;
 
@@ -47,6 +49,18 @@ public interface CompiledSQLExpression {
      */
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException;
 
+    public default boolean opEqualsTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+        Object leftValue = this.evaluate(bean, context);
+        Object rightValue = right.evaluate(bean, context);
+        return SQLRecordPredicateFunctions.objectEquals(leftValue, rightValue);
+    }
+    
+    public default int opCompareTo(herddb.utils.DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+        Object leftValue = this.evaluate(bean, context);
+        Object rightValue = right.evaluate(bean, context);
+        return SQLRecordPredicateFunctions.compare(leftValue, rightValue);
+    }
+    
     /**
      * Validates the expression without actually doing complex operation
      *

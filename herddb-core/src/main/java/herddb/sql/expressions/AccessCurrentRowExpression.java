@@ -42,6 +42,18 @@ public class AccessCurrentRowExpression implements CompiledSQLExpression {
         return bean.get(index);
     }
 
+    @Override
+    public boolean opEqualsTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+        Object rightValue = right.evaluate(bean, context);
+        return bean.fieldEqualsTo(index, rightValue);
+    }
+
+    @Override
+    public int opCompareTo(DataAccessor bean, StatementEvaluationContext context, CompiledSQLExpression right) throws StatementExecutionException {
+        Object rightValue = right.evaluate(bean, context);
+        return bean.fieldCompareTo(index, rightValue);
+    }
+
     public int getIndex() {
         return index;
     }

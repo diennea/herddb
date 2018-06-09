@@ -24,6 +24,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Tuple;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,7 +76,7 @@ public class MultiColumnSQLTupleComparator implements TupleComparator {
             String name = element.name;
             Object value1 = o1.get(name);
             Object value2 = o2.get(name);
-            int result = SQLRecordPredicate.compare(value1, value2);
+            int result = SQLRecordPredicateFunctions.compare(value1, value2);
             if (result != 0) {
                 if (element.asc) {
                     return result;

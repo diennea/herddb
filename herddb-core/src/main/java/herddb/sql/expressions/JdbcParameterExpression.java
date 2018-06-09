@@ -19,7 +19,6 @@
  */
 package herddb.sql.expressions;
 
-import herddb.model.MissingJDBCParameterException;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
 
