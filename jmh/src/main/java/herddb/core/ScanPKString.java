@@ -43,11 +43,14 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.utils.DataAccessor;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -58,9 +61,13 @@ import org.openjdk.jmh.annotations.TearDown;
 public class ScanPKString {
 
     DBManager manager;
+    String key;
 
     @Setup
     public void setup() throws Exception {
+        
+        key = String.format("%1$"+keySize+ "s", "a");
+        
         String nodeId = "localhost";
         manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);
         manager.start();
@@ -69,12 +76,14 @@ public class ScanPKString {
         manager.waitForTablespace("tblspace1", 10000);
 
         execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,n2 long, s1 string)", Collections.emptyList());
-
-        executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1,n2) values(?,?,?,?)", Arrays.asList("mykey", Integer.valueOf(1), "a", Long.valueOf(3)));
+        
+        executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1,n2) values(?,?,?,?)", Arrays.asList(key, Integer.valueOf(1), "a", Long.valueOf(3)));
         executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1,n2) values(?,?,?,?)", Arrays.asList("mykey2", Integer.valueOf(2), "a", Long.valueOf(2)));
         executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1,n2) values(?,?,?,?)", Arrays.asList("mykey3", Integer.valueOf(5), "b", Long.valueOf(1)));
         executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1) values(?)", Arrays.asList("mykey4"));
-
+        System.out.println("key:"+key);
+        System.out.println("keylen:"+key.length());
+        System.out.println("keyszue:"+keySize);
     }
 
     @TearDown
@@ -82,10 +91,14 @@ public class ScanPKString {
         manager.close();
     }
 
+    @Param({"1", "1000", "100000"})
+    public int keySize;
+    
+
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     public void scanByStringPrimaryKey() throws Exception {
-        try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql where k1=?", Arrays.asList("mykey"));) {
+        try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql where k1=?", Arrays.asList(key));) {
             List<DataAccessor> result = scan1.consume();
             if (result.size() != 1) {
                 throw new RuntimeException();
