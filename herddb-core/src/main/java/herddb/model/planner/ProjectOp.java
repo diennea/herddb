@@ -272,6 +272,16 @@ public class ProjectOp implements PlannerOp {
             }
 
             @Override
+            public boolean fieldEqualsTo(int index, Object value) {
+                return wrapped.fieldEqualsTo(zeroCopyProjections[index], value);
+            }
+
+            @Override
+            public int fieldCompareTo(int index, Object value) {
+                 return wrapped.fieldCompareTo(zeroCopyProjections[index], value);
+            }
+            
+            @Override
             public void forEach(BiConsumer<String, Object> consumer) {
                 for (int i = 0; i < zeroCopyProjections.length; i++) {
                     Object value = wrapped.get(zeroCopyProjections[i]);

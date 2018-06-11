@@ -252,7 +252,7 @@ public class MultipleConcurrentUpdatesTest {
         // restart and recovery
         try (Server server = new Server(serverConfiguration)) {
             server.start();
-            server.waitForStandaloneBoot();
+            server.waitForTableSpaceBoot(TableSpace.DEFAULT, 300000, true);
             ClientConfiguration clientConfiguration = new ClientConfiguration(folder.newFolder().toPath());
             try (HDBClient client = new HDBClient(clientConfiguration);
                     HDBConnection connection = client.openConnection()) {

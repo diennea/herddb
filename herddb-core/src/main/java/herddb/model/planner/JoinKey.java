@@ -22,6 +22,7 @@ package herddb.model.planner;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.Arrays;
 import java.util.Objects;
 import org.apache.calcite.linq4j.function.Function1;
@@ -58,7 +59,7 @@ class JoinKey implements Comparable<JoinKey> {
         for (int i = 0; i < size; i++) {
             final Object fromThis = get(i);
             final Object fromThat = da.get(i);
-            if (SQLRecordPredicate.compare(fromThis, fromThat) != 0) {
+            if (SQLRecordPredicateFunctions.compare(fromThis, fromThat) != 0) {
                 return false;
             }
         }
@@ -88,7 +89,7 @@ class JoinKey implements Comparable<JoinKey> {
         for (int i = 0; i < size; i++) {
             final Object fromThis = get(i);
             final Object fromObj = da.get(i);
-            int res = SQLRecordPredicate.compare(fromThis, fromObj);
+            int res = SQLRecordPredicateFunctions.compare(fromThis, fromObj);
             if (res != 0) {
                 return res;
             }

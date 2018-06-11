@@ -28,7 +28,6 @@ import herddb.model.Table;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,10 +36,12 @@ import java.util.Map;
 import herddb.model.ColumnsList;
 import herddb.model.StatementExecutionException;
 import herddb.utils.AbstractDataAccessor;
+import herddb.utils.ByteArrayCursor;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
-import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.SingleEntryMap;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -67,7 +68,7 @@ public final class RecordSerializer {
             case ColumnTypes.STRING:
                 return Bytes.to_rawstring(data);
             case ColumnTypes.TIMESTAMP:
-                return Bytes.toTimestamp(data, 0, 8);
+                return Bytes.toTimestamp(data, 0);
             case ColumnTypes.NULL:
                 return null;
             case ColumnTypes.BOOLEAN:
@@ -79,7 +80,45 @@ public final class RecordSerializer {
         }
     }
 
-    public static Object deserializeTypeAndValue(ExtendedDataInputStream dii) throws IOException {
+    public static int deserializeCompare(byte[] data, int type, Object cvalue) {
+        switch (type) {
+            case ColumnTypes.BYTEARRAY:
+                return SQLRecordPredicateFunctions.compare(data, cvalue);
+            case ColumnTypes.INTEGER:
+                if (cvalue instanceof Integer) {
+                    return Bytes.compareInt(data, 0, (int) cvalue);
+                } else if (cvalue instanceof Long) {
+                    return Bytes.compareInt(data, 0, (long) cvalue);
+                }
+                return SQLRecordPredicateFunctions.compare(Bytes.toInt(data, 0), cvalue);
+            case ColumnTypes.LONG:
+                if (cvalue instanceof Integer) {
+                    return Bytes.compareLong(data, 0, (int) cvalue);
+                } else if (cvalue instanceof Long) {
+                    return Bytes.compareLong(data, 0, (long) cvalue);
+                }
+                return SQLRecordPredicateFunctions.compare(Bytes.toLong(data, 0), cvalue);
+            case ColumnTypes.STRING:
+                if (cvalue instanceof RawString) {
+                    return RawString.compareRaw(data, ((RawString) cvalue).data);
+                } else if (cvalue instanceof String) {
+                    return RawString.compareRaw(data, ((String) cvalue).getBytes(StandardCharsets.UTF_8));
+                }
+                return SQLRecordPredicateFunctions.compare(Bytes.to_rawstring(data), cvalue);
+            case ColumnTypes.TIMESTAMP:
+                return SQLRecordPredicateFunctions.compare(Bytes.toTimestamp(data, 0), cvalue);
+            case ColumnTypes.NULL:
+                return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+            case ColumnTypes.BOOLEAN:
+                return SQLRecordPredicateFunctions.compare(Bytes.toBoolean(data, 0), cvalue);
+            case ColumnTypes.DOUBLE:
+                return SQLRecordPredicateFunctions.compare(Bytes.toDouble(data, 0), cvalue);
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+        }
+    }
+
+    public static Object deserializeTypeAndValue(ByteArrayCursor dii) throws IOException {
         int type = dii.readVInt();
         switch (type) {
             case ColumnTypes.BYTEARRAY:
@@ -103,7 +142,46 @@ public final class RecordSerializer {
         }
     }
 
-    public static void skipTypeAndValue(ExtendedDataInputStream dii) throws IOException {
+    public static int compareDeserializeTypeAndValue(ByteArrayCursor dii, Object cvalue) throws IOException {
+        int type = dii.readVInt();
+        switch (type) {
+            case ColumnTypes.BYTEARRAY: {
+                byte[] datum = dii.readArray();
+                return SQLRecordPredicateFunctions.compare(datum, cvalue);
+            }
+            case ColumnTypes.INTEGER:
+                return SQLRecordPredicateFunctions.compare(dii.readInt(), cvalue);
+            case ColumnTypes.LONG:
+                return SQLRecordPredicateFunctions.compare(dii.readLong(), cvalue);
+            case ColumnTypes.STRING:
+                int len = dii.readArrayLen();
+                if (cvalue instanceof RawString) {
+                    RawString _cvalue = (RawString) cvalue;
+                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue.data);
+                } else if (cvalue instanceof String) {
+                    String _cvalue = (String) cvalue;
+                    return RawString.compareRaw(dii.getArray(), dii.getPosition(), len, _cvalue.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    byte[] datum = new byte[len];
+                    dii.readArray(len, datum);
+                    RawString value = new RawString(datum);
+                    return SQLRecordPredicateFunctions.compare(value, cvalue);
+                }
+
+            case ColumnTypes.TIMESTAMP:
+                return SQLRecordPredicateFunctions.compare(new java.sql.Timestamp(dii.readLong()), cvalue);
+            case ColumnTypes.NULL:
+                return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+            case ColumnTypes.BOOLEAN:
+                return SQLRecordPredicateFunctions.compare(dii.readBoolean(), cvalue);
+            case ColumnTypes.DOUBLE:
+                return SQLRecordPredicateFunctions.compare(dii.readDouble(), cvalue);
+            default:
+                throw new IllegalArgumentException("bad column type " + type);
+        }
+    }
+
+    public static void skipTypeAndValue(ByteArrayCursor dii) throws IOException {
         int type = dii.readVInt();
         switch (type) {
             case ColumnTypes.BYTEARRAY:
@@ -274,7 +352,7 @@ public final class RecordSerializer {
                 if ((value instanceof java.sql.Timestamp)) {
                     return value;
                 } else if (value instanceof RawString
-                    || value instanceof String) {
+                        || value instanceof String) {
                     try {
 
                         ZonedDateTime dateTime = ZonedDateTime.parse(value.toString(), TIMESTAMP_FORMATTER);
@@ -313,52 +391,72 @@ public final class RecordSerializer {
         if (table.getColumn(property) == null) {
             throw new herddb.utils.IllegalDataAccessException("table " + table.tablespace + "." + table.name + " does not define column " + property);
         }
-        SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(value.data);
-        ExtendedDataInputStream din = new ExtendedDataInputStream(s);
-        while (!din.isEof()) {
-            int serialPosition;
-            serialPosition = din.readVIntNoEOFException();
-            if (din.isEof()) {
-                return null;
+        try (ByteArrayCursor din = ByteArrayCursor.wrap(value.data);) {
+            while (!din.isEof()) {
+                int serialPosition;
+                serialPosition = din.readVIntNoEOFException();
+                if (din.isEof()) {
+                    return null;
+                }
+                Column col = table.getColumnBySerialPosition(serialPosition);
+                if (col != null && col.name.equals(property)) {
+                    return deserializeTypeAndValue(din);
+                } else {
+                    // we have to deserialize always the value, even the column is no more present
+                    skipTypeAndValue(din);
+                }
             }
-            Column col = table.getColumnBySerialPosition(serialPosition);
-            if (col != null && col.name.equals(property)) {
-                return deserializeTypeAndValue(din);
-            } else {
-                // we have to deserialize always the value, even the column is no more present
-                skipTypeAndValue(din);
-            }
+            return null;
         }
-        return null;
     }
 
     static Object accessRawDataFromValue(int index, Bytes value, Table table) throws IOException {
         Column column = table.getColumn(index);
-        SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(value.data);
-        ExtendedDataInputStream din = new ExtendedDataInputStream(s);
-        while (!din.isEof()) {
-            int serialPosition;
-            serialPosition = din.readVIntNoEOFException();
-            if (din.isEof()) {
-                return null;
+        try (ByteArrayCursor din = ByteArrayCursor.wrap(value.data);) {
+            while (!din.isEof()) {
+                int serialPosition;
+                serialPosition = din.readVIntNoEOFException();
+                if (din.isEof()) {
+                    return null;
+                }
+                Column col = table.getColumnBySerialPosition(serialPosition);
+                if (col != null && col.serialPosition == column.serialPosition) {
+                    return deserializeTypeAndValue(din);
+                } else {
+                    // we have to deserialize always the value, even the column is no more present
+                    skipTypeAndValue(din);
+                }
             }
-            Column col = table.getColumnBySerialPosition(serialPosition);
-            if (col != null && col.serialPosition == column.serialPosition) {
-                return deserializeTypeAndValue(din);
-            } else {
-                // we have to deserialize always the value, even the column is no more present
-                skipTypeAndValue(din);
+            return null;
+        }
+    }
+
+    static int compareRawDataFromValue(int index, Bytes value, Table table, Object cvalue) throws IOException {
+        Column column = table.getColumn(index);
+        try (ByteArrayCursor din = ByteArrayCursor.wrap(value.data);) {
+            while (!din.isEof()) {
+                int serialPosition;
+                serialPosition = din.readVIntNoEOFException();
+                if (din.isEof()) {
+                    return SQLRecordPredicateFunctions.compareNullTo(cvalue);
+                }
+                Column col = table.getColumnBySerialPosition(serialPosition);
+                if (col != null && col.serialPosition == column.serialPosition) {
+                    return compareDeserializeTypeAndValue(din, cvalue);
+                } else {
+                    // we have to deserialize always the value, even the column is no more present
+                    skipTypeAndValue(din);
+                }
             }
         }
-        return null;
+        return SQLRecordPredicateFunctions.compareNullTo(cvalue);
     }
 
     static Object accessRawDataFromPrimaryKey(String property, Bytes key, Table table) throws IOException {
         if (table.primaryKey.length == 1) {
             return deserialize(key.data, table.getColumn(property).type);
         } else {
-            try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+            try (ByteArrayCursor din = ByteArrayCursor.wrap(key.data);) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     byte[] value = din.readArray();
                     if (primaryKeyColumn.equals(property)) {
@@ -376,12 +474,29 @@ public final class RecordSerializer {
             return deserialize(key.data, column.type);
         } else {
             final String cname = column.name;
-            try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+            try (ByteArrayCursor din = ByteArrayCursor.wrap(key.data);) {
                 for (String primaryKeyColumn : table.primaryKey) {
                     byte[] value = din.readArray();
                     if (primaryKeyColumn.equals(cname)) {
                         return deserialize(value, table.getColumn(primaryKeyColumn).type);
+                    }
+                }
+            }
+            throw new IOException("position #" + index + " not found in PK: " + Arrays.toString(table.primaryKey));
+        }
+    }
+
+    static int compareRawDataFromPrimaryKey(int index, Bytes key, Table table, Object cvalue) throws IOException {
+        Column column = table.getColumn(index);
+        if (table.primaryKey.length == 1) {
+            return deserializeCompare(key.data, column.type, cvalue);
+        } else {
+            final String cname = column.name;
+            try (ByteArrayCursor din = ByteArrayCursor.wrap(key.data)) {
+                for (String primaryKeyColumn : table.primaryKey) {
+                    byte[] value = din.readArray();
+                    if (primaryKeyColumn.equals(cname)) {
+                        return deserializeCompare(value, table.getColumn(primaryKeyColumn).type, cvalue);
                     }
                 }
             }
@@ -531,7 +646,7 @@ public final class RecordSerializer {
 
     public static Record toRecord(Map<String, Object> record, Table table) {
         return new Record(serializePrimaryKey(record, table, table.primaryKey),
-            serializeValue(record, table), record);
+                serializeValue(record, table), record);
     }
 
     private static Object deserializeSingleColumnPrimaryKey(byte[] data, Table table) {
@@ -552,19 +667,22 @@ public final class RecordSerializer {
             }
 
             if (record.value != null && record.value.data.length > 0) {
-                SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(record.value.data);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(s);
-                while (true) {
-                    int serialPosition;
-                    serialPosition = din.readVIntNoEOFException();
-                    if (din.isEof()) {
-                        break;
-                    }
-                    // we have to deserialize always the value, even the column is no more present
-                    Object v = deserializeTypeAndValue(din);
-                    Column col = table.getColumnBySerialPosition(serialPosition);
-                    if (col != null) {
-                        res.put(col.name, v);
+                try (ByteArrayCursor din = ByteArrayCursor.wrap(record.value.data);) {
+                    while (true) {
+                        int serialPosition;
+                        serialPosition = din.readVIntNoEOFException();
+                        if (din.isEof()) {
+                            break;
+                        }
+                        Column col = table.getColumnBySerialPosition(serialPosition);
+
+                        // we have to deserialize or skip always the value, even the column is no more present
+                        if (col != null) {
+                            Object v = deserializeTypeAndValue(din);
+                            res.put(col.name, v);
+                        } else {
+                            skipTypeAndValue(din);
+                        }
                     }
                 }
             }
@@ -575,8 +693,7 @@ public final class RecordSerializer {
     }
 
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, Map<String, Object> res) {
-        try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(data);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+        try (ByteArrayCursor din = ByteArrayCursor.wrap(data)) {
             for (String primaryKeyColumn : table.primaryKey) {
                 byte[] value = din.readArray();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
@@ -588,8 +705,7 @@ public final class RecordSerializer {
 
     @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
     private static void deserializeMultiColumnPrimaryKey(byte[] data, Table table, ImmutableMap.Builder<String, Object> res) {
-        try (ByteArrayInputStream key_in = new ByteArrayInputStream(data);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+        try (ByteArrayCursor din = ByteArrayCursor.wrap(data)) {
             for (String primaryKeyColumn : table.primaryKey) {
                 byte[] value = din.readArray();
                 res.put(primaryKeyColumn, deserialize(value, table.getColumn(primaryKeyColumn).type));
@@ -629,8 +745,7 @@ public final class RecordSerializer {
                 Object value = deserialize(key.data, table.getColumn(pkField).type);
                 consumer.accept(pkField, value);
             } else {
-                try (SimpleByteArrayInputStream key_in = new SimpleByteArrayInputStream(key.data);
-                    ExtendedDataInputStream din = new ExtendedDataInputStream(key_in)) {
+                try (ByteArrayCursor din = ByteArrayCursor.wrap(key.data);) {
                     for (String primaryKeyColumn : table.primaryKey) {
                         byte[] value = din.readArray();
                         Object theValue = deserialize(value, table.getColumn(primaryKeyColumn).type);

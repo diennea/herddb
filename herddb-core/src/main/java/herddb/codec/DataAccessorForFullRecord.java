@@ -24,6 +24,7 @@ import herddb.model.Column;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.utils.AbstractDataAccessor;
+import herddb.utils.ByteArrayCursor;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import java.io.IOException;
@@ -68,6 +69,32 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
     }
 
     @Override
+    public boolean fieldEqualsTo(int index, Object value) {
+        try {
+            if (table.isPrimaryKeyColumn(index)) {
+                return RecordSerializer.compareRawDataFromPrimaryKey(index, record.key, table, value) == 0;
+            } else {
+                return RecordSerializer.compareRawDataFromValue(index, record.value, table, value) == 0;
+            }
+        } catch (IOException err) {
+            throw new IllegalStateException("bad data:" + err, err);
+        }
+    }
+
+    @Override
+    public int fieldCompareTo(int index, Object value) {
+        try {
+            if (table.isPrimaryKeyColumn(index)) {
+                return RecordSerializer.compareRawDataFromPrimaryKey(index, record.key, table, value);
+            } else {
+                return RecordSerializer.compareRawDataFromValue(index, record.value, table, value);
+            }
+        } catch (IOException err) {
+            throw new IllegalStateException("bad data:" + err, err);
+        }
+    }
+
+    @Override
     public int getNumFields() {
         return table.columns.length;
     }
@@ -101,9 +128,7 @@ public class DataAccessorForFullRecord extends AbstractDataAccessor {
             }
         }
 
-        try {
-            SimpleByteArrayInputStream s = new SimpleByteArrayInputStream(record.value.data);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(s);
+        try (ByteArrayCursor din = ByteArrayCursor.wrap(record.value.data);) {
             while (!din.isEof()) {
                 int serialPosition;
                 serialPosition = din.readVIntNoEOFException();

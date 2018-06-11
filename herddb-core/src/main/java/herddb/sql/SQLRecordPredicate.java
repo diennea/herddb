@@ -28,10 +28,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.Table;
 import herddb.model.Tuple;
 import herddb.model.TuplePredicate;
-import herddb.utils.RawString;
 import herddb.utils.Bytes;
-import java.util.Map;
-import java.util.Objects;
 import java.util.logging.Logger;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.expression.JdbcParameter;
@@ -43,6 +40,7 @@ import herddb.sql.expressions.SQLExpressionCompiler;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 
 /**
  * Predicate expressed using SQL syntax
@@ -89,7 +87,7 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         }
         DataAccessor bean = RecordSerializer.buildRawDataAccessorForPrimaryKey(key, table);
 
-        boolean result = toBoolean(primaryKeyFilter.evaluate(bean, context));
+        boolean result = SQLRecordPredicateFunctions.toBoolean(primaryKeyFilter.evaluate(bean, context));
 
         if (!result) {
             return PrimaryKeyMatchOutcome.FAILED;
@@ -102,214 +100,18 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     @Override
     public boolean matches(Tuple a, StatementEvaluationContext context) throws StatementExecutionException {
-        return toBoolean(where.evaluate(a, context));
+        return SQLRecordPredicateFunctions.toBoolean(where.evaluate(a, context));
     }
 
     @Override
     public boolean evaluate(Record record, StatementEvaluationContext context) throws StatementExecutionException {
         DataAccessor bean = record.getDataAccessor(table);
-        return toBoolean(where.evaluate(bean, context));
+        return SQLRecordPredicateFunctions.toBoolean(where.evaluate(bean, context));
     }
 
     @Override
     public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
         where.validate(context);
-    }
-
-    public static boolean toBoolean(Object result) {
-        if (result == null) {
-            return false;
-        }
-        if (result instanceof Boolean) {
-            return (Boolean) result;
-        }
-        return "true".equalsIgnoreCase(result.toString());
-    }
-
-    public static int compare(Object a, Object b) {
-        if (a == null) {
-            if (b == null) {
-                return 0;
-            } else {
-                return 1;
-            }
-        } else if (b == null) {
-            return -1;
-        }
-        if (a instanceof RawString && b instanceof RawString) {
-            return ((RawString) a).compareTo((RawString) b);
-        }
-        if (a instanceof RawString && b instanceof String) {
-            return ((RawString) a).compareToString((String) b);
-        }
-        if (a instanceof String && b instanceof RawString) {
-            return -((RawString) b).compareToString((String) a);
-        }
-        if (a instanceof Integer && b instanceof Integer) {
-            return ((Integer) a) - ((Integer) b);
-        }
-        if (a instanceof Long && b instanceof Long) {
-            double delta = ((Long) a) - ((Long) b);
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return Double.compare(((Number) a).doubleValue(), ((Number) b).doubleValue());
-        }
-        if (a instanceof java.util.Date && b instanceof java.util.Date) {
-            long delta = ((java.util.Date) a).getTime() - ((java.util.Date) b).getTime();
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
-        }
-        if (a instanceof java.util.Date && b instanceof java.lang.Long) {
-            long delta = ((java.util.Date) a).getTime() - ((Long) b);
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
-        }
-        if (a instanceof Long && b instanceof java.util.Date) {
-            long delta = ((Long) a) - ((java.util.Date) b).getTime();
-            return delta == 0 ? 0 : delta > 0 ? 1 : -1;
-        }
-        if (a instanceof Comparable && b instanceof Comparable && a.getClass() == b.getClass()) {
-            return ((Comparable) a).compareTo(b);
-        }
-        throw new IllegalArgumentException("uncompable objects " + a.getClass() + " vs " + b.getClass());
-    }
-
-    public static Object add(Object a, Object b) throws StatementExecutionException {
-        if (a == null && b == null) {
-            return null;
-        }
-        if (a == null) {
-            a = 0;
-        }
-        if (b == null) {
-            b = 0;
-        }
-        if (a instanceof Long && b instanceof Long) {
-            return ((Long) a) + ((Long) b);
-        }
-        if (a instanceof Integer && b instanceof Integer) {
-            return (long) (((Integer) a) + ((Integer) b));
-        }
-        if (a instanceof Integer && b instanceof Long) {
-            return (((Integer) a) + ((Long) b));
-        }
-        if (a instanceof Long && b instanceof Integer) {
-            return (((Long) a) + ((Integer) b));
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() + ((Number) b).doubleValue();
-        }
-        throw new StatementExecutionException("cannot add " + a + " and " + b);
-    }
-
-    public static Object subtract(Object a, Object b) throws StatementExecutionException {
-        if (a == null && b == null) {
-            return null;
-        }
-        if (a == null) {
-            a = 0;
-        }
-        if (b == null) {
-            b = 0;
-        }
-        if (a instanceof Long && b instanceof Long) {
-            return ((Long) a) - ((Long) b);
-        }
-        if (a instanceof Integer && b instanceof Integer) {
-            return (long) (((Integer) a) - ((Integer) b));
-        }
-        if (a instanceof Integer && b instanceof Long) {
-            return (((Integer) a) - ((Long) b));
-        }
-        if (a instanceof Long && b instanceof Integer) {
-            return (((Long) a) - ((Integer) b));
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() - ((Number) b).doubleValue();
-        }
-        throw new StatementExecutionException("cannot subtract " + a + " and " + b);
-    }
-
-    public static Object multiply(Object a, Object b) throws StatementExecutionException {
-        if (a == null && b == null) {
-            return null;
-        }
-        if (a == null) {
-            a = 0;
-        }
-        if (b == null) {
-            b = 0;
-        }
-        if (a instanceof Long && b instanceof Long) {
-            return ((Long) a) * ((Long) b);
-        }
-        if (a instanceof Integer && b instanceof Integer) {
-            return (long) (((Integer) a) * ((Integer) b));
-        }
-        if (a instanceof Integer && b instanceof Long) {
-            return (((Integer) a) * ((Long) b));
-        }
-        if (a instanceof Long && b instanceof Integer) {
-            return (((Long) a) * ((Integer) b));
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() * ((Number) b).doubleValue();
-        }
-        throw new StatementExecutionException("cannot multiply " + a + " and " + b);
-    }
-
-    public static Object divide(Object a, Object b) throws StatementExecutionException {
-        if (a == null && b == null) {
-            return null;
-        }
-        if (a == null) {
-            a = 0;
-        }
-        if (b == null) {
-            b = 0;
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() / ((Number) b).doubleValue();
-        }
-        throw new StatementExecutionException("cannot divide " + a + " and " + b);
-    }
-
-    public static boolean objectEquals(Object a, Object b) {
-        if (a == null || b == null) {
-            return a == b;
-        }
-        if (a instanceof RawString) {
-            return a.equals(b);
-        }
-        if (b instanceof RawString) {
-            return b.equals(a);
-        }
-        if (a instanceof Number && b instanceof Number) {
-            return ((Number) a).doubleValue() == ((Number) b).doubleValue();
-        }
-        if (a instanceof java.util.Date && b instanceof java.util.Date) {
-            return ((java.util.Date) a).getTime() == ((java.util.Date) b).getTime();
-        }
-        if (a instanceof java.lang.Boolean
-            && (Boolean.parseBoolean(b.toString()) == ((Boolean) a))) {
-            return true;
-        }
-        if (b instanceof java.lang.Boolean
-            && (Boolean.parseBoolean(a.toString()) == ((Boolean) b))) {
-            return true;
-        }
-        return Objects.equals(a, b);
-    }
-
-    public static boolean like(Object a, Object b) {
-        if (a == null || b == null) {
-            return false;
-        }
-        String like = b.toString()
-            .replace(".", "\\.")
-            .replace("\\*", "\\*")
-            .replace("%", ".*")
-            .replace("_", ".?");
-        return a.toString().matches(like);
     }
 
     @Override

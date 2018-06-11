@@ -22,7 +22,7 @@ package herddb.sql.expressions;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -39,7 +39,7 @@ public class CompiledMultiAndExpression implements CompiledSQLExpression {
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
         for (int i = 0; i < operands.length; i++) {
-            boolean ok = SQLRecordPredicate.toBoolean(operands[i].evaluate(bean, context));
+            boolean ok = SQLRecordPredicateFunctions.toBoolean(operands[i].evaluate(bean, context));
             if (!ok) {
                 return false;
             }

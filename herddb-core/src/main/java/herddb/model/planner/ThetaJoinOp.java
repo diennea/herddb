@@ -31,6 +31,7 @@ import herddb.sql.SQLRecordPredicate;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.utils.AbstractDataAccessor;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import org.apache.calcite.linq4j.Enumerable;
 import org.apache.calcite.linq4j.EnumerableDefaults;
 import org.apache.calcite.linq4j.function.Function2;
@@ -103,7 +104,7 @@ public class ThetaJoinOp implements PlannerOp {
             StatementEvaluationContext context) {
         return (DataAccessor v0, DataAccessor v1) -> {
             DataAccessor currentRow = projection.apply(v0, v1);
-            return SQLRecordPredicate.toBoolean(condition.evaluate(currentRow, context));
+            return SQLRecordPredicateFunctions.toBoolean(condition.evaluate(currentRow, context));
         };
     }
 

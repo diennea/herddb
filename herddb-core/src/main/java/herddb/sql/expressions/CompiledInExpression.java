@@ -22,10 +22,10 @@ package herddb.sql.expressions;
 import herddb.model.ExecutionPlan;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLPlanner;
-import static herddb.sql.SQLRecordPredicate.objectEquals;
+
 import static herddb.sql.expressions.SQLExpressionCompiler.compileExpression;
 import herddb.utils.DataAccessor;
+import static herddb.utils.SQLRecordPredicateFunctions.objectEquals;
 import java.util.ArrayList;
 import java.util.List;
 import net.sf.jsqlparser.expression.Expression;

@@ -23,6 +23,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.model.StatementExecutionException;
 import herddb.model.TupleComparator;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import java.util.List;
 import net.sf.jsqlparser.statement.select.OrderByElement;
 
@@ -71,7 +72,7 @@ public class SingleColumnSQLTupleComparator implements TupleComparator {
     public int compare(DataAccessor o1, DataAccessor o2) {
         Object value1 = o1.get(columnName);
         Object value2 = o2.get(columnName);
-        int result = SQLRecordPredicate.compare(value1, value2);
+        int result = SQLRecordPredicateFunctions.compare(value1, value2);
         if (result != 0) {
             if (asc) {
                 return result;

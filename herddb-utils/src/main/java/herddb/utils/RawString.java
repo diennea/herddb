@@ -93,14 +93,14 @@ public class RawString implements Comparable<RawString> {
 
     @Override
     public int compareTo(RawString o) {
-        return compare(this.data, o.data);
+        return compareRaw(this.data, o.data);
     }
 
     public int compareToString(String o) {
-        return compare(this.data, o.getBytes(StandardCharsets.UTF_8));
+        return compareRaw(this.data, o.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static int compare(byte[] left, byte[] right) {
+    public static int compareRaw(byte[] left, byte[] right) {
         for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
             int a = (left[i] & 0xff);
             int b = (right[j] & 0xff);
@@ -109,6 +109,17 @@ public class RawString implements Comparable<RawString> {
             }
         }
         return left.length - right.length;
+    }
+    
+    public static int compareRaw(byte[] left, int offset, int leftlen, byte[] right) {
+        for (int i = 0, j = 0; i < leftlen && j < right.length; i++, j++) {
+            int a = (left[i + offset] & 0xff);
+            int b = (right[j] & 0xff);
+            if (a != b) {
+                return a - b;
+            }
+        }
+        return leftlen - right.length;
     }
 
 }

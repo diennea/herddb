@@ -21,7 +21,7 @@ package herddb.sql.expressions;
 
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionException;
-import herddb.sql.SQLRecordPredicate;
+import herddb.utils.SQLRecordPredicateFunctions;
 
 public class CompiledOrExpression extends CompiledBinarySQLExpression {
 
@@ -34,11 +34,11 @@ public class CompiledOrExpression extends CompiledBinarySQLExpression {
 
     @Override
     public Object evaluate(herddb.utils.DataAccessor bean, StatementEvaluationContext context) throws StatementExecutionException {
-        boolean ok = SQLRecordPredicate.toBoolean(left.evaluate(bean, context));
+        boolean ok = SQLRecordPredicateFunctions.toBoolean(left.evaluate(bean, context));
         if (ok) {
             return !not;
         }
-        ok = SQLRecordPredicate.toBoolean(right.evaluate(bean, context));
+        ok = SQLRecordPredicateFunctions.toBoolean(right.evaluate(bean, context));
         if (not) {
             return !ok;
         } else {

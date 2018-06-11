@@ -39,6 +39,7 @@ import herddb.model.planner.ProjectOp.IdentityProjection;
 import herddb.model.planner.ProjectOp.ZeroCopyProjection;
 import herddb.sql.SQLRecordPredicate;
 import herddb.utils.DataAccessor;
+import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.Wrapper;
 import java.util.Arrays;
 
@@ -159,7 +160,7 @@ public class SortOp implements PlannerOp, TupleComparator {
             int index = fields[i];
             Object value1 = o1.get(index);
             Object value2 = o2.get(index);
-            int result = SQLRecordPredicate.compare(value1, value2);
+            int result = SQLRecordPredicateFunctions.compare(value1, value2);
             if (result != 0) {
                 if (directions[i]) {
                     return result;
