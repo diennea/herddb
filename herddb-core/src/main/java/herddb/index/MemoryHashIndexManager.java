@@ -53,7 +53,8 @@ import herddb.utils.DataAccessor;
 import herddb.utils.Holder;
 
 /**
- * HASH index. The index resides entirely in memory. It is serialized fully on the IndexStatus structure
+ * HASH index. The index resides entirely in memory. It is serialized fully on
+ * the IndexStatus structure
  *
  * @author enrico.olivelli
  */
@@ -85,7 +86,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
             try {
                 status = dataStorageManager.getIndexStatus(tableSpaceUUID, index.uuid, sequenceNumber);
             } catch (DataStorageManagerException e) {
-                LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[] {index.name, e});
+                LOGGER.log(Level.SEVERE, "cannot load index {0} due to {1}, it will be rebuilt", new Object[]{index.name, e});
                 return false;
             }
 
@@ -133,8 +134,9 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         tableManager.scanForIndexRebuild(r -> {
             DataAccessor values = r.getDataAccessor(table);
             Bytes key = RecordSerializer.serializePrimaryKey(values, table, table.primaryKey);
+            Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
 //            LOGGER.log(Level.SEVERE, "adding " + key + " -> " + values);
-            recordInserted(key, values);
+            recordInserted(key, indexKey);
         });
         long _stop = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "rebuilding index {0} took {1]", new Object[]{index.name, (_stop - _start) + " ms"});
@@ -161,11 +163,11 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                 return Bytes.startsWith(recordValue, refvalue.length, refvalue);
             };
             return data
-                .entrySet()
-                .stream()
-                .filter(predicate)
-                .map(entry -> entry.getValue())
-                .flatMap(l -> l.stream());
+                    .entrySet()
+                    .stream()
+                    .filter(predicate)
+                    .map(entry -> entry.getValue())
+                    .flatMap(l -> l.stream());
 
         } else if (operation instanceof SecondaryIndexRangeScan) {
             byte[] refminvalue;
@@ -200,7 +202,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                 predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
                     byte[] datum = entry.getKey().data;
                     return Bytes.compare(datum, refmaxvalue) <= 0
-                        && Bytes.compare(datum, refminvalue) >= 0;
+                            && Bytes.compare(datum, refminvalue) >= 0;
                 };
             } else {
                 predicate = (Map.Entry<Bytes, List<Bytes>> entry) -> {
@@ -208,11 +210,11 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
                 };
             }
             return data
-                .entrySet()
-                .stream()
-                .filter(predicate)
-                .map(entry -> entry.getValue())
-                .flatMap(l -> l.stream());
+                    .entrySet()
+                    .stream()
+                    .filter(predicate)
+                    .map(entry -> entry.getValue())
+                    .flatMap(l -> l.stream());
         } else {
             throw new UnsupportedOperationException("unsuppported index access type " + operation);
         }
@@ -256,7 +258,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
         result.addAll(dataStorageManager.indexCheckpoint(tableSpaceUUID, index.uuid, indexStatus, pin));
 
         LOGGER.log(Level.INFO, "checkpoint index {0} finished: logpos {1}, {2} entries, page {3}",
-                new Object[] {index.name, sequenceNumber, Long.toString(count.value), Long.toString(pageId)});
+                new Object[]{index.name, sequenceNumber, Long.toString(count.value), Long.toString(pageId)});
 
         return result;
     }
@@ -267,8 +269,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordDeleted(Bytes key, DataAccessor values) {
-        Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
+    public void recordDeleted(Bytes key, Bytes indexKey) {
         removeValueFromIndex(indexKey, key);
     }
 
@@ -284,8 +285,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordInserted(Bytes key, DataAccessor values) {
-        Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index, index.columnNames);
+    public void recordInserted(Bytes key, Bytes indexKey) {
         addValueToIndex(indexKey, key);
     }
 
@@ -299,9 +299,7 @@ public class MemoryHashIndexManager extends AbstractIndexManager {
     }
 
     @Override
-    public void recordUpdated(Bytes key, DataAccessor previousValues, DataAccessor newValues) {
-        Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(previousValues, index, index.columnNames);
-        Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, index, index.columnNames);
+    public void recordUpdated(Bytes key, Bytes indexKeyRemoved, Bytes indexKeyAdded) {
         if (Objects.equals(indexKeyRemoved, indexKeyAdded)) {
             return;
         }
