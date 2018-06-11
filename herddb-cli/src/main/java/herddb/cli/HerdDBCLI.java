@@ -113,9 +113,10 @@ import herddb.storage.IndexStatus;
 import herddb.utils.DataAccessor;
 
 /**
- *
+ * HerdDB command line interface
  * @author enrico.olivelli
  */
+@SuppressFBWarnings(value = "OBL_UNSATISFIED_OBLIGATION", justification = "This is a spotbugs bug")
 public class HerdDBCLI {
 
     static volatile int exitCode = 0;

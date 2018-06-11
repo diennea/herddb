@@ -33,6 +33,7 @@ import java.io.IOException;
  *
  * @author enrico.olivelli
  */
+@SuppressFBWarnings({"EI_EXPOSE_REP","EI_EXPOSE_REP2"})
 public class ByteArrayCursor implements Closeable {
 
     private static Recycler<ByteArrayCursor> RECYCLER = new Recycler<ByteArrayCursor>() {
