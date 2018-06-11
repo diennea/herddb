@@ -170,11 +170,11 @@ public abstract class AbstractIndexManager implements AutoCloseable {
         }).filter(p -> p != null);
     }
 
-    public abstract void recordUpdated(Bytes key, DataAccessor previousValues, DataAccessor newValues) throws DataStorageManagerException;
+    public abstract void recordUpdated(Bytes key, Bytes indexKeyRemoved, Bytes indexKeyAdded) throws DataStorageManagerException;
 
-    public abstract void recordInserted(Bytes key, DataAccessor values) throws DataStorageManagerException;
+    public abstract void recordInserted(Bytes key, Bytes indexKey) throws DataStorageManagerException;
 
-    public abstract void recordDeleted(Bytes key, DataAccessor values) throws DataStorageManagerException;
+    public abstract void recordDeleted(Bytes key, Bytes indexKey) throws DataStorageManagerException;
 
     /**
      * Drop the index from persist storage

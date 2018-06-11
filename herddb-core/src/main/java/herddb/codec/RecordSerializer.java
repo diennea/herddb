@@ -521,8 +521,7 @@ public final class RecordSerializer {
         return toRecord(record, table);
     }
 
-    public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {
-        ByteArrayOutputStream key = new ByteArrayOutputStream();
+    public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {        
         String[] primaryKey = table.getPrimaryKey();
         if (primaryKey.length == 1) {
             String pkColumn = primaryKey[0];
@@ -537,6 +536,7 @@ public final class RecordSerializer {
             byte[] fieldValue = serialize(v, c.type);
             return new Bytes(fieldValue);
         } else {
+            ByteArrayOutputStream key = new ByteArrayOutputStream();
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan            
             try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
                 int i = 0;
@@ -560,8 +560,7 @@ public final class RecordSerializer {
         }
     }
 
-    public static Bytes serializePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {
-        ByteArrayOutputStream key = new ByteArrayOutputStream();
+    public static Bytes serializePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {        
         String[] primaryKey = table.getPrimaryKey();
         if (primaryKey.length == 1) {
             String pkColumn = primaryKey[0];
@@ -576,6 +575,7 @@ public final class RecordSerializer {
             byte[] fieldValue = serialize(v, c.type);
             return new Bytes(fieldValue);
         } else {
+            ByteArrayOutputStream key = new ByteArrayOutputStream();
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
             try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
                 int i = 0;
@@ -596,6 +596,44 @@ public final class RecordSerializer {
                 throw new RuntimeException(err);
             }
             return new Bytes(key.toByteArray());
+        }
+    }
+
+    /**
+     * Like {@link #serializePrimaryKey(herddb.utils.DataAccessor, herddb.model.ColumnsList, java.lang.String[]) } but without
+     * return a value and/or creating temporary byte[]
+     * @param record
+     * @param table
+     * @param columns 
+     */
+    public static void validatePrimaryKey(DataAccessor record, ColumnsList table, String[] columns) {
+        String[] primaryKey = table.getPrimaryKey();
+        if (primaryKey.length == 1) {
+            String pkColumn = primaryKey[0];
+            if (columns.length != 1 && !columns[0].equals(pkColumn)) {
+                throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(pkColumn));
+            }
+            Column c = table.getColumn(pkColumn);
+            Object v = record.get(c.name);
+            if (v == null) {
+                throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
+            }
+            serialize(v, c.type);
+        } else {
+            // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
+            int i = 0;
+            for (String pkColumn : columns) {
+                if (!pkColumn.equals(primaryKey[i])) {
+                    throw new IllegalArgumentException("SQLTranslator error, " + Arrays.toString(columns) + " != " + Arrays.asList(primaryKey));
+                }
+                Column c = table.getColumn(pkColumn);
+                Object v = record.get(c.name);
+                if (v == null) {
+                    throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
+                }
+                serialize(v, c.type);
+                i++;
+            }
         }
     }
 

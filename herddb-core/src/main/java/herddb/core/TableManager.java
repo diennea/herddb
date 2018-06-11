@@ -847,6 +847,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
          */
         Bytes key = new Bytes(insert.getKeyFunction().computeNewValue(null, context, tableContext));
         byte[] value = insert.getValuesFunction().computeNewValue(new Record(key, null), context, tableContext);
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        if (indexes != null) {
+            try {
+                DataAccessor values = new Record(key, Bytes.from_array(value)).getDataAccessor(table);
+                for (AbstractIndexManager index : indexes.values()) {
+                   RecordSerializer.serializePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                }
+            } catch (IllegalArgumentException err) {
+                throw new StatementExecutionException(err.getMessage(), err);
+            }
+        }
 
         final long size = DataPage.estimateEntrySize(key, value);
         if (size > maxLogicalPageSize) {
@@ -923,12 +934,23 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         long transactionId = transaction != null ? transaction.transactionId : 0;
         Predicate predicate = update.getPredicate();
 
+        Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
-
+                
+                if (indexes != null) {
+                    try {
+                        DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
+                        for (AbstractIndexManager index : indexes.values()) {
+                           RecordSerializer.serializePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                        }
+                    } catch (IllegalArgumentException err) {
+                        throw new StatementExecutionException(err.getMessage(), err);
+                    }
+                }
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
                 if (size > maxLogicalPageSize) {
                     throw new RecordTooBigException("New version of record " + actual.key
@@ -1251,7 +1273,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             /* If there are indexes e have already forced a page load and previous record has been loaded */
             DataAccessor values = previous.getDataAccessor(table);
             for (AbstractIndexManager index : indexes.values()) {
-                index.recordDeleted(key, values);
+                Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                index.recordDeleted(key, indexKey);
             }
         }
     }
@@ -1375,7 +1398,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             DataAccessor prevValues = previous.getDataAccessor(table);
             DataAccessor newValues = record.getDataAccessor(table);
             for (AbstractIndexManager index : indexes.values()) {
-                index.recordUpdated(key, prevValues, newValues);
+                Index indexDef = index.getIndex();
+                String[] indexColumnNames = index.getColumnNames();
+                Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(prevValues, indexDef, indexColumnNames);
+                Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, indexDef, indexColumnNames);
+                index.recordUpdated(key, indexKeyRemoved, indexKeyAdded);
             }
         }
     }
@@ -1596,7 +1623,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 /* Standard insert */
                 DataAccessor values = record.getDataAccessor(table);
                 for (AbstractIndexManager index : indexes.values()) {
-                    index.recordInserted(key, values);
+                    Bytes indexKey = RecordSerializer.serializePrimaryKey(values, index.getIndex(), index.getColumnNames());
+                    index.recordInserted(key, indexKey);
                 }
             } else {
 
@@ -1605,7 +1633,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 DataAccessor prevValues = previous.getDataAccessor(table);
                 DataAccessor newValues = record.getDataAccessor(table);
                 for (AbstractIndexManager index : indexes.values()) {
-                    index.recordUpdated(key, prevValues, newValues);
+                    Index indexDef = index.getIndex();
+                    String[] indexColumnNames = index.getColumnNames();
+                    Bytes indexKeyRemoved = RecordSerializer.serializePrimaryKey(prevValues, indexDef, indexColumnNames);
+                    Bytes indexKeyAdded = RecordSerializer.serializePrimaryKey(newValues, indexDef, indexColumnNames);
+                    index.recordUpdated(key, indexKeyRemoved, indexKeyAdded);
                 }
             }
         }
