@@ -43,16 +43,17 @@ public class MessageUtilsTest {
 
     @Test
     public void testEncodeMessage() {
-        final String clientId = "2331";
+       
         System.out.println("encodeMessage");
         ByteBuf buffer = Unpooled.buffer();
         Map<String, Object> payload = new HashMap<>();
-        payload.put("string", "value");
+        payload.put("string", RawString.of("value"));
         payload.put("int", 1234);
         payload.put("long", 12345L);
         payload.put("rawstring", RawString.of("value"));
-        payload.put("list", Arrays.asList("foo", "bar"));
-        payload.put("set", new HashSet<>(Arrays.asList("foo", "bar")));
+        payload.put("list", Arrays.asList(RawString.of("foo"), RawString.of("bar")));
+        payload.put("set", new HashSet<>(Arrays.asList(
+                RawString.of("foo"), RawString.of("bar"))));
         String[] colNames = {"one", "null", "two", "notfound"};
         List<DataAccessor> records = new ArrayList<>();
 
@@ -70,13 +71,12 @@ public class MessageUtilsTest {
         TuplesList tl = new TuplesList(colNames, records);
         payload.put("data", tl);
 
-        Message m = new Message(clientId, 1234, payload);
+        Message m = new Message(1234, payload);
         m.assignMessageId();
-        m.setReplyMessageId("2343");
+        m.setReplyMessageId(2343);
         MessageUtils.encodeMessage(buffer, m);
 
         Message read = MessageUtils.decodeMessage(buffer);
-        assertEquals(read.clientId, m.clientId);
         assertEquals(read.messageId, m.messageId);
         assertEquals(read.replyMessageId, m.replyMessageId);
         assertEquals(read.type, m.type);

@@ -47,7 +47,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>2.4.3</version>
+                <version>3.1.1</version>
                 <executions>
                     <execution>
                         <id>make-uber</id>
@@ -59,10 +59,7 @@
                             <shadedArtifactAttached>true</shadedArtifactAttached>                               
                             <shadedClassifierName>uber</shadedClassifierName>                            
                             <artifactSet>
-                                <excludes>                                    
-                                    <exclude>org.apache.bookkeeper:bookkeeper-server-shaded</exclude>
-                                    <exclude>com.google.guava:guava</exclude>
-                                    <exclude>com.github.jsqlparser:jsqlparser</exclude>
+                                <excludes>
                                     <exclude>jline:jline</exclude>
                                 </excludes>
                             </artifactSet>

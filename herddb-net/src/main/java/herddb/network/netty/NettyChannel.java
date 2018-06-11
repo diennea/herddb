@@ -29,14 +29,13 @@ import io.netty.util.concurrent.GenericFutureListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.bookkeeper.util.collections.ConcurrentLongHashMap;
+import org.apache.bookkeeper.util.collections.ConcurrentLongLongHashMap;
 
 /**
  * Channel implemented on Netty
@@ -49,9 +48,9 @@ public class NettyChannel extends Channel {
     private static final Logger LOGGER = Logger.getLogger(NettyChannel.class.getName());
     private static final AtomicLong idGenerator = new AtomicLong();
 
-    private final Map<String, ReplyCallback> pendingReplyMessages = new ConcurrentHashMap<>();
-    private final Map<String, Message> pendingReplyMessagesSource = new ConcurrentHashMap<>();
-    private final Map<String, Long> pendingReplyMessagesDeadline = new ConcurrentHashMap<>();
+    private final ConcurrentLongHashMap<ReplyCallback> pendingReplyMessages = new ConcurrentLongHashMap<>();
+    private final ConcurrentLongHashMap<Message> pendingReplyMessagesSource = new ConcurrentLongHashMap<>();
+    private final ConcurrentLongLongHashMap pendingReplyMessagesDeadline = new ConcurrentLongLongHashMap();
     private final ExecutorService callbackexecutor;
     private boolean ioErrors = false;
     private final long id = idGenerator.incrementAndGet();
@@ -74,7 +73,7 @@ public class NettyChannel extends Channel {
     }
 
     public void messageReceived(Message message) {
-        if (message.getReplyMessageId() != null) {
+        if (message.getReplyMessageId() >= 0) {
             handleReply(message);
         } else {
             submitCallback(() -> {
@@ -102,7 +101,7 @@ public class NettyChannel extends Channel {
 
     @Override
     public void sendOneWayMessage(Message message, SendResultCallback callback) {
-        if (message.getMessageId() == null) {
+        if (message.getMessageId() < 0) {
             message.assignMessageId();
         }
         io.netty.channel.Channel _socket = this.socket;
@@ -128,7 +127,7 @@ public class NettyChannel extends Channel {
 
     @Override
     public void sendReplyMessage(Message inAnswerTo, Message message) {
-        if (message.getMessageId() == null) {
+        if (message.getMessageId() < 0) {
             message.assignMessageId();
         }
         if (this.socket == null) {
@@ -148,7 +147,7 @@ public class NettyChannel extends Channel {
     }
 
     private void processPendingReplyMessagesDeadline() {
-        List<String> messagesWithNoReply = new ArrayList<>();
+        List<Long> messagesWithNoReply = new ArrayList<>();
         long now = System.currentTimeMillis();
         pendingReplyMessagesDeadline.forEach((messageId, deadline) -> {
             if (deadline < now) {
@@ -160,7 +159,7 @@ public class NettyChannel extends Channel {
         }
         LOGGER.log(Level.SEVERE, this + " found " + messagesWithNoReply + " without reply, channel will be closed");
         ioErrors = true;
-        for (String messageId : messagesWithNoReply) {
+        for (long messageId : messagesWithNoReply) {
             Message original = pendingReplyMessagesSource.remove(messageId);
             ReplyCallback callback = pendingReplyMessages.remove(messageId);
             pendingReplyMessagesDeadline.remove(messageId);
@@ -175,7 +174,7 @@ public class NettyChannel extends Channel {
 
     @Override
     public void sendMessageWithAsyncReply(Message message, long timeout, ReplyCallback callback) {
-        if (message.getMessageId() == null) {
+        if (message.getMessageId() < 0) {
             message.assignMessageId();
         }
         if (!isValid()) {

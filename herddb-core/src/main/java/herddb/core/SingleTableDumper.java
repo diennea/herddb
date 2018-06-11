@@ -77,7 +77,7 @@ class SingleTableDumper implements FullTableScanConsumer {
                 .map(Index::serialize)
                 .collect(Collectors.toList());
             beginTableData.put("indexes", indexes);
-            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, beginTableData), timeout);
+            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, beginTableData), timeout);
         } catch (InterruptedException | TimeoutException err) {
             throw new HerdDBInternalException(err);
         }
@@ -95,7 +95,7 @@ class SingleTableDumper implements FullTableScanConsumer {
                 Map<String, Object> data = new HashMap<>();
                 data.put("command", "data");
                 data.put("records", batch);
-                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, data), timeout);
                 batch.clear();
             }
         } catch (Exception error) {
@@ -114,12 +114,12 @@ class SingleTableDumper implements FullTableScanConsumer {
                 Map<String, Object> data = new HashMap<>();
                 data.put("command", "data");
                 data.put("records", batch);
-                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, data), timeout);
                 batch.clear();
             }
             Map<String, Object> endTableData = new HashMap<>();
             endTableData.put("command", "endTable");
-            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, endTableData), timeout);
+            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, endTableData), timeout);
         } catch (Exception error) {
             throw new RuntimeException(error);
         }

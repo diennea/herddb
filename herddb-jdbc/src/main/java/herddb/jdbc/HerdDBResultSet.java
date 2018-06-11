@@ -23,6 +23,7 @@ import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.ScanResultSetMetadata;
 import herddb.jdbc.utils.SQLExceptionUtils;
+import herddb.utils.RawString;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -57,7 +58,7 @@ public class HerdDBResultSet implements ResultSet {
     private final ScanResultSet scanResult;
     private Map<String, Object> actualValue;
     private Object lastValue;
-    private ScanResultSetMetadata metadata;
+    private final ScanResultSetMetadata metadata;
 
     HerdDBResultSet(ScanResultSet scanResult) {
         this.scanResult = scanResult;
@@ -504,6 +505,9 @@ public class HerdDBResultSet implements ResultSet {
         fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
+            if (lastValue instanceof RawString) {
+                return lastValue.toString();
+            }
             return lastValue;
         } else {
             wasNull = true;
