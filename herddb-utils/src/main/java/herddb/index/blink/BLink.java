@@ -1929,8 +1929,20 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 }
 
 
+                final List<Entry<X,Y>> list = new ArrayList<>();
+
                 /* Cast to Y: is a leaf */
-                return new ArrayList<>((Set<Entry<X,Y>>) (Set<?>) sub.entrySet());
+                for(Entry<X,Y> entry : (Set<Entry<X,Y>>) (Set<?>) sub.entrySet()) {
+                    /*
+                     * Manually copy the entry set, using costructor with a collection would copy an
+                     * array of elements taken from the map entry set, such array is build iterating
+                     * all entry set elements to build an array list and then copying his internal
+                     * array! Iterating directly we avoid such multiple copy overhead.
+                     */
+                    list.add(entry);
+                }
+
+                return list;
 
             } finally {
                 loadLock.unlock();
