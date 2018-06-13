@@ -23,6 +23,7 @@ import herddb.utils.DataAccessor;
 import herddb.utils.TuplesList;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,32 +36,32 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class Message {
 
-    public static Message ACK(String clientId) {
-        return new Message(clientId, TYPE_ACK, new HashMap<>());
+    public static Message ACK() {
+        return new Message(TYPE_ACK, Collections.emptyMap());
     }
 
-    public static Message ERROR(String clientId, Throwable error) {
+    public static Message ERROR(Throwable error) {
         Map<String, Object> params = new HashMap<>();
         params.put("error", error + "");
         StringWriter writer = new StringWriter();
         error.printStackTrace(new PrintWriter(writer));
         params.put("stackTrace", writer.toString());
-        return new Message(clientId, TYPE_ERROR, params);
+        return new Message(TYPE_ERROR, params);
     }
 
-    public static Message CLIENT_CONNECTION_REQUEST(String clientId, String secret) {
+    public static Message CLIENT_CONNECTION_REQUEST(String secret) {
         HashMap<String, Object> data = new HashMap<>();
         String ts = System.currentTimeMillis() + "";
         data.put("ts", ts);
         data.put("challenge", HashUtils.sha1(ts + "#" + secret));
-        return new Message(clientId, TYPE_CLIENT_CONNECTION_REQUEST, data);
+        return new Message(TYPE_CLIENT_CONNECTION_REQUEST, data);
     }
 
-    public static Message CLIENT_SHUTDOWN(String clientId) {
-        return new Message(clientId, TYPE_CLIENT_SHUTDOWN, new HashMap<>());
+    public static Message CLIENT_SHUTDOWN() {
+        return new Message( TYPE_CLIENT_SHUTDOWN, new HashMap<>());
     }
 
-    public static Message EXECUTE_STATEMENT(String clientId, String tableSpace, String query, long tx,
+    public static Message EXECUTE_STATEMENT(String tableSpace, String query, long tx,
             boolean returnValues,
             List<Object> params) {
         HashMap<String, Object> data = new HashMap<>();
@@ -75,20 +76,20 @@ public final class Message {
         if (params != null && !params.isEmpty()) {
             data.put("params", params);
         }
-        return new Message(clientId, TYPE_EXECUTE_STATEMENT, data);
+        return new Message(TYPE_EXECUTE_STATEMENT, data);
     }
 
-    public static Message TX_COMMAND(String clientId, String tableSpace, int type, long tx) {
+    public static Message TX_COMMAND(String tableSpace, int type, long tx) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
         if (tx > 0) { // begin does not carry a tx id
             data.put("tx", tx);
         }
         data.put("t", type);
-        return new Message(clientId, TYPE_TX_COMMAND, data);
+        return new Message(TYPE_TX_COMMAND, data);
     }
 
-    public static Message EXECUTE_STATEMENTS(String clientId, String tableSpace, String query,
+    public static Message EXECUTE_STATEMENTS(String tableSpace, String query,
             long tx, boolean returnValues, List<List<Object>> params) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
@@ -100,10 +101,10 @@ public final class Message {
         }
         data.put("query", query);
         data.put("params", params);
-        return new Message(clientId, TYPE_EXECUTE_STATEMENTS, data);
+        return new Message(TYPE_EXECUTE_STATEMENTS, data);
     }
 
-    public static Message OPEN_SCANNER(String clientId, String tableSpace, String query, String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
+    public static Message OPEN_SCANNER(String tableSpace, String query, String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
         data.put("scannerId", scannerId);
@@ -114,46 +115,46 @@ public final class Message {
         }
         data.put("fetchSize", fetchSize);
         data.put("params", params);
-        return new Message(clientId, TYPE_OPENSCANNER, data);
+        return new Message(TYPE_OPENSCANNER, data);
     }
 
-    public static Message REQUEST_TABLESPACE_DUMP(String clientId, String tableSpace, String dumpId, int fetchSize,
+    public static Message REQUEST_TABLESPACE_DUMP(String tableSpace, String dumpId, int fetchSize,
             boolean includeTransactionLog) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("dumpId", dumpId);
         data.put("includeTransactionLog", includeTransactionLog);
         data.put("fetchSize", fetchSize);
         data.put("tableSpace", tableSpace);
-        return new Message(clientId, TYPE_REQUEST_TABLESPACE_DUMP, data);
+        return new Message(TYPE_REQUEST_TABLESPACE_DUMP, data);
     }
 
-    public static Message TABLESPACE_DUMP_DATA(String clientId, String tableSpace, String dumpId, Map<String, Object> values) {
+    public static Message TABLESPACE_DUMP_DATA(String tableSpace, String dumpId, Map<String, Object> values) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("dumpId", dumpId);
         data.put("values", values);
-        return new Message(clientId, TYPE_TABLESPACE_DUMP_DATA, data);
+        return new Message(TYPE_TABLESPACE_DUMP_DATA, data);
     }
 
-    public static Message RESULTSET_CHUNK(String clientId, String scannerId, TuplesList tuplesList, boolean last, long tx) {
+    public static Message RESULTSET_CHUNK(String scannerId, TuplesList tuplesList, boolean last, long tx) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("data", tuplesList);
         data.put("scannerId", scannerId);
         data.put("last", last);
         data.put("tx", tx);
-        return new Message(clientId, TYPE_RESULTSET_CHUNK, data);
+        return new Message(TYPE_RESULTSET_CHUNK, data);
     }
 
-    public static Message CLOSE_SCANNER(String clientId, String scannerId) {
+    public static Message CLOSE_SCANNER(String scannerId) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("scannerId", scannerId);
-        return new Message(clientId, TYPE_CLOSESCANNER, data);
+        return new Message(TYPE_CLOSESCANNER, data);
     }
 
-    public static Message FETCH_SCANNER_DATA(String clientId, String scannerId, int fetchSize) {
+    public static Message FETCH_SCANNER_DATA(String scannerId, int fetchSize) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("scannerId", scannerId);
         data.put("fetchSize", fetchSize);
-        return new Message(clientId, TYPE_FETCHSCANNERDATA, data);
+        return new Message(TYPE_FETCHSCANNERDATA, data);
     }
 
     public static Message EXECUTE_STATEMENT_RESULT(long updateCount, Map<String, Object> otherdata, long tx) {
@@ -163,7 +164,7 @@ public final class Message {
             data.put("data", otherdata);
         }
         data.put("tx", tx);
-        return new Message(null, TYPE_EXECUTE_STATEMENT_RESULT, data);
+        return new Message(TYPE_EXECUTE_STATEMENT_RESULT, data);
     }
 
     public static Message EXECUTE_STATEMENT_RESULTS(List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
@@ -171,80 +172,79 @@ public final class Message {
         data.put("updateCount", updateCounts);
         data.put("data", otherdata);
         data.put("tx", tx);
-        return new Message(null, TYPE_EXECUTE_STATEMENTS_RESULT, data);
+        return new Message(TYPE_EXECUTE_STATEMENTS_RESULT, data);
     }
 
     public static Message SASL_TOKEN_MESSAGE_REQUEST(String saslMech, byte[] firstToken) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("mech", saslMech);
         data.put("token", firstToken);
-        return new Message(null, TYPE_SASL_TOKEN_MESSAGE_REQUEST, data);
+        return new Message(TYPE_SASL_TOKEN_MESSAGE_REQUEST, data);
     }
 
     public static Message SASL_TOKEN_SERVER_RESPONSE(byte[] saslTokenChallenge) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("token", saslTokenChallenge);
-        return new Message(null, TYPE_SASL_TOKEN_SERVER_RESPONSE, data);
+        return new Message(TYPE_SASL_TOKEN_SERVER_RESPONSE, data);
     }
 
     public static Message SASL_TOKEN_MESSAGE_TOKEN(byte[] token) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("token", token);
-        return new Message(null, TYPE_SASL_TOKEN_MESSAGE_TOKEN, data);
+        return new Message(TYPE_SASL_TOKEN_MESSAGE_TOKEN, data);
     }
 
-    public static Message REQUEST_TABLE_RESTORE(String clientId, String tableSpace, byte[] table,
+    public static Message REQUEST_TABLE_RESTORE(String tableSpace, byte[] table,
             long dumpLedgerId, long dumpOffset) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("table", table);
         data.put("dumpLedgerId", dumpLedgerId);
         data.put("dumpOffset", dumpOffset);
         data.put("tableSpace", tableSpace);
-        return new Message(clientId, TYPE_REQUEST_TABLE_RESTORE, data);
+        return new Message(TYPE_REQUEST_TABLE_RESTORE, data);
     }
 
-    public static Message TABLE_RESTORE_FINISHED(String clientId, String tableSpace, String table,
+    public static Message TABLE_RESTORE_FINISHED(String tableSpace, String table,
             List<byte[]> indexes) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("table", table);
         data.put("tableSpace", tableSpace);
         data.put("indexes", indexes);
-        return new Message(clientId, TYPE_TABLE_RESTORE_FINISHED, data);
+        return new Message(TYPE_TABLE_RESTORE_FINISHED, data);
     }
 
-    public static Message RESTORE_FINISHED(String clientId, String tableSpace) {
+    public static Message RESTORE_FINISHED(String tableSpace) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
-        return new Message(clientId, TYPE_RESTORE_FINISHED, data);
+        return new Message(TYPE_RESTORE_FINISHED, data);
     }
 
-    public static Message PUSH_TABLE_DATA(String clientId, String tableSpace, String name, List<KeyValue> chunk) {
+    public static Message PUSH_TABLE_DATA(String tableSpace, String name, List<KeyValue> chunk) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("table", name);
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
-        return new Message(clientId, TYPE_PUSH_TABLE_DATA, data);
+        return new Message(TYPE_PUSH_TABLE_DATA, data);
     }
 
-    public static Message PUSH_TXLOGCHUNK(String clientId, String tableSpace, List<KeyValue> chunk) {
+    public static Message PUSH_TXLOGCHUNK(String tableSpace, List<KeyValue> chunk) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
-        return new Message(clientId, TYPE_PUSH_TXLOGCHUNK, data);
+        return new Message( TYPE_PUSH_TXLOGCHUNK, data);
     }
 
-    public static Message PUSH_TRANSACTIONSBLOCK(String clientId, String tableSpace, List<byte[]> chunk) {
+    public static Message PUSH_TRANSACTIONSBLOCK(String tableSpace, List<byte[]> chunk) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
-        return new Message(clientId, TYPE_PUSH_TRANSACTIONSBLOCK, data);
+        return new Message( TYPE_PUSH_TRANSACTIONSBLOCK, data);
     }
 
-    public final String clientId;
     public final int type;
     public final Map<String, Object> parameters;
-    public String messageId;
-    public String replyMessageId;
+    public long messageId = -1;
+    public long replyMessageId = -1;
 
     @Override
     public String toString() {
@@ -326,32 +326,31 @@ public final class Message {
         }
     }
 
-    public Message(String clientId, int type, Map<String, Object> parameters) {
-        this.clientId = clientId;
+    public Message(int type, Map<String, Object> parameters) {        
         this.type = type;
         this.parameters = parameters;
     }
 
-    public String getMessageId() {
+    public long getMessageId() {
         return messageId;
     }
 
     private static final AtomicLong MESSAGE_ID_GENERATOR = new AtomicLong();
 
     public void assignMessageId() {
-        this.messageId = MESSAGE_ID_GENERATOR.incrementAndGet() + "";
+        this.messageId = MESSAGE_ID_GENERATOR.incrementAndGet();
     }
 
-    public Message setMessageId(String messageId) {
+    public Message setMessageId(long messageId) {
         this.messageId = messageId;
         return this;
     }
 
-    public String getReplyMessageId() {
+    public long getReplyMessageId() {
         return replyMessageId;
     }
 
-    public Message setReplyMessageId(String replyMessageId) {
+    public Message setReplyMessageId(long replyMessageId) {
         this.replyMessageId = replyMessageId;
         return this;
     }

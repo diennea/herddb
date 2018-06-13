@@ -785,7 +785,7 @@ public class TableSpaceManager {
             LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
             startData.put("ledgerid", logSequenceNumber.ledgerId);
             startData.put("offset", logSequenceNumber.offset);
-            Message response_to_start = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, startData), timeout);
+            Message response_to_start = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, startData), timeout);
             if (response_to_start.type != Message.TYPE_ACK) {
                 LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.parameters);
                 return;
@@ -816,7 +816,7 @@ public class TableSpaceManager {
                 } catch (DataStorageManagerException err) {
                     Map<String, Object> errorOnData = new HashMap<>();
                     errorOnData.put("command", "error");
-                    _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, errorOnData), timeout);
+                    _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, errorOnData), timeout);
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
                     return;
                 }
@@ -832,7 +832,7 @@ public class TableSpaceManager {
             finishData.put("ledgerid", finishLogSequenceNumber.ledgerId);
             finishData.put("offset", finishLogSequenceNumber.offset);
             finishData.put("command", "finish");
-            _channel.sendOneWayMessage(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, finishData), new SendResultCallback() {
+            _channel.sendOneWayMessage(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, finishData), new SendResultCallback() {
                 @Override
                 public void messageSent(Message originalMessage, Throwable error) {
                 }
@@ -867,7 +867,7 @@ public class TableSpaceManager {
                 .
                 collect(Collectors.toList());
         transactionsData.put("transactions", encodedTransactions);
-        Message response_to_transactionsData = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, transactionsData), timeout);
+        Message response_to_transactionsData = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, transactionsData), timeout);
         if (response_to_transactionsData.type != Message.TYPE_ACK) {
             LOGGER.log(Level.SEVERE, "error response at transactionsData command: " + response_to_start.parameters);
         }
@@ -882,7 +882,7 @@ public class TableSpaceManager {
         }
         data.put("command", "txlog");
         data.put("records", batch);
-        _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(null, tableSpaceName, dumpId, data), timeout);
+        _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, data), timeout);
     }
 
     public void restoreFinished() throws DataStorageManagerException {

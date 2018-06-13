@@ -49,7 +49,6 @@ public class MessageUtils {
     private static final byte VERSION = 'a';
 
     private static final byte OPCODE_REPLYMESSAGEID = 1;
-    private static final byte OPCODE_WORKERPROCESSID = 2;
     private static final byte OPCODE_PARAMETERS = 3;
 
     private static final byte OPCODE_SET_VALUE = 6;
@@ -103,14 +102,10 @@ public class MessageUtils {
 
         buffer.writeByte(VERSION);
         ByteBufUtils.writeVInt(buffer, m.type);
-        writeUTF8String(buffer, m.messageId);
-        if (m.replyMessageId != null) {
+        ByteBufUtils.writeVLong(buffer, m.messageId);
+        if (m.replyMessageId >= 0) {
             buffer.writeByte(OPCODE_REPLYMESSAGEID);
-            writeUTF8String(buffer, m.replyMessageId);
-        }
-        if (m.clientId != null) {
-            buffer.writeByte(OPCODE_WORKERPROCESSID);
-            writeUTF8String(buffer, m.clientId);
+            ByteBufUtils.writeVLong(buffer, m.replyMessageId);
         }
         if (m.parameters != null) {
             buffer.writeByte(OPCODE_PARAMETERS);
@@ -129,33 +124,30 @@ public class MessageUtils {
         }
 
         int type = ByteBufUtils.readVInt(encoded);
-        String messageId = readUTF8String(encoded);
-        String replyMessageId = null;
-        String workerProcessId = null;
+        long messageId = ByteBufUtils.readVLong(encoded);
+        long replyMessageId = -1;
+      
         Map<String, Object> params = new HashMap<>();
         while (encoded.isReadable()) {
             byte opcode = encoded.readByte();
             switch (opcode) {
                 case OPCODE_REPLYMESSAGEID:
-                    replyMessageId = readUTF8String(encoded);
-                    break;
-                case OPCODE_WORKERPROCESSID:
-                    workerProcessId = readUTF8String(encoded);
+                    replyMessageId = ByteBufUtils.readVLong(encoded);
                     break;
                 case OPCODE_PARAMETERS:
                     int size = ByteBufUtils.readVInt(encoded);
                     for (int i = 0; i < size; i++) {
                         Object key = readEncodedSimpleValue(encoded);
                         Object value = readEncodedSimpleValue(encoded);
-                        params.put((String) key, value);
+                        params.put(((RawString) key).toString(), value);
                     }
                     break;
                 default:
                     throw new RuntimeException("invalid opcode: " + opcode);
             }
         }
-        Message m = new Message(workerProcessId, type, params);
-        if (replyMessageId != null) {
+        Message m = new Message(type, params);
+        if (replyMessageId >= 0) {
             m.replyMessageId = replyMessageId;
         }
         m.messageId = messageId;
@@ -171,9 +163,9 @@ public class MessageUtils {
         ByteBufUtils.writeArray(buffer, s.data);
     }
 
-    private static String readUTF8String(ByteBuf buffer) {
+    private static RawString readUTF8String(ByteBuf buffer) {
         byte[] array = ByteBufUtils.readArray(buffer);
-        return new String(array, StandardCharsets.UTF_8);
+        return new RawString(array);
     }
 
     @SuppressWarnings("rawtypes")
@@ -363,7 +355,7 @@ public class MessageUtils {
                 int numColumns = ByteBufUtils.readVInt(encoded);
                 String[] columns = new String[numColumns];
                 for (int i = 0; i < numColumns; i++) {
-                    columns[i] = readUTF8String(encoded);
+                    columns[i] = readUTF8String(encoded).toString();
                 }
                 int numRecords = ByteBufUtils.readVInt(encoded);
                 List<DataAccessor> records = new ArrayList<>(numRecords);

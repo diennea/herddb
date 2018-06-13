@@ -75,7 +75,7 @@ public class GeneratedKeysTest {
                             key = generatedKeys.getObject(1);
                         }
                     }
-                    assertNotNull(key);
+                    assertNotNull(key);                    
                     assertEquals(Integer.valueOf(1), key);
                 }
             }
