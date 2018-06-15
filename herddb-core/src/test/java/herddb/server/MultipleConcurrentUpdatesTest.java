@@ -37,6 +37,7 @@ import herddb.client.HDBConnection;
 import herddb.core.stats.TableManagerStats;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.utils.RawString;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,6 +61,8 @@ public class MultipleConcurrentUpdatesTest {
     private static int TABLESIZE = 10_000;
     private static int MULTIPLIER = 2;
     private static int THREADPOLSIZE = 100;
+
+    private static final RawString N1 = RawString.of("n1");
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
@@ -188,7 +191,7 @@ public class MultipleConcurrentUpdatesTest {
                                         if (res.data == null) {
                                             throw new RuntimeException("not found?");
                                         }
-                                        if (!res.data.get("n1").equals(actual)) {
+                                        if (!res.data.get(N1).equals(actual)) {
                                             throw new RuntimeException("unspected value " + res.data + ", expected: " + actual);
                                         }
                                         transactionId = res.transactionId;
@@ -224,9 +227,9 @@ public class MultipleConcurrentUpdatesTest {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
                                 TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
-                        if (!entry.getValue().equals(res.data.get("n1"))) {
-                            if (!entry.getValue().equals(res.data.get("n1"))) {
-                                System.out.println("expected value " + res.data.get("n1") + ", but got " + Long.valueOf(entry.getValue()) + " for key " + entry.getKey());
+                        if (!entry.getValue().equals(res.data.get(N1))) {
+                            if (!entry.getValue().equals(res.data.get(N1))) {
+                                System.out.println("expected value " + res.data.get(N1) + ", but got " + Long.valueOf(entry.getValue()) + " for key " + entry.getKey());
                                 erroredKeys.add(entry.getKey());
                             }
                         }
@@ -261,7 +264,7 @@ public class MultipleConcurrentUpdatesTest {
                     GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT n1 FROM mytable where id=?",
                             TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
                     assertNotNull(res.data);
-                    assertEquals(entry.getValue(), res.data.get("n1"));
+                    assertEquals(entry.getValue(), res.data.get(N1));
                 }
             }
         }

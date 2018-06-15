@@ -28,6 +28,7 @@ import herddb.client.ScanResultSet;
 import herddb.core.stats.TableManagerStats;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.utils.RawString;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -190,8 +191,8 @@ public class HistoryChangelogTest {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT status,hid FROM mytable where id=?",
                             TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
-                        assertEquals(entry.getValue().status, res.data.get("status"));
-                        assertEquals(entry.getValue().hid, res.data.get("hid"));
+                        assertEquals(entry.getValue().status, res.data.get(RawString.of("status")));
+                        assertEquals(entry.getValue().hid, res.data.get(RawString.of("hid")));
                     }
                     if (doneElements.contains(entry.getKey())) {
                         ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "
@@ -227,8 +228,8 @@ public class HistoryChangelogTest {
                         GetResult res = connection.executeGet(TableSpace.DEFAULT, "SELECT status,hid FROM mytable where id=?",
                             TransactionContext.NOTRANSACTION_ID, Arrays.asList(entry.getKey()));
                         assertNotNull(res.data);
-                        assertEquals(entry.getValue().status, res.data.get("status"));
-                        assertEquals(entry.getValue().hid, res.data.get("hid"));
+                        assertEquals(entry.getValue().status, res.data.get(RawString.of("status")));
+                        assertEquals(entry.getValue().hid, res.data.get(RawString.of("hid")));
                     }
                     if (doneElements.contains(entry.getKey())) {
                         ScanResultSet res = connection.executeScan(TableSpace.DEFAULT, "SELECT id, status, hid, (SELECT MAX(hid) as mm  from history where history.id=mytable.id) as maxhid "

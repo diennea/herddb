@@ -61,7 +61,21 @@ import herddb.utils.TuplesList;
  */
 public class RoutedClientSideConnection implements AutoCloseable, ChannelEventListener {
 
-    private Logger LOGGER = Logger.getLogger(RoutedClientSideConnection.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(RoutedClientSideConnection.class.getName());
+    private static final RawString RAWSTRING_TRANSACTIONS = RawString.of("transactions");
+    private static final RawString RAWSTRING_RECORDS = RawString.of("records");
+    private static final RawString RAWSTRING_INDEXES = RawString.of("indexes");
+    private static final RawString RAWSTRING_DUMPOFFSET = RawString.of("dumpOffset");
+    private static final RawString RAWSTRING_DUMPLEDGERID = RawString.of("dumpLedgerid");
+    private static final RawString RAWSTRING_ESTIMATEDSIZE = RawString.of("estimatedSize");
+    private static final RawString RAWSTRING_TABLE = RawString.of("table");
+    private static final RawString RAWSTRING_OFFSET = RawString.of("offset");
+    private static final RawString RAWSTRING_LEDGERID = RawString.of("ledgerid");
+    private static final RawString RAWSTRING_COMMAND = RawString.of("command");
+    private static final RawString RAWSTRING_NEWVALUE = RawString.of("newvalue");
+    private static final RawString RAWSTRING_KEY = RawString.of("key");
+    private static final RawString RAWSTRING_TX = RawString.of("tx");
+
     private final HDBConnection connection;
     private final String nodeId;
     private final long timeout;
@@ -133,22 +147,22 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 try {
                     Map<RawString, Object> values = (Map<RawString, Object>) message.parameters.get("values");
-                    String command = ((RawString) values.get(RawString.of("command"))).toString() ;
+                    String command = ((RawString) values.get(RAWSTRING_COMMAND)).toString();
                     boolean sendAck = true;
                     switch (command) {
                         case "start": {
-                            long ledgerId = (long) values.get(RawString.of("ledgerid"));
-                            long offset = (long) values.get(RawString.of("offset"));
+                            long ledgerId = (long) values.get(RAWSTRING_LEDGERID);
+                            long offset = (long) values.get(RAWSTRING_OFFSET);
                             receiver.start(new LogSequenceNumber(ledgerId, offset));
                             break;
                         }
                         case "beginTable": {
-                            byte[] tableDefinition = (byte[]) values.get(RawString.of("table"));
+                            byte[] tableDefinition = (byte[]) values.get(RAWSTRING_TABLE);
                             Table table = Table.deserialize(tableDefinition);
-                            Long estimatedSize = (Long) values.get(RawString.of("estimatedSize"));
-                            long dumpLedgerId = (Long) values.get(RawString.of("dumpLedgerid"));
-                            long dumpOffset = (Long) values.get(RawString.of("dumpOffset"));
-                            List<byte[]> indexesDef = (List<byte[]>) values.get(RawString.of("indexes"));
+                            Long estimatedSize = (Long) values.get(RAWSTRING_ESTIMATEDSIZE);
+                            long dumpLedgerId = (Long) values.get(RAWSTRING_DUMPLEDGERID);
+                            long dumpOffset = (Long) values.get(RAWSTRING_DUMPOFFSET);
+                            List<byte[]> indexesDef = (List<byte[]>) values.get(RAWSTRING_INDEXES);
                             List<Index> indexes = indexesDef
                                     .stream()
                                     .map(Index::deserialize)
@@ -167,14 +181,14 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             break;
                         }
                         case "finish": {
-                            long ledgerId = (long) values.get(RawString.of("ledgerid"));
-                            long offset = (long) values.get(RawString.of("offset"));
+                            long ledgerId = (long) values.get(RAWSTRING_LEDGERID);
+                            long offset = (long) values.get(RAWSTRING_OFFSET);
                             receiver.finish(new LogSequenceNumber(ledgerId, offset));
                             sendAck = false;
                             break;
                         }
                         case "data": {
-                            List<KeyValue> data = (List<KeyValue>) values.get(RawString.of("records"));
+                            List<KeyValue> data = (List<KeyValue>) values.get(RAWSTRING_RECORDS);
                             List<Record> records = new ArrayList<>(data.size());
                             for (KeyValue kv : data) {
                                 records.add(new Record(new Bytes(kv.key), new Bytes(kv.value)));
@@ -183,7 +197,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             break;
                         }
                         case "txlog": {
-                            List<KeyValue> data = (List<KeyValue>) values.get(RawString.of("records"));
+                            List<KeyValue> data = (List<KeyValue>) values.get(RAWSTRING_RECORDS);
                             List<DumpedLogEntry> records = new ArrayList<>(data.size());
                             for (KeyValue kv : data) {
                                 records.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
@@ -191,8 +205,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                             receiver.receiveTransactionLogChunk(records);
                             break;
                         }
-                        case "transactions": {                           
-                            List<byte[]> data = (List<byte[]>) values.get(RawString.of("transactions"));
+                        case "transactions": {
+                            List<byte[]> data = (List<byte[]>) values.get(RAWSTRING_TRANSACTIONS);
                             List<Transaction> transactions = data.stream().map(array -> {
                                 return Transaction.deserialize(null, array);
                             }).collect(Collectors.toList());
@@ -275,8 +289,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             connectionLock.readLock().unlock();
         }
     }
-    
-    private static final RawString NOT_LEADER = RawString.of("notLeader"); 
 
     DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
@@ -299,8 +311,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             Map<RawString, Object> data = (Map<RawString, Object>) reply.parameters.get("data");
 
             if (data != null) {
-                key = data.get(RawString.of("key"));
-                newvalue = (Map<RawString, Object>) data.get(RawString.of("newvalue"));
+                key = data.get(RAWSTRING_KEY);
+                newvalue = (Map<RawString, Object>) data.get(RAWSTRING_NEWVALUE);
             }
             return new DMLResult(updateCount, key, newvalue, transactionId);
         } catch (InterruptedException | TimeoutException err) {
@@ -329,8 +341,8 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             List<DMLResult> results = new ArrayList<>();
 
             for (int i = 0; i < updateCounts.size(); i++) {
-                Object key = data.get(0).get(RawString.of("key"));
-                Map<RawString, Object> newvalue = (Map<RawString, Object>) data.get(i).get(RawString.of("newvalue"));
+                Object key = data.get(0).get(RAWSTRING_KEY);
+                Map<RawString, Object> newvalue = (Map<RawString, Object>) data.get(i).get(RAWSTRING_NEWVALUE);
                 DMLResult res = new DMLResult(updateCounts.get(i), key, newvalue, transactionId);
                 results.add(res);
             }
@@ -359,7 +371,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             if (found <= 0) {
                 return new GetResult(null, transactionId);
             } else {
-                return new GetResult((Map<String, Object>) reply.parameters.get("data"), transactionId);
+                return new GetResult((Map<RawString, Object>) reply.parameters.get("data"), transactionId);
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -380,11 +392,12 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 throw new HDBException(reply);
             }
             Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
-            return (Long) data.get("tx");
+            return (Long) data.get(RAWSTRING_TX);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
     }
+    
 
     void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
