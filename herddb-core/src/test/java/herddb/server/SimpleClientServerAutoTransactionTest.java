@@ -41,6 +41,7 @@ import herddb.client.HDBConnection;
 import herddb.client.ScanResultSet;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.utils.RawString;
 
 /**
  * Basic server/client boot test
@@ -77,30 +78,30 @@ public class SimpleClientServerAutoTransactionTest {
 
                 GetResult res = connection.executeGet(TableSpace.DEFAULT,
                         "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());;
-                Map<String, Object> record = res.data;
+                Map<RawString, Object> record = res.data;
                 Assert.assertNotNull(record);
-                assertEquals("test", record.get("id"));
-                assertEquals(Long.valueOf(1), record.get("n1"));
-                assertEquals(Integer.valueOf(2), record.get("n2"));
+                assertEquals(RawString.of("test"), record.get(RawString.of("id")));
+                assertEquals(Long.valueOf(1), record.get(RawString.of("n1")));
+                assertEquals(Integer.valueOf(2), record.get(RawString.of("n2")));
 
                 connection.commitTransaction(TableSpace.DEFAULT, tx);
 
                 try (ScanResultSet scan = connection.executeScan(server.getManager().getVirtualTableSpaceId(), "SELECT * FROM sysconfig", Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
-                        String name = (String) aa.get("name");
-                        assertEquals("server.base.dir", name);
-                        String value = (String) aa.get("value");
-                        assertEquals(_baseDir, value);
+                        RawString name = (RawString) aa.get("name");
+                        assertEquals(RawString.of("server.base.dir"), name);
+                        RawString value = (RawString) aa.get("value");
+                        assertEquals(RawString.of(_baseDir), value);
                     }
                 }
 
                 try (ScanResultSet scan = connection.executeScan(null, "SELECT * FROM " + server.getManager().getVirtualTableSpaceId() + ".sysclients", Collections.emptyList(), 0, 0, 10);) {
                     List<Map<String, Object>> all = scan.consume();
                     for (Map<String, Object> aa : all) {
-                        assertEquals("jvm-local", aa.get("address"));
+                        assertEquals(RawString.of("jvm-local"), aa.get("address"));
                         assertEquals("1", aa.get("id") + "");
-                        assertEquals(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT, aa.get("username"));
+                        assertEquals(RawString.of(ClientConfiguration.PROPERTY_CLIENT_USERNAME_DEFAULT), aa.get("username"));
                         assertNotNull(aa.get("connectionts"));
                     }
                     assertEquals(1, all.size());

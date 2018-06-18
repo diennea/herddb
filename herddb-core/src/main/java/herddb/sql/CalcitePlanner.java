@@ -348,7 +348,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 return result;
             }
             long delta = System.currentTimeMillis() - startTs;
-            LOG.log(Level.FINER, "schema " + defaultTableSpace + " not available yet, after waiting "
+            LOG.log(Level.INFO, "schema " + defaultTableSpace + " not available yet, after waiting "
                     + delta + "/" + WAIT_FOR_SCHEMA_UP_TIMEOUT + " ms");
             if (delta >= WAIT_FOR_SCHEMA_UP_TIMEOUT) {
                 return null;

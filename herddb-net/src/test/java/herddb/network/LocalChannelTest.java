@@ -25,7 +25,7 @@ public class LocalChannelTest {
 
                         @Override
                         public void messageReceived(Message message, Channel channel) {
-                            channel.sendReplyMessage(message, Message.ACK("ciao"));
+                            channel.sendReplyMessage(message, Message.ACK());
                         }
 
                         @Override
@@ -57,7 +57,7 @@ public class LocalChannelTest {
                 }
             }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
                 for (int i = 0; i < 100; i++) {
-                    Message result = client.sendMessageWithReply(Message.ACK("clientId"), 10000);
+                    Message result = client.sendMessageWithReply(Message.ACK(), 10000);
 //                        System.out.println("result:" + result);
                     assertEquals(Message.TYPE_ACK, result.type);
                 }

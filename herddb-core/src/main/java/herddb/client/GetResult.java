@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import herddb.utils.RawString;
 import java.util.Map;
 
 /**
@@ -28,10 +29,10 @@ import java.util.Map;
  */
 public class GetResult {
 
-    public final Map<String, Object> data;
+    public final Map<RawString, Object> data;
     public final long transactionId;
 
-    public GetResult(Map<String, Object> data, long transactionId) {
+    public GetResult(Map<RawString, Object> data, long transactionId) {
         this.data = data;
         this.transactionId = transactionId;
     }

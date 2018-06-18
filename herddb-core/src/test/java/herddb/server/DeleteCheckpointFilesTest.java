@@ -36,6 +36,7 @@ import herddb.client.HDBConnection;
 import herddb.core.TestUtils;
 import herddb.model.DataScanner;
 import herddb.model.TableSpace;
+import herddb.utils.RawString;
 
 /**
  * Tests on clear at boot
@@ -70,8 +71,8 @@ public class DeleteCheckpointFilesTest {
                 Assert.assertEquals(1, resultCreateIndex2);
 
                 Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, Arrays.asList("test_0", 1, 2)).updateCount);
-                Map<String, Object> newValue = connection.executeUpdate(TableSpace.DEFAULT, "UPDATE mytable set n1= n1+1 where id=?", 0, true, Arrays.asList("test_0")).newvalue;
-                assertEquals(Long.valueOf(2), newValue.get("n1"));
+                Map<RawString, Object> newValue = connection.executeUpdate(TableSpace.DEFAULT, "UPDATE mytable set n1= n1+1 where id=?", 0, true, Arrays.asList("test_0")).newvalue;
+                assertEquals(Long.valueOf(2), newValue.get(RawString.of("n1")));
 
                 server.getManager().checkpoint();
                 server.getManager().checkpoint();

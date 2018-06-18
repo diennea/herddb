@@ -27,5 +27,9 @@
             <artifactId>herddb-utils</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.bookkeeper</groupId>
+            <artifactId>bookkeeper-server</artifactId>
+        </dependency>
     </dependencies>    
 </project>

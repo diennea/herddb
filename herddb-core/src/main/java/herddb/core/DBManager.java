@@ -935,10 +935,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     public void dumpTableSpace(String tableSpace, String dumpId, Message message, Channel _channel, int fetchSize, boolean includeLog) {
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
-            _channel.sendReplyMessage(message, Message.ERROR(null, new Exception("tableSpace " + tableSpace + " not booted here")));
+            _channel.sendReplyMessage(message, Message.ERROR(new Exception("tableSpace " + tableSpace + " not booted here")));
             return;
         } else {
-            _channel.sendReplyMessage(message, Message.ACK(null));
+            _channel.sendReplyMessage(message, Message.ACK());
         }
         try {
             manager.dumpTableSpace(dumpId, _channel, fetchSize, includeLog);
