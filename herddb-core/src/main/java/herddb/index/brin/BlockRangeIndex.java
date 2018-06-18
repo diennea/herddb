@@ -569,7 +569,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
              * blocked [happen before])
              */
             // access to external field, this is the cause of most of the concurrency problems
-
             index.blocks.put(newblock.key, newblock);
 
             return newblock;
@@ -752,51 +751,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         return new BlockRangeIndexMetadata<>(blocksMetadata);
     }
 
-//    public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
-//        final boolean fineEnabled = LOG.isLoggable(Level.FINE);
-//
-//        List<BlockRangeIndexMetadata.BlockMetadata<K>> blocksMetadata = new ArrayList<>();
-//        Set<Block<K,V>> deleted = new HashSet<>();
-//
-//        Iterator<Block<K,V>> iterator = blocks.values().iterator();
-//        while(iterator.hasNext()) {
-//            Block<K,V> block = iterator.next();
-//
-//            BlockRangeIndexMetadata.BlockMetadata<K> metadata = block.checkpoint();
-//            /* Do not discard head block */
-//            if (metadata.size != 0 || block.key == BlockStartKey.HEAD_KEY) {
-//                if (fineEnabled) {
-//                    LOG.fine("block " + block.pageId + " ("+ block.key+ ") has " + metadata.size + " records at checkpoint");
-//                }
-//                blocksMetadata.add(metadata);
-//            } else {
-//                LOG.info("block " + block.pageId + " ("+ block.key+ ") is empty at checkpoint: discarding");
-//
-//                /* Unload the block from memory */
-//                block.unload();
-//
-//                /* Remove the block from knowledge */
-//                iterator.remove();
-//
-//                deleted.add(block);
-//            }
-//        }
-//
-//        if (!deleted.isEmpty()) {
-//            /* Loop again to remove next pointers to delete blocks */
-//            for (Block<K,V> block : blocks.values()) {
-//                final Block<K,V> next = block.next;
-//                if (deleted.contains(next)) {
-//                    if (fineEnabled) {
-//                        LOG.warning("unlinking block " + block.pageId + " ("+ block.key+ ") from deleted block " + next.pageId + " ("+ block.key+ ")");
-//                    }
-//                    block.next = null;
-//                }
-//            }
-//        }
-//
-//        return new BlockRangeIndexMetadata<>(blocksMetadata);
-//    }
 
     private boolean tryPut(K key, V value, BlockStartKey<K> lookUp) {
         Map.Entry<BlockStartKey<K>, Block<K,V>> segmentEntry = blocks.floorEntry(lookUp);
