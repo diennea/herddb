@@ -22,14 +22,12 @@ package herddb.index.brin;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Objects;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -194,14 +192,21 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
     }
 
     private static final class DeleteState <KEY extends Comparable<KEY> & SizeAwareObject, VAL extends SizeAwareObject> {
-        final Set<BlockStartKey<KEY>> visited;
-        boolean deleted;
         Block<KEY,VAL> next;
 
         public DeleteState() {
             super();
+        }
+    }
 
-            visited = new HashSet<>();
+    private static final class LookupState <KEY extends Comparable<KEY> & SizeAwareObject, VAL extends SizeAwareObject> {
+        Block<KEY,VAL> next;
+        List<VAL> found;
+
+        public LookupState() {
+            super();
+
+            found = new ArrayList<>();
         }
     }
 
@@ -339,12 +344,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         void delete(KEY key, VAL value, DeleteState<KEY,VAL> state) {
 
-            if (!state.visited.add(this.key)) {
-                /* No more next */
-                state.next = null;
-                return;
-            }
-
             lock.lock();
 
             try {
@@ -377,8 +376,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                             dirty = true;
 
                             /* Value removed, stop deletions */
-                            state.deleted = true;
-
                             /* No more next */
                             state.next = null;
 
@@ -405,36 +402,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         }
 
-       void ensureBlockLoaded() {
-            if (!loaded) {
-                try {
-                    values = new TreeMap<>();
-                    List<Map.Entry<KEY,VAL>> loadDataPage = index.dataStorage.loadDataPage(pageId);
-
-                    for (Map.Entry<KEY,VAL> entry : loadDataPage) {
-                        mergeAddValue(entry.getKey(), entry.getValue(), values);
-                    }
-
-                    loaded = true;
-
-                    /* Dereferenced page unload */
-                    final Page.Metadata unload = index.pageReplacementPolicy.add(page);
-                    if (unload != null) {
-                        unload.owner.unload(unload.pageId);
-                    }
-
-                } catch (IOException err) {
-                    throw new RuntimeException(err);
-                }
-            } else {
-                index.pageReplacementPolicy.pageHit(page);
-            }
-        }
-
-        Block<KEY,VAL> lookUpRange(KEY firstKey, KEY lastKey, Set<BlockStartKey<KEY>> visitedBlocks, List<List<VAL>> results) {
-            if (!visitedBlocks.add(this.key)) {
-                return null;
-            }
+        void lookUpRange(KEY firstKey, KEY lastKey, LookupState<KEY, VAL> state) {
 
             lock.lock();
 
@@ -463,13 +431,13 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                         if (firstKey.equals(lastKey)) {
                             List<VAL> seek = values.get(firstKey);
                             if (seek != null && !seek.isEmpty()) {
-                                results.add(seek);
+                                state.found.addAll(seek);
                             }
                         } else if (lastKey.compareTo(firstKey) < 0) {
                             // no value is possible
                         } else {
                             values.subMap(firstKey, true, lastKey, true).forEach((k, seg) -> {
-                                results.add(seg);
+                                state.found.addAll(seg);
                             });
                         }
                     }
@@ -486,35 +454,57 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                         // index seek case
                         ensureBlockLoaded();
                         values.tailMap(firstKey, true).forEach((k, seg) -> {
-                            results.add(seg);
+                            state.found.addAll(seg);
                         });
                     }
                 } else {
                     ensureBlockLoaded();
                     values.headMap(lastKey, true).forEach((k, seg) -> {
-                        results.add(seg);
+                        state.found.addAll(seg);
                     });
                 }
-
-                /*
-                 * Propagate to next only if it exist AND current max key isn't greater than requested
-                 * last key (ie: only if next could have any useful data)
-                 */
-
                 /*
                  * Propagate to next only if it exist AND next min key is less or equal than requested
                  * last key (ie: only if next could have any useful data)
                  */
                 if (currentNext != null && (lastKey == null || currentNext.key.compareMinKey(lastKey) <= 0)) {
-                    return currentNext;
+                    state.next = currentNext;
+                } else {
+
+                    /* No more next */
+                    state.next = null;
                 }
 
             } finally {
                 lock.unlock();
             }
-
-            return null;
         }
+
+        void ensureBlockLoaded() {
+             if (!loaded) {
+                 try {
+                     values = new TreeMap<>();
+                     List<Map.Entry<KEY,VAL>> loadDataPage = index.dataStorage.loadDataPage(pageId);
+
+                     for (Map.Entry<KEY,VAL> entry : loadDataPage) {
+                         mergeAddValue(entry.getKey(), entry.getValue(), values);
+                     }
+
+                     loaded = true;
+
+                     /* Dereferenced page unload */
+                     final Page.Metadata unload = index.pageReplacementPolicy.add(page);
+                     if (unload != null) {
+                         unload.owner.unload(unload.pageId);
+                     }
+
+                 } catch (IOException err) {
+                     throw new RuntimeException(err);
+                 }
+             } else {
+                 index.pageReplacementPolicy.pageHit(page);
+             }
+         }
 
         /**
          * Return the newly generated block if any
@@ -788,88 +778,39 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
     }
 
     public void delete(K key, V value) {
+
+        final Entry<BlockStartKey<K>,Block<K,V>> entry = blocks.floorEntry(BlockStartKey.valueOf(key, -1L));
+
         final DeleteState<K,V> state = new DeleteState<>();
-        for(Block<K,V> block : findCandidates(key,key)) {
-            state.next = block;
-            do {
-                state.next.delete(key, value, state);
-                if (state.deleted) {
-                    /* Deleted record no more iterations needed */
-                    return;
-                }
-            } while (state.next != null);
-        }
+        state.next = entry.getValue();
+        do {
+            state.next.delete(key, value, state);
+        } while (state.next != null);
     }
 
     public Stream<V> query(K firstKey, K lastKey) {
-        Set<BlockStartKey<K>> visitedBlocks = new HashSet<>();
-        List<List<V>> found = new ArrayList<>();
-        for(Block<K,V> block : findCandidates(firstKey, lastKey)) {
-            Block<K,V> current = block;
-            do {
-                current = current.lookUpRange(firstKey, lastKey, visitedBlocks, found);
-            } while (current != null);
+
+        final Entry<BlockStartKey<K>,Block<K,V>> entry;
+        if (firstKey != null ) {
+            entry = blocks.floorEntry(BlockStartKey.valueOf(firstKey, -1L));
+        } else {
+            /* Use first entry and not HEAD block lookup just because has better performances */
+            entry = blocks.firstEntry();
         }
-        return found.stream().flatMap(List::stream);
+
+        final LookupState<K, V> state = new LookupState<>();
+        state.next = entry.getValue();
+        do {
+            state.next.lookUpRange(firstKey, lastKey, state);
+        } while (state.next != null);
+
+        return state.found.stream();
     }
 
     public List<V> lookUpRange(K firstKey, K lastKey) {
         return query(firstKey, lastKey).collect(Collectors.toList());
     }
 
-    private Collection<Block<K,V>> findCandidates(K firstKey, K lastKey) {
-
-        if (firstKey == null && lastKey == null) {
-            throw new IllegalArgumentException();
-        }
-
-        BlockStartKey<K> floor = null;
-        BlockStartKey<K> ceil = null;
-
-        if (firstKey!= null) {
-            floor = blocks.floorKey(BlockStartKey.valueOf(firstKey, -1L));
-        }
-
-        if (lastKey != null) {
-            ceil = blocks.ceilingKey(BlockStartKey.valueOf(lastKey, Long.MAX_VALUE));
-        }
-
-        if (floor == null) {
-
-            /* A LT or EQ key of first key doesn't exists (ex: the first key is the key after the first key) */
-            if (ceil == null) {
-
-                /* A GT or EQ key of last key doesn't exists (ex: the last key is the key before the last key) */
-
-                /* Full scan */
-                return blocks.values();
-
-            } else {
-
-                boolean ceilInclusive = ceil.compareMinKey(lastKey) == 0;
-
-                return blocks.headMap(ceil, ceilInclusive).values();
-
-            }
-
-        } else {
-
-            if (ceil == null) {
-
-                /* A GT or EQ key of last key doesn't exists (ex: the last key is the key before the last key) */
-                return blocks.tailMap(floor, true).values();
-
-            } else {
-
-                boolean ceilInclusive = ceil.compareMinKey(lastKey) == 0;
-
-                return blocks.subMap(floor, true, ceil, ceilInclusive).values();
-
-            }
-
-        }
-
-    }
 
     public List<V> search(K key) {
         return lookUpRange(key, key);
