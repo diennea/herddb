@@ -212,7 +212,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         NavigableMap<KEY, List<VAL>> values;
         long size;
         Block<KEY,VAL> next;
-      
+
         private final ReentrantLock lock = new ReentrantLock(true);
         private volatile boolean loaded;
         private volatile boolean dirty;
@@ -665,7 +665,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             Block<K,V> block = iterator.next();
 
             BlockRangeIndexMetadata.BlockMetadata<K> metadata = block.checkpoint();
-            if (metadata.size != 0) {
+            /* Do not discard head block */
+            if (metadata.size != 0 || block.key == BlockStartKey.HEAD_KEY) {
                 if (fineEnabled) {
                     LOG.fine("block " + block.pageId + " ("+ block.key+ ") has " + metadata.size + " records at checkpoint");
                 }
