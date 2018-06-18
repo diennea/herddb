@@ -21,16 +21,19 @@ package herddb.index.brin;
 
 import static org.junit.Assert.assertEquals;
 
-import java.io.IOException;
+import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentNavigableMap;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
+import herddb.index.brin.BlockRangeIndex.Block;
+import herddb.index.brin.BlockRangeIndex.BlockStartKey;
 import herddb.utils.Sized;
 
 /**
@@ -40,32 +43,12 @@ import herddb.utils.Sized;
 public class BlockRangeIndexStorageTest {
 
     @Test
-    public void testSimple() throws Exception {
+    public void testSimpleReload() throws Exception {
 
-        IndexDataStorage<Sized<Integer>, Sized<String>> storage =
-                new IndexDataStorage<Sized<Integer>, Sized<String>>() {
+        PageReplacementPolicy policy = new RandomPageReplacementPolicy(10);
+        IndexDataStorage<Sized<Integer>, Sized<String>> storage = new MemoryIndexDataStorage<>();
 
-            AtomicLong newPageId = new AtomicLong();
-
-            private ConcurrentHashMap<Long, List<Map.Entry<Sized<Integer>, Sized<String>>>> pages =
-                    new ConcurrentHashMap<>();
-
-            @Override
-            public List<Map.Entry<Sized<Integer>, Sized<String>>> loadDataPage(long pageId) throws IOException {
-                return pages.get(pageId);
-            }
-
-            @Override
-            public long createDataPage(List<Map.Entry<Sized<Integer>, Sized<String>>> values) throws IOException {
-                long newid = newPageId.incrementAndGet();
-                pages.put(newid, values);
-                return newid;
-            }
-
-        };
-
-        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
-                new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10), storage);
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index = new BlockRangeIndex<>(400, policy, storage);
 
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
         index.put(Sized.valueOf(2), Sized.valueOf("b"));
@@ -86,31 +69,74 @@ public class BlockRangeIndexStorageTest {
     }
 
     @Test
-    public void testUnload() throws Exception {
-
-        IndexDataStorage<Sized<Integer>, Sized<String>> storage = new IndexDataStorage<Sized<Integer>, Sized<String>>() {
-
-            AtomicLong newPageId = new AtomicLong();
-
-            private ConcurrentHashMap<Long, List<Map.Entry<Sized<Integer>, Sized<String>>>> pages = new ConcurrentHashMap<>();
-
-            @Override
-            public List<Map.Entry<Sized<Integer>, Sized<String>>> loadDataPage(long pageId) throws IOException {
-                return pages.get(pageId);
-            }
-
-            @Override
-            public long createDataPage(List<Map.Entry<Sized<Integer>, Sized<String>>> values) throws IOException {
-                long newid = newPageId.incrementAndGet();
-                pages.put(newid, values);
-                return newid;
-            }
-
-        };
+    public void testReloadAfterBlockDeletion() throws Exception {
 
         PageReplacementPolicy policy = new RandomPageReplacementPolicy(10);
-        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
-                new BlockRangeIndex<>(1024, policy, storage);
+        IndexDataStorage<Sized<Integer>, Sized<Integer>> storage = new MemoryIndexDataStorage<>();
+
+        BlockRangeIndex<Sized<Integer>, Sized<Integer>> index = new BlockRangeIndex<>(400, policy, storage);
+
+        int i = 0;
+        do {
+            Sized<Integer> si = Sized.valueOf(i++);
+            index.put(si, si);
+        } while(index.getNumBlocks() < 4);
+
+        /* First checkpoint after insertion */
+        index.checkpoint();
+
+
+        /* Now we empty middle blocks */
+
+        /* Map without first key */
+        ConcurrentNavigableMap<BlockStartKey<Sized<Integer>>, Block<Sized<Integer>, Sized<Integer>>> sub =
+                index.getBlocks().tailMap(index.getBlocks().firstKey(), false);
+
+        /* Second block */
+        Block<Sized<Integer>, Sized<Integer>> second = sub.firstEntry().getValue();
+
+        /* Map without second key */
+        sub = sub.tailMap(sub.firstKey(), false);
+
+        /* Third block */
+        Block<Sized<Integer>, Sized<Integer>> third = sub.firstEntry().getValue();
+
+        /* Copy to avoid concurrent modification */
+        List<Entry<Sized<Integer>, Sized<Integer>>> toDelete = new ArrayList<>();
+
+        second.values.forEach((k,vl) -> vl.forEach(v -> toDelete.add(new SimpleEntry<>(k,v))));
+        third.values.forEach((k,vl) -> vl.forEach(v -> toDelete.add(new SimpleEntry<>(k,v))));
+
+        /* Delete blocks 2 and 3 */
+        toDelete.forEach(e -> index.delete(e.getKey(), e.getValue()));
+
+        /* Checkpoint, should remove a block */
+        BlockRangeIndexMetadata<Sized<Integer>> metadata = index.checkpoint();
+
+        assertEquals(2, index.getNumBlocks());
+        assertEquals(index.getNumBlocks(), metadata.getBlocksMetadata().size());
+
+        /* Load a new index from data */
+        BlockRangeIndex<Sized<Integer>, Sized<Integer>> indexAfterBoot =
+                new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10), storage);
+
+        indexAfterBoot.boot(metadata);
+
+        /* Check data equality between new and old index */
+        index.getBlocks().forEach((f,b) -> b.values.forEach((k,vl) -> {
+            List<Sized<Integer>> search = indexAfterBoot.search(k);
+            Assert.assertEquals(vl, search);
+        }));
+
+    }
+
+    @Test
+    public void testUnload() throws Exception {
+
+        PageReplacementPolicy policy = new RandomPageReplacementPolicy(10);
+        IndexDataStorage<Sized<Integer>, Sized<String>> storage = new MemoryIndexDataStorage<>();
+
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index = new BlockRangeIndex<>(1024, policy, storage);
         for (int i = 0; i < 100; i++) {
             index.put(Sized.valueOf(i), Sized.valueOf("a"));
         }

@@ -22,17 +22,21 @@ package herddb.index.brin;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.index.brin.BlockRangeIndex.Block;
+import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
 
 /**
@@ -44,62 +48,215 @@ public class BlockRangeIndexConcurrentTest {
 
     @Test
     public void testConcurrentWrites() throws Exception {
+
         int testSize = 10000;
         int parallelism = 10;
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
-//        PagedBlockRangeIndex<Sized<Integer>, Sized<String>> index =
-//                new PagedBlockRangeIndex<>(1024, new ClockProPolicy(3));
-//        PagedBlockRangeIndex<Sized<Integer>, Sized<String>> index =
-//                new PagedBlockRangeIndex<>(1024, new ClockAdaptiveReplacement(3));
-        ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
-        CountDownLatch l = new CountDownLatch(testSize);
 
         try {
-            for (int i = 0; i < testSize; i++) {
-                int _i = i;
-                threadpool.submit(() -> {
-                    try {
-                        index.put(Sized.valueOf(_i), Sized.valueOf("a" + _i));
-                        l.countDown();
-                    } catch (RuntimeException e) {
-                        e.printStackTrace();
-                    }
-                });
+
+            ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
+            CountDownLatch l = new CountDownLatch(testSize);
+
+            try {
+                for (int i = 0; i < testSize; i++) {
+                    int _i = i;
+                    threadpool.submit(() -> {
+                        try {
+                            index.put(Sized.valueOf(_i), Sized.valueOf("a" + _i));
+                            l.countDown();
+                        } catch (RuntimeException e) {
+                            e.printStackTrace();
+                        }
+                    });
+                }
+            } finally {
+                threadpool.shutdown();
             }
-        } finally {
-            threadpool.shutdown();
-        }
 
-        assertTrue(l.await(10, TimeUnit.SECONDS));
+            assertTrue(l.await(10, TimeUnit.SECONDS));
 
-        index.checkpoint();
+            index.checkpoint();
 
-        dumpIndex(index);
-        verifyIndex(index);
-        List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
-        for (Sized<String> res : result) {
-            System.out.println("res " + res.dummy);
-        }
+            dumpIndex(index);
+            verifyIndex(index);
 
-        for (int i = 0; i < testSize; i++) {
-            assertTrue("cannot find " + i, index.containsKey(Sized.valueOf(i)));
+            List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
+            for (Sized<String> res : result) {
+                System.out.println("res " + res.dummy);
+            }
+
+            for (int i = 0; i < testSize; i++) {
+                assertTrue("cannot find " + i, index.containsKey(Sized.valueOf(i)));
+            }
+
+        } catch (Exception | AssertionError e) {
+
+            deepDumpIndex(index);
+            throw e;
         }
     }
 
-    private void dumpIndex(BlockRangeIndex<?, ?> index) {
-        for (Block b : index.getBlocks().values()) {
+    @Test
+    public void testConcurrentReadsWritesWithSplits() throws Exception {
+
+        int testSize = 10000;
+        int parallelism = 10;
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index = new BlockRangeIndex<>(1024,
+                new RandomPageReplacementPolicy(3));
+        ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
+
+        try {
+
+            ConcurrentLinkedQueue<Sized<String>> results = new ConcurrentLinkedQueue<>();
+            List<Future<?>> jobs = new ArrayList<>(testSize);
+
+            try {
+                for (int i = 0; i < testSize; i++) {
+                    int _i = i;
+                    jobs.add(threadpool.submit(() -> {
+                        index.put(Sized.valueOf(_i), Sized.valueOf("a" + _i));
+                        List<Sized<String>> search = index.search(Sized.valueOf(_i));
+                        results.addAll(search);
+                        if (search.isEmpty()) {
+                            search = index.search(Sized.valueOf(_i));
+                            throw new IllegalStateException("Empty Search! i " + _i);
+                        }
+                    }));
+                }
+            } finally {
+                threadpool.shutdown();
+            }
+
+            for (Future<?> job : jobs) {
+                /* Job exception rethrow */
+                try {
+                    job.get(10, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    throw (Exception) e.getCause();
+                }
+            }
+
+            index.checkpoint();
+
+            dumpIndex(index);
+            verifyIndex(index);
+            List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
+            for (Sized<String> res : result) {
+                System.out.println("res " + res.dummy);
+            }
+
+            for (int i = 0; i < testSize; i++) {
+                assertTrue("cannot find " + i, index.containsKey(Sized.valueOf(i)));
+                assertTrue("cannot find a" + i, results.contains(Sized.valueOf("a" + i)));
+            }
+
+        } catch (Exception | AssertionError e) {
+
+            deepDumpIndex(index);
+            throw e;
+        }
+    }
+
+    @Test
+    public void testConcurrentReadsWritesDeletesWithSplits() throws Exception {
+
+        int testSize = 10000;
+        int parallelism = 10;
+        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
+                new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
+
+        try {
+
+            ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
+            CountDownLatch l = new CountDownLatch(testSize);
+            ConcurrentLinkedQueue<Sized<String>> afterInsertSearch = new ConcurrentLinkedQueue<>();
+            ConcurrentLinkedQueue<Sized<String>> afterDeleteSearch = new ConcurrentLinkedQueue<>();
+            List<Future<?>> jobs = new ArrayList<>(testSize);
+
+            try {
+                for (int i = 0; i < testSize; i++) {
+                    int _i = i;
+                    jobs.add(threadpool.submit(() -> {
+                        try {
+                            index.put(Sized.valueOf(_i), Sized.valueOf("a" + _i));
+                            List<Sized<String>> search = index.search(Sized.valueOf(_i));
+                            afterInsertSearch.addAll(search);
+                            if (search.isEmpty()) {
+                                throw new IllegalStateException("Empty Search! i " + _i);
+                            }
+
+                            index.delete(Sized.valueOf(_i), Sized.valueOf("a" + _i));
+                            List<Sized<String>> search2 = index.search(Sized.valueOf(_i));
+                            afterDeleteSearch.addAll(search2);
+                            l.countDown();
+                        } catch (Throwable t) {
+                            t.printStackTrace();
+                        }
+                    }));
+                }
+            } finally {
+                threadpool.shutdown();
+            }
+
+            for(Future<?> job : jobs) {
+                /* Job exception rethrow */
+                try {
+                    job.get(10, TimeUnit.SECONDS);
+                } catch (ExecutionException e) {
+                    throw (Exception) e.getCause();
+                }
+            }
+
+            index.checkpoint();
+            dumpIndex(index);
+
+            verifyIndex(index);
+            List<Sized<String>> lookupAfterDeletion = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
+            assertTrue(lookupAfterDeletion.isEmpty());
+
+            for (int i = 0; i < testSize; i++) {
+                assertTrue("cannot find a" + i, afterInsertSearch.contains(Sized.valueOf("a" + i)));
+            }
+            assertTrue(afterDeleteSearch.isEmpty());
+
+        } catch (Exception | AssertionError e) {
+
+            deepDumpIndex(index);
+            throw e;
+        }
+
+
+    }
+
+
+    private <X extends Comparable<X> & SizeAwareObject> void dumpIndex(BlockRangeIndex<X, ?> index) {
+        for (Block<X,?> b : index.getBlocks().values()) {
             System.out.println("BLOCK " + b);
+        }
+    }
+
+    private <X extends Comparable<X> & SizeAwareObject> void deepDumpIndex(BlockRangeIndex<X, ?> index) {
+        for (Block<X,?> block : index.getBlocks().values()) {
+            System.out.println("------------------------------------------");
+            System.out.println("BLOCK " + block);
+            System.out.println("------------------------------------------");
+
+            /* Forcefully load the block to check internal data */
+            block.ensureBlockLoaded();
+
+            block.values.forEach((k,v) -> System.out.println(k + ": " + v));
         }
     }
 
     private void verifyIndex(BlockRangeIndex<Sized<Integer>, Sized<String>> index) {
         Integer lastmax = null;
-        for (Block b : index.getBlocks().values()) {
+        for (Block<Sized<Integer>, Sized<String>> b : index.getBlocks().values()) {
             if (b.key == BlockRangeIndex.BlockStartKey.HEAD_KEY.HEAD_KEY) {
                 System.out.println("check block " + lastmax + " -> -inf");
             } else {
-                System.out.println("check block " + lastmax + " -> " + ((Sized<Integer>) b.key.minKey).dummy);
+                System.out.println("check block " + lastmax + " -> " + b.key.minKey.dummy);
             }
 
             /* Forcefully load the block to check internal data */
@@ -115,10 +272,10 @@ public class BlockRangeIndexConcurrentTest {
                 }
             } else {
                 if (lastmax == null) {
-                    lastmax = ((Sized<Integer>)b.values.lastKey()).dummy;
+                    lastmax = b.values.lastKey().dummy;
                 } else {
-                    Integer entryMin = ((Sized<Integer>)b.values.firstKey()).dummy;
-                    Integer entryMax = ((Sized<Integer>)b.values.lastKey()).dummy;
+                    Integer entryMin = b.values.firstKey().dummy;
+                    Integer entryMax = b.values.lastKey().dummy;
                     if (entryMin < lastmax) {
                         fail(entryMin + " < " + lastmax);
                     }
@@ -126,105 +283,6 @@ public class BlockRangeIndexConcurrentTest {
                 }
             }
         }
-    }
-
-    @Test
-    public void testConcurrentReadsWritesWithSplits() throws Exception {
-        int testSize = 10000;
-        int parallelism = 10;
-        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
-                new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
-        ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
-        CountDownLatch l = new CountDownLatch(testSize);
-        ConcurrentLinkedQueue<Sized<String>> results = new ConcurrentLinkedQueue<>();
-        try {
-            for (int i = 0; i < testSize; i++) {
-                int _i = i;
-                threadpool.submit(() -> {
-                    try {
-                        index.put(Sized.valueOf(_i), Sized.valueOf("a" + _i));
-                        List<Sized<String>> search = index.search(Sized.valueOf(_i));
-                        results.addAll(search);
-                        if (search.isEmpty()) {
-                            throw new IllegalStateException("Empty Search! i " + _i);
-                        }
-                        l.countDown();
-                    } catch (RuntimeException e) {
-                        e.printStackTrace();
-                    }
-                });
-            }
-        } finally {
-            threadpool.shutdown();
-        }
-
-        assertTrue(l.await(10, TimeUnit.SECONDS));
-
-        index.checkpoint();
-
-        dumpIndex(index);
-        verifyIndex(index);
-        List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
-        for (Sized<String> res : result) {
-            System.out.println("res " + res.dummy);
-        }
-
-        for (int i = 0; i < testSize; i++) {
-            assertTrue("cannot find " + i, index.containsKey(Sized.valueOf(i)));
-            assertTrue("cannot find a" + i, results.contains(Sized.valueOf("a" + i)));
-        }
-    }
-
-    @Test
-    public void testConcurrentReadsWritesDeletesWithSplits() throws Exception {
-        int testSize = 10000;
-        int parallelism = 10;
-        BlockRangeIndex<Sized<Integer>, Sized<String>> index =
-                new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
-        ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
-        CountDownLatch l = new CountDownLatch(testSize);
-        ConcurrentLinkedQueue<Sized<String>> afterInsertSearch = new ConcurrentLinkedQueue<>();
-        ConcurrentLinkedQueue<Sized<String>> afterDeleteSearch = new ConcurrentLinkedQueue<>();
-        try {
-            for (int i = 0; i < testSize; i++) {
-                int _i = i;
-                threadpool.submit(() -> {
-                    try {
-                        index.put(Sized.valueOf(_i), Sized.valueOf("a" + _i));
-                        List<Sized<String>> search = index.search(Sized.valueOf(_i));
-                        afterInsertSearch.addAll(search);
-                        if (search.isEmpty()) {
-                            throw new IllegalStateException("Empty Search! i " + _i);
-                        }
-
-                        index.delete(Sized.valueOf(_i), Sized.valueOf("a" + _i));
-                        List<Sized<String>> search2 = index.search(Sized.valueOf(_i));
-                        afterDeleteSearch.addAll(search2);
-                        l.countDown();
-                    } catch (Throwable t) {
-                        t.printStackTrace();
-                    }
-                });
-            }
-        } finally {
-            threadpool.shutdown();
-        }
-
-        assertTrue(l.await(10, TimeUnit.SECONDS));
-
-        index.checkpoint();
-
-        dumpIndex(index);
-        verifyIndex(index);
-        List<Sized<String>> lookupAfterDeletion = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
-        assertTrue(lookupAfterDeletion.isEmpty());
-
-        System.out.println(afterInsertSearch);
-        for (int i = 0; i < testSize; i++) {
-            assertTrue("cannot find a" + i, afterInsertSearch.contains(Sized.valueOf("a" + i)));
-        }
-        assertTrue(afterDeleteSearch.isEmpty());
-
     }
 
 }
