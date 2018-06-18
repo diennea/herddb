@@ -46,6 +46,7 @@ import herddb.index.IndexOperation;
 import herddb.index.SecondaryIndexPrefixScan;
 import herddb.index.SecondaryIndexRangeScan;
 import herddb.index.SecondaryIndexSeek;
+import herddb.index.brin.BlockRangeIndexMetadata.BlockMetadata;
 import herddb.log.CommitLog;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
@@ -112,10 +113,30 @@ public class BRINIndexManager extends AbstractIndexManager {
                     out.writeVInt(metadata.size());
                     for (BlockRangeIndexMetadata.BlockMetadata<Bytes> md : metadata) {
                         /* First key is null if is the head block */
-                        out.writeArray(md.firstKey == null ? null : md.firstKey.data);
-                        out.writeVInt(md.blockId);
+                        boolean head = md.firstKey == null;
+                        /* Next block is null if is the tail block */
+                        boolean tail = md.nextBlockId == null;
+
+                        /* Prepares hasd/tail flags */
+                        byte blockFlags = 0;
+                        if (head) {
+                            blockFlags |= BlockMetadata.HEAD;
+                        }
+                        if (tail) {
+                            blockFlags |= BlockMetadata.TAIL;
+                        }
+                        out.writeByte(blockFlags);
+
+                        if (!head) {
+                            out.writeArray(md.firstKey.data);
+                        }
+                        out.writeVLong(md.blockId);
                         out.writeVLong(md.size);
                         out.writeVLong(md.pageId);
+
+                        if (!tail) {
+                            out.writeVLong(md.nextBlockId);
+                        }
                     }
                     break;
                 case TYPE_BLOCKDATA:
@@ -150,14 +171,31 @@ public class BRINIndexManager extends AbstractIndexManager {
                     int blocks = in.readVInt();
                     result.metadata = new ArrayList<>();
                     for (int i = 0; i < blocks; i++) {
-                        /* First key is null if is the head block */
-                        byte[] fk = in.readArray();
-                        Bytes firstKey = (fk == null) ? null : Bytes.from_array(fk);
-                        int blockId = in.readVInt();
+                        byte blockFlags = in.readByte();
+                        Bytes firstKey;
+                        if ((blockFlags & BlockMetadata.HEAD) > 0) {
+                            /* Is HEAD */
+                            /* First key is null if is the head block */
+                            firstKey = null;
+                        } else {
+                            firstKey = Bytes.from_array(in.readArray());
+                        }
+
+                        long blockId = in.readVLong();
                         long size = in.readVLong();
                         long pageId = in.readVLong();
+
+                        Long nextBlockId;
+                        if ((blockFlags & BlockMetadata.TAIL) > 0) {
+                            /* Is TAIL */
+                            /* Next block is null if is the tail block */
+                            nextBlockId = null;
+                        } else {
+                            nextBlockId = in.readVLong();
+                        }
+
                         BlockRangeIndexMetadata.BlockMetadata<Bytes> md
-                            = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, blockId, size, pageId);
+                            = new BlockRangeIndexMetadata.BlockMetadata<>(firstKey, blockId, size, pageId, nextBlockId);
                         result.metadata.add(md);
                     }
                     break;

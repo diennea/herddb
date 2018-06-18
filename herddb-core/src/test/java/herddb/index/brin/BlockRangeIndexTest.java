@@ -56,6 +56,30 @@ public class BlockRangeIndexTest {
     }
 
     @Test
+    public void testNotNullNextAfterSplit() {
+
+        BlockRangeIndex<Sized<Integer>, Sized<Integer>> index =
+                new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10));
+
+        int i = 0;
+        do {
+            /*
+             * Add elements at index head to generate 3 blocks and beeing sure that just the
+             * last block has a null next and not because we split only the last block with
+             * null next. Inserting top elements we split head block every time and such
+             * block should have null next just when is the only one block.
+             */
+            Sized<Integer> si = Sized.valueOf(--i);
+            index.put(si, si);
+        } while (index.getNumBlocks() < 3);
+
+
+        int nulls = index.getBlocks().values().stream().mapToInt(b -> b.next == null ? 1 : 0).sum();
+
+        Assert.assertEquals(1, nulls);
+    }
+
+    @Test
     public void testRemoveHead() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10));
