@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -35,7 +34,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import herddb.core.Page;
@@ -191,6 +189,14 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         return size;
     }
 
+    private static final class PutState <KEY extends Comparable<KEY> & SizeAwareObject, VAL extends SizeAwareObject> {
+        Block<KEY,VAL> next;
+
+        public PutState() {
+            super();
+        }
+    }
+
     private static final class DeleteState <KEY extends Comparable<KEY> & SizeAwareObject, VAL extends SizeAwareObject> {
         Block<KEY,VAL> next;
 
@@ -226,6 +232,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         private final BRINPage<KEY,VAL> page;
 
+        /** Constructor for restore operations */
         public Block(BlockRangeIndex<KEY,VAL> index, long blockId, KEY firstKey, long size, long pageId, Block<KEY,VAL> next) {
             this.index = index;
             this.key = BlockStartKey.valueOf(firstKey, blockId);
@@ -241,17 +248,14 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             page = new BRINPage<>(this, blockId);
         }
 
-        @Deprecated
-        public Block(BlockRangeIndex<KEY,VAL> index, KEY firstKey, VAL firstValue) {
+        /** Constructor for head block */
+        @SuppressWarnings("unchecked")
+        public Block(BlockRangeIndex<KEY,VAL> index) {
             this.index = index;
             this.key = (BlockStartKey<KEY>) BlockStartKey.HEAD_KEY;
 
-            /* TODO: estimate a better sizing for array list */
-            List<VAL> firstKeyValues = new ArrayList<>();
-            firstKeyValues.add(firstValue);
-            values = new TreeMap<>();
-            values.put(firstKey, firstKeyValues);
-            this.size = index.evaluateEntrySize(firstKey, firstValue);
+            this.values = new TreeMap<>();
+            this.size = 0;
 
             this.loaded = true;
             this.dirty = true;
@@ -299,14 +303,15 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             valuesForKey.add(value);
         }
 
-        Block<KEY,VAL> addValue(KEY key, VAL value) {
+        void addValue(KEY key, VAL value, PutState<KEY, VAL> state) {
 
             /* Eventual new block from split. It must added to PageReplacementPolicy only after lock release */
             Block<KEY,VAL> newblock = null;
             lock.lock();
             try {
-                Block<KEY,VAL> next = this.next;
-                if (next != null && next.key.compareMinKey(key) <= 0) {
+
+                Block<KEY,VAL> currentNext = this.next;
+                if (currentNext != null && currentNext.key.compareMinKey(key) <= 0) {
                     // unfortunately this occours during split
                     // put #1 -> causes split
                     // put #2 -> designates this block for put, but the split is taking place
@@ -314,8 +319,10 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
                     // put #2 needs to addValue to the 'next' (split result) block not to this
 
                     /* Add to next */
-                    return next;
+                    state.next = currentNext;
+                    return;
                 }
+
                 ensureBlockLoaded();
 
                 mergeAddValue(key, value, values);
@@ -337,7 +344,9 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             }
 
             /* Added */
-            return null;
+            /* No more next */
+            state.next = null;
+            return;
         }
 
 
@@ -654,12 +663,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         return blocks.size();
     }
 
-    public void put(K key, V value) {
-        BlockStartKey<K> lookUp = BlockStartKey.valueOf(key, Long.MAX_VALUE);
-        while (!tryPut(key, value, lookUp)) {
-        }
-    }
-
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
         final boolean fineEnabled = LOG.isLoggable(Level.FINE);
 
@@ -741,118 +744,131 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         return new BlockRangeIndexMetadata<>(blocksMetadata);
     }
 
+    public void put(K key, V value) {
 
-    private boolean tryPut(K key, V value, BlockStartKey<K> lookUp) {
-        Map.Entry<BlockStartKey<K>, Block<K,V>> segmentEntry = blocks.floorEntry(lookUp);
-        if (segmentEntry == null) {
+        /* Lookup from the last possible block where we could insert the value */
+        final BlockStartKey<K> lookUp = BlockStartKey.valueOf(key, Long.MAX_VALUE);
 
-            final Block<K,V> headBlock = new Block<>(this, key, value);
-            headBlock.lock.lock();
+        final PutState<K,V> state = new PutState<>();
 
-            try {
-                boolean added = blocks.putIfAbsent((BlockStartKey<K>) BlockStartKey.HEAD_KEY, headBlock) == null;
-
-                /* Set the block as "loaded" only if has been really added */
-                if (added) {
-                    final Metadata unload = pageReplacementPolicy.add(headBlock.page);
-                    if (unload != null) {
-                        unload.owner.unload(unload.pageId);
-                    }
-                }
-
-                return added;
-            } finally {
-                headBlock.lock.unlock();
-            }
-        }
-
-
-        Block<K,V> block = segmentEntry.getValue();
-
+        /* There is always at least the head block! */
+        state.next = blocks.floorEntry(lookUp).getValue();
         do {
-            block = block.addValue(key, value);
-        } while(block != null);
-
-        return true;
+            state.next.addValue(key, value, state);
+        } while (state.next != null);
 
     }
 
     public void delete(K key, V value) {
 
-        final Entry<BlockStartKey<K>,Block<K,V>> entry = blocks.floorEntry(BlockStartKey.valueOf(key, -1L));
+        /* Lookup from the first possible block that could contain the value*/
+        final BlockStartKey<K> lookUp = BlockStartKey.valueOf(key, -1L);
 
         final DeleteState<K,V> state = new DeleteState<>();
-        state.next = entry.getValue();
+
+        /* There is always at least the head block! */
+        state.next = blocks.floorEntry(lookUp).getValue();
         do {
             state.next.delete(key, value, state);
         } while (state.next != null);
     }
 
-    public Stream<V> query(K firstKey, K lastKey) {
-
-        final Entry<BlockStartKey<K>,Block<K,V>> entry;
-        if (firstKey != null ) {
-            entry = blocks.floorEntry(BlockStartKey.valueOf(firstKey, -1L));
-        } else {
-            /* Use first entry and not HEAD block lookup just because has better performances */
-            entry = blocks.firstEntry();
-        }
+    public List<V> search(K firstKey, K lastKey) {
 
         final LookupState<K, V> state = new LookupState<>();
-        state.next = entry.getValue();
+
+        if (firstKey != null ) {
+            /* Lookup from the first possible block that could contain the first lookup key*/
+            final BlockStartKey<K> lookUp = BlockStartKey.valueOf(firstKey, -1L);
+
+            /* There is always at least the head block! */
+            state.next = blocks.floorEntry(lookUp).getValue();
+        } else {
+            /* Use first entry and not HEAD block lookup just because has better performances */
+            state.next = blocks.firstEntry().getValue();
+        }
+
         do {
             state.next.lookUpRange(firstKey, lastKey, state);
         } while (state.next != null);
 
-        return state.found.stream();
+        return state.found;
     }
-
-    public List<V> lookUpRange(K firstKey, K lastKey) {
-        return query(firstKey, lastKey).collect(Collectors.toList());
-    }
-
 
     public List<V> search(K key) {
-        return lookUpRange(key, key);
+        return search(key, key);
+    }
+
+    public Stream<V> query(K firstKey, K lastKey) {
+        return search(firstKey, lastKey).stream();
+    }
+
+    public Stream<V> query(K key) {
+        return query(key, key);
     }
 
     public boolean containsKey(K key) {
-        return !lookUpRange(key, key).isEmpty();
+        return !search(key, key).isEmpty();
     }
 
     public void boot(BlockRangeIndexMetadata<K> metadata) throws DataStorageManagerException {
         LOG.severe("boot index, with " + metadata.getBlocksMetadata().size() + " blocks");
 
+        if (metadata.getBlocksMetadata().size() == 0) {
+
+            reset();
+
+        } else {
+
+            clear();
+
+            /* Metadata are saved/recovered in reverse order so "next" block has been already created */
+            Block<K,V> next = null;
+            for (BlockRangeIndexMetadata.BlockMetadata<K> blockData : metadata.getBlocksMetadata()) {
+                /*
+                 * TODO: if the system is restart with a different (smaller) page size old blocks will remain
+                 * bigger until a split occurs.
+                 */
+
+                /* Medatada safety check (do not trust blindly ordering) */
+                if (blockData.nextBlockId != null) {
+                    if (next == null || next.key.blockId != blockData.nextBlockId.longValue()) {
+                        throw new DataStorageManagerException("Wron next block, expected " + next.key.blockId + " but "
+                                + blockData.nextBlockId + " found");
+                    }
+                } else {
+                    if (next != null) {
+                        throw new DataStorageManagerException("Wron next block, expected notingh but "
+                                + blockData.nextBlockId + " found");
+                    }
+                }
+
+                next = new Block<>(this, blockData.blockId, blockData.firstKey, blockData.size, blockData.pageId, next);
+                blocks.put(next.key, next);
+                if (LOG.isLoggable(Level.FINE)) {
+                    LOG.fine("boot block at " + next.key + " " + next.key.minKey);
+                }
+                currentBlockId.accumulateAndGet(next.key.blockId, EnsureLongIncrementAccumulator.INSTANCE);
+            }
+        }
+
+    }
+
+    @SuppressWarnings("unchecked")
+    void reset() {
+
         clear();
 
-        /* Metadata are saved/recovered in reverse order so "next" block has been already created */
-        Block<K,V> next = null;
-        for (BlockRangeIndexMetadata.BlockMetadata<K> blockData : metadata.getBlocksMetadata()) {
-            /*
-             * TODO: if the system is restart with a different (smaller) page size old blocks will remain
-             * bigger until a split occurs.
-             */
+        /* Create the head block */
+        final Block<K,V> headBlock = new Block<>(this);
+        blocks.put((BlockStartKey<K>) BlockStartKey.HEAD_KEY, headBlock);
 
-            /* Medatada safety check (do not trust blindly ordering) */
-            if (blockData.nextBlockId != null) {
-                if (next == null || next.key.blockId != blockData.nextBlockId.longValue()) {
-                    throw new DataStorageManagerException("Wron next block, expected " + next.key.blockId + " but "
-                            + blockData.nextBlockId + " found");
-                }
-            } else {
-                if (next != null) {
-                    throw new DataStorageManagerException("Wron next block, expected notingh but "
-                            + blockData.nextBlockId + " found");
-                }
-            }
-
-            next = new Block<>(this, blockData.blockId, blockData.firstKey, blockData.size, blockData.pageId, next);
-            blocks.put(next.key, next);
-            if (LOG.isLoggable(Level.FINE)) {
-                LOG.fine("boot block at " + next.key + " " + next.key.minKey);
-            }
-            currentBlockId.accumulateAndGet(next.key.blockId, EnsureLongIncrementAccumulator.INSTANCE);
+        final Metadata unload = pageReplacementPolicy.add(headBlock.page);
+        if (unload != null) {
+            unload.owner.unload(unload.pageId);
         }
+
+        currentBlockId.set(0);
     }
 
     void clear() {

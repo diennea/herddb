@@ -23,7 +23,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -80,7 +79,10 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     public BRINIndexManager(Index index, MemoryManager memoryManager, AbstractTableManager tableManager, CommitLog log, DataStorageManager dataStorageManager, TableSpaceManager tableSpaceManager, String tableSpaceUUID, long transaction) {
         super(index, tableManager, dataStorageManager, tableSpaceManager.getTableSpaceUUID(), log, transaction);
-        this.data = new BlockRangeIndex<>(memoryManager.getMaxLogicalPageSize(), memoryManager.getDataPageReplacementPolicy(), storageLayer);
+        this.data = new BlockRangeIndex<>(
+                memoryManager.getMaxLogicalPageSize(),
+                memoryManager.getDataPageReplacementPolicy(),
+                storageLayer);
     }
 
     private static final class PageContents {
@@ -246,7 +248,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
-            this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
+            this.data.boot(BlockRangeIndexMetadata.empty());
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
 
             return true;
@@ -281,7 +283,7 @@ public class BRINIndexManager extends AbstractIndexManager {
     public void rebuild() throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.SEVERE, "rebuilding index {0}", index.name);
-        data.clear();
+        data.reset();
         Table table = tableManager.getTable();
         tableManager.scanForIndexRebuild(r -> {
             DataAccessor values = r.getDataAccessor(table);
@@ -332,12 +334,8 @@ public class BRINIndexManager extends AbstractIndexManager {
             SecondaryIndexSeek sis = (SecondaryIndexSeek) operation;
             SQLRecordKeyFunction value = sis.value;
             byte[] refvalue = value.computeNewValue(null, context, tableContext);
-            List<Bytes> result = data.search(Bytes.from_array(refvalue));
-            if (result != null) {
-                return result.stream();
-            } else {
-                return Stream.empty();
-            }
+            return data.query(Bytes.from_array(refvalue));
+
         } else if (operation instanceof SecondaryIndexPrefixScan) {
             SecondaryIndexPrefixScan sis = (SecondaryIndexPrefixScan) operation;
             SQLRecordKeyFunction value = sis.value;
@@ -433,7 +431,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
     @Override
     public void truncate() throws DataStorageManagerException {
-        this.data.clear();
+        this.data.reset();
         dropIndexData();
     }
 

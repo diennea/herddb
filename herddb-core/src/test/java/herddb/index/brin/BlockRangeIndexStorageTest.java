@@ -49,6 +49,7 @@ public class BlockRangeIndexStorageTest {
         IndexDataStorage<Sized<Integer>, Sized<String>> storage = new MemoryIndexDataStorage<>();
 
         BlockRangeIndex<Sized<Integer>, Sized<String>> index = new BlockRangeIndex<>(400, policy, storage);
+        index.boot(BlockRangeIndexMetadata.empty());
 
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
         index.put(Sized.valueOf(2), Sized.valueOf("b"));
@@ -75,6 +76,7 @@ public class BlockRangeIndexStorageTest {
         IndexDataStorage<Sized<Integer>, Sized<Integer>> storage = new MemoryIndexDataStorage<>();
 
         BlockRangeIndex<Sized<Integer>, Sized<Integer>> index = new BlockRangeIndex<>(400, policy, storage);
+        index.boot(BlockRangeIndexMetadata.empty());
 
         int i = 0;
         do {
@@ -137,6 +139,7 @@ public class BlockRangeIndexStorageTest {
         IndexDataStorage<Sized<Integer>, Sized<String>> storage = new MemoryIndexDataStorage<>();
 
         BlockRangeIndex<Sized<Integer>, Sized<String>> index = new BlockRangeIndex<>(1024, policy, storage);
+        index.boot(BlockRangeIndexMetadata.empty());
         for (int i = 0; i < 100; i++) {
             index.put(Sized.valueOf(i), Sized.valueOf("a"));
         }
