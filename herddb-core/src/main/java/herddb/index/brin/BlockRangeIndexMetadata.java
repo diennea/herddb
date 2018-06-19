@@ -62,12 +62,13 @@ public class BlockRangeIndexMetadata<K extends Comparable<K>> {
 
         public BlockMetadata(K firstKey, long blockId, long size, long pageId, Long nextBlockId) {
 
-            this.headBlock = false;
             this.firstKey = firstKey;
             this.blockId = blockId;
             this.size = size;
             this.pageId = pageId;
             this.nextBlockId = nextBlockId;
+
+            headBlock = firstKey == null;
         }
 
         public long getSize() {
@@ -94,5 +95,17 @@ public class BlockRangeIndexMetadata<K extends Comparable<K>> {
             return nextBlockId;
         }
 
+        @Override
+        public String toString() {
+            return "BlockMetadata [headBlock=" + headBlock + ", firstKey=" + firstKey + ", blockId=" + blockId
+                    + ", size=" + size + ", pageId=" + pageId + ", nextBlockId=" + nextBlockId + "]";
+        }
+
     }
+
+    @Override
+    public String toString() {
+        return "BlockRangeIndexMetadata [blocksMetadata=" + blocksMetadata + "]";
+    }
+
 }
