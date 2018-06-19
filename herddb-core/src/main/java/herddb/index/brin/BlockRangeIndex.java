@@ -232,6 +232,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         private final BRINPage<KEY,VAL> page;
 
+        /** Constructor for restore operations */
         public Block(BlockRangeIndex<KEY,VAL> index, long blockId, KEY firstKey, long size, long pageId, Block<KEY,VAL> next) {
             this.index = index;
             this.key = BlockStartKey.valueOf(firstKey, blockId);
@@ -247,6 +248,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             page = new BRINPage<>(this, blockId);
         }
 
+        /** Constructor for head block */
         @SuppressWarnings("unchecked")
         public Block(BlockRangeIndex<KEY,VAL> index) {
             this.index = index;
@@ -254,26 +256,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
             this.values = new TreeMap<>();
             this.size = 0;
-
-            this.loaded = true;
-            this.dirty = true;
-            this.pageId = IndexDataStorage.NEW_PAGE;
-
-            /* Immutable Block ID */
-            page = new BRINPage<>(this, key.blockId);
-        }
-
-        @Deprecated
-        public Block(BlockRangeIndex<KEY,VAL> index, KEY firstKey, VAL firstValue) {
-            this.index = index;
-            this.key = (BlockStartKey<KEY>) BlockStartKey.HEAD_KEY;
-
-            /* TODO: estimate a better sizing for array list */
-            List<VAL> firstKeyValues = new ArrayList<>();
-            firstKeyValues.add(firstValue);
-            values = new TreeMap<>();
-            values.put(firstKey, firstKeyValues);
-            this.size = index.evaluateEntrySize(firstKey, firstValue);
 
             this.loaded = true;
             this.dirty = true;
