@@ -53,6 +53,7 @@ public class BlockRangeIndexConcurrentTest {
         int parallelism = 10;
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
+        index.boot(BlockRangeIndexMetadata.empty());
 
         try {
 
@@ -82,7 +83,7 @@ public class BlockRangeIndexConcurrentTest {
             dumpIndex(index);
             verifyIndex(index);
 
-            List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
+            List<Sized<String>> result = index.search(Sized.valueOf(0), Sized.valueOf(testSize + 1));
             for (Sized<String> res : result) {
                 System.out.println("res " + res.dummy);
             }
@@ -105,6 +106,7 @@ public class BlockRangeIndexConcurrentTest {
         int parallelism = 10;
         BlockRangeIndex<Sized<Integer>, Sized<String>> index = new BlockRangeIndex<>(1024,
                 new RandomPageReplacementPolicy(3));
+        index.boot(BlockRangeIndexMetadata.empty());
         ExecutorService threadpool = Executors.newFixedThreadPool(parallelism);
 
         try {
@@ -142,7 +144,7 @@ public class BlockRangeIndexConcurrentTest {
 
             dumpIndex(index);
             verifyIndex(index);
-            List<Sized<String>> result = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
+            List<Sized<String>> result = index.search(Sized.valueOf(0), Sized.valueOf(testSize + 1));
             for (Sized<String> res : result) {
                 System.out.println("res " + res.dummy);
             }
@@ -166,6 +168,7 @@ public class BlockRangeIndexConcurrentTest {
         int parallelism = 10;
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(3));
+        index.boot(BlockRangeIndexMetadata.empty());
 
         try {
 
@@ -213,7 +216,7 @@ public class BlockRangeIndexConcurrentTest {
             dumpIndex(index);
 
             verifyIndex(index);
-            List<Sized<String>> lookupAfterDeletion = index.lookUpRange(Sized.valueOf(0), Sized.valueOf(testSize + 1));
+            List<Sized<String>> lookupAfterDeletion = index.search(Sized.valueOf(0), Sized.valueOf(testSize + 1));
             assertTrue(lookupAfterDeletion.isEmpty());
 
             for (int i = 0; i < testSize; i++) {

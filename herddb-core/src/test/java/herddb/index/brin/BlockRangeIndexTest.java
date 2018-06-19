@@ -45,6 +45,7 @@ public class BlockRangeIndexTest {
 
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
         index.put(Sized.valueOf(2), Sized.valueOf("b"));
         index.put(Sized.valueOf(3), Sized.valueOf("c"));
@@ -60,6 +61,7 @@ public class BlockRangeIndexTest {
 
         BlockRangeIndex<Sized<Integer>, Sized<Integer>> index =
                 new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
 
         int i = 0;
         do {
@@ -83,6 +85,8 @@ public class BlockRangeIndexTest {
     public void testRemoveHead() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
+        index.boot(BlockRangeIndexMetadata.empty());
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
         index.delete(Sized.valueOf(1), Sized.valueOf("a"));
         List<Sized<String>> searchResult = index.search(Sized.valueOf(1));
@@ -93,6 +97,7 @@ public class BlockRangeIndexTest {
     public void testSimpleSplitSameKey() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
         index.put(Sized.valueOf(1), Sized.valueOf("b"));
         index.put(Sized.valueOf(1), Sized.valueOf("c"));
@@ -110,11 +115,12 @@ public class BlockRangeIndexTest {
     public void testUnboundedSearch() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
         index.put(Sized.valueOf(2), Sized.valueOf("b"));
         index.put(Sized.valueOf(3), Sized.valueOf("c"));
-        assertEquals(3, index.lookUpRange(Sized.valueOf(1), null).size());
-        assertEquals(2, index.lookUpRange(null, Sized.valueOf(2)).size());
+        assertEquals(3, index.search(Sized.valueOf(1), null).size());
+        assertEquals(2, index.search(null, Sized.valueOf(2)).size());
 
     }
 
@@ -122,6 +128,8 @@ public class BlockRangeIndexTest {
     public void lookupVeryFirstEntry() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
+
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
         index.put(Sized.valueOf(2), Sized.valueOf("b"));
         index.put(Sized.valueOf(3), Sized.valueOf("c"));
@@ -133,7 +141,7 @@ public class BlockRangeIndexTest {
         System.out.println("searchResult:" + searchResult);
         assertEquals(1, searchResult.size());
 
-        List<Sized<String>> searchResult2 = index.lookUpRange(Sized.valueOf(1), Sized.valueOf(4));
+        List<Sized<String>> searchResult2 = index.search(Sized.valueOf(1), Sized.valueOf(4));
         System.out.println("searchResult:" + searchResult2);
         assertEquals(4, searchResult2.size());
         assertEquals(Sized.valueOf("a"), searchResult2.get(0));
@@ -146,6 +154,7 @@ public class BlockRangeIndexTest {
     public void testSimpleSplitInverse() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(400, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
         index.put(Sized.valueOf(3), Sized.valueOf("c"));
         index.put(Sized.valueOf(2), Sized.valueOf("b"));
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
@@ -161,6 +170,7 @@ public class BlockRangeIndexTest {
     public void testDelete() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
         index.put(Sized.valueOf(3), Sized.valueOf("c"));
         index.put(Sized.valueOf(2), Sized.valueOf("b"));
         index.put(Sized.valueOf(1), Sized.valueOf("a"));
@@ -191,6 +201,7 @@ public class BlockRangeIndexTest {
 
         final BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(400, policy, storage);
+        index.boot(BlockRangeIndexMetadata.empty());
 
         /* Add values until block split */
         int elements;
@@ -236,6 +247,7 @@ public class BlockRangeIndexTest {
 
         final BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(400, policy, storage);
+        index.boot(BlockRangeIndexMetadata.empty());
 
         /* Add values until block split */
         int elements;
@@ -290,6 +302,7 @@ public class BlockRangeIndexTest {
     public void testMultiple() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
         for (int i = 0; i < 10; i++) {
             index.put(Sized.valueOf(i), Sized.valueOf("test_" + i));
         }
@@ -312,7 +325,7 @@ public class BlockRangeIndexTest {
             assertEquals(Sized.valueOf("test_" + i), result.get(0));
             assertEquals(Sized.valueOf("test_" + i), result.get(1));
         }
-        List<Sized<String>> range = index.lookUpRange(Sized.valueOf(3), Sized.valueOf(5));
+        List<Sized<String>> range = index.search(Sized.valueOf(3), Sized.valueOf(5));
         assertEquals(6, range.size());
 
         for (int i = 0; i < 10; i++) {
@@ -329,10 +342,11 @@ public class BlockRangeIndexTest {
     public void testManySegments() {
         BlockRangeIndex<Sized<Integer>, Sized<String>> index =
                 new BlockRangeIndex<>(1024, new RandomPageReplacementPolicy(10));
+        index.boot(BlockRangeIndexMetadata.empty());
         for (int i = 0; i < 20; i++) {
             index.put(Sized.valueOf(i), Sized.valueOf("test_" + i));
         }
-        List<Sized<String>> result = index.lookUpRange(Sized.valueOf(2), Sized.valueOf(10));
+        List<Sized<String>> result = index.search(Sized.valueOf(2), Sized.valueOf(10));
         System.out.println("result_" + result);
         for (int i = 2; i <= 10; i++) {
             assertTrue(result.contains(Sized.valueOf("test_" + i)));

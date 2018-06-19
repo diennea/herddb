@@ -19,6 +19,7 @@
  */
 package herddb.index.brin;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -27,6 +28,15 @@ import java.util.List;
  * @author enrico.olivelli
  */
 public class BlockRangeIndexMetadata<K extends Comparable<K>> {
+
+    @SuppressWarnings("rawtypes")
+    private static final BlockRangeIndexMetadata EMPTY_METADATA =
+            new BlockRangeIndexMetadata<>(Collections.emptyList());
+
+    @SuppressWarnings("unchecked")
+    public static final <X extends Comparable<X>> BlockRangeIndexMetadata<X> empty() {
+        return EMPTY_METADATA;
+    }
 
     private List<BlockMetadata<K>> blocksMetadata;
 
@@ -49,15 +59,6 @@ public class BlockRangeIndexMetadata<K extends Comparable<K>> {
         final long size;
         final long pageId;
         Long nextBlockId;
-
-//        public BlockMetadata(long blockId, long size, long pageId, Long nextBlockId) {
-//            this.headBlock = true;
-//            this.firstKey = null;
-//            this.blockId = blockId;
-//            this.size = size;
-//            this.pageId = pageId;
-//            this.nextBlockId = nextBlockId;
-//        }
 
         public BlockMetadata(K firstKey, long blockId, long size, long pageId, Long nextBlockId) {
 
