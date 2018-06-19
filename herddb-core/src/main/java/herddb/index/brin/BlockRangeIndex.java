@@ -24,6 +24,7 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
@@ -57,6 +58,8 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
     private static final long BLOCK_CONSTANT_BYTE_SIZE = 128;
 
     private final long maxPageBlockSize;
+    private final long minPageBlockSize;
+
     private final ConcurrentNavigableMap<BlockStartKey<K>, Block<K,V>> blocks = new ConcurrentSkipListMap<>();
     private final AtomicLong currentBlockId = new AtomicLong(0L);
 
@@ -73,6 +76,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         if (maxBlockSize < 0) {
             throw new IllegalArgumentException("page size to small to store any index entry: " + maxBlockSize);
         }
+        this.minPageBlockSize = maxBlockSize / 3;
 
         this.pageReplacementPolicy = pageReplacementPolicy;
         this.dataStorage = dataStorage;
@@ -233,9 +237,9 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         private final BRINPage<KEY,VAL> page;
 
         /** Constructor for restore operations */
-        public Block(BlockRangeIndex<KEY,VAL> index, long blockId, KEY firstKey, long size, long pageId, Block<KEY,VAL> next) {
+        public Block(BlockRangeIndex<KEY,VAL> index, BlockStartKey<KEY> key, long size, long pageId, Block<KEY,VAL> next) {
             this.index = index;
-            this.key = BlockStartKey.valueOf(firstKey, blockId);
+            this.key = key;
 
             this.size = size;
             this.next = next;
@@ -245,7 +249,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             this.pageId = pageId;
 
             /* Immutable Block ID */
-            page = new BRINPage<>(this, blockId);
+            page = new BRINPage<>(this, key.blockId);
         }
 
         /** Constructor for head block */
@@ -348,8 +352,6 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             state.next = null;
             return;
         }
-
-
 
         void delete(KEY key, VAL value, DeleteState<KEY,VAL> state) {
 
@@ -490,30 +492,37 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         }
 
         void ensureBlockLoaded() {
-             if (!loaded) {
-                 try {
-                     values = new TreeMap<>();
-                     List<Map.Entry<KEY,VAL>> loadDataPage = index.dataStorage.loadDataPage(pageId);
+            final Page.Metadata unload = ensureBlockLoadedWithoutUnload();
+            if (unload != null) {
+                unload.owner.unload(unload.pageId);
+            }
+        }
 
-                     for (Map.Entry<KEY,VAL> entry : loadDataPage) {
-                         mergeAddValue(entry.getKey(), entry.getValue(), values);
-                     }
+        Page.Metadata ensureBlockLoadedWithoutUnload() {
+            if (!loaded) {
+                try {
+                    values = new TreeMap<>();
+                    List<Map.Entry<KEY,VAL>> loadDataPage = index.dataStorage.loadDataPage(pageId);
 
-                     loaded = true;
+                    for (Map.Entry<KEY,VAL> entry : loadDataPage) {
+                        mergeAddValue(entry.getKey(), entry.getValue(), values);
+                    }
 
-                     /* Dereferenced page unload */
-                     final Page.Metadata unload = index.pageReplacementPolicy.add(page);
-                     if (unload != null) {
-                         unload.owner.unload(unload.pageId);
-                     }
+                    loaded = true;
 
-                 } catch (IOException err) {
-                     throw new RuntimeException(err);
-                 }
-             } else {
-                 index.pageReplacementPolicy.pageHit(page);
-             }
-         }
+                    /* Deferred page unload */
+                    final Page.Metadata unload = index.pageReplacementPolicy.add(page);
+                    return unload;
+
+                } catch (IOException err) {
+                    throw new RuntimeException(err);
+                }
+            } else {
+                index.pageReplacementPolicy.pageHit(page);
+            }
+
+            return null;
+        }
 
         /**
          * Return the newly generated block if any
@@ -574,48 +583,56 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         }
 
+        private BlockRangeIndexMetadata.BlockMetadata<KEY> checkpointNoLock() throws IOException {
+            if (!dirty || !loaded) {
+                final Long nextBlockId = next == null ? null : next.key.blockId;
+                return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, key.blockId, size, pageId, nextBlockId);
+            }
+            List<Map.Entry<KEY,VAL>> result = new ArrayList<>();
+            values.forEach((k, l) -> {
+                l.forEach(v -> {
+                    result.add(new AbstractMap.SimpleImmutableEntry<>(k, v));
+                });
+            });
+
+            long newPageId = index.dataStorage.createDataPage(result);
+            if (LOG.isLoggable(Level.FINE)) {
+                LOG.fine("checkpoint block " + key + ": newpage -> " + newPageId + " with " + values.size() + " entries x " + result.size() + " pointers");
+            }
+            this.dirty = false;
+            this.pageId = newPageId;
+
+            final Long nextBlockId = next == null ? null : next.key.blockId;
+            return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, key.blockId, size, pageId, nextBlockId);
+        }
+
         private BlockRangeIndexMetadata.BlockMetadata<KEY> checkpoint() throws IOException {
             lock.lock();
             try {
-                if (!dirty || !loaded) {
-                    final Long nextBlockId = next == null ? null : next.key.blockId;
-                    return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, key.blockId, size, pageId, nextBlockId);
-                }
-                List<Map.Entry<KEY,VAL>> result = new ArrayList<>();
-                values.forEach((k, l) -> {
-                    l.forEach(v -> {
-                        result.add(new AbstractMap.SimpleImmutableEntry<>(k, v));
-                    });
-                });
-
-                long newPageId = index.dataStorage.createDataPage(result);
-                if (LOG.isLoggable(Level.FINE)) {
-                    LOG.fine("checkpoint block " + key + ": newpage -> " + newPageId + " with " + values.size() + " entries x " + result.size() + " pointers");
-                }
-                this.dirty = false;
-                this.pageId = newPageId;
-
-                final Long nextBlockId = next == null ? null : next.key.blockId;
-                return new BlockRangeIndexMetadata.BlockMetadata<>(key.minKey, key.blockId, size, pageId, nextBlockId);
+                return checkpointNoLock();
             } finally {
                 lock.unlock();
             }
 
         }
 
+        boolean unloadNoLock() throws IOException {
+            if (!loaded) {
+                return false;
+            }
+            if (dirty) {
+                checkpoint();
+            }
+            values = null;
+            loaded = false;
+
+            return true;
+        }
+
         boolean unload() throws IOException {
             lock.lock();
             try {
-                if (!loaded) {
-                    return false;
-                }
-                if (dirty) {
-                    checkpoint();
-                }
-                values = null;
-                loaded = false;
-
-                return true;
+                return unloadNoLock();
             } finally {
                 lock.unlock();
             }
@@ -663,6 +680,125 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         return blocks.size();
     }
 
+    private BlockRangeIndexMetadata.BlockMetadata<K> merge(Block<K,V> first, List<Block<K,V>> merging) throws IOException {
+
+        final boolean fineEnabled = LOG.isLoggable(Level.FINE);
+
+        /* No real merge */
+        if (merging.isEmpty()) {
+
+            if (fineEnabled) {
+                LOG.fine("block " + first.pageId + " (" + first.key + ") has " + first + " byte size at checkpoint");
+            }
+            return first.checkpoint();
+        }
+
+
+        /*
+         * Data is provided in reverse order (smaller block is last) so we must iterate
+         * in reverse order (to preserve "next" relationship)
+         */
+        final ListIterator<Block<K,V>> iterator = merging.listIterator(merging.size());
+
+        Page.Metadata firstBlockUnload = null;
+
+        first.lock.lock();
+
+        try {
+
+            /* We need block data to attempt merge */
+            first.ensureBlockLoaded();
+
+            while (iterator.hasPrevious()) {
+
+                Block<K, V> other = iterator.previous();
+
+                other.lock.lock();
+                try {
+
+                    /* Real merging is needed only if there is some data to merge, otherwise we just "delete" it */
+                    if (other.size != 0) {
+
+                        final Page.Metadata unload = other.ensureBlockLoadedWithoutUnload();
+                        if (unload != null) {
+                            if (first.page.owner == unload.owner) {
+                                /* We defer page unloading if requested page is first block! */
+                                firstBlockUnload = unload;
+                            } else {
+                                unload.owner.unload(unload.pageId);
+                            }
+                        }
+
+                        /* Recover potetially overwritten data before merge. */
+                        List<V> potentialOverwrite = first.values.get(other.key.minKey);
+
+                        /* Merge maps */
+                        first.values.putAll(other.values);
+
+                        /*
+                         * Blocks splitted on the same key: the have a List each with the same key! We
+                         * still use putAll because is more efficient on TreeMap when given a SortedMap
+                         * but we need to restore original list data from first value (due to overwrite)
+                         */
+                        if (potentialOverwrite != null) {
+                            /* Restore overwiritten data */
+                            first.values.merge(other.key.minKey, potentialOverwrite,
+                                    (l1, l2) -> { l1.addAll(l2); return l1; });
+                        }
+
+                        first.size += other.size;
+                    }
+
+                    if (fineEnabled) {
+
+                        if (other.size != 0) {
+                            LOG.fine("unlinking block " + first.pageId + " (" + first.key + ") from merged block "
+                                    + other.pageId + " (" + other.key + ")");
+                        } else {
+                            LOG.fine("unlinking block " + first.pageId + " (" + first.key + ") from deleted block "
+                                    + other.pageId + " (" + other.key + ")");
+                        }
+
+                        if (other.next != null) {
+                            LOG.fine("linking block " + first.pageId + " (" + first.key + ") to real next block "
+                                    + other.next.pageId + " (" + other.next.key + ")");
+                        }
+                    }
+
+                    /* Update next reference */
+                    first.next = other.next;
+
+                    /* Data not needed anymore */
+                    other.unloadNoLock();
+
+                    /* Remove the block from knowledge */
+                    blocks.remove(other.key);
+
+                } finally {
+                    other.lock.unlock();
+                }
+
+            }
+
+        } finally {
+            first.lock.unlock();
+        }
+
+        if (fineEnabled) {
+            LOG.fine("merged block " + first.pageId + " (" + first.key + ") has " + first.size + " byte size at checkpoint");
+        }
+
+        BlockRangeIndexMetadata.BlockMetadata<K> metadata = first.checkpointNoLock();
+
+        /* Deferred unload of first block! */
+        if (firstBlockUnload != null) {
+            firstBlockUnload.owner.unload(firstBlockUnload.pageId);
+        }
+
+        return metadata;
+
+    }
+
     public BlockRangeIndexMetadata<K> checkpoint() throws IOException {
         final boolean fineEnabled = LOG.isLoggable(Level.FINE);
 
@@ -670,78 +806,118 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
         /* Reverse ordering! */
         Iterator<Block<K,V>> iterator = blocks.descendingMap().values().iterator();
-        Block<K,V> nextReference = null;
-        boolean deletionStream = false;
 
+        long mergeSize = 0;
+
+        Block<K,V> lastMergeReference = null;
+        List<Block<K,V>> mergeReferences = new ArrayList<>();
+
+        /* Inverse iteration! (Last block is HEAD block) */
         while(iterator.hasNext()) {
             Block<K,V> block = iterator.next();
 
-            BlockRangeIndexMetadata.BlockMetadata<K> metadata = block.checkpoint();
-            /* Do not discard head block */
-            if (metadata.size != 0 || block.key == BlockStartKey.HEAD_KEY) {
+            block.lock.lock();
 
-                /*
-                 * If this is the first non empty block after a deletion "stream" end the stream
-                 * and change next block to real not empty next block
-                 */
-                if (deletionStream) {
-                    deletionStream = false;
+            try {
+
+                final long size = block.size;
+
+                if (size < minPageBlockSize) {
+
+                    /* Attempt merges! */
+                    mergeSize += size;
+
+                    /* Do merges if overflowing */
+                    if (mergeSize > maxPageBlockSize) {
+
+                        /*
+                         * If mergeSize now is greater than mexPageBlockSize but size is lower than
+                         * minPageBlockSize means that there is at least lastMergeReference not null.
+                         */
+
+                        /*
+                         * This should be merged with merge stream but it would create a node too big,
+                         * we must merge remaining stream and create a new stream.
+                         */
+
+                        /* Merge blocks, unloading merged ones and checkpointing last merge reference */
+                        BlockRangeIndexMetadata.BlockMetadata<K> merged = merge(lastMergeReference, mergeReferences);
+
+                        blocksMetadata.add(merged);
+
+                        /*
+                         * Remove handled merge references (but set lastMergeReference to current block,
+                         * it will be merged in next iterations)
+                         */
+                        lastMergeReference = block;
+                        mergeReferences.clear();
+
+                        /* Reset merge size to current block size */
+                        mergeSize = size;
+
+                    } else {
+
+                        /* There is still space for merging */
+                        if (lastMergeReference != null) {
+                            mergeReferences.add(lastMergeReference);
+                        }
+                        lastMergeReference = block;
+                    }
+
+                } else {
+
+                    /* Do not attempt merges! */
+
+                    /* If we have pending merges we must merge them now */
+                    if (lastMergeReference != null) {
+
+                        /* Merge blocks, unloading merged ones and checkpointing last merge reference */
+                        BlockRangeIndexMetadata.BlockMetadata<K> merged = merge(lastMergeReference, mergeReferences);
+
+                        blocksMetadata.add(merged);
+
+                        /* Remove handled merge references */
+                        lastMergeReference = null;
+                        mergeReferences.clear();
+
+                        /* Reset merge size to 0 */
+                        mergeSize = 0;
+
+                    }
+
+                    /* Now checkpointing current block (no merge) */
 
                     if (fineEnabled) {
-                        if (block.next != null) {
-                            LOG.fine("unlinking block " + block.pageId + " (" + block.key + ") from deleted block "
-                                    + block.next.pageId + " (" + block.next.key + ")");
-                        }
-                        if (nextReference != null) {
-                            LOG.fine("linking block " + block.pageId + " (" + block.key + ") to real not empty next block "
-                                    + nextReference.next.pageId + " (" + nextReference.next.key + ")");
-                        }
+                        LOG.fine("block " + block.pageId + " (" + block.key + ") has " + size + " byte size at checkpoint");
                     }
 
-                    /*
-                     * Changes next reference, done with lock to force next publishing.
-                     *
-                     * TODO: it could be done better.
-                     */
-                    block.lock.lock();
-                    try {
-                        block.next = nextReference;
-                        metadata.nextBlockId = nextReference == null ? null : nextReference.key.blockId;
-                    } finally {
-                        block.lock.unlock();
-                    }
+                    /* We already have the lock */
+                    blocksMetadata.add(block.checkpointNoLock());
 
                 }
 
-                if (fineEnabled) {
-                    LOG.fine("block " + block.pageId + " ("+ block.key+ ") has " + metadata.size + " records at checkpoint");
-                }
-
-                blocksMetadata.add(metadata);
-            } else {
-                LOG.info("block " + block.pageId + " ("+ block.key+ ") is empty at checkpoint: discarding");
-
-                /* Unload the block from memory */
-                block.unload();
-
-                /* Remove the block from knowledge */
-                iterator.remove();
-
-                /*
-                 * If not already in a deletion stream save the next not empty block reference,
-                 * it will be needed at the end of block deletion stream. Otherwise current
-                 * block next block is already deleted too, we must not save his reference!
-                 */
-                if (!deletionStream) {
-                    /* Save deleted next reference */
-                    nextReference = block.next;
-                }
-
-                deletionStream = true;
+            } finally {
+                block.lock.unlock();
             }
         }
 
+        /*
+         * We need to handled any remaining merges if exists (lastMergeReference is the head now).
+         */
+        if (lastMergeReference != null) {
+
+            /* Merge blocks, unloading merged ones and checkpointing last merge reference */
+            BlockRangeIndexMetadata.BlockMetadata<K> merged = merge(lastMergeReference, mergeReferences);
+
+            blocksMetadata.add(merged);
+
+            /* Remove handled merge references */
+            lastMergeReference = null;
+            mergeReferences.clear();
+        }
+
         return new BlockRangeIndexMetadata<>(blocksMetadata);
+
     }
 
     public void put(K key, V value) {
@@ -832,22 +1008,26 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
 
                 /* Medatada safety check (do not trust blindly ordering) */
                 if (blockData.nextBlockId != null) {
-                    if (next == null || next.key.blockId != blockData.nextBlockId.longValue()) {
-                        throw new DataStorageManagerException("Wron next block, expected " + next.key.blockId + " but "
+                    if (next == null ) {
+                        throw new DataStorageManagerException("Wrong next block, expected notingh but "
+                                + blockData.nextBlockId + " found");
+                    } else  if (next.key.blockId != blockData.nextBlockId.longValue()) {
+                        throw new DataStorageManagerException("Wrong next block, expected " + next.key.blockId + " but "
                                 + blockData.nextBlockId + " found");
                     }
                 } else {
                     if (next != null) {
-                        throw new DataStorageManagerException("Wron next block, expected notingh but "
-                                + blockData.nextBlockId + " found");
+                        throw new DataStorageManagerException(
+                                "Wron next block, expected " + next.key.blockId + " but nothing found");
                     }
+
                 }
 
-                next = new Block<>(this, blockData.blockId, blockData.firstKey, blockData.size, blockData.pageId, next);
-                blocks.put(next.key, next);
-                if (LOG.isLoggable(Level.FINE)) {
-                    LOG.fine("boot block at " + next.key + " " + next.key.minKey);
-                }
+                final BlockStartKey<K> key = BlockStartKey.valueOf(blockData.firstKey, blockData.blockId);
+
+                next = new Block<>(this, key, blockData.size, blockData.pageId, next);
+                blocks.put(key, next);
+
                 currentBlockId.accumulateAndGet(next.key.blockId, EnsureLongIncrementAccumulator.INSTANCE);
             }
         }
