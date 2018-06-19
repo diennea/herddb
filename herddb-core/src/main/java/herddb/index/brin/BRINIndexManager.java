@@ -23,7 +23,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -249,7 +248,7 @@ public class BRINIndexManager extends AbstractIndexManager {
 
         if (LogSequenceNumber.START_OF_TIME.equals(sequenceNumber)) {
             /* Empty index (booting from the start) */
-            this.data.boot(new BlockRangeIndexMetadata<>(Collections.emptyList()));
+            this.data.boot(BlockRangeIndexMetadata.empty());
             LOGGER.log(Level.SEVERE, "loaded empty index {0}", new Object[]{index.name});
 
             return true;
