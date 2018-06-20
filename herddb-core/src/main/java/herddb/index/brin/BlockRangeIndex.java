@@ -230,6 +230,7 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
         Block<KEY,VAL> next;
 
         private final ReentrantLock lock = new ReentrantLock(true);
+
         private volatile boolean loaded;
         private volatile boolean dirty;
         private volatile long pageId;
@@ -502,10 +503,18 @@ public final class BlockRangeIndex<K extends Comparable<K> & SizeAwareObject, V 
             if (!loaded) {
                 try {
                     values = new TreeMap<>();
-                    List<Map.Entry<KEY,VAL>> loadDataPage = index.dataStorage.loadDataPage(pageId);
 
-                    for (Map.Entry<KEY,VAL> entry : loadDataPage) {
-                        mergeAddValue(entry.getKey(), entry.getValue(), values);
+                    /*
+                     * Skip load and add if we already known that there isn't data. Add is a really
+                     * little overhead but load should read from disk so we just skip such unuseful
+                     * roundtrip
+                     */
+                    if (size != 0) {
+                        List<Map.Entry<KEY,VAL>> loadDataPage = index.dataStorage.loadDataPage(pageId);
+
+                        for (Map.Entry<KEY,VAL> entry : loadDataPage) {
+                            mergeAddValue(entry.getKey(), entry.getValue(), values);
+                        }
                     }
 
                     loaded = true;
