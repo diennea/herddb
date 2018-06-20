@@ -24,7 +24,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import herddb.model.Record;
@@ -42,7 +44,7 @@ public final class PageSet {
     private static final Logger LOGGER = Logger.getLogger(PageSet.class.getName());
 
     /** Active stored pages (active/size,average-record-size,dirt,hasDeletions)*/
-    private final Map<Long,DataPageMetaData> activePages = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long,DataPageMetaData> activePages = new ConcurrentHashMap<>();
 
     public static final class DataPageMetaData {
 
@@ -129,9 +131,16 @@ public final class PageSet {
         return activePages.values().stream().mapToInt(meta -> meta.dirt.sum() > 0 ? 1 : 0).sum();
     }
 
-    void pageCreated(Long pageId, DataPage page) {
-        final DataPageMetaData old = activePages.put(pageId, new DataPageMetaData(page));
+    /**
+     * @throws IllegalStateException if a page with give id already existed
+     */
+    void pageCreated(Long pageId, DataPage page) throws IllegalStateException {
+        /* Don't really add page if already exists */
+        final DataPageMetaData old = activePages.putIfAbsent(pageId, new DataPageMetaData(page));
         if (old != null) {
+            LOGGER.log(Level.SEVERE,
+                    "Detected concurrent creation of page " + page.pageId + ", writable: " + page.writable);
+
             throw new IllegalStateException("Creating a new page already existing! Page " + pageId);
         }
     }
