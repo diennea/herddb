@@ -757,6 +757,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
              * concurrent thread or because it wasn't present in the first place.
              */
 
+
+            /* Set the new page as a fully active page */
+            pageSet.pageCreated(page.pageId, page);
+
             /* Remove it from "new" pages */
             DataPage remove = newPages.remove(page.pageId);
             if (remove == null) {
@@ -764,9 +768,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         "Detected concurrent flush of page " + page.pageId + ", writable: " + page.writable);
                 throw new IllegalStateException("page " + page.pageId + " is not a new page!");
             }
-
-            /* Set the new page as a fully active page */
-            pageSet.pageCreated(page.pageId, page);
 
             page.writable = false;
 
@@ -940,7 +941,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             @Override
             public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
-                
+
                 if (indexes != null) {
                     try {
                         DataAccessor values = new Record(actual.key, Bytes.from_array(newValue)).getDataAccessor(table);
