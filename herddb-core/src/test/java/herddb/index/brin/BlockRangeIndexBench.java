@@ -79,8 +79,10 @@ public class BlockRangeIndexBench {
                 new BlockRangeIndex<>(10000, new RandomPageReplacementPolicy(10000));
         index.boot(BlockRangeIndexMetadata.empty());
         for (int i = 0; i < testSize; i++) {
+            Sized<Integer> si = Sized.valueOf(i);
             for(int j = 0; j < valuesPerKey; j++) {
-                index.put(Sized.valueOf(i), Sized.valueOf("test_" + i + "_" + j));
+                Sized<String> sij = Sized.valueOf("test_" + i + "_" + j);
+                index.put(si, sij);
             }
 
             if (i % tenPerc == 0) System.out.println("insert : " + (1 + i / tenPerc) * 10 + "%: " + i);
