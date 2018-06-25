@@ -391,7 +391,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 throw new HDBException(reply);
             }
-            Map<String, Object> data = (Map<String, Object>) reply.parameters.get("data");
+            Map<RawString, Object> data = (Map<RawString, Object>) reply.parameters.get("data");
             return (Long) data.get(RAWSTRING_TX);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
