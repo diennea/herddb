@@ -47,6 +47,10 @@ import herddb.model.Transaction;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
+import herddb.utils.SQLRecordPredicateFunctions;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.stream.StreamSupport;
 
 /**
  * System tables
@@ -210,17 +214,41 @@ public abstract class AbstractSystemTableManager implements AbstractTableManager
 
     protected abstract Iterable<Record> buildVirtualRecordList() throws StatementExecutionException;
 
+    private final Comparator<Record> SORT_BY_PK = new Comparator<Record>() {
+        @Override
+        public int compare(Record o1, Record o2) {
+            Map<String, Object> ac1 = o1.toBean(table);
+            Map<String, Object> ac2 = o2.toBean(table);
+
+            for (String pk : table.primaryKey) {
+                Object value1 = ac1.get(pk);
+                Object value2 = ac2.get(pk);
+                int cmp = SQLRecordPredicateFunctions.compare(value1, value2);
+                if (cmp != 0) {
+                    return cmp;
+                }
+            }
+            return 0;
+        }
+    };
+
     @Override
+
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
             Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         Predicate predicate = statement.getPredicate();
         MaterializedRecordSet recordSet = tableSpaceManager.getDbmanager().getRecordSetFactory()
-            .createRecordSet(table.columnNames, table.columns);
-        for (Record record : buildVirtualRecordList()) {
-            if (predicate == null || predicate.evaluate(record, context)) {
-                recordSet.add(record.getDataAccessor(table));
-            }
-        }
+                .createRecordSet(table.columnNames, table.columns);
+        Iterable<Record> data = buildVirtualRecordList();
+        StreamSupport
+                .stream(data.spliterator(), false)
+                .filter(record -> {
+                    return (predicate == null || predicate.evaluate(record, context));
+                })
+                .sorted(SORT_BY_PK) // enforce sort by PK
+                .map(r -> r.getDataAccessor(table))
+                .forEach(recordSet::add);
+
         recordSet.writeFinished();
         recordSet.sort(statement.getComparator());
         recordSet.applyLimits(statement.getLimits(), context);

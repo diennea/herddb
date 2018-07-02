@@ -97,10 +97,14 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
     private final AtomicBoolean closed;
 
+    public static String deriveIndexName(String tableName) {
+        return tableName + "_primary";
+    }
+    
     public BLinkKeyToPageIndex(String tableSpace, String tableName, MemoryManager memoryManager, DataStorageManager dataStorageManager) {
         super();
         this.tableSpace = tableSpace;
-        this.indexName = tableName + "_primary";
+        this.indexName = deriveIndexName(tableName);
 
         this.memoryManager = memoryManager;
         this.dataStorageManager = dataStorageManager;

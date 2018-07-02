@@ -35,15 +35,15 @@ import java.util.stream.Collectors;
 public class SystablesTableManager extends AbstractSystemTableManager {
 
     private final static Table TABLE = Table
-        .builder()
-        .name("systables")
-        .column("tablespace", ColumnTypes.STRING)
-        .column("table_name", ColumnTypes.STRING)
-        .column("table_uuid", ColumnTypes.STRING)
-        .column("systemtable", ColumnTypes.STRING)
-        .primaryKey("tablespace", false)
-        .primaryKey("table_name", false)
-        .build();
+            .builder()
+            .name("systables")
+            .column("tablespace", ColumnTypes.STRING)
+            .column("table_name", ColumnTypes.STRING)
+            .column("table_uuid", ColumnTypes.STRING)
+            .column("systemtable", ColumnTypes.STRING)
+            .primaryKey("tablespace", false)
+            .primaryKey("table_name", false)
+            .build();
 
     public SystablesTableManager(TableSpaceManager parent) {
         super(parent, TABLE);
@@ -53,15 +53,15 @@ public class SystablesTableManager extends AbstractSystemTableManager {
     protected Iterable<Record> buildVirtualRecordList() {
         List<Table> tables = tableSpaceManager.getAllCommittedTables();
         return tables
-            .stream()
-            .map(r -> RecordSerializer.makeRecord(table,
-            "tablespace", r.tablespace,
-            "table_name", r.name,
-            "table_uuid", r.uuid,
-            "systemtable",
-            r.name.startsWith("sys") ? "true" : "false"
+                .stream()
+                .map(r -> RecordSerializer.makeRecord(table,
+                "tablespace", r.tablespace,
+                "table_name", r.name,
+                "table_uuid", r.uuid,
+                "systemtable",
+                r.name.startsWith("sys") ? "true" : "false"
         ))
-            .collect(Collectors.toList());
+                .collect(Collectors.toList());
     }
 
 }

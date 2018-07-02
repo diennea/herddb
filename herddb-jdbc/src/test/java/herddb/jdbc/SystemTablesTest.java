@@ -58,9 +58,10 @@ public class SystemTablesTest {
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client);
-                    Connection con = dataSource.getConnection();
-                    Statement statement = con.createStatement();) {
+                        Connection con = dataSource.getConnection();
+                        Statement statement = con.createStatement();) {
                     statement.execute("CREATE TABLE mytable (key string primary key, name string)");
+                    statement.execute("CREATE INDEX mytableindex ON mytable(name)");
                     statement.execute("CREATE TABLE mytable2 (n2 int primary key auto_increment, name string, ts timestamp)");
 
                     try (ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
@@ -129,21 +130,60 @@ public class SystemTablesTest {
                                 String value = rs.getString(i + 1);
                                 record.add(value);
                             }
-                            System.out.println("record:" + record);
                             records.add(record);
                         }
                         assertEquals(3, records.size());
                         assertTrue(records.stream().filter(s -> s.contains("n2")
-                            && s.contains("integer")
+                                && s.contains("integer")
                         ).findAny().isPresent());
                         assertTrue(records.stream().filter(s
-                            -> s.contains("name") && s.contains("string")
+                                -> s.contains("name") && s.contains("string")
                         ).findAny().isPresent());
                         assertTrue(records.stream().filter(s
-                            -> s.contains("ts") && s.contains("timestamp")
+                                -> s.contains("ts") && s.contains("timestamp")
                         ).findAny().isPresent());
                     }
 
+                    try (ResultSet rs = metaData.getIndexInfo(null, null, "mytable", false, false)) {
+
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertEquals(2, records.size()); // pk + secondary index
+                    }
+
+                    try (ResultSet rs = metaData.getIndexInfo(null, null, "mytable", true, false)) {
+
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertEquals(1, records.size()); // only pk
+                    }
+
+                    try (ResultSet rs = metaData.getIndexInfo(null, null, null, true, false)) {
+                        List<List<String>> records = new ArrayList<>();
+                        while (rs.next()) {
+                            List<String> record = new ArrayList<>();
+                            for (int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
+                                String value = rs.getString(i + 1);
+                                record.add(value);
+                            }
+                            records.add(record);
+                        }
+                        assertEquals(18, records.size());
+                    }
                     try (ResultSet rs = metaData.getSchemas()) {
                         List<List<String>> records = new ArrayList<>();
                         while (rs.next()) {
@@ -159,7 +199,7 @@ public class SystemTablesTest {
 
                     }
 
-                    try (ResultSet rs = metaData.getSchemas(null, "%"+TableSpace.DEFAULT.substring(2))) {
+                    try (ResultSet rs = metaData.getSchemas(null, "%" + TableSpace.DEFAULT.substring(2))) {
                         List<List<String>> records = new ArrayList<>();
                         while (rs.next()) {
                             List<String> record = new ArrayList<>();
