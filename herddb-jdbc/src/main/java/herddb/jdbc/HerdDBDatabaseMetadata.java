@@ -338,7 +338,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsOuterJoins() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -373,12 +373,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public String getCatalogSeparator() throws SQLException {
-        return ",";
+        return ".";
     }
 
     @Override
     public boolean supportsSchemasInDataManipulation() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -393,7 +393,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsSchemasInIndexDefinitions() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -403,7 +403,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsCatalogsInDataManipulation() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -453,7 +453,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsSubqueriesInExists() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -468,17 +468,17 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsCorrelatedSubqueries() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsUnion() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsUnionAll() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -493,12 +493,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
     @Override
     public boolean supportsOpenStatementsAcrossCommit() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean supportsOpenStatementsAcrossRollback() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
@@ -1105,12 +1105,12 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * @exception SQLException if a database access error occurs
      */
     @Override
+    @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
     public ResultSet getIndexInfo(String catalog, String schema, String tableNamePattern, boolean onlyUnique, boolean approximate) throws SQLException {
         String query = "SELECT * FROM SYSINDEXCOLUMNS";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
             query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
-        }
-        System.out.println("query: " + query);
+        }        
         try (Statement statement = con.createStatement();
                 ResultSet rs = statement.executeQuery(query)) {
 
@@ -1123,11 +1123,9 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 boolean clustered = rs.getInt("clustered") == 1;
                 boolean uniqueValues = rs.getInt("unique") == 1;
 
-                if (onlyUnique && !uniqueValues) {
-                    System.out.println("DISCARD: " + table_name + "." + index_name + " col " + column_name + " clusterd:" + clustered + " uniq " + uniqueValues);
+                if (onlyUnique && !uniqueValues) {                    
                     continue;
                 }
-                System.out.println("FOUND: " + table_name + "." + index_name + " col " + column_name + " clusterd:" + clustered + " uniq " + uniqueValues);
 
                 Map<String, Object> data = new HashMap<>();
                 data.put("TABLE_CAT", null);
