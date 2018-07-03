@@ -57,6 +57,7 @@ import herddb.core.stats.TableSpaceManagerStats;
 import herddb.core.system.SysclientsTableManager;
 import herddb.core.system.SyscolumnsTableManager;
 import herddb.core.system.SysconfigTableManager;
+import herddb.core.system.SysindexcolumnsTableManager;
 import herddb.core.system.SysindexesTableManager;
 import herddb.core.system.SysnodesTableManager;
 import herddb.core.system.SystablesTableManager;
@@ -185,6 +186,7 @@ public class TableSpaceManager {
             registerSystemTableManager(new SystablesTableManager(this));
             registerSystemTableManager(new SystablestatsTableManager(this));
             registerSystemTableManager(new SysindexesTableManager(this));
+            registerSystemTableManager(new SysindexcolumnsTableManager(this));
             registerSystemTableManager(new SyscolumnsTableManager(this));
             registerSystemTableManager(new SystransactionsTableManager(this));
         }

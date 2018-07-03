@@ -24,7 +24,6 @@ import herddb.client.ScanResultSetMetadata;
 import herddb.client.impl.EmptyScanResultSet;
 import herddb.client.impl.IteratorScanResultSet;
 import herddb.model.TransactionContext;
-import herddb.sql.SQLRecordPredicate;
 import herddb.utils.SQLUtils;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
@@ -33,7 +32,6 @@ import java.sql.RowIdLifetime;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -670,6 +668,20 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         "SELF_REFERENCING_COL_NAME",
         "REF_GENERATION"
     };
+    private static final String[] GET_INDEXES_SCHEMA = new String[]{
+        "TABLE_CAT",
+        "TABLE_SCHEM",
+        "TABLE_NAME",
+        "NON_UNIQUE",
+        "INDEX_QUALIFIER",
+        "INDEX_NAME",
+        "TYPE",
+        "ORDINAL_POSITION",
+        "COLUMN_NAME",
+        "ASC_OR_DESC",
+        "CARDINALITY",
+        "FILTER_CONDITION"
+    };
 
     @Override
     /**
@@ -1032,9 +1044,113 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
     }
 
+    /**
+     * Retrieves a description of the given table's indices and statistics. They
+     * are ordered by NON_UNIQUE, TYPE, INDEX_NAME, and ORDINAL_POSITION.
+     *
+     * <P>
+     * Each index column description has the following columns:
+     * <OL>
+     * <LI><B>TABLE_CAT</B> String {@code =>} table catalog (may be
+     * <code>null</code>)
+     * <LI><B>TABLE_SCHEM</B> String {@code =>} table schema (may be
+     * <code>null</code>)
+     * <LI><B>TABLE_NAME</B> String {@code =>} table name
+     * <LI><B>NON_UNIQUE</B> boolean {@code =>} Can index values be non-unique.
+     * false when TYPE is tableIndexStatistic
+     * <LI><B>INDEX_QUALIFIER</B> String {@code =>} index catalog (may be
+     * <code>null</code>); <code>null</code> when TYPE is tableIndexStatistic
+     * <LI><B>INDEX_NAME</B> String {@code =>} index name; <code>null</code>
+     * when TYPE is tableIndexStatistic
+     * <LI><B>TYPE</B> short {@code =>} index type:
+     * <UL>
+     * <LI> tableIndexStatistic - this identifies table statistics that are
+     * returned in conjunction with a table's index descriptions
+     * <LI> tableIndexClustered - this is a clustered index
+     * <LI> tableIndexHashed - this is a hashed index
+     * <LI> tableIndexOther - this is some other style of index
+     * </UL>
+     * <LI><B>ORDINAL_POSITION</B> short {@code =>} column sequence number
+     * within index; zero when TYPE is tableIndexStatistic
+     * <LI><B>COLUMN_NAME</B> String {@code =>} column name; <code>null</code>
+     * when TYPE is tableIndexStatistic
+     * <LI><B>ASC_OR_DESC</B> String {@code =>} column sort sequence, "A"
+     * {@code =>} ascending, "D" {@code =>} descending, may be <code>null</code>
+     * if sort sequence is not supported; <code>null</code> when TYPE is
+     * tableIndexStatistic
+     * <LI><B>CARDINALITY</B> long {@code =>} When TYPE is tableIndexStatistic,
+     * then this is the number of rows in the table; otherwise, it is the number
+     * of unique values in the index.
+     * <LI><B>PAGES</B> long {@code =>} When TYPE is tableIndexStatistic then
+     * this is the number of pages used for the table, otherwise it is the
+     * number of pages used for the current index.
+     * <LI><B>FILTER_CONDITION</B> String {@code =>} Filter condition, if any.
+     * (may be <code>null</code>)
+     * </OL>
+     *
+     * @param catalog a catalog name; must match the catalog name as it is
+     * stored in this database; "" retrieves those without a catalog;
+     * <code>null</code> means that the catalog name should not be used to
+     * narrow the search
+     * @param schema a schema name; must match the schema name as it is stored
+     * in this database; "" retrieves those without a schema; <code>null</code>
+     * means that the schema name should not be used to narrow the search
+     * @param table a table name; must match the table name as it is stored in
+     * this database
+     * @param onlyUnique when true, return only indices for unique values; when
+     * false, return indices regardless of whether unique or not
+     * @param approximate when true, result is allowed to reflect approximate or
+     * out of data values; when false, results are requested to be accurate
+     * @return <code>ResultSet</code> - each row is an index column description
+     * @exception SQLException if a database access error occurs
+     */
     @Override
-    public ResultSet getIndexInfo(String catalog, String schema, String table, boolean unique, boolean approximate) throws SQLException {
-        return new HerdDBResultSet(new EmptyScanResultSet(TransactionContext.NOTRANSACTION_ID));
+    public ResultSet getIndexInfo(String catalog, String schema, String tableNamePattern, boolean onlyUnique, boolean approximate) throws SQLException {
+        String query = "SELECT * FROM SYSINDEXCOLUMNS";
+        if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
+            query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
+        }
+        System.out.println("query: " + query);
+        try (Statement statement = con.createStatement();
+                ResultSet rs = statement.executeQuery(query)) {
+
+            List<Map<String, Object>> results = new ArrayList<>();
+            while (rs.next()) {
+                String table_name = rs.getString("table_name");
+                String index_name = rs.getString("index_name");
+                String column_name = rs.getString("column_name");
+                int ordinal_position = rs.getInt("ordinal_position");
+                boolean clustered = rs.getInt("clustered") == 1;
+                boolean uniqueValues = rs.getInt("unique") == 1;
+
+                if (onlyUnique && !uniqueValues) {
+                    System.out.println("DISCARD: " + table_name + "." + index_name + " col " + column_name + " clusterd:" + clustered + " uniq " + uniqueValues);
+                    continue;
+                }
+                System.out.println("FOUND: " + table_name + "." + index_name + " col " + column_name + " clusterd:" + clustered + " uniq " + uniqueValues);
+
+                Map<String, Object> data = new HashMap<>();
+                data.put("TABLE_CAT", null);
+                data.put("TABLE_SCHEM", tableSpace);
+                data.put("TABLE_NAME", table_name);
+                data.put("NON_UNIQUE", !uniqueValues);
+                data.put("INDEX_QUALIFIER", null);
+
+                data.put("INDEX_NAME", index_name);
+                data.put("TYPE", clustered ? DatabaseMetaData.tableIndexClustered : DatabaseMetaData.tableIndexOther);
+
+                data.put("ORDINAL_POSITION", ordinal_position);
+
+                data.put("COLUMN_NAME", column_name);
+                data.put("ASC_OR_DESC", null);
+                data.put("CARDINALITY", null);
+                data.put("FILTER_CONDITION", null);
+                results.add(data);
+
+            }
+            ScanResultSetMetadata metadata = new ScanResultSetMetadata(GET_INDEXES_SCHEMA);
+            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
+        }
     }
 
     @Override

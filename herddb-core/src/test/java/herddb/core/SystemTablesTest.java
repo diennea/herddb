@@ -100,7 +100,7 @@ public class SystemTablesTest {
             }
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexes order by index_name",
-                Collections.emptyList());) {
+                    Collections.emptyList());) {
                 List<DataAccessor> records = scan.consume();
                 assertEquals(2, records.size());
                 DataAccessor index1 = records.get(0);
@@ -116,10 +116,174 @@ public class SystemTablesTest {
                 assertEquals(RawString.of("tsql2"), index2.get("table_name"));
             }
 
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexcolumns order by index_name, column_name",
+                    Collections.emptyList());) {
+                List<DataAccessor> records = scan.consume();
+                for (DataAccessor da : records) {
+                    System.out.println("rec: " + da.toMap());
+                }
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("brin")
+                                    && d.get("column_name").equals("b1")
+                                    && d.get("ordinal_position").equals(1)
+                                    && d.get("index_uuid") != null
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(0)
+                                    && d.get("index_name").equals("index1");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("brin")
+                                    && d.get("column_name").equals("s1")
+                                    && d.get("ordinal_position").equals(0)
+                                    && d.get("index_uuid") != null
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(0)
+                                    && d.get("index_name").equals("index1");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("hash")
+                                    && d.get("column_name").equals("b1")
+                                    && d.get("ordinal_position").equals(0)
+                                    && d.get("index_uuid") != null
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(0)
+                                    && d.get("index_name").equals("index2");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("pk")
+                                    && d.get("column_name").equals("k1")
+                                    && d.get("ordinal_position").equals(0)
+                                    && d.get("index_uuid").equals("tsql2_primary") // index_uuid == index_name for BLink
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(1)
+                                    && d.get("index_name").equals("tsql2_primary");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertEquals(21, records.size());
+            }
+            
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexcolumns where table_name like '%tsql' order by index_name, column_name",
+                    Collections.emptyList());) {
+                List<DataAccessor> records = scan.consume();
+                for (DataAccessor da : records) {
+                    System.out.println("rec: " + da.toMap());
+                }                
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql")
+                                    && d.get("index_type").equals("pk")
+                                    && d.get("column_name").equals("k1")
+                                    && d.get("ordinal_position").equals(0)
+                                    && d.get("index_uuid").equals("tsql_primary") // index_uuid == index_name for BLink
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(1)
+                                    && d.get("index_name").equals("tsql_primary");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertEquals(1, records.size());
+            }
+
+            try (DataScanner scan = scan(manager, "SELECT sc.* FROM tblspace1.sysindexcolumns sc "
+                    + "JOIN tblspace1.systables st on sc.table_name=st.table_name and st.systemtable = 'false' " // only non system tables
+                    + "order by sc.index_name, sc.column_name",
+                    Collections.emptyList());) {
+                List<DataAccessor> records = scan.consume();
+                for (DataAccessor da : records) {
+                    System.out.println("rec: " + da.toMap());
+                }
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("brin")
+                                    && d.get("column_name").equals("b1")
+                                    && d.get("ordinal_position").equals(1)
+                                    && d.get("index_uuid") != null
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(0)
+                                    && d.get("index_name").equals("index1");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("brin")
+                                    && d.get("column_name").equals("s1")
+                                    && d.get("ordinal_position").equals(0)
+                                    && d.get("index_uuid") != null
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(0)
+                                    && d.get("index_name").equals("index1");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("hash")
+                                    && d.get("column_name").equals("b1")
+                                    && d.get("ordinal_position").equals(0)
+                                    && d.get("index_uuid") != null
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(0)
+                                    && d.get("index_name").equals("index2");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertTrue(records
+                        .stream()
+                        .map(d -> d.toMap())
+                        .filter(d -> {
+                            return d.get("table_name").equals("tsql2")
+                                    && d.get("index_type").equals("pk")
+                                    && d.get("column_name").equals("k1")
+                                    && d.get("ordinal_position").equals(0)
+                                    && d.get("index_uuid").equals("tsql2_primary") // index_uuid == index_name for BLink
+                                    && d.get("tablespace").equals("tblspace1")
+                                    && d.get("unique").equals(1)
+                                    && d.get("index_name").equals("tsql2_primary");
+                        })
+                        .findAny()
+                        .isPresent());
+                assertEquals(5, records.size());
+            }
+
             execute(manager, "BEGIN TRANSACTION 'tblspace1'", Collections.emptyList());
             long txid;
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systransactions order by txid",
-                Collections.emptyList());) {
+                    Collections.emptyList());) {
                 List<DataAccessor> records = scan.consume();
                 assertEquals(1, records.size());
                 System.out.println("records:" + records);
@@ -127,7 +291,7 @@ public class SystemTablesTest {
             }
             execute(manager, "COMMIT TRANSACTION 'tblspace1'," + txid, Collections.emptyList());
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.systransactions order by txid",
-                Collections.emptyList());) {
+                    Collections.emptyList());) {
                 List<DataAccessor> records = scan.consume();
                 assertEquals(0, records.size());
             }
@@ -138,37 +302,37 @@ public class SystemTablesTest {
                     System.out.println("found " + r.toMap());
                 });
                 assertTrue(records.stream()
-                    .filter(t
-                        -> t.get("table_name").equals("tsql")
-                    && t.get("column_name").equals("k1")
-                    && t.get("data_type").equals("string")
-                    && t.get("auto_increment").equals(1)
-                    ).findAny().isPresent());
+                        .filter(t
+                                -> t.get("table_name").equals("tsql")
+                        && t.get("column_name").equals("k1")
+                        && t.get("data_type").equals("string")
+                        && t.get("auto_increment").equals(1)
+                        ).findAny().isPresent());
                 assertTrue(records.stream()
-                    .filter(t
-                        -> t.get("table_name").equals("tsql")
-                    && t.get("column_name").equals("n1")
-                    && t.get("data_type").equals("integer")
-                    && t.get("auto_increment").equals(0)
-                    ).findAny().isPresent());
+                        .filter(t
+                                -> t.get("table_name").equals("tsql")
+                        && t.get("column_name").equals("n1")
+                        && t.get("data_type").equals("integer")
+                        && t.get("auto_increment").equals(0)
+                        ).findAny().isPresent());
                 assertTrue(records.stream()
-                    .filter(t
-                        -> t.get("table_name").equals("tsql2")
-                    && t.get("column_name").equals("s1")
-                    && t.get("data_type").equals("timestamp")
-                    ).findAny().isPresent());
+                        .filter(t
+                                -> t.get("table_name").equals("tsql2")
+                        && t.get("column_name").equals("s1")
+                        && t.get("data_type").equals("timestamp")
+                        ).findAny().isPresent());
                 assertTrue(records.stream()
-                    .filter(t
-                        -> t.get("table_name").equals("tsql2")
-                    && t.get("column_name").equals("b1")
-                    && t.get("data_type").equals("bytearray")
-                    ).findAny().isPresent());
+                        .filter(t
+                                -> t.get("table_name").equals("tsql2")
+                        && t.get("column_name").equals("b1")
+                        && t.get("data_type").equals("bytearray")
+                        ).findAny().isPresent());
                 assertTrue(records.stream()
-                    .filter(t
-                        -> t.get("table_name").equals("tsql2")
-                    && t.get("column_name").equals("n1")
-                    && t.get("data_type").equals("long")
-                    ).findAny().isPresent());
+                        .filter(t
+                                -> t.get("table_name").equals("tsql2")
+                        && t.get("column_name").equals("n1")
+                        && t.get("data_type").equals("long")
+                        ).findAny().isPresent());
             }
 
         }
