@@ -849,7 +849,12 @@ public class TableSpaceManager {
             }
 
             for (Entry<String, LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
-                dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, entry.getKey(), entry.getValue());
+                String tableName = entry.getKey();
+                AbstractTableManager tableManager = tables.get(tableName);
+                String tableUUID = tableManager.getTable().uuid;
+                LogSequenceNumber seqNumber = entry.getValue();
+                LOGGER.log(Level.INFO, "unPinTableCheckpoint {0}.{1} ({2}) {3}", new Object[]{tableSpaceUUID, tableName, tableUUID, seqNumber});
+                dataStorageManager.unPinTableCheckpoint(tableSpaceUUID, tableUUID, seqNumber);
             }
         }
 
@@ -1185,8 +1190,17 @@ public class TableSpaceManager {
     TableManager bootTable(Table table, long transaction, LogSequenceNumber dumpLogSequenceNumber) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         LOGGER.log(Level.INFO, "bootTable {0} {1}.{2}", new Object[]{nodeId, tableSpaceName, table.name});
-        if (tables.containsKey(table.name)) {
-            throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
+        AbstractTableManager prevTableManager = tables.remove(table.name);
+        if (prevTableManager != null) {
+
+            if (dumpLogSequenceNumber != null) {
+                // restoring a table already booted in a previous life
+                LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} already exists on this tablespace. It will be truncated", new Object[]{nodeId, tableSpaceName, table.name});
+                prevTableManager.dropTableData();
+            } else {
+                LOGGER.log(Level.INFO, "bootTable {0} {1}.{2} already exists on this tablespace", new Object[]{nodeId, tableSpaceName, table.name});
+                throw new DataStorageManagerException("Table " + table.name + " already present in tableSpace " + tableSpaceName);
+            }
         }
         TableManager tableManager = new TableManager(
                 table, log, dbmanager.getMemoryManager(), dataStorageManager, this, tableSpaceUUID, transaction);
@@ -1314,7 +1328,7 @@ public class TableSpaceManager {
         LogSequenceNumber logSequenceNumber;
         LogSequenceNumber _logSequenceNumber;
         List<PostCheckpointAction> actions = new ArrayList<>();
-        Map<String, LogSequenceNumber> checkpoints = new HashMap<>();
+        Map<String, LogSequenceNumber> checkpointsTableNameSequenceNumber = new HashMap<>();
 
         generalLock.writeLock().lock();
         try {
@@ -1322,7 +1336,7 @@ public class TableSpaceManager {
 
             if (logSequenceNumber.isStartOfTime()) {
                 LOGGER.log(Level.INFO, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
-                return new TableSpaceCheckpoint(logSequenceNumber, checkpoints);
+                return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
             }
             LOGGER.log(Level.INFO, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
             if (actualLogSequenceNumber == null) {
@@ -1342,8 +1356,9 @@ public class TableSpaceManager {
                     TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
 
                     if (checkpoint != null) {
+                        LOGGER.log(Level.INFO, "checkpoint done for table " + tableSpaceName + "." + tableManager.getTable().name + " (pin: " + pin + ")");
                         actions.addAll(checkpoint.actions);
-                        checkpoints.put(checkpoint.tableName, checkpoint.sequenceNumber);
+                        checkpointsTableNameSequenceNumber.put(checkpoint.tableName, checkpoint.sequenceNumber);
                         if (afterTableCheckPointAction != null) {
                             afterTableCheckPointAction.run();
                         }
@@ -1374,7 +1389,7 @@ public class TableSpaceManager {
         LOGGER.log(Level.INFO, "{0} checkpoint finish {1} started ad {2}, finished at {3}, total time {4} ms",
                 new Object[]{nodeId, tableSpaceName, logSequenceNumber, _logSequenceNumber, Long.toString(_stop - _start)});
 
-        return new TableSpaceCheckpoint(logSequenceNumber, checkpoints);
+        return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
     }
 
     private StatementExecutionResult beginTransaction() throws StatementExecutionException {

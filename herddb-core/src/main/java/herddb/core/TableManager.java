@@ -1410,7 +1410,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     @Override
     public void dropTableData() throws DataStorageManagerException {
-        dataStorageManager.dropTable(tableSpaceUUID, table.uuid);
+        dataStorageManager.dropTable(tableSpaceUUID, table.uuid);        
+        keyToPage.truncate();
+        final Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
+        if (indexes != null) {
+            for (AbstractIndexManager indexManager : indexes.values()) {
+                indexManager.dropIndexData();
+            }
+        }
     }
 
     @Override
@@ -1873,10 +1880,15 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      */
     private TableCheckpoint checkpoint(double dirtyThreshold, double fillThreshold,
         long checkpointTargetTime, long compactionTargetTime, boolean pin) throws DataStorageManagerException {
+        LOGGER.log(Level.INFO, "tableCheckpoint dirtyThreshold: "+dirtyThreshold+", {0}.{1} (pin: {2})", new Object[]{tableSpaceUUID, table.name, pin});
         if (createdInTransaction > 0) {
             LOGGER.log(Level.SEVERE, "checkpoint for table " + table.name + " skipped,"
                 + "this table is created on transaction " + createdInTransaction + " which is not committed");
             return null;
+        }
+        
+        if (pin) {
+            LOGGER.info("PINNING");
         }
 
         final long fillPageThreshold = (long) (fillThreshold * maxLogicalPageSize);

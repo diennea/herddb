@@ -78,6 +78,10 @@ public class BookkeeperCommitLog extends CommitLog {
     private void signalLogFailed() {
         failed = true;
     }
+    
+    public void rollNewLedger() {
+        openNewLedger();
+    }
 
     private class CommitFileWriter implements AutoCloseable {
 
@@ -387,6 +391,8 @@ public class BookkeeperCommitLog extends CommitLog {
         oldLedgers.remove(this.currentLedgerId);
         oldLedgers.remove(this.lastLedgerId);
         if (oldLedgers.isEmpty()) {
+            LOGGER.log(Level.SEVERE, "dropOldLedgers no ledger to drop now, tablespace {0}",
+                    new Object[]{tableSpaceUUID});
             return;
         }
         for (long ledgerId : oldLedgers) {

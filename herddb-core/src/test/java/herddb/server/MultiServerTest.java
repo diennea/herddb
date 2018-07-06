@@ -19,6 +19,7 @@
  */
 package herddb.server;
 
+import herddb.cluster.BookkeeperCommitLog;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -34,8 +35,10 @@ import org.junit.rules.TemporaryFolder;
 import herddb.cluster.LedgersInfo;
 import herddb.cluster.ZookeeperMetadataStorageManager;
 import herddb.codec.RecordSerializer;
+import herddb.core.AbstractTableManager;
 import herddb.model.ColumnTypes;
 import herddb.model.DMLStatementExecutionResult;
+import herddb.model.DataScanner;
 import herddb.model.GetResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.Table;
@@ -47,8 +50,11 @@ import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.CreateTableStatement;
 import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
+import herddb.model.commands.ScanStatement;
 import herddb.utils.Bytes;
+import herddb.utils.DataAccessor;
 import herddb.utils.ZKTestEnv;
+import java.util.List;
 
 /**
  * Booting two servers, one table space
@@ -290,7 +296,7 @@ public class MultiServerTest {
     }
 
     @Test
-    public void test_follow_nultiple_tablespaces() throws Exception {
+    public void test_follow_multiple_tablespaces() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
         serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
@@ -319,10 +325,10 @@ public class MultiServerTest {
 
             CreateTableSpaceStatement st2 = new CreateTableSpaceStatement("tblspace2", new HashSet<>(Arrays.asList(server_1.getNodeId(), server_2.getNodeId())), server_1.getNodeId(), 1, 0, 0);
             server_2.getManager().executeStatement(st2, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             server_1.waitForTableSpaceBoot("tblspace1", 30000, true);
             server_1.waitForTableSpaceBoot("tblspace2", 30000, true);
-            
+
             server_2.waitForTableSpaceBoot("tblspace1", 30000, false);
             server_2.waitForTableSpaceBoot("tblspace2", 30000, false);
 
@@ -355,11 +361,10 @@ public class MultiServerTest {
 
             DMLStatementExecutionResult executeUpdateTransaction = server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
             server_1.getManager().executeStatement(new CommitTransactionStatement("tblspace1", executeUpdateTransaction.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
+
             DMLStatementExecutionResult executeUpdateTransaction2 = server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
             server_1.getManager().executeStatement(new CommitTransactionStatement("tblspace2", executeUpdateTransaction2.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
-            
-            
+
             // force BK LAC
             server_1.getManager().executeUpdate(new InsertStatement("tblspace1", "t1", RecordSerializer.makeRecord(table1, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server_1.getManager().executeUpdate(new InsertStatement("tblspace2", "t2", RecordSerializer.makeRecord(table2, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -384,13 +389,169 @@ public class MultiServerTest {
                 assertTrue(server_2.getManager().get(new GetStatement("tblspace1", "t1", Bytes.from_int(i), null, false),
                         StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                         TransactionContext.NO_TRANSACTION).found());
-                
+
                 assertTrue(server_2.getManager().get(new GetStatement("tblspace2", "t2", Bytes.from_int(i), null, false),
                         StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
                         TransactionContext.NO_TRANSACTION).found());
             }
 
         }
+    }
+
+    @Test
+    public void test_follower_catchup_after_restart_after_longtime() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 1);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+        Table table = Table.builder()
+                .name("t1")
+                .column("c", ColumnTypes.INTEGER)
+                .primaryKey("c")
+                .build();
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                    new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+        }
+
+        String tableSpaceUUID;
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                tableSpaceUUID = man.describeTableSpace(TableSpace.DEFAULT).uuid;
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().checkpoint();
+        }
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 6)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+            }
+            server_1.getManager().checkpoint();
+        }
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                System.out.println("current ledgersList: " + ledgersList);
+                assertEquals(2, ledgersList.getActiveLedgers().size());
+                assertTrue(!ledgersList.getActiveLedgers().contains(ledgersList.getFirstLedger()));
+            }
+
+            // data will be downloaded from the other server
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                // wait for data to arrive on server_2
+                for (int i = 0; i < 100; i++) {
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                }
+                assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(1), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+            }
+
+            // write more data, server_2 is down, it will need to catch up
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 8)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 9)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 10)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            // truncate Bookkeeper logs, we want the follower to download again the dump
+            BookkeeperCommitLog bklog = (BookkeeperCommitLog) server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getLog();
+            bklog.rollNewLedger();
+            Thread.sleep(1000);
+            server_1.getManager().checkpoint();
+
+            {
+                ZookeeperMetadataStorageManager man = (ZookeeperMetadataStorageManager) server_1.getMetadataStorageManager();
+                LedgersInfo ledgersList = ZookeeperMetadataStorageManager.readActualLedgersListFromZookeeper(man.getZooKeeper(), testEnv.getPath() + "/ledgers", tableSpaceUUID);
+                System.out.println("current ledgersList: " + ledgersList);
+                assertEquals(1, ledgersList.getActiveLedgers().size());
+                assertTrue(!ledgersList.getActiveLedgers().contains(ledgersList.getFirstLedger()));
+            }
+
+            Table table1 = server_1.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTableManager("t1").getTable();
+            try (DataScanner scan = server_1.getManager()
+                    .scan(new ScanStatement(TableSpace.DEFAULT, table1, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
+                List<DataAccessor> all = scan.consume();
+                all.forEach(d -> {
+                    System.out.println("RECORD ON SERVER 1: " + d.toMap());
+                });
+            }
+
+            // data will be downloaded again, but it has to be merged with stale data
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+                AbstractTableManager tableManager = server_2.getManager().getTableSpaceManager(TableSpace.DEFAULT).getTableManager("t1");
+                Table table2 = tableManager.getTable();
+
+                // wait for data to arrive on server_2
+                for (int i = 0; i < 100; i++) {
+
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(10), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+
+                    try (DataScanner scan = server_2.getManager()
+                            .scan(new ScanStatement(TableSpace.DEFAULT, table2, null), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);) {
+                        List<DataAccessor> all = scan.consume();
+                        System.out.println("WAIT #" + i);
+                        all.forEach(d -> {
+                            System.out.println("RECORD ON SERVER 2: " + d.toMap());
+                        });
+                    }
+
+                    Thread.sleep(1000);
+                }
+                assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(10), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION).found());
+            }
+
+        }
+
     }
 
 }

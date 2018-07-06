@@ -86,20 +86,28 @@ class ReplicaFullTableDataDumpReceiver extends TableSpaceDumpReceiver {
 
     @Override
     public void endTable() throws DataStorageManagerException {
+        if (currentTable == null) {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", endTable swallow data after leader side error");
+            return;
+        }
         LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", endTable " + currentTable.getTable().name);
         currentTable = null;
     }
 
     @Override
     public void receiveTableDataChunk(List<Record> record) throws DataStorageManagerException {
+        if (currentTable == null) {
+            LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", receiveTableDataChunk swallow data after leader side error");
+            return;
+        }
         currentTable.writeFromDump(record);
     }
 
     @Override
     public void beginTable(DumpedTableMetadata dumpedTable, Map<String, Object> stats) throws DataStorageManagerException {
         Table table = dumpedTable.table;
-        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats);
-        currentTable = tableSpaceManager.bootTable(table, 0, null);
+        LOGGER.log(Level.SEVERE, "dumpReceiver " + tableSpaceName + ", beginTable " + table.name + ", stats:" + stats+", dumped at "+dumpedTable.logSequenceNumber+" (general dump at "+logSequenceNumber+")");
+        currentTable = tableSpaceManager.bootTable(table, 0, dumpedTable.logSequenceNumber);
     }
 
 }

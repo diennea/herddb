@@ -441,7 +441,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(tableStatus)) {
                     LOGGER.log(Level.INFO,
-                        "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " already saved on file " + checkpointFile);
+                        "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:"+pin+") already saved on file " + checkpointFile);
                     return Collections.emptyList();
                 }
             }
@@ -451,7 +451,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         Path parent = getParent(checkpointFile);
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
-        LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " to file " + checkpointFile);
+        LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:"+pin+") to file " + checkpointFile);
 
         try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);

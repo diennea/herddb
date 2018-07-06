@@ -115,7 +115,7 @@ public interface AbstractTableManager extends AutoCloseable {
     public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
 
-    static final class TableCheckpoint {
+    static final class TableCheckpoint {        
         final String tableName;
         final LogSequenceNumber sequenceNumber;
         final List<PostCheckpointAction> actions;

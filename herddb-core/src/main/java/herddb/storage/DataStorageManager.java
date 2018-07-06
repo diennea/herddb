@@ -39,6 +39,8 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Physical storage of data
@@ -46,6 +48,8 @@ import herddb.utils.ExtendedDataOutputStream;
  * @author enrico.olivelli
  */
 public abstract class DataStorageManager implements AutoCloseable {
+
+    private static final Logger LOG = Logger.getLogger(DataStorageManager.class.getName());
 
     /**
      * Load a data page in memory
@@ -287,7 +291,7 @@ public abstract class DataStorageManager implements AutoCloseable {
 
     private Map<Long, Integer> pinAndGetPages(String tableSpace, String name, Collection<Long> activePages,
         Map<String, Map<Long, Integer>> pagesPins, boolean pin) {
-
+        LOG.log(Level.INFO, "pinAndGetPages {0}.{1} activePages: {2}, pagesPins:{3} (pin: {4})", new Object[]{tableSpace, name, activePages, pagesPins, pin});
         final Map<Long, Integer> pins;
         final String pinkey = tableSpace + "_" + name;
         if (pin) {
@@ -311,7 +315,7 @@ public abstract class DataStorageManager implements AutoCloseable {
 
         return pins;
     }
-
+    
     private Set<LogSequenceNumber> pinAndGetCheckpoints(String tableSpace, String uuid,
         LogSequenceNumber sequenceNumber, Map<String, Set<LogSequenceNumber>> checkpointsPins, boolean pin) {
 
