@@ -1887,10 +1887,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return null;
         }
         
-        if (pin) {
-            LOGGER.info("PINNING");
-        }
-
         final long fillPageThreshold = (long) (fillThreshold * maxLogicalPageSize);
         final long dirtyPageThreshold = (long) (dirtyThreshold * maxLogicalPageSize);
 
