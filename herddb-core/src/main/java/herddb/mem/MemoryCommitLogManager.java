@@ -36,7 +36,7 @@ import java.util.function.BiConsumer;
 public class MemoryCommitLogManager extends CommitLogManager {
 
     @Override
-    public CommitLog createCommitLog(String tableSpace) {
+    public CommitLog createCommitLog(String tableSpace, String tablespaceName, String localNodeId) {
         return new CommitLog() {
 
             AtomicLong offset = new AtomicLong(-1);

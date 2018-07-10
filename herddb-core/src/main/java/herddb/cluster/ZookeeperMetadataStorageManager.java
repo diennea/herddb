@@ -283,7 +283,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     private void createTableSpaceNode(TableSpace tableSpace) throws KeeperException, InterruptedException, IOException, TableSpaceAlreadyExistsException {
         try {
-            ensureZooKeeper().create(tableSpacesPath + "/" + tableSpace.name, tableSpace.serialize(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+            ensureZooKeeper().create(tableSpacesPath + "/" + tableSpace.name.toLowerCase(), tableSpace.serialize(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
         } catch (KeeperException.NodeExistsException err) {
             throw new TableSpaceAlreadyExistsException(tableSpace.uuid);
         }
@@ -291,7 +291,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     private boolean updateTableSpaceNode(TableSpace tableSpace, int metadataStorageVersion) throws KeeperException, InterruptedException, IOException, TableSpaceDoesNotExistException {
         try {
-            ensureZooKeeper().setData(tableSpacesPath + "/" + tableSpace.name, tableSpace.serialize(), metadataStorageVersion);
+            ensureZooKeeper().setData(tableSpacesPath + "/" + tableSpace.name.toLowerCase(), tableSpace.serialize(), metadataStorageVersion);
             notifyMetadataChanged();
             return true;
         } catch (KeeperException.BadVersionException changed) {
@@ -303,7 +303,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     private boolean deleteTableSpaceNode(String tableSpaceName, int metadataStorageVersion) throws KeeperException, InterruptedException, IOException, TableSpaceDoesNotExistException {
         try {
-            ensureZooKeeper().delete(tableSpacesPath + "/" + tableSpaceName, metadataStorageVersion);
+            ensureZooKeeper().delete(tableSpacesPath + "/" + tableSpaceName.toLowerCase(), metadataStorageVersion);
             notifyMetadataChanged();
             return true;
         } catch (KeeperException.BadVersionException changed) {
@@ -367,9 +367,10 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     public TableSpace describeTableSpace(String name) throws MetadataStorageManagerException {
+        name = name.toLowerCase();
         try {
             Stat stat = new Stat();
-            byte[] result = ensureZooKeeper().getData(tableSpacesPath + "/" + name, mainWatcher, stat);
+            byte[] result = ensureZooKeeper().getData(tableSpacesPath + "/" + name.toLowerCase(), mainWatcher, stat);
             return TableSpace.deserialize(result, stat.getVersion());
         } catch (KeeperException.NoNodeException ex) {
             return null;

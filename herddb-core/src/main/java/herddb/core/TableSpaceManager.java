@@ -1370,7 +1370,10 @@ public class TableSpaceManager {
             actions.addAll(dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber));
 
             /* Indexes checkpoint is handled by TableManagers */
-            log.dropOldLedgers(logSequenceNumber);
+            
+            if (leader) {                
+                log.dropOldLedgers(logSequenceNumber);
+            }
 
             _logSequenceNumber = log.getLastSequenceNumber();
         } finally {

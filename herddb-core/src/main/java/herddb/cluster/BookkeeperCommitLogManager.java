@@ -132,8 +132,8 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     }
 
     @Override
-    public CommitLog createCommitLog(String tableSpace) throws LogNotAvailableException {
-        BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpace, metadataStorageManager, bookKeeper);
+    public CommitLog createCommitLog(String tableSpace, String tableSpaceName, String localNodeId) throws LogNotAvailableException {
+        BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpace, tableSpaceName, localNodeId, metadataStorageManager, bookKeeper);
         res.setAckQuorumSize(ackQuorumSize);
         res.setEnsemble(ensemble);
         res.setLedgersRetentionPeriod(ledgersRetentionPeriod);

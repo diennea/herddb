@@ -105,7 +105,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     public TableSpace describeTableSpace(String name) {
         lock.readLock().lock();
         try {
-            return tableSpaces.get(name);
+            return tableSpaces.get(name.toLowerCase());
         } finally {
             lock.readLock().unlock();
         }
@@ -129,11 +129,11 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {
-            if (tableSpaces.containsKey(tableSpace.name)) {
+            if (tableSpaces.containsKey(tableSpace.name.toLowerCase())) {
                 throw new TableSpaceAlreadyExistsException("a tablespace named " + tableSpace.name + " already exists");
             }
             persistTableSpaceOnDisk(tableSpace);
-            tableSpaces.put(tableSpace.name, tableSpace);
+            tableSpaces.put(tableSpace.name.toLowerCase(), tableSpace);
         } finally {
             lock.writeLock().unlock();
         }
@@ -142,6 +142,7 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     @Override
     public void dropTableSpace(String name, TableSpace previous) throws DDLException, MetadataStorageManagerException {
 
+        name = name.toLowerCase();
         lock.writeLock().lock();
         try {
             if (!tableSpaces.containsKey(name)) {
@@ -156,14 +157,15 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     public boolean updateTableSpace(TableSpace tableSpace, TableSpace previous) throws DDLException, MetadataStorageManagerException {
+        String name = tableSpace.name.toLowerCase();
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {
-            if (!tableSpaces.containsKey(tableSpace.name)) {
-                throw new TableSpaceDoesNotExistException("a tablespace named " + tableSpace.name + " does not exist");
+            if (!tableSpaces.containsKey(name)) {
+                throw new TableSpaceDoesNotExistException("a tablespace named " + tableSpace.name.toLowerCase() + " does not exist");
             }
             persistTableSpaceOnDisk(tableSpace);
-            tableSpaces.put(tableSpace.name, tableSpace);
+            tableSpaces.put(name, tableSpace);
             return true;
         } finally {
             lock.writeLock().unlock();
@@ -182,8 +184,8 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
                 LOGGER.log(Level.SEVERE, "reading metadata file {0}", p.toAbsolutePath().toString());
                 if (_filename.endsWith(".metadata")) {
                     TableSpace ts = readTableSpaceMetadataFile(p);
-                    if (_filename.equals(ts.name + ".metadata")) {
-                        tableSpaces.put(ts.name, ts);
+                    if (_filename.equals(ts.name.toLowerCase() + ".metadata")) {
+                        tableSpaces.put(ts.name.toLowerCase(), ts);
                     }
                 }
             }
@@ -217,8 +219,8 @@ public class FileMetadataStorageManager extends MetadataStorageManager {
     }
 
     private void persistTableSpaceOnDisk(TableSpace tableSpace) throws MetadataStorageManagerException {
-        Path tablespaceMetaTmp = baseDirectory.resolve(tableSpace.name + "." + System.nanoTime() + ".tmpmetadata");
-        Path tablespaceMeta = baseDirectory.resolve(tableSpace.name + ".metadata");
+        Path tablespaceMetaTmp = baseDirectory.resolve(tableSpace.name.toLowerCase() + "." + System.nanoTime() + ".tmpmetadata");
+        Path tablespaceMeta = baseDirectory.resolve(tableSpace.name.toLowerCase() + ".metadata");
 
         try (ManagedFile file = ManagedFile.open(tablespaceMetaTmp);
             SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(),

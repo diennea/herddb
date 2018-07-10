@@ -59,7 +59,7 @@ public class FlushFileTest extends BaseTestcase {
     protected CommitLogManager makeCommitLogManager() {
         return new CommitLogManager() {
             @Override
-            public CommitLog createCommitLog(String tableSpace) {
+            public CommitLog createCommitLog(String tableSpace, String name, String nodeId) {
                 try {
                     return new FileCommitLog(folder.newFolder(tableSpace).toPath(), 1024 * 1024);
                 } catch (IOException err) {

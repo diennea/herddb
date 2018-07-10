@@ -49,7 +49,7 @@ public class FileCommitLogTest {
         FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);
         int writeCount = 0;
         final long _startWrite = System.currentTimeMillis();
-        try (CommitLog log = manager.createCommitLog("tt");) {
+        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
             log.startWriting();
             for (int i = 0; i < 10_000; i++) {
                 log.log(LogEntryFactory.beginTransaction(0), false);
@@ -58,7 +58,7 @@ public class FileCommitLogTest {
         }
         final long _endWrite = System.currentTimeMillis();
         AtomicInteger readCount = new AtomicInteger();
-        try (CommitLog log = manager.createCommitLog("tt");) {
+        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
             log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
                 @Override
                 public void accept(LogSequenceNumber t, LogEntry u) {
@@ -77,7 +77,7 @@ public class FileCommitLogTest {
         try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024)) {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
-            try (CommitLog log = manager.createCommitLog("tt");) {
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.startWriting();
                 for (int i = 0; i < 100; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), false);
@@ -98,7 +98,7 @@ public class FileCommitLogTest {
             }
             final long _endWrite = System.currentTimeMillis();
             AtomicInteger readCount = new AtomicInteger();
-            try (CommitLog log = manager.createCommitLog("tt");) {
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
                     @Override
                     public void accept(LogSequenceNumber t, LogEntry u) {
@@ -113,7 +113,7 @@ public class FileCommitLogTest {
 
             // must be able to read twice
             AtomicInteger readCount2 = new AtomicInteger();
-            try (CommitLog log = manager.createCommitLog("tt");) {
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
                     @Override
                     public void accept(LogSequenceNumber t, LogEntry u) {
@@ -130,7 +130,7 @@ public class FileCommitLogTest {
         try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024)) {
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
-            try (CommitLog log = manager.createCommitLog("tt");) {
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.startWriting();
                 for (int i = 0; i < 100; i++) {
                     log.log(LogEntryFactory.beginTransaction(0), false);
@@ -151,7 +151,7 @@ public class FileCommitLogTest {
             }
             final long _endWrite = System.currentTimeMillis();
             AtomicInteger readCount = new AtomicInteger();
-            try (CommitLog log = manager.createCommitLog("tt");) {
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
                     @Override
                     public void accept(LogSequenceNumber t, LogEntry u) {
@@ -166,7 +166,7 @@ public class FileCommitLogTest {
 
             // must be able to read twice
             AtomicInteger readCount2 = new AtomicInteger();
-            try (CommitLog log = manager.createCommitLog("tt");) {
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
                 log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
                     @Override
                     public void accept(LogSequenceNumber t, LogEntry u) {
@@ -183,7 +183,7 @@ public class FileCommitLogTest {
         FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);
         int writeCount = 0;
         final long _startWrite = System.currentTimeMillis();
-        try (CommitLog log = manager.createCommitLog("tt");) {
+        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
             log.startWriting();
             for (int i = 0; i < 100; i++) {
                 log.log(LogEntryFactory.beginTransaction(0), true);
@@ -192,7 +192,7 @@ public class FileCommitLogTest {
         }
         final long _endWrite = System.currentTimeMillis();
         AtomicInteger readCount = new AtomicInteger();
-        try (CommitLog log = manager.createCommitLog("tt");) {
+        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
             log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
                 @Override
                 public void accept(LogSequenceNumber t, LogEntry u) {
@@ -212,7 +212,7 @@ public class FileCommitLogTest {
 
         int writeCount = 0;
         final long _startWrite = System.currentTimeMillis();
-        try (FileCommitLog log = manager.createCommitLog("tt");) {
+        try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
             log.startWriting();
             for (int i = 0; i < 10_000; i++) {
                 log.log(LogEntryFactory.beginTransaction(0), false);
@@ -221,7 +221,7 @@ public class FileCommitLogTest {
         }
         final long _endWrite = System.currentTimeMillis();
         AtomicInteger readCount = new AtomicInteger();
-        try (CommitLog log = manager.createCommitLog("tt");) {
+        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
             log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
                 @Override
                 public void accept(LogSequenceNumber t, LogEntry u) {

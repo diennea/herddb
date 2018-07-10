@@ -97,6 +97,7 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
 
     @Override
     public TableSpace describeTableSpace(String name) {
+        name = name.toLowerCase();
         lock.readLock().lock();
         try {
             return tableSpaces.get(name);
@@ -110,8 +111,8 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {
-            if (tableSpaces.putIfAbsent(tableSpace.name, tableSpace) != null) {
-                throw new TableSpaceAlreadyExistsException(tableSpace.name);
+            if (tableSpaces.putIfAbsent(tableSpace.name.toLowerCase(), tableSpace) != null) {
+                throw new TableSpaceAlreadyExistsException(tableSpace.name.toLowerCase());
             }
         } finally {
             lock.writeLock().unlock();
@@ -122,7 +123,7 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
     public void dropTableSpace(String name, TableSpace previous) throws DDLException, MetadataStorageManagerException {
         lock.writeLock().lock();
         try {
-            tableSpaces.remove(name);
+            tableSpaces.remove(name.toLowerCase());
         } finally {
             lock.writeLock().unlock();
         }
@@ -133,11 +134,11 @@ public class MemoryMetadataStorageManager extends MetadataStorageManager {
         validateTableSpace(tableSpace);
         lock.writeLock().lock();
         try {
-            TableSpace prev = tableSpaces.get(tableSpace.name);
+            TableSpace prev = tableSpaces.get(tableSpace.name.toLowerCase());
             if (prev == null) {
-                throw new TableSpaceDoesNotExistException(tableSpace.name);
+                throw new TableSpaceDoesNotExistException(tableSpace.name.toLowerCase());
             }
-            tableSpaces.put(tableSpace.name, tableSpace);
+            tableSpaces.put(tableSpace.name.toLowerCase(), tableSpace);
             return false;
         } finally {
             lock.writeLock().unlock();

@@ -40,7 +40,7 @@ public class FileCommitLogManager extends CommitLogManager {
     }
 
     @Override
-    public FileCommitLog createCommitLog(String tableSpace) {
+    public FileCommitLog createCommitLog(String tableSpace, String tablespaceName, String localNodeId) {
         try {
             Path folder = baseDirectory.resolve(tableSpace + ".txlog");
             Files.createDirectories(folder);
