@@ -690,7 +690,7 @@ public class HerdDBCLI {
             SQLFileParser.parseSQLFile(ii, (st) -> {
                 if (!st.comment) {
                     ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper, true, pretty);
-                    int count = res.updateCount;
+                    int count = res != null ? res.updateCount : 0;
                     doneCount.value += count;
                     totalDoneCount.value += count;
                     if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
