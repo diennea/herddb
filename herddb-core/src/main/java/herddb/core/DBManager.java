@@ -1137,6 +1137,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         try {
             for (String tableSpace : actualTablesSpaces) {
                 TableSpace tableSpaceMetadata = metadataStorageManager.describeTableSpace(tableSpace);
+                if (tableSpaceMetadata == null) {
+                    LOGGER.log(Level.INFO, "tablespace {0} does not exist", tableSpace);
+                    continue;
+                }
                 actualTableSpaceMetadata.put(tableSpaceMetadata.uuid, tableSpaceMetadata);
                 try {
                     handleTableSpace(tableSpaceMetadata);
