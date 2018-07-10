@@ -1127,6 +1127,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private boolean manageTableSpaces() {
         Collection<String> actualTablesSpaces;
         try {
+            // all lowercase names
             actualTablesSpaces = metadataStorageManager.listTableSpaces();
         } catch (MetadataStorageManagerException error) {
             LOGGER.log(Level.SEVERE, "cannot access tablespaces metadata", error);
@@ -1164,8 +1165,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             try {
                 String tableSpaceUuid = entry.getValue().getTableSpaceUUID();
                 if (entry.getValue().isFailed()) {
+                    LOGGER.log(Level.SEVERE,"tablespace "+tableSpaceUuid+" failed");
                     failedTableSpaces.add(entry.getKey());
-                } else if (!entry.getKey().equals(virtualTableSpaceId) && !actualTablesSpaces.contains(entry.getKey())) {
+                } else if (!entry.getKey().equals(virtualTableSpaceId) && !actualTablesSpaces.contains(entry.getKey().toLowerCase())) {
+                    LOGGER.log(Level.SEVERE,"tablespace "+tableSpaceUuid+" should not run here");
                     failedTableSpaces.add(entry.getKey());
                 } else if (entry.getValue().isLeader()) {
                     metadataStorageManager.updateTableSpaceReplicaState(
@@ -1251,7 +1254,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     private void stopTableSpace(String tableSpace, String uuid) throws MetadataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " uuid " + uuid + ", on " + nodeId);
+        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " uuid " + uuid + ", on " + nodeId, new Exception("QUI").fillInStackTrace());
         try {
             tablesSpaces.get(tableSpace).close();
         } catch (LogNotAvailableException err) {

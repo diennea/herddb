@@ -46,7 +46,7 @@ import herddb.storage.DataStorageManager;
 public class BaseTestcase {
 
     protected String nodeId = "localhost";
-    protected String tableSpace = "tblspace1";
+    protected String tableSpace = "tblSPACE1";
     protected String tableSpaceUUID;
     protected Table table;
     protected String tableName;
@@ -94,7 +94,7 @@ public class BaseTestcase {
         System.setErr(System.out);
         manager = new DBManager("localhost", metadataStorageManager, dataStorageManager, commitLogManager,null, null);
         manager.start();
-        CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
+        CreateTableSpaceStatement st1 = new CreateTableSpaceStatement(tableSpace, Collections.singleton(nodeId), nodeId, 1, 0, 0);
         manager.executeStatement(st1,StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
         assertTrue(manager.waitForTablespace(tableSpace, 10000));
         tableSpaceUUID = metadataStorageManager.describeTableSpace(tableSpace).uuid;

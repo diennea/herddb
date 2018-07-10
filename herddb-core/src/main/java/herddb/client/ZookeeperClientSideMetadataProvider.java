@@ -96,6 +96,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
 
     @Override
     public String getTableSpaceLeader(String tableSpace) throws ClientSideMetadataProviderException {
+        tableSpace = tableSpace.toLowerCase();
         String cached = tableSpaceLeaders.get(tableSpace);
         if (cached != null) {
             return cached;
@@ -140,6 +141,7 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
     }
 
     private String readAsTableSpace(ZooKeeper zooKeeper, String tableSpace) throws IOException, InterruptedException, KeeperException {
+        tableSpace = tableSpace.toLowerCase();
         Stat stat = new Stat();
         byte[] result = zooKeeper.getData(basePath + "/tableSpaces/" + tableSpace, false, stat);
         String leader = TableSpace.deserialize(result, stat.getVersion()).leaderId;
@@ -148,10 +150,10 @@ public class ZookeeperClientSideMetadataProvider implements ClientSideMetadataPr
     }
 
     private String readAsNode(ZooKeeper zooKeeper, String tableSpace) throws IOException, InterruptedException, KeeperException {
+        tableSpace = tableSpace.toLowerCase();
         Stat stat = new Stat();
         byte[] result = zooKeeper.getData(basePath + "/nodes/" + tableSpace, false, stat);
         NodeMetadata md = NodeMetadata.deserialize(result, stat.getVersion());
-        LOG.severe("node metadata:" + md);
         String leader = md.nodeId;
         tableSpaceLeaders.put(tableSpace, leader);
         return leader;
