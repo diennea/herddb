@@ -70,6 +70,10 @@ import herddb.utils.ManagedFile;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.XXHash64Utils;
+import java.util.concurrent.TimeUnit;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.OpStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Data Storage on local filesystem
@@ -82,6 +86,11 @@ public class FileDataStorageManager extends DataStorageManager {
     private final Path baseDirectory;
     private final Path tmpDirectory;
     private final int swapThreshold;
+    private final StatsLogger logger;
+    private final OpStatsLogger dataPageReads;
+    private final OpStatsLogger dataPageWrites;
+    private final OpStatsLogger indexPageReads;
+    private final OpStatsLogger indexPageWrites;
 
     public static final String FILEEXTENSION_PAGE = ".page";
 
@@ -91,13 +100,19 @@ public class FileDataStorageManager extends DataStorageManager {
     public static final int COPY_BUFFERS_SIZE = 64 * 1024;
 
     public FileDataStorageManager(Path baseDirectory) {
-        this(baseDirectory, baseDirectory.resolve("tmp"), ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
+        this(baseDirectory, baseDirectory.resolve("tmp"), ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT, new NullStatsLogger());
     }
 
-    public FileDataStorageManager(Path baseDirectory, Path tmpDirectory, int swapThreshold) {
+    public FileDataStorageManager(Path baseDirectory, Path tmpDirectory, int swapThreshold, StatsLogger logger) {
         this.baseDirectory = baseDirectory;
         this.tmpDirectory = tmpDirectory;
         this.swapThreshold = swapThreshold;
+        this.logger = logger;
+        StatsLogger scope = logger.scope("filedatastore");
+        this.dataPageReads = scope.getOpStatsLogger("data_pagereads");
+        this.dataPageWrites = scope.getOpStatsLogger("data_pagewrites");
+        this.indexPageReads = scope.getOpStatsLogger("index_pagereads");
+        this.indexPageWrites = scope.getOpStatsLogger("index_pagewrites");
     }
 
     @Override
@@ -141,7 +156,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
         final String name = filename.toString();
         return (name.startsWith("checkpoint.") && name.endsWith(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE))
-            || name.equals(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE); // legacy 1.0 file
+                || name.equals(EXTENSION_TABLEORINDExCHECKPOINTINFOFILE); // legacy 1.0 file
     }
 
     private Path getTablespaceTablesMetadataFile(String tablespace, LogSequenceNumber sequenceNumber) {
@@ -151,13 +166,13 @@ public class FileDataStorageManager extends DataStorageManager {
     private static boolean isTablespaceTablesMetadataFile(Path path) {
         Path filename = path.getFileName();
         return filename != null && filename.toString().startsWith("tables.")
-            && filename.toString().endsWith(".tablesmetadata");
+                && filename.toString().endsWith(".tablesmetadata");
     }
 
     private static boolean isTablespaceIndexesMetadataFile(Path path) {
         Path filename = path.getFileName();
         return filename != null && filename.toString().startsWith("indexes.")
-            && filename.toString().endsWith(".tablesmetadata");
+                && filename.toString().endsWith(".tablesmetadata");
     }
 
     private Path getTablespaceIndexesMetadataFile(String tablespace, LogSequenceNumber sequenceNumber) {
@@ -171,7 +186,7 @@ public class FileDataStorageManager extends DataStorageManager {
     private static boolean isTransactionsFile(Path path) {
         Path filename = path.getFileName();
         return filename != null && filename.toString().startsWith("transactions.")
-            && filename.toString().endsWith(".tx");
+                && filename.toString().endsWith(".tx");
     }
 
     private Path getTableDirectory(String tableSpace, String tablename) {
@@ -211,18 +226,19 @@ public class FileDataStorageManager extends DataStorageManager {
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
         LOGGER.log(Level.FINE, "readPage {0}.{1} {2} ms", new Object[]{tableSpace, tableName, delta + ""});
+        dataPageReads.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
         return result;
     }
 
     public static List<Record> rawReadDataPage(Path pageFile) throws DataStorageManagerException,
-        NoSuchFileException, IOException {
+            NoSuchFileException, IOException {
         List<Record> result;
         long hashFromFile;
         long hashFromDigest;
         try (InputStream input = Files.newInputStream(pageFile);
-            BufferedInputStream buffer = new BufferedInputStream(input, 1024);
-            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
+                BufferedInputStream buffer = new BufferedInputStream(input, 1024);
+                XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -253,9 +269,9 @@ public class FileDataStorageManager extends DataStorageManager {
         long hashFromDigest;
         X read;
         try (InputStream input = Files.newInputStream(pageFile);
-            BufferedInputStream buffer = new BufferedInputStream(input, 1024);
-            XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
+                BufferedInputStream buffer = new BufferedInputStream(input, 1024);
+                XXHash64Utils.HashingStream hash = new XXHash64Utils.HashingStream(buffer);
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(hash)) {
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -273,6 +289,7 @@ public class FileDataStorageManager extends DataStorageManager {
         long _stop = System.currentTimeMillis();
         long delta = _stop - _start;
         LOGGER.log(Level.FINE, "readIndexPage {0}.{1} {2} ms", new Object[]{tableSpace, indexName, delta + ""});
+        indexPageReads.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
         return read;
     }
 
@@ -321,7 +338,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public IndexStatus getIndexStatus(String tableSpace, String indexName, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException {
+            throws DataStorageManagerException {
 
         Path dir = getIndexDirectory(tableSpace, indexName);
         Path checkpointFile = getTableCheckPointsFile(dir, sequenceNumber);
@@ -335,7 +352,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public TableStatus getTableStatus(String tableSpace, String tableUuid, LogSequenceNumber sequenceNumber)
-        throws DataStorageManagerException {
+            throws DataStorageManagerException {
         try {
 
             Path dir = getTableDirectory(tableSpace, tableUuid);
@@ -359,7 +376,7 @@ public class FileDataStorageManager extends DataStorageManager {
             TableStatus latestStatus;
             if (lastFile == null) {
                 latestStatus = new TableStatus(tableName, LogSequenceNumber.START_OF_TIME,
-                    Bytes.from_long(1).data, 1, Collections.emptyMap());
+                        Bytes.from_long(1).data, 1, Collections.emptyMap());
             } else {
                 latestStatus = readTableStatusFromFile(lastFile);
             }
@@ -373,7 +390,7 @@ public class FileDataStorageManager extends DataStorageManager {
         byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
         XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
         try (InputStream input = new SimpleByteArrayInputStream(fileContent);
-            ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
             long version = dataIn.readVLong(); // version
             long flags = dataIn.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -417,7 +434,7 @@ public class FileDataStorageManager extends DataStorageManager {
             byte[] fileContent = FileUtils.fastReadFile(checkpointsFile);
             XXHash64Utils.verifyBlockWithFooter(fileContent, 0, fileContent.length);
             try (InputStream input = new SimpleByteArrayInputStream(fileContent);
-                ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
+                    ExtendedDataInputStream dataIn = new ExtendedDataInputStream(input)) {
                 long version = dataIn.readVLong(); // version
                 long flags = dataIn.readVLong(); // flags for future implementations
                 if (version != 1 || flags != 0) {
@@ -441,7 +458,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(tableStatus)) {
                     LOGGER.log(Level.INFO,
-                        "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:"+pin+") already saved on file " + checkpointFile);
+                            "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") already saved on file " + checkpointFile);
                     return Collections.emptyList();
                 }
             }
@@ -451,12 +468,12 @@ public class FileDataStorageManager extends DataStorageManager {
 
         Path parent = getParent(checkpointFile);
         Path checkpointFileTemp = parent.resolve(checkpointFile.getFileName() + ".tmp");
-        LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:"+pin+") to file " + checkpointFile);
+        LOGGER.log(Level.FINE, "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") to file " + checkpointFile);
 
         try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
-            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+                ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
 
             dataOutputKeys.writeVLong(1); // version
             dataOutputKeys.writeVLong(0); // flags for future implementations
@@ -488,9 +505,9 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
-                && !pins.containsKey(pageId)
-                && !tableStatus.activePages.containsKey(pageId)
-                && pageId < maxPageId) {
+                    && !pins.containsKey(pageId)
+                    && !tableStatus.activePages.containsKey(pageId)
+                    && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new DeleteFileAction(tableName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
             }
@@ -535,9 +552,9 @@ public class FileDataStorageManager extends DataStorageManager {
         LOGGER.log(Level.FINE, "indexCheckpoint " + tableSpace + ", " + indexName + ": " + indexStatus + " to file " + checkpointFile);
 
         try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
-            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-            ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+                ExtendedDataOutputStream dataOutputKeys = new ExtendedDataOutputStream(oo)) {
 
             dataOutputKeys.writeVLong(1); // version
             dataOutputKeys.writeVLong(0); // flags for future implementations
@@ -569,9 +586,9 @@ public class FileDataStorageManager extends DataStorageManager {
             long pageId = getPageId(p);
             LOGGER.log(Level.FINEST, "checkpoint file {0} pageId {1}", new Object[]{p.toAbsolutePath(), pageId});
             if (pageId > 0
-                && !pins.containsKey(pageId)
-                && !indexStatus.activePages.contains(pageId)
-                && pageId < maxPageId) {
+                    && !pins.containsKey(pageId)
+                    && !indexStatus.activePages.contains(pageId)
+                    && pageId < maxPageId) {
                 LOGGER.log(Level.FINEST, "checkpoint file " + p.toAbsolutePath() + " pageId " + pageId + ". will be deleted after checkpoint end");
                 result.add(new DeleteFileAction(indexName, "delete page " + pageId + " file " + p.toAbsolutePath(), p));
             }
@@ -720,9 +737,9 @@ public class FileDataStorageManager extends DataStorageManager {
 
         try (ManagedFile file = ManagedFile.open(pageFile,
                 StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
 
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
@@ -742,15 +759,17 @@ public class FileDataStorageManager extends DataStorageManager {
         }
 
         long now = System.currentTimeMillis();
+        long delta = (now - _start);
 
         if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.log(Level.FINER, "writePage {0} KBytes,{1} records, time {2} ms", new Object[]{(size / 1024) + "", newPage.size(), (now - _start) + ""});
+            LOGGER.log(Level.FINER, "writePage {0} KBytes,{1} records, time {2} ms", new Object[]{(size / 1024) + "", newPage.size(), delta + ""});
         }
+        dataPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void writeIndexPage(String tableSpace, String indexName,
-        long pageId, DataWriter writer) throws DataStorageManagerException {
+            long pageId, DataWriter writer) throws DataStorageManagerException {
         long _start = System.currentTimeMillis();
         Path tableDir = getIndexDirectory(tableSpace, indexName);
         try {
@@ -761,11 +780,11 @@ public class FileDataStorageManager extends DataStorageManager {
         Path pageFile = getPageFile(tableDir, pageId);
         long size;
 
-        try (ManagedFile file = ManagedFile.open(pageFile
-                , StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-            XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
-            ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
+        try (ManagedFile file = ManagedFile.open(pageFile,
+                StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                XXHash64Utils.HashingOutputStream oo = new XXHash64Utils.HashingOutputStream(buffer);
+                ExtendedDataOutputStream dataOutput = new ExtendedDataOutputStream(oo)) {
 
             dataOutput.writeVLong(1); // version
             dataOutput.writeVLong(0); // flags for future implementations
@@ -783,14 +802,16 @@ public class FileDataStorageManager extends DataStorageManager {
         }
 
         long now = System.currentTimeMillis();
+        long delta = (now - _start);
         if (LOGGER.isLoggable(Level.FINER)) {
-            LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", (now - _start) + ""});
+            LOGGER.log(Level.FINER, "writePage {0} KBytes, time {2} ms", new Object[]{(size / 1024) + "", delta + ""});
         }
+        indexPageWrites.registerSuccessfulEvent(delta, TimeUnit.MILLISECONDS);
     }
 
     private static LogSequenceNumber readLogSequenceNumberFromTablesMetadataFile(String tableSpace, Path file) throws DataStorageManagerException {
         try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -810,7 +831,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     private static LogSequenceNumber readLogSequenceNumberFromIndexMetadataFile(String tableSpace, Path file) throws DataStorageManagerException {
         try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -851,7 +872,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     public static List<Table> readTablespaceStructure(Path file, String tableSpace, LogSequenceNumber sequenceNumber) throws IOException, DataStorageManagerException {
         try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -895,7 +916,7 @@ public class FileDataStorageManager extends DataStorageManager {
                 }
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
                 long version = din.readVLong(); // version
                 long flags = din.readVLong(); // flags for future implementations
                 if (version != 1 || flags != 0) {
@@ -926,7 +947,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     @Override
     public Collection<PostCheckpointAction> writeTables(String tableSpace, LogSequenceNumber sequenceNumber,
-        List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
+            List<Table> tables, List<Index> indexlist) throws DataStorageManagerException {
         if (sequenceNumber.isStartOfTime() && !tables.isEmpty()) {
             throw new DataStorageManagerException("impossible to write a non empty table list at start-of-time");
         }
@@ -940,8 +961,8 @@ public class FileDataStorageManager extends DataStorageManager {
 
             LOGGER.log(Level.FINE, "writeTables for tableSpace " + tableSpace + " sequenceNumber " + sequenceNumber + " to " + fileTables.toAbsolutePath().toString());
             try (ManagedFile file = ManagedFile.open(fileTables);
-                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+                    SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
@@ -961,8 +982,8 @@ public class FileDataStorageManager extends DataStorageManager {
             }
 
             try (ManagedFile file = ManagedFile.open(fileIndexes);
-                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+                    SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
@@ -1035,8 +1056,8 @@ public class FileDataStorageManager extends DataStorageManager {
             LOGGER.log(Level.INFO, "checkpoint for " + tableSpace + " at " + sequenceNumber + " to " + checkPointFile.toAbsolutePath().toString());
 
             try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
-                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+                    SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations
@@ -1103,7 +1124,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     private static LogSequenceNumber readLogSequenceNumberFromCheckpointInfoFile(String tableSpace, Path checkPointFile) throws DataStorageManagerException, IOException {
         try (InputStream input = new BufferedInputStream(Files.newInputStream(checkPointFile, StandardOpenOption.READ), 4 * 1024 * 1024);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -1197,7 +1218,7 @@ public class FileDataStorageManager extends DataStorageManager {
 
     private static LogSequenceNumber readLogSequenceNumberFromTransactionsFile(String tableSpace, Path file) throws DataStorageManagerException {
         try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-            ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
             long version = din.readVLong(); // version
             long flags = din.readVLong(); // flags for future implementations
             if (version != 1 || flags != 0) {
@@ -1222,12 +1243,12 @@ public class FileDataStorageManager extends DataStorageManager {
             Files.createDirectories(tableSpaceDirectory);
             Path file = getTablespaceTransactionsFile(tableSpace, sequenceNumber);
             boolean exists = Files.isRegularFile(file);
-            LOGGER.log(Level.INFO, "loadTransactions " + sequenceNumber + " for tableSpace " + tableSpace + " from file " + file+" (exists: "+exists+")");
+            LOGGER.log(Level.INFO, "loadTransactions " + sequenceNumber + " for tableSpace " + tableSpace + " from file " + file + " (exists: " + exists + ")");
             if (!exists) {
                 return;
             }
             try (InputStream input = new BufferedInputStream(Files.newInputStream(file, StandardOpenOption.READ), 4 * 1024 * 1024);
-                ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
+                    ExtendedDataInputStream din = new ExtendedDataInputStream(input);) {
                 long version = din.readVLong(); // version
                 long flags = din.readVLong(); // flags for future implementations
                 if (version != 1 || flags != 0) {
@@ -1268,8 +1289,8 @@ public class FileDataStorageManager extends DataStorageManager {
             Path checkpointFileTemp = parent.resolve(checkPointFile.getFileName() + ".tmp");
             LOGGER.log(Level.FINE, "writeTransactionsAtCheckpoint for tableSpace {0} sequenceNumber {1} to {2}, active transactions {3}", new Object[]{tableSpace, sequenceNumber, checkPointFile.toAbsolutePath().toString(), transactions.size()});
             try (ManagedFile file = ManagedFile.open(checkpointFileTemp);
-                SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
-                ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
+                    SimpleBufferedOutputStream buffer = new SimpleBufferedOutputStream(file.getOutputStream(), COPY_BUFFERS_SIZE);
+                    ExtendedDataOutputStream dout = new ExtendedDataOutputStream(buffer)) {
 
                 dout.writeVLong(1); // version
                 dout.writeVLong(0); // flags for future implementations

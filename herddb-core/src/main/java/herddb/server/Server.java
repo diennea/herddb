@@ -106,11 +106,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public Server(ServerConfiguration configuration) {
-        this(configuration, new NullStatsLogger());
+        this(configuration, null);
     }
 
     public Server(ServerConfiguration configuration, StatsLogger statsLogger) {
-        this.statsLogger = statsLogger;
+        this.statsLogger = statsLogger  == null ? new NullStatsLogger() : statsLogger;
         this.configuration = configuration;
 
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
@@ -301,7 +301,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 int diskswapThreshold = configuration.getInt(ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS, ServerConfiguration.PROPERTY_DISK_SWAP_MAX_RECORDS_DEFAULT);
-                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold);
+                return new FileDataStorageManager(dataDirectory, tmpDirectory, diskswapThreshold, statsLogger);
             default:
                 throw new RuntimeException();
         }
