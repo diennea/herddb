@@ -44,6 +44,7 @@ import herddb.model.commands.InsertStatement;
 import herddb.model.commands.UpdateStatement;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Bytes;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 
 /**
  *
@@ -61,7 +62,7 @@ public class FlushFileTest extends BaseTestcase {
             @Override
             public CommitLog createCommitLog(String tableSpace, String name, String nodeId) {
                 try {
-                    return new FileCommitLog(folder.newFolder(tableSpace).toPath(), 1024 * 1024);
+                    return new FileCommitLog(folder.newFolder(tableSpace).toPath(), name, 1024 * 1024, new NullStatsLogger());
                 } catch (IOException err) {
                     throw new RuntimeException(err);
                 }

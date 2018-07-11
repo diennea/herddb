@@ -314,7 +314,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 return new MemoryCommitLogManager();
             case ServerConfiguration.PROPERTY_MODE_STANDALONE:
                 Path logDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_LOGDIR, ServerConfiguration.PROPERTY_LOGDIR_DEFAULT));
-                return new FileCommitLogManager(logDirectory, 64 * 1024 * 1024);
+                return new FileCommitLogManager(logDirectory, 64 * 1024 * 1024, statsLogger.scope("txlog"));
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
                 BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager, configuration, statsLogger);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));

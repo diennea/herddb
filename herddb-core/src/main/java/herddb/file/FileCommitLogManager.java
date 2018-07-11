@@ -23,6 +23,8 @@ import herddb.log.CommitLogManager;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Commit logs on local files
@@ -33,10 +35,16 @@ public class FileCommitLogManager extends CommitLogManager {
 
     private final Path baseDirectory;
     private final long maxLogFileSize;
+    private final StatsLogger statsLogger;
 
     public FileCommitLogManager(Path baseDirectory, long maxLogFileSize) {
+        this(baseDirectory, maxLogFileSize, new NullStatsLogger());
+    }
+
+    public FileCommitLogManager(Path baseDirectory, long maxLogFileSize, StatsLogger statsLogger) {
         this.baseDirectory = baseDirectory;
         this.maxLogFileSize = maxLogFileSize;
+        this.statsLogger = statsLogger;
     }
 
     @Override
@@ -44,7 +52,8 @@ public class FileCommitLogManager extends CommitLogManager {
         try {
             Path folder = baseDirectory.resolve(tableSpace + ".txlog");
             Files.createDirectories(folder);
-            return new FileCommitLog(folder, maxLogFileSize);
+            return new FileCommitLog(folder, tablespaceName,
+                    maxLogFileSize, statsLogger.scope(tablespaceName));
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
