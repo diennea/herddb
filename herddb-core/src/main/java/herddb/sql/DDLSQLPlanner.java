@@ -132,7 +132,7 @@ import net.sf.jsqlparser.statement.update.Update;
  *
  * @author enrico.olivelli
  */
-public class SQLPlanner implements AbstractSQLPlanner {
+public class DDLSQLPlanner implements AbstractSQLPlanner {
 
     private final DBManager manager;
     private final PlansCache cache;
@@ -157,7 +157,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
         cache.clear();
     }
 
-    public SQLPlanner(DBManager manager, long maxPlanCacheSize) {
+    public DDLSQLPlanner(DBManager manager, long maxPlanCacheSize) {
         this.manager = manager;
         this.cache = new PlansCache(maxPlanCacheSize);
     }
@@ -539,6 +539,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
                 break;
             case "boolean":
             case "bool":
+            case "bit":
                 type = ColumnTypes.BOOLEAN;
                 break;
             case "double":
@@ -1578,7 +1579,7 @@ public class SQLPlanner implements AbstractSQLPlanner {
         }
         return secondaryIndexOperation;
     }
-    private static final Logger LOG = Logger.getLogger(SQLPlanner.class.getName());
+    private static final Logger LOG = Logger.getLogger(DDLSQLPlanner.class.getName());
 
     private Statement buildExecuteStatement(String defaultTableSpace, Execute execute) throws StatementExecutionException {
         switch (execute.getName().toUpperCase()) {

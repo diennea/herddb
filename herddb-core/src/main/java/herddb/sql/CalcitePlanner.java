@@ -181,7 +181,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         this.manager = manager;
         this.cache = new PlansCache(maxPlanCacheSize);
         //used only for DDL
-        this.fallback = new SQLPlanner(manager, maxPlanCacheSize);
+        this.fallback = new DDLSQLPlanner(manager, maxPlanCacheSize);
     }
 
     private final PlansCache cache;
@@ -227,7 +227,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         }
 
         if (isDDL(query)) {
-            query = SQLPlanner.rewriteExecuteSyntax(query);
+            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
             return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
         }
         if (parameters == null) {

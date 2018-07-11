@@ -42,7 +42,7 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.TableSpace;
-import herddb.sql.SQLPlanner;
+import herddb.sql.DDLSQLPlanner;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.IntHolder;

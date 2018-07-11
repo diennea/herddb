@@ -24,7 +24,7 @@ import herddb.client.HDBClient;
 import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
-import herddb.sql.SQLPlanner;
+import herddb.sql.DDLSQLPlanner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -158,7 +158,7 @@ public class MysqlCompatilityTest {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             server.waitForStandaloneBoot();
-            assumeTrue(server.getManager().getPlanner() instanceof SQLPlanner);
+            assumeTrue(server.getManager().getPlanner() instanceof DDLSQLPlanner);
 
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));

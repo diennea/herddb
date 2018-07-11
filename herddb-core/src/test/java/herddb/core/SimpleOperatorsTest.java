@@ -30,7 +30,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.SQLPlanner;
+import herddb.sql.DDLSQLPlanner;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collections;
@@ -297,7 +297,7 @@ public class SimpleOperatorsTest {
                     assertEquals(1, scan1.consume().size());
                 }
             }
-            if ((manager.getPlanner() instanceof SQLPlanner)) {
+            if ((manager.getPlanner() instanceof DDLSQLPlanner)) {
                 try (DataScanner scan1 = scan(manager, "SELECT * FROM tblspace1.tsql WHERE '1' in ('1',2,3)", Collections.emptyList());) {
                     assertEquals(1, scan1.consume().size());
                 }

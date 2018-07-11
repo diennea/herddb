@@ -97,7 +97,7 @@ import herddb.network.ServerHostData;
 import herddb.server.ServerConfiguration;
 import herddb.sql.AbstractSQLPlanner;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.SQLPlanner;
+import herddb.sql.DDLSQLPlanner;
 import herddb.sql.SQLStatementEvaluationContext;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -180,7 +180,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 translator = new CalcitePlanner(this, planCacheMem);
                 break;
             case ServerConfiguration.PLANNER_TYPE_JSQLPARSER:
-                translator = new SQLPlanner(this, planCacheMem);
+                translator = new DDLSQLPlanner(this, planCacheMem);
                 break;
             default:
                 throw new IllegalArgumentException("invalid planner type " + plannerType);

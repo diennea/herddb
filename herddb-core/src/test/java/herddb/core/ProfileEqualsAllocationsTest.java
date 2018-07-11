@@ -60,7 +60,7 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.PlannerOp;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.SQLPlanner;
+import herddb.sql.DDLSQLPlanner;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;

@@ -291,7 +291,7 @@ public abstract class DataStorageManager implements AutoCloseable {
 
     private Map<Long, Integer> pinAndGetPages(String tableSpace, String name, Collection<Long> activePages,
         Map<String, Map<Long, Integer>> pagesPins, boolean pin) {
-        LOG.log(Level.INFO, "pinAndGetPages {0}.{1} activePages: {2}, pagesPins:{3} (pin: {4})", new Object[]{tableSpace, name, activePages, pagesPins, pin});
+        LOG.log(Level.FINER, "pinAndGetPages {0}.{1} activePages: {2}, pagesPins:{3} (pin: {4})", new Object[]{tableSpace, name, activePages, pagesPins, pin});
         final Map<Long, Integer> pins;
         final String pinkey = tableSpace + "_" + name;
         if (pin) {

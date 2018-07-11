@@ -62,7 +62,7 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.model.planner.PlannerOp;
 import herddb.sql.CalcitePlanner;
-import herddb.sql.SQLPlanner;
+import herddb.sql.DDLSQLPlanner;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
@@ -144,7 +144,7 @@ public class RawSQLTest {
                 assertEquals(1, ok.getIndex());
             }
 
-            if (manager.getPlanner() instanceof SQLPlanner) {
+            if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 try {
                     scan(manager, "SELECT * FROM tblspace1.tsql where n1 = 1234 and k1 in "
                             + "(SELECT k1 FROM tblspace1.tsql order by k1 limit ?) and n1 = ?", Arrays.asList(1));
@@ -199,7 +199,7 @@ public class RawSQLTest {
                 assertEquals(1, ok.getIndex());
             }
 
-            if (manager.getPlanner() instanceof SQLPlanner) {
+            if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 try {
                     scan(manager, "SELECT sum(n1), sum(?) FROM tblspace1.tsql", Collections.emptyList());
                 } catch (MissingJDBCParameterException ok) {
@@ -264,7 +264,7 @@ public class RawSQLTest {
             assertEquals(1234, scan(manager, "SELECT n1 FROM tblspace1.tsql WHERE t1<CURRENT_TIMESTAMP", Collections.emptyList()).consume().get(0).get("n1"));
 
             java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
-            if (manager.getPlanner() instanceof SQLPlanner) {
+            if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 // non standard syntax, needs a decoding
                 assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,t1) values(?,?,'" + RecordSerializer.getUTCTimestampFormatter()
                         .format(now.toInstant()) + "')", Arrays.asList("mykey2", Integer.valueOf(1234))).getUpdateCount());
@@ -477,7 +477,7 @@ public class RawSQLTest {
             try (DataScanner scan = scan(manager, "SELECT k2,n2,t2 FROM tblspace1.tsql2 ORDER BY n2 desc", Collections.emptyList());) {
                 assertEquals(3, scan.consume().size());
             }
-            if (manager.getPlanner() instanceof SQLPlanner) {
+            if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 DMLStatementExecutionResult executeUpdateWithParameters = executeUpdate(manager, "INSERT INTO tblspace1.tsql2(k2,t2,n2)"
                         + "(select ?,?,n1 from tblspace1.tsql where n1=?)", Arrays.asList("mykey5", tt3, 1236), TransactionContext.NO_TRANSACTION);
                 assertEquals(1, executeUpdateWithParameters.getUpdateCount());
@@ -593,7 +593,7 @@ public class RawSQLTest {
         String nodeId = "localhost";
         try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
-            assumeTrue(manager.getPlanner() instanceof SQLPlanner);
+            assumeTrue(manager.getPlanner() instanceof DDLSQLPlanner);
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
             manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
@@ -723,7 +723,7 @@ public class RawSQLTest {
                 assertEquals(1, result.size());
                 assertEquals(RawString.of("mykey"), result.get(0).get("k1"));
             }
-            if (manager.getPlanner() instanceof SQLPlanner) {
+            if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 try (DataScanner scan1 = scan(manager, "SELECT TOP 1 * FROM tblspace1.tsql ORDER BY k1", Collections.emptyList());) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
@@ -1147,7 +1147,7 @@ public class RawSQLTest {
                     assertEquals(Long.valueOf(4), result.get(0).get("cc"));
                 }
             }
-            if (manager.getPlanner() instanceof SQLPlanner) {
+            if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 try (DataScanner scan1 = scan(manager, "SELECT COUNT(*)  FROM tblspace1.tsql", Collections.emptyList());) {
                     List<DataAccessor> result = scan1.consume();
                     assertEquals(1, result.size());
@@ -2052,7 +2052,7 @@ public class RawSQLTest {
             assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(0), new java.sql.Timestamp(1000))).consume().size());
             assertEquals(0, scan(manager, "SELECT * FROM tblspace1.tsql where ts between ? and ?", Arrays.asList(new java.sql.Timestamp(now + 1000), new java.sql.Timestamp(now - 1000))).consume().size());
 
-            if (manager.getPlanner() instanceof SQLPlanner) {
+            if (manager.getPlanner() instanceof DDLSQLPlanner) {
                 System.out.println("now:" + new java.sql.Timestamp(now));
                 assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql where ts >= {ts '" + new java.sql.Timestamp(now) + "'}", Collections.emptyList()).consume().size());
 
