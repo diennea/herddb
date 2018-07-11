@@ -51,6 +51,7 @@ import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.ZKTestEnv;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 
 /**
  *
@@ -83,7 +84,7 @@ public class SimpleClusterTest extends BaseTestcase {
 
     @Override
     protected CommitLogManager makeCommitLogManager() throws Exception {
-        return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) metadataStorageManager, new ServerConfiguration());
+        return new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) metadataStorageManager, new ServerConfiguration(), new NullStatsLogger());
     }
 
     @Override

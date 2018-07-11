@@ -31,7 +31,12 @@ import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.logging.LogManager;
+import org.apache.bookkeeper.stats.prometheus.PrometheusMetricsProvider;
+import org.apache.bookkeeper.stats.prometheus.PrometheusServlet;
+import org.apache.commons.configuration.PropertiesConfiguration;
 import org.eclipse.jetty.server.handler.ContextHandlerCollection;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.webapp.WebAppContext;
 
 /**
@@ -52,6 +57,7 @@ public class ServerMain implements AutoCloseable {
     private org.eclipse.jetty.server.Server httpserver;
     private boolean started;
     private String uiurl;
+    private String metricsUrl;
 
     private static ServerMain runningInstance;
 
@@ -181,6 +187,13 @@ public class ServerMain implements AutoCloseable {
 
     public void start() throws Exception {
         pidFileLocker.lock();
+        PrometheusMetricsProvider statsProvider = new PrometheusMetricsProvider();
+        PropertiesConfiguration statsProviderConfig = new PropertiesConfiguration();
+        statsProviderConfig.setProperty(PrometheusMetricsProvider.PROMETHEUS_STATS_HTTP_ENABLE, false);
+        configuration.forEach((key, value) -> {
+            statsProviderConfig.setProperty(key + "", value);
+        });
+        statsProvider.start(statsProviderConfig);
 
         ServerConfiguration config = new ServerConfiguration(this.configuration);
 
@@ -197,6 +210,12 @@ public class ServerMain implements AutoCloseable {
             httpserver = new org.eclipse.jetty.server.Server(new InetSocketAddress(httphost, httpport));
             ContextHandlerCollection contexts = new ContextHandlerCollection();
             httpserver.setHandler(contexts);
+
+            ServletContextHandler contextRoot = new ServletContextHandler(ServletContextHandler.GZIP);
+            contextRoot.setContextPath("/");
+            contextRoot.addServlet(new ServletHolder(new PrometheusServlet(statsProvider)), "/metrics");
+            contexts.addHandler(contextRoot);
+
             File webUi = new File("web/ui");
             if (webUi.isDirectory()) {
                 WebAppContext webApp = new WebAppContext(new File("web/ui").getAbsolutePath(), "/ui");
@@ -204,7 +223,9 @@ public class ServerMain implements AutoCloseable {
             } else {
                 System.out.println("Cannot find " + webUi.getAbsolutePath() + " directory. Web UI will not be deployed");
             }
+
             uiurl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/ui/#/login?url=" + server.getJdbcUrl();
+            metricsUrl = "http://" + httpadvertisedhost + ":" + httpadvertisedport + "/metrics";
             System.out.println("Listening for client (http) connections on " + httphost + ":" + httpport);
             httpserver.start();
         }
@@ -212,11 +233,17 @@ public class ServerMain implements AutoCloseable {
         System.out.println("HerdDB server starter. Node id " + server.getNodeId());
         System.out.println("JDBC URL: " + server.getJdbcUrl());
         System.out.println("Web Interface: " + uiurl);
+        System.out.println("Metrics: " + metricsUrl);
         started = true;
     }
 
     public String getUiurl() {
         return uiurl;
     }
+
+    public String getMetricsUrl() {
+        return metricsUrl;
+    }
+        
 
 }

@@ -33,7 +33,7 @@ import org.apache.bookkeeper.bookie.Bookie;
 import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
-import org.apache.bookkeeper.stats.CodahaleMetricsProvider;
+
 import org.apache.bookkeeper.stats.StatsProvider;
 import org.apache.bookkeeper.util.ReflectionUtils;
 
@@ -42,6 +42,9 @@ import herddb.server.ServerConfiguration;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collection;
 import java.util.stream.Collectors;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.NullStatsProvider;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * Utility for starting embedded Apache BookKeeper Server (Bookie)
@@ -54,11 +57,16 @@ public class EmbeddedBookie implements AutoCloseable {
     private final ServerConfiguration configuration;
     private final Path baseDirectory;
     private BookieServer bookieServer;
-    private StatsProvider statsProvider;
+    private final StatsLogger statsLogger;
 
     public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration) {
+        this(baseDirectory, configuration, new NullStatsLogger());
+    }
+
+    public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, StatsLogger statsLogger) {
         this.configuration = configuration;
         this.baseDirectory = baseDirectory;
+        this.statsLogger = statsLogger;
     }
 
     public void start() throws Exception {
@@ -66,8 +74,6 @@ public class EmbeddedBookie implements AutoCloseable {
         conf.setZkTimeout(configuration.getInt(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT));
         conf.setZkServers(configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT));
         conf.setStatisticsEnabled(true);
-        conf.setProperty("codahaleStatsJmxEndpoint", "Bookie");
-        conf.setStatsProviderClass(CodahaleMetricsProvider.class);
         int port = configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT, ServerConfiguration.PROPERTY_BOOKKEEPER_BOOKIE_PORT_DEFAULT);
 
         conf.setUseHostNameAsBookieID(true);
@@ -119,7 +125,7 @@ public class EmbeddedBookie implements AutoCloseable {
 
         boolean forcemetaformat = configuration.getBoolean("bookie.forcemetaformat", false);
         LOG.log(Level.CONFIG, "bookie.forcemetaformat={0}", forcemetaformat);
-        
+
         boolean result = BookKeeperAdmin.format(conf, false, forcemetaformat);
         if (result) {
             LOG.info("BookKeeperAdmin.format: created a new workspace on ZK");
@@ -138,11 +144,7 @@ public class EmbeddedBookie implements AutoCloseable {
             }
         }
 
-        Class<? extends StatsProvider> statsProviderClass
-                = conf.getStatsProviderClass();
-        statsProvider = ReflectionUtils.newInstance(statsProviderClass);
-        statsProvider.start(conf);
-        bookieServer = new BookieServer(conf, statsProvider.getStatsLogger(""));
+        bookieServer = new BookieServer(conf, statsLogger);
         bookieServer.start();
         for (int i = 0; i < 100; i++) {
             if (bookieServer.getBookie().isRunning()) {
@@ -187,9 +189,6 @@ public class EmbeddedBookie implements AutoCloseable {
             } finally {
                 bookieServer = null;
             }
-        }
-        if (statsProvider != null) {
-            statsProvider.stop();
         }
     }
 

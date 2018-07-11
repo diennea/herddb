@@ -30,6 +30,7 @@ import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.conf.ClientConfiguration;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * CommitLog on Apache BookKeeper
@@ -43,10 +44,12 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private int writeQuorumSize = 1;
     private int ackQuorumSize = 1;
     private BookKeeper bookKeeper;
+    private StatsLogger statsLogger;
     private final ClientConfiguration config;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
 
-    public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration) {
+    public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration, StatsLogger statsLogger) {
+        this.statsLogger = statsLogger;
         config = new ClientConfiguration();
         config.setThrottleValue(0);
         config.setZkServers(metadataStorageManager.getZkAddress());
@@ -80,6 +83,7 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
             this.bookKeeper
                     = BookKeeper
                             .forConfig(config)
+                            .statsLogger(statsLogger)
                             .build();
         } catch (IOException | InterruptedException | BKException t) {
             close();

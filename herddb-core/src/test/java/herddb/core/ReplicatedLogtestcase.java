@@ -32,6 +32,7 @@ import herddb.file.FileDataStorageManager;
 import herddb.server.ServerConfiguration;
 import herddb.utils.ZKTestEnv;
 import java.io.File;
+import org.apache.bookkeeper.stats.NullStatsLogger;
 
 /**
  * Tests using multiple nodes
@@ -62,7 +63,7 @@ public abstract class ReplicatedLogtestcase {
         nodeDirectory.mkdirs();
         Path path = nodeDirectory.toPath();
         ZookeeperMetadataStorageManager metadataStorageManager = new ZookeeperMetadataStorageManager(testEnv.getAddress(), testEnv.getTimeout(), "/tests");
-        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager, new ServerConfiguration());
+        BookkeeperCommitLogManager commitLogManager = new BookkeeperCommitLogManager(metadataStorageManager, new ServerConfiguration(), new NullStatsLogger());
         FileDataStorageManager dataStorageManager = new FileDataStorageManager(path);
         System.setErr(System.out);
         DBManager manager = new DBManager(nodeId, metadataStorageManager, dataStorageManager, commitLogManager, folder.newFolder().toPath(), null);

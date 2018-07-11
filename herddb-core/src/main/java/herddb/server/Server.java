@@ -59,6 +59,8 @@ import herddb.security.SimpleSingleUserManager;
 import herddb.security.UserManager;
 import herddb.storage.DataStorageManager;
 import herddb.utils.Version;
+import org.apache.bookkeeper.stats.NullStatsLogger;
+import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
  * HerdDB Server
@@ -71,6 +73,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     private final DBManager manager;
     private final NettyChannelAcceptor networkServer;
     private final ServerConfiguration configuration;
+    private final StatsLogger statsLogger;
     private final Path baseDirectory;
     private final Path dataDirectory;
     private final Path tmpDirectory;
@@ -103,6 +106,11 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
     }
 
     public Server(ServerConfiguration configuration) {
+        this(configuration, new NullStatsLogger());
+    }
+
+    public Server(ServerConfiguration configuration, StatsLogger statsLogger) {
+        this.statsLogger = statsLogger;
         this.configuration = configuration;
 
         String nodeId = configuration.getString(ServerConfiguration.PROPERTY_NODEID, "");
@@ -227,7 +235,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this server: {0}", new Object[]{jdbcUrl});
                 break;
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration);
+                this.embeddedBookie = new EmbeddedBookie(baseDirectory, configuration, statsLogger);
                 jdbcUrl = "jdbc:herddb:zookeeper:" + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT) + configuration.getString(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, ServerConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT);
                 LOGGER.log(Level.INFO, "Use this JDBC URL to connect to this HerdDB cluster: {0}", new Object[]{jdbcUrl});
                 break;
@@ -308,7 +316,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 Path logDirectory = this.baseDirectory.resolve(configuration.getString(ServerConfiguration.PROPERTY_LOGDIR, ServerConfiguration.PROPERTY_LOGDIR_DEFAULT));
                 return new FileCommitLogManager(logDirectory, 64 * 1024 * 1024);
             case ServerConfiguration.PROPERTY_MODE_CLUSTER:
-                BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager, configuration);
+                BookkeeperCommitLogManager bkmanager = new BookkeeperCommitLogManager((ZookeeperMetadataStorageManager) this.metadataStorageManager, configuration, statsLogger);
                 bkmanager.setAckQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT));
                 bkmanager.setEnsemble(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE, ServerConfiguration.PROPERTY_BOOKKEEPER_ENSEMBLE_DEFAULT));
                 bkmanager.setWriteQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT));
