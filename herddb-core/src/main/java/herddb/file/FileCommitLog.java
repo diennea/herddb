@@ -53,7 +53,6 @@ import herddb.utils.SystemProperties;
 import org.apache.bookkeeper.stats.Counter;
 import org.apache.bookkeeper.stats.OpStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
-import org.apache.bookkeeper.util.MathUtils;
 
 /**
  * Commit log on file
@@ -65,6 +64,7 @@ public class FileCommitLog extends CommitLog {
     private static final Logger LOGGER = Logger.getLogger(FileCommitLog.class.getName());
 
     private Path logDirectory;
+    private final String tableSpaceName;
 
     private long currentLedgerId = 0;
 
@@ -80,16 +80,16 @@ public class FileCommitLog extends CommitLog {
     private final Counter queueSize;
 
     private final static int WRITE_QUEUE_SIZE = SystemProperties.getIntSystemProperty(
-            FileCommitLog.class.getName() + ".writequeuesize", 100000);
+            "herddb.file.writequeuesize", 10_000_000);
     private final BlockingQueue<LogEntryHolderFuture> writeQueue = new LinkedBlockingQueue<>(WRITE_QUEUE_SIZE);
 
     private final static int MAX_UNSYNCHED_BATCH = SystemProperties.getIntSystemProperty(
-            FileCommitLog.class.getName() + ".maxsyncbatchsize", 1000);
+            "herddb.file.maxsyncbatchsize", 10_000);
 
-    private final static int MAX_SYNCH_TIME = SystemProperties.getIntSystemProperty(
-            FileCommitLog.class.getName() + ".maxsynctime", 1);
+    private final static int MAX_SYNC_TIME = SystemProperties.getIntSystemProperty(
+            "herddb.file.maxsynctime", 20);
 
-    private final static boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
+    private final static boolean REQUIRE_FSYNC = SystemProperties.getBooleanSystemProperty(
             "herddb.file.requirefsync", true);
 
     final static byte ENTRY_START = 13;
@@ -128,8 +128,8 @@ public class FileCommitLog extends CommitLog {
             writtenBytes += (1 + 8 + written + 1);
         }
 
-        public void synch() throws IOException {
-            if (!REQUIRE_FSYNCH) {
+        public void sync() throws IOException {
+            if (!REQUIRE_FSYNC) {
                 return;
             }
             long now = System.nanoTime();
@@ -242,6 +242,7 @@ public class FileCommitLog extends CommitLog {
 
     public FileCommitLog(Path logDirectory, String tableSpaceName, long maxLogFileSize, StatsLogger statslogger) {
         this.maxLogFileSize = maxLogFileSize;
+        this.tableSpaceName = tableSpaceName;
         this.logDirectory = logDirectory.toAbsolutePath();
         this.spool = new Thread(new SpoolTask(), "commitlog-" + tableSpaceName);
         this.spool.setDaemon(true);
@@ -260,7 +261,7 @@ public class FileCommitLog extends CommitLog {
                 int count = 0;
                 List<LogEntryHolderFuture> doneEntries = new ArrayList<>();
                 while (!closed || !writeQueue.isEmpty()) {
-                    LogEntryHolderFuture entry = writeQueue.poll(MAX_SYNCH_TIME, TimeUnit.MILLISECONDS);
+                    LogEntryHolderFuture entry = writeQueue.poll(MAX_SYNC_TIME, TimeUnit.MILLISECONDS);
                     boolean timedOut = false;
                     if (entry != null) {
                         queueSize.dec();
@@ -269,8 +270,8 @@ public class FileCommitLog extends CommitLog {
                         count++;
                     } else {
                         timedOut = true;
-                    }                    
-                    if (timedOut || count >= MAX_UNSYNCHED_BATCH) {                     
+                    }
+                    if (timedOut || count >= MAX_UNSYNCHED_BATCH) {
                         count = 0;
                         long now = System.currentTimeMillis();
                         if (!doneEntries.isEmpty()) {
@@ -353,7 +354,7 @@ public class FileCommitLog extends CommitLog {
             if (!entry.sync) {
                 statsEntryLatency.registerSuccessfulEvent(System.currentTimeMillis() - entry.entry.timestamp, TimeUnit.MILLISECONDS);
             }
-            
+
         } catch (IOException | LogNotAvailableException err) {
             entry.error(err);
             if (!entry.sync) {
@@ -363,27 +364,28 @@ public class FileCommitLog extends CommitLog {
     }
 
     private void synch() throws IOException {
-        if (writer == null) {
+        CommitFileWriter _writer = writer;
+        if (_writer == null) {
             return;
         }
-        writer.synch();
+        _writer.sync();
     }
 
     @Override
-    public CommitLogResult log(LogEntry edit, boolean synch) throws LogNotAvailableException {
+    public CommitLogResult log(LogEntry edit, boolean sync) throws LogNotAvailableException {
         if (isHasListeners()) {
-            synch = true;
+            sync = true;
         }
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "log {0}", edit);
         }
-        LogEntryHolderFuture future = new LogEntryHolderFuture(edit, synch);
+        LogEntryHolderFuture future = new LogEntryHolderFuture(edit, sync);
         try {
             queueSize.inc();
             writeQueue.put(future);            
             LogSequenceNumber logPos = future.ack.get();
             notifyListeners(logPos, edit);
-            return new CommitLogResult(logPos, !synch);
+            return new CommitLogResult(logPos, !sync);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);
