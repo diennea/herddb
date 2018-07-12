@@ -110,7 +110,7 @@ public class FileCommitLog extends CommitLog {
 
             filename = logDirectory.resolve(String.format("%016x", ledgerId) + LOGFILEEXTENSION).toAbsolutePath();
             // in case of IOException the stream is not opened, not need to close it
-            LOGGER.log(Level.SEVERE, "starting new file {0} ", filename);
+            LOGGER.log(Level.SEVERE, "starting new file {0} for tablespace {1}", new Object[]{filename, tableSpaceName});
 
             this.channel = FileChannel.open(filename,
                     StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
@@ -249,7 +249,7 @@ public class FileCommitLog extends CommitLog {
         this.statsFsyncTime = statslogger.getOpStatsLogger("fsync");
         this.statsEntryLatency = statslogger.getOpStatsLogger("entrylatency");
         this.queueSize = statslogger.getCounter("queuesize");
-        LOGGER.log(Level.FINE, "logdirectory: {0}, maxLogFileSize {1} bytes", new Object[]{logDirectory, maxLogFileSize});
+        LOGGER.log(Level.FINE, "tablespace {2}, logdirectory: {0}, maxLogFileSize {1} bytes", new Object[]{logDirectory, maxLogFileSize, tableSpaceName});
     }
 
     private class SpoolTask implements Runnable {
@@ -402,7 +402,7 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
-        LOGGER.log(Level.SEVERE, "recovery, snapshotSequenceNumber: {0}", snapshotSequenceNumber);
+        LOGGER.log(Level.SEVERE, "recovery {1}, snapshotSequenceNumber: {0}", new Object[] {snapshotSequenceNumber, tableSpaceName});
         // no lock is needed, we are at boot time
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
             List<Path> names = new ArrayList<>();
@@ -416,7 +416,7 @@ public class FileCommitLog extends CommitLog {
 
             long offset = -1;
             for (Path p : names) {
-                LOGGER.log(Level.SEVERE, "logfile is {0}", new Object[]{p.toAbsolutePath()});
+                LOGGER.log(Level.INFO, "tablespace {1}, logfile is {0}", new Object[]{p.toAbsolutePath(), tableSpaceName});
 
                 String name = (p.getFileName() + "").replace(LOGFILEEXTENSION, "");
                 long ledgerId = Long.parseLong(name, 16);
@@ -441,7 +441,7 @@ public class FileCommitLog extends CommitLog {
 
             recoveredLogSequence = new LogSequenceNumber(currentLedgerId, offset);
 
-            LOGGER.log(Level.SEVERE, "Max ledgerId is {0}", new Object[]{currentLedgerId});
+            LOGGER.log(Level.INFO, "Tablespace {1}, max ledgerId is {0}", new Object[]{currentLedgerId, tableSpaceName});
         } catch (IOException | RuntimeException err) {
             failed = true;
             throw new LogNotAvailableException(err);
@@ -451,8 +451,8 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public void dropOldLedgers(LogSequenceNumber lastCheckPointSequenceNumber) throws LogNotAvailableException {
-        LOGGER.log(Level.SEVERE, "dropOldLedgers lastCheckPointSequenceNumber: {0}, currentLedgerId: {1}",
-                new Object[]{lastCheckPointSequenceNumber, currentLedgerId});
+        LOGGER.log(Level.SEVERE, "dropOldLedgers {2} lastCheckPointSequenceNumber: {0}, currentLedgerId: {1}",
+                new Object[]{lastCheckPointSequenceNumber, currentLedgerId, tableSpaceName});
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDirectory)) {
             List<Path> names = new ArrayList<>();
@@ -507,7 +507,7 @@ public class FileCommitLog extends CommitLog {
     private void ensureDirectories() throws LogNotAvailableException {
         try {
             if (!Files.isDirectory(logDirectory)) {
-                LOGGER.log(Level.SEVERE, "directory " + logDirectory + " does not exist. creating");
+                LOGGER.log(Level.INFO, "directory {0} does not exist. creating", logDirectory);
                 Files.createDirectories(logDirectory);
             }
         } catch (IOException err) {
@@ -560,11 +560,11 @@ public class FileCommitLog extends CommitLog {
 
     @Override
     public LogSequenceNumber getLastSequenceNumber() {
-        final CommitFileWriter writer = this.writer;
-        if (writer == null) {
+        final CommitFileWriter _writer = this.writer;
+        if (_writer == null) {
             return (recoveredLogSequence == null) ? new LogSequenceNumber(currentLedgerId, -1) : recoveredLogSequence;
         } else {
-            return new LogSequenceNumber(writer.ledgerId, writer.sequenceNumber);
+            return new LogSequenceNumber(_writer.ledgerId, _writer.sequenceNumber);
         }
     }
 
