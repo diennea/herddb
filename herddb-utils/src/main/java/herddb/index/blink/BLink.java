@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1586,7 +1587,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         /** Inner nodes will have Long values, leaves Y values */
         @SuppressWarnings("rawtypes")
-        final ConcurrentSkipListMap<Comparable,Object> map;
+        ConcurrentNavigableMap<Comparable,Object> map;
 
         /*
          * Next fields won't need to be volatile. They are written only during write lock AND no other thread
@@ -1627,7 +1628,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.lock = new ReentrantReadWriteLock(false);
             this.loadLock = new ReentrantReadWriteLock(false);
 
-            this.map = new ConcurrentSkipListMap<>(EverBiggerKeyComparator.INSTANCE);
+            this.map = newNodeMap();
 
             this.keys = 0;
             this.size = NODE_CONSTANT_SIZE;
@@ -1635,6 +1636,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             /* New live node, loaded and dirty by default */
             this.loaded = true;
             this.dirty  = true;
+        }
+
+        @SuppressWarnings("rawtypes")
+        private static final ConcurrentNavigableMap<Comparable,Object> newNodeMap() {
+            return new ConcurrentSkipListMap<>(EverBiggerKeyComparator.INSTANCE);
         }
 
         /**
@@ -1663,7 +1669,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.lock = new ReentrantReadWriteLock(false);
             this.loadLock = new ReentrantReadWriteLock(false);
 
-            this.map = new ConcurrentSkipListMap<>(EverBiggerKeyComparator.INSTANCE);
+            this.map = newNodeMap();
 
             this.keys = metadata.keys;
             this.size = metadata.bytes;
@@ -1747,6 +1753,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     // r is marked empty
                     right.empty = true;
                     right.map.clear();
+                    right.map = newNodeMap();
 
                 } finally {
 
@@ -2355,6 +2362,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 }
 
                 map.clear();
+                map = null;
                 loaded = false;
 
                 if (LOGGER.isLoggable(Level.FINE)) {
@@ -2534,6 +2542,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         private void readNodePage(long pageId) throws IOException {
             final Map<Comparable<X>,Long> data = owner.storage.loadNodePage(pageId);
+            map = newNodeMap();
             data.forEach((x,y) -> {
                 Node<X,Y> node = owner.nodes.get(y);
                 map.put(x, node);
@@ -2542,6 +2551,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         private void readLeafPage(long pageId) throws IOException {
             final Map<Comparable<X>,Y> data = owner.storage.loadLeafPage(pageId);
+            map = newNodeMap();
             map.putAll(data);
         }
 
