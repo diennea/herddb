@@ -34,16 +34,12 @@ import org.apache.bookkeeper.client.BookKeeperAdmin;
 import org.apache.bookkeeper.meta.HierarchicalLedgerManagerFactory;
 import org.apache.bookkeeper.proto.BookieServer;
 
-import org.apache.bookkeeper.stats.StatsProvider;
-import org.apache.bookkeeper.util.ReflectionUtils;
 
 import herddb.network.netty.NetworkUtils;
 import herddb.server.ServerConfiguration;
-import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collection;
 import java.util.stream.Collectors;
 import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.apache.bookkeeper.stats.NullStatsProvider;
 import org.apache.bookkeeper.stats.StatsLogger;
 
 /**
@@ -101,8 +97,8 @@ public class EmbeddedBookie implements AutoCloseable {
         conf.setMaxBackupJournals(5);
         conf.setMaxJournalSizeMB(1048);
         conf.setNumAddWorkerThreads(8);
-        conf.setMaxPendingReadRequestPerThread(10000); // new in 4.6
-        conf.setMaxPendingAddRequestPerThread(20000); // new in 4.6
+        conf.setMaxPendingReadRequestPerThread(200000); // new in 4.6
+        conf.setMaxPendingAddRequestPerThread(200000); // new in 4.6
         conf.setEnableLocalTransport(true);
         conf.setProperty("journalMaxGroupWaitMSec", 10L); // default 200ms
         conf.setJournalFlushWhenQueueEmpty(true);
