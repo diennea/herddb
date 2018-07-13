@@ -45,6 +45,7 @@ import herddb.file.FileMetadataStorageManager;
 import herddb.log.CommitLogManager;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
+import herddb.mem.MemoryLocalNodeIdManager;
 import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
@@ -188,7 +189,7 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 realData);
 
         if (nodeId.isEmpty()) {
-            LocalNodeIdManager localNodeIdManager = new LocalNodeIdManager(dataDirectory);
+            LocalNodeIdManager localNodeIdManager = buildLocalNodeIdManager();
             try {
                 nodeId = localNodeIdManager.readLocalNodeId();
                 if (nodeId == null) {
@@ -337,6 +338,20 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 throw new RuntimeException();
         }
     }
+
+    private LocalNodeIdManager buildLocalNodeIdManager() {
+        switch (mode) {
+            case ServerConfiguration.PROPERTY_MODE_LOCAL:
+                return new MemoryLocalNodeIdManager(dataDirectory);
+            case ServerConfiguration.PROPERTY_MODE_STANDALONE:
+                return new LocalNodeIdManager(dataDirectory);
+            case ServerConfiguration.PROPERTY_MODE_CLUSTER:
+                return new LocalNodeIdManager(dataDirectory);
+            default:
+                throw new RuntimeException();
+        }
+    }
+
 
     public void start() throws Exception {
         boolean startBookie = configuration.getBoolean(ServerConfiguration.PROPERTY_BOOKKEEPER_START,
