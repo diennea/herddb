@@ -42,7 +42,6 @@ import herddb.model.ColumnTypes;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.model.TableSpace;
-import herddb.sql.DDLSQLPlanner;
 import herddb.storage.TableStatus;
 import herddb.utils.Bytes;
 import herddb.utils.IntHolder;
@@ -677,10 +676,11 @@ public class HerdDBCLI {
             connection.setAutoCommit(false);
         }
         long _start = System.currentTimeMillis();
-        final IntHolder doneCount = new IntHolder();
+
         final IntHolder totalDoneCount = new IntHolder();
         File f = new File(file);
         long fileSize = f.length();
+        SqlFileStatus fileStatus = new SqlFileStatus(verbose, ignoreerrors, frommysqldump, rewritestatements, pretty, tableSpaceMapper);
         try (FileInputStream rawStream = new FileInputStream(file);
                 BufferedInputStream buffer = new BufferedInputStream(rawStream);
                 CounterInputStream counter = new CounterInputStream(buffer);
@@ -690,11 +690,13 @@ public class HerdDBCLI {
             int _autotransactionbatchsize = autotransactionbatchsize;
             SQLFileParser.parseSQLFile(ii, (st) -> {
                 if (!st.comment) {
-                    ExecuteStatementResult res = executeStatementInSqlFile(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper, true, pretty);
-                    int count = res != null ? res.updateCount : 0;
-                    doneCount.value += count;
-                    totalDoneCount.value += count;
-                    if (_autotransactionbatchsize > 0 && doneCount.value > _autotransactionbatchsize) {
+                    int totalBefore = fileStatus.executedOperations;
+                    executeStatementInSqlFile(st.content, statement, fileStatus);
+                    int count = fileStatus.executedOperations - totalBefore;
+
+                    if (_autotransactionbatchsize > 0 && fileStatus.pendingOperations > _autotransactionbatchsize) {
+                        totalDoneCount.value += fileStatus.pendingOperations;
+                        fileStatus.flushAndCommit(connection);
                         long _now = System.currentTimeMillis();
                         long countZipped = counter.count;
                         int percent = (int) (counter.count * 100.0 / fileSize);
@@ -706,21 +708,20 @@ public class HerdDBCLI {
 
                         if (countUnzipped != counter.count) {
                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                    + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speedZipped) + "/min (UNZIPPED " + formatBytes(speed) + "/min)");
+                                    + " COMMIT after " + totalDoneCount.value + " ops, read " + formatBytes(counter.count) + " (" + formatBytes(countUnzipped) + " unzipped) over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speedZipped) + "/min (UNZIPPED " + formatBytes(speed) + "/min)");
                         } else {
                             System.out.println(new java.sql.Timestamp(System.currentTimeMillis())
-                                    + " COMMIT after " + totalDoneCount.value + " records, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
+                                    + " COMMIT after " + totalDoneCount.value + " ops, read " + formatBytes(counter.count) + " over " + formatBytes(fileSize) + ". " + percent + "%, " + formatBytes(speed) + " /min");
                         }
-                        connection.commit();
-                        doneCount.value = 0;
                     }
                 }
             });
         }
         if (!connection.getAutoCommit()) {
-            System.out.println("final COMMIT after " + totalDoneCount.value + " records");
-            connection.commit();
+            fileStatus.flushAndCommit(connection);
         }
+        System.out.println("Import completed, " + totalDoneCount.value + " ops, in " + ((System.currentTimeMillis() - _start) / 60000) + " minutes");
+
     }
 
     private static void performRestore(String file, String leader, String newschema, Options options, final Statement statement, final Connection connection) throws SQLException, Exception {
@@ -898,7 +899,7 @@ public class HerdDBCLI {
                 if (rewritten.schema != null) {
                     HerdDBConnection connection = statement.getConnection().unwrap(HerdDBConnection.class);
                     if (connection != null && !connection.getSchema().equalsIgnoreCase(rewritten.schema)) {
-                        changeSchemaAndCommit(connection, rewritten.schema);
+                        commitAndChangeSchema(connection, rewritten.schema);
                     }
                 }
                 try (PreparedStatement ps = statement.getConnection().prepareStatement(rewritten.query);) {
@@ -925,9 +926,11 @@ public class HerdDBCLI {
 
     private static class SqlFileStatus {
 
-        private PreparedStatement currentPreparedStatement;
-        private String currentQuery;
-        private int size;
+        // LinkedHashMap preserve the order
+        // this is important because CREATE TABLE must precede INSERTs on the same table
+        private Map<String, PreparedStatement> currentStatements = new LinkedHashMap<>();
+        private int pendingOperations;
+        private int executedOperations;
 
         final boolean verbose;
         final boolean ignoreerrors;
@@ -936,15 +939,76 @@ public class HerdDBCLI {
         final boolean prettyPrint;
         final TableSpaceMapper tableSpaceMapper;
 
+        public SqlFileStatus(boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, boolean prettyPrint, TableSpaceMapper tableSpaceMapper) {
+            this.verbose = verbose;
+            this.ignoreerrors = ignoreerrors;
+            this.frommysqldump = frommysqldump;
+            this.rewritestatements = rewritestatements;
+            this.prettyPrint = prettyPrint;
+            this.tableSpaceMapper = tableSpaceMapper;
+        }
+
+        private void flushAndCommit(Connection connection) throws SQLException {
+            flush();
+            if (!connection.getAutoCommit()) {
+                connection.commit();
+            }
+        }
+
+        private void rollback(Connection connection) throws SQLException {
+            if (verbose) {
+                System.out.println("dropping " + currentStatements.size() + " statements on rollback");
+            }
+            for (PreparedStatement ps : currentStatements.values()) {
+                ps.close();
+            }
+            currentStatements.clear();
+            pendingOperations = 0;
+            if (!connection.getAutoCommit()) {
+                connection.rollback();
+            }
+        }
+
+        private void flush() throws SQLException {
+            if (verbose) {
+                System.out.println("flushing " + currentStatements.size() + " statements, with " + pendingOperations + " pending ops");
+            }
+            for (Map.Entry<String, PreparedStatement> entry : currentStatements.entrySet()) {
+                if (verbose) {
+                    System.out.println("flushing " + entry.getKey());
+                }
+                PreparedStatement ps = entry.getValue();
+                ps.executeBatch();
+                ps.close();
+            }
+            currentStatements.clear();
+            executedOperations += pendingOperations;
+            pendingOperations = 0;
+        }
+
+        private PreparedStatement prepareStatement(Connection connection, String query) throws SQLException {
+            PreparedStatement ps = currentStatements.get(query);
+            if (ps != null) {
+                return ps;
+            }
+            ps = connection.prepareStatement(query);
+            currentStatements.put(query, ps);
+            return ps;
+        }
+
+        private void countPendingOp() {
+            pendingOperations++;
+        }
+
     }
 
-    private static ExecuteStatementResult executeStatementInSqlFile(
-            String query, final Statement statement) throws SQLException, ScriptException {
+    private static void executeStatementInSqlFile(
+            String query, final Statement statement, SqlFileStatus sqlFileStatus) throws SQLException, ScriptException {
         query = query.trim();
 
         if (query.isEmpty()
                 || query.startsWith("--")) {
-            return null;
+            return;
         }
         String formattedQuery = query.toLowerCase();
         if (formattedQuery.endsWith(";")) {
@@ -952,12 +1016,11 @@ public class HerdDBCLI {
             formattedQuery = formattedQuery.substring(0, formattedQuery.length() - 1);
         }
         if (formattedQuery.equals("exit") || formattedQuery.equals("quit")) {
-            System.out.println("Connection closed.");
-            System.exit(0);
+            throw new SQLException("explicit END of script with '" + formattedQuery + "'");
         }
-        if (frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables"))) {
+        if (sqlFileStatus.frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables"))) {
             // mysqldump
-            return null;
+            return;
         }
         Boolean setAutoCommit = null;
         if (formattedQuery.startsWith("autocommit=")) {
@@ -974,56 +1037,58 @@ public class HerdDBCLI {
                     break;
                 default:
                     System.out.println("No valid value for autocommit. Only true and false allowed.");
-                    return null;
+                    return;
             }
         }
-        if (verbose) {
+        if (sqlFileStatus.verbose) {
             System.out.println("Executing query:" + query);
         }
         try {
             if (setAutoCommit != null) {
                 statement.getConnection().setAutoCommit(setAutoCommit);
                 System.out.println("Set autocommit=" + setAutoCommit + " executed.");
-                return null;
+                return;
             }
             if (formattedQuery.equals("commit")) {
-                statement.getConnection().commit();
+                sqlFileStatus.flushAndCommit(statement.getConnection());
+
                 System.out.println("Commit executed.");
-                return null;
+                return;
             }
             if (formattedQuery.equals("rollback")) {
+                sqlFileStatus.rollback(statement.getConnection());
                 statement.getConnection().rollback();
                 System.out.println("Rollback executed.");
-                return null;
+                return;
             }
 
             QueryWithParameters rewritten = null;
-            if (rewritestatements) {
-                rewritten = rewriteQuery(query, tableSpaceMapper, frommysqldump);
+            if (sqlFileStatus.rewritestatements) {
+                rewritten = rewriteQuery(query, sqlFileStatus.tableSpaceMapper, sqlFileStatus.frommysqldump);
             }
             if (rewritten != null) {
                 if (rewritten.schema != null) {
                     HerdDBConnection connection = statement.getConnection().unwrap(HerdDBConnection.class);
                     if (connection != null && !connection.getSchema().equalsIgnoreCase(rewritten.schema)) {
-                        changeSchemaAndCommit(connection, rewritten.schema);
+                        sqlFileStatus.flushAndCommit(connection);
+                        commitAndChangeSchema(connection, rewritten.schema);
                     }
                 }
-                try (PreparedStatement ps = statement.getConnection().prepareStatement(rewritten.query);) {
-                    int i = 1;
-                    for (Object o : rewritten.jdbcParameters) {
-                        ps.setObject(i++, o);
-                    }
-                    boolean resultSet = ps.execute();
-                    return reallyExecuteStatement(ps, resultSet, verbose, getResults, prettyPrint);
+                PreparedStatement ps = sqlFileStatus.prepareStatement(statement.getConnection(), rewritten.query);
+                int i = 1;
+                for (Object o : rewritten.jdbcParameters) {
+                    ps.setObject(i++, o);
                 }
+                ps.addBatch();
+                sqlFileStatus.countPendingOp();
             } else {
-                boolean resultSet = statement.execute(query);
-                return reallyExecuteStatement(statement, resultSet, verbose, getResults, prettyPrint);
+                PreparedStatement ps = sqlFileStatus.prepareStatement(statement.getConnection(), query);
+                ps.addBatch();
             }
         } catch (SQLException err) {
-            if (ignoreerrors) {
+            if (sqlFileStatus.ignoreerrors) {
                 println("ERROR:" + err);
-                return null;
+                return;
             } else {
                 throw err;
             }
@@ -1297,7 +1362,7 @@ public class HerdDBCLI {
     private static final Set<String> existingTableSpaces = new HashSet<>();
 
     @SuppressFBWarnings("SQL_NONCONSTANT_STRING_PASSED_TO_EXECUTE")
-    private static void changeSchemaAndCommit(HerdDBConnection connection, String schema) throws SQLException {
+    private static void commitAndChangeSchema(HerdDBConnection connection, String schema) throws SQLException {
         boolean autocommit = connection.getAutoCommit();
         if (!autocommit) {
             System.out.println("Forcing COMMIT in order to set schema to " + schema + " !");

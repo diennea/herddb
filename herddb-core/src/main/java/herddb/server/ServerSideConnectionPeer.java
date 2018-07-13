@@ -540,6 +540,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     }
                     updateCounts.add(Long.valueOf(dml.getUpdateCount()));
                     otherDatas.add(otherData);
+                } else if (result instanceof DDLStatementExecutionResult) {                    
+                    Map<String, Object> otherData = Collections.emptyMap();                    
+                    updateCounts.add(Long.valueOf(1));
+                    otherDatas.add(otherData);
                 } else {
                     _channel.sendReplyMessage(message, Message.ERROR(new Exception("bad result type " + result.getClass() + " (" + result + ")")));
                 }
