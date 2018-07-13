@@ -39,7 +39,7 @@ import java.util.Set;
 public class ManagedFile implements AutoCloseable {
 
     private final static boolean REQUIRE_FSYNCH = SystemProperties.getBooleanSystemProperty(
-        "herddb.file.requirefsynch", true);
+        "herddb.file.requirefsync", true);
 
     private final FileChannel channel;
     private final OutputStream stream;

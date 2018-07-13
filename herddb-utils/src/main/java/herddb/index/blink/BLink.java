@@ -1566,7 +1566,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * </pre>
          */
         static final long NODE_CONSTANT_SIZE = 408L;
-        static final long ENTRY_CONSTANT_SIZE = /* ConcurrentSkipListMap$Node */ 24L;
+        static final long ENTRY_CONSTANT_SIZE = /* ConcurrentSkipListMap$Node */ 42L;
 
         long storeId;
 

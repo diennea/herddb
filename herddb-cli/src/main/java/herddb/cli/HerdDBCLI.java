@@ -114,6 +114,7 @@ import herddb.utils.DataAccessor;
 
 /**
  * HerdDB command line interface
+ *
  * @author enrico.olivelli
  */
 @SuppressFBWarnings(value = "OBL_UNSATISFIED_OBLIGATION", justification = "This is a spotbugs bug")
@@ -689,7 +690,7 @@ public class HerdDBCLI {
             int _autotransactionbatchsize = autotransactionbatchsize;
             SQLFileParser.parseSQLFile(ii, (st) -> {
                 if (!st.comment) {
-                    ExecuteStatementResult res = executeStatement(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper, true, pretty);
+                    ExecuteStatementResult res = executeStatementInSqlFile(verbose, ignoreerrors, frommysqldump, rewritestatements, st.content, statement, tableSpaceMapper, true, pretty);
                     int count = res != null ? res.updateCount : 0;
                     doneCount.value += count;
                     totalDoneCount.value += count;
@@ -832,6 +833,113 @@ public class HerdDBCLI {
     private static ExecuteStatementResult executeStatement(
             boolean verbose, boolean ignoreerrors, boolean frommysqldump, boolean rewritestatements, String query, final Statement statement,
             final TableSpaceMapper tableSpaceMapper, boolean getResults, boolean prettyPrint) throws SQLException, ScriptException {
+        query = query.trim();
+
+        if (query.isEmpty()
+                || query.startsWith("--")) {
+            return null;
+        }
+        String formattedQuery = query.toLowerCase();
+        if (formattedQuery.endsWith(";")) {
+            // mysqldump
+            formattedQuery = formattedQuery.substring(0, formattedQuery.length() - 1);
+        }
+        if (formattedQuery.equals("exit") || formattedQuery.equals("quit")) {
+            System.out.println("Connection closed.");
+            System.exit(0);
+        }
+        if (frommysqldump && (formattedQuery.startsWith("lock tables") || formattedQuery.startsWith("unlock tables"))) {
+            // mysqldump
+            return null;
+        }
+        Boolean setAutoCommit = null;
+        if (formattedQuery.startsWith("autocommit=")) {
+            String value = "";
+            if (formattedQuery.split("=").length > 1) {
+                value = formattedQuery.split("=")[1];
+            }
+            switch (value) {
+                case "true":
+                    setAutoCommit = true;
+                    break;
+                case "false":
+                    setAutoCommit = false;
+                    break;
+                default:
+                    System.out.println("No valid value for autocommit. Only true and false allowed.");
+                    return null;
+            }
+        }
+        if (verbose) {
+            System.out.println("Executing query:" + query);
+        }
+        try {
+            if (setAutoCommit != null) {
+                statement.getConnection().setAutoCommit(setAutoCommit);
+                System.out.println("Set autocommit=" + setAutoCommit + " executed.");
+                return null;
+            }
+            if (formattedQuery.equals("commit")) {
+                statement.getConnection().commit();
+                System.out.println("Commit executed.");
+                return null;
+            }
+            if (formattedQuery.equals("rollback")) {
+                statement.getConnection().rollback();
+                System.out.println("Rollback executed.");
+                return null;
+            }
+
+            QueryWithParameters rewritten = null;
+            if (rewritestatements) {
+                rewritten = rewriteQuery(query, tableSpaceMapper, frommysqldump);
+            }
+            if (rewritten != null) {
+                if (rewritten.schema != null) {
+                    HerdDBConnection connection = statement.getConnection().unwrap(HerdDBConnection.class);
+                    if (connection != null && !connection.getSchema().equalsIgnoreCase(rewritten.schema)) {
+                        changeSchemaAndCommit(connection, rewritten.schema);
+                    }
+                }
+                try (PreparedStatement ps = statement.getConnection().prepareStatement(rewritten.query);) {
+                    int i = 1;
+                    for (Object o : rewritten.jdbcParameters) {
+                        ps.setObject(i++, o);
+                    }
+                    boolean resultSet = ps.execute();
+                    return reallyExecuteStatement(ps, resultSet, verbose, getResults, prettyPrint);
+                }
+            } else {
+                boolean resultSet = statement.execute(query);
+                return reallyExecuteStatement(statement, resultSet, verbose, getResults, prettyPrint);
+            }
+        } catch (SQLException err) {
+            if (ignoreerrors) {
+                println("ERROR:" + err);
+                return null;
+            } else {
+                throw err;
+            }
+        }
+    }
+
+    private static class SqlFileStatus {
+
+        private PreparedStatement currentPreparedStatement;
+        private String currentQuery;
+        private int size;
+
+        final boolean verbose;
+        final boolean ignoreerrors;
+        final boolean frommysqldump;
+        final boolean rewritestatements;
+        final boolean prettyPrint;
+        final TableSpaceMapper tableSpaceMapper;
+
+    }
+
+    private static ExecuteStatementResult executeStatementInSqlFile(
+            String query, final Statement statement) throws SQLException, ScriptException {
         query = query.trim();
 
         if (query.isEmpty()
