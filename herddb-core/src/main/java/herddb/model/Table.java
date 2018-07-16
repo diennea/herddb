@@ -75,7 +75,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         this.columnNames = new String[columns.length];
         int i = 0;
         this.primaryKeyProjection = new int[columns.length];
-        for (Column c : columns) {
+        for (Column c : this.columns) {
             String cname = c.name.toLowerCase();
             columnsByName.put(cname, c);
             if (c.serialPosition < 0) {
@@ -90,7 +90,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
 
     }
 
-    private static Column[] reorderColumnsPrimaryKeyFirst(Column[] columns, String[] primaryKey) throws IllegalStateException, IllegalArgumentException {
+    private static Column[] reorderColumnsPrimaryKeyFirst(Column[] columns, String[] primaryKey) throws IllegalStateException, IllegalArgumentException {        
         Column[] _columns = new Column[columns.length];
         int pos = 0;
         Set<String> pkCols = new HashSet<>();
@@ -116,6 +116,8 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         if (pos != columns.length) {
             throw new IllegalStateException();
         }
+        System.out.println("BEFORE: "+Arrays.toString(columns));
+        System.out.println("AFTER: "+Arrays.toString(_columns));
         return _columns;
     }
 

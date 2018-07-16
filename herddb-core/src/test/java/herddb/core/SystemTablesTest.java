@@ -189,12 +189,13 @@ public class SystemTablesTest {
                     Collections.emptyList());) {
                 List<DataAccessor> records = scan.consume();
                 for (DataAccessor da : records) {
-                    System.out.println("rec: " + da.toMap());
+                    System.out.println("rec2: " + da.toMap());
                 }                
                 assertTrue(records
                         .stream()
                         .map(d -> d.toMap())
                         .filter(d -> {
+                            System.out.println("filter: " + d);
                             return d.get("table_name").equals("tsql")
                                     && d.get("index_type").equals("pk")
                                     && d.get("column_name").equals("k1")
