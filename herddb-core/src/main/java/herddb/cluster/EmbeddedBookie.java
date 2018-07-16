@@ -56,13 +56,13 @@ public class EmbeddedBookie implements AutoCloseable {
     private final StatsLogger statsLogger;
 
     public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration) {
-        this(baseDirectory, configuration, new NullStatsLogger());
+        this(baseDirectory, configuration, null);
     }
 
     public EmbeddedBookie(Path baseDirectory, ServerConfiguration configuration, StatsLogger statsLogger) {
         this.configuration = configuration;
         this.baseDirectory = baseDirectory;
-        this.statsLogger = statsLogger;
+        this.statsLogger = statsLogger != null ? statsLogger : new NullStatsLogger();
     }
 
     public void start() throws Exception {

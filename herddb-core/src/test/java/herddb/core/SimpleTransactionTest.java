@@ -242,7 +242,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         String tableName2 = "t2";
         Table table2 = Table
                 .builder()
-                .tablespace("tblspace1")
+                .tablespace(tableSpace)
                 .name(tableName2)
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
@@ -284,7 +284,7 @@ public class SimpleTransactionTest extends BaseTestcase {
         
         Table transacted_table = Table
                 .builder()
-                .tablespace("tblspace1")
+                .tablespace(tableSpace)
                 .name("t2")
                 .column("id", ColumnTypes.STRING)
                 .column("name", ColumnTypes.STRING)
@@ -295,19 +295,19 @@ public class SimpleTransactionTest extends BaseTestcase {
         CreateTableStatement st_create = new CreateTableStatement(transacted_table);
         manager.executeStatement(st_create, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
 
-        InsertStatement insert = new InsertStatement("tblspace1", "t2", new Record(key, value));
+        InsertStatement insert = new InsertStatement(tableSpace, "t2", new Record(key, value));
         assertEquals(1, manager.executeUpdate(insert, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx)).getUpdateCount());
 
-        GetStatement get = new GetStatement("tblspace1", "t2", key, null, false);
+        GetStatement get = new GetStatement(tableSpace, "t2", key, null, false);
         GetResult result = manager.get(get, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), new TransactionContext(tx));
         assertTrue(result.found());
         assertEquals(key, result.getRecord().key);
         assertEquals(value, result.getRecord().value);
 
-        RollbackTransactionStatement rollback = new RollbackTransactionStatement("tblspace1", tx);
+        RollbackTransactionStatement rollback = new RollbackTransactionStatement(tableSpace, tx);
         manager.executeStatement(rollback, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
         try {
-            manager.get(new GetStatement("tblspace1", "t2", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            manager.get(new GetStatement(tableSpace, "t2", key, null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             fail();
         } catch (TableDoesNotExistException error) {
         }
