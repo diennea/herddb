@@ -37,7 +37,6 @@ import herddb.utils.MapDataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
-import java.util.function.BiConsumer;
 
 /**
  *
@@ -73,28 +72,26 @@ public class MessageUtils {
     private static final byte OPCODE_TUPLELIST_VALUE = 25;
 
     /**
-     * When writing int <b>greater than this</b> value are better written
-     * directly as int because in vint encoding will use at least 4 bytes
+     * When writing int <b>greater than this</b> value are better written directly as int because in vint encoding will
+     * use at least 4 bytes
      */
     private static final int WRITE_MAX_V_INT_LIMIT = -1 >>> 11;
 
     /**
-     * When writing negative int <b>smaller than this</b> value are better
-     * written directly as int because in zint encoding will use at least 8
-     * bytes
+     * When writing negative int <b>smaller than this</b> value are better written directly as int because in zint
+     * encoding will use at least 8 bytes
      */
     private static final int WRITE_MIN_Z_INT_LIMIT = -1 << 20;
 
     /**
-     * When writing long <b>greater than this</b> value are better written
-     * directly as long because in vint encoding will use at least 4 bytes
+     * When writing long <b>greater than this</b> value are better written directly as long because in vint encoding
+     * will use at least 4 bytes
      */
     private static final long WRITE_MAX_V_LONG_LIMIT = -1L >>> 15;
 
     /**
-     * When writing negative long <b>smaller than this</b> value are better
-     * written directly as long because in zlong encoding will use at least 8
-     * bytes
+     * When writing negative long <b>smaller than this</b> value are better written directly as long because in zlong
+     * encoding will use at least 8 bytes
      */
     private static final long WRITE_MIN_Z_LONG_LIMIT = -1L << 48;
 
@@ -126,7 +123,7 @@ public class MessageUtils {
         int type = ByteBufUtils.readVInt(encoded);
         long messageId = ByteBufUtils.readVLong(encoded);
         long replyMessageId = -1;
-      
+
         Map<String, Object> params = new HashMap<>();
         while (encoded.isReadable()) {
             byte opcode = encoded.readByte();

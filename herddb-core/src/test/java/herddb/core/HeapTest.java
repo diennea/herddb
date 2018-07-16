@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import herddb.codec.DataAccessorForFullRecord;
 import static herddb.core.TestUtils.execute;
 import static herddb.core.TestUtils.executeUpdate;
 import static herddb.core.TestUtils.scan;
@@ -32,26 +33,34 @@ import org.junit.Test;
 import herddb.mem.MemoryCommitLogManager;
 import herddb.mem.MemoryDataStorageManager;
 import herddb.mem.MemoryMetadataStorageManager;
+import herddb.model.DataScanner;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
+import herddb.network.Message;
+import herddb.network.netty.MessageUtils;
+import herddb.utils.DataAccessor;
+import herddb.utils.TuplesList;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import java.util.List;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.assertThat;
 
 /**
- * Tests on table creation. An heap is a table without primary key, that is that
- * the full record is the PK
+ * Tests on table creation. An heap is a table without primary key, that is that the full record is the PK
  *
  * @author enrico.olivelli
  */
 public class HeapTest {
 
-
     @Test
     public void testHeapTable() throws Exception {
         String nodeId = "localhost";
-        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(),null, null);) {
+        try (DBManager manager = new DBManager("localhost", new MemoryMetadataStorageManager(), new MemoryDataStorageManager(), new MemoryCommitLogManager(), null, null);) {
             manager.start();
             CreateTableSpaceStatement st1 = new CreateTableSpaceStatement("tblspace1", Collections.singleton(nodeId), nodeId, 1, 0, 0);
-            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),TransactionContext.NO_TRANSACTION);
+            manager.executeStatement(st1, StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             manager.waitForTablespace("tblspace1", 10000);
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string, n1 int,s1 string)", Collections.emptyList());
@@ -59,6 +68,23 @@ public class HeapTest {
             assertEquals(1, executeUpdate(manager, "INSERT INTO tblspace1.tsql(k1,n1,s1) values(?,?,?)", Arrays.asList("mykey", Integer.valueOf(1234), "aa")).getUpdateCount());
 
             assertEquals(1, scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList()).consume().size());
+
+            try (DataScanner dataScanner = scan(manager, "SELECT * FROM tblspace1.tsql", Collections.emptyList());) {
+
+                // this is mostly what is done while serializing the result set to the network client
+                String[] columns = dataScanner.getFieldNames();
+                List<DataAccessor> records = dataScanner.consume();
+                for (DataAccessor da : records) {
+                    assertThat(da, instanceOf(DataAccessorForFullRecord.class));
+                }
+                TuplesList tuplesList = new TuplesList(columns, records);
+                Message msg = Message.RESULTSET_CHUNK("xxx", tuplesList, true, dataScanner.transactionId);
+                msg.assignMessageId();
+                ByteBuf buffer = Unpooled.buffer();
+                MessageUtils.encodeMessage(buffer, msg);
+                Message msgDecoded = MessageUtils.decodeMessage(buffer);
+                assertEquals(msgDecoded, msg);
+            }
 
         }
     }
