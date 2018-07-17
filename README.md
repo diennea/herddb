@@ -14,6 +14,8 @@ HerdDB is very similar to a NoSQL databases, in fact at the Low level is it basi
 
 HerdDB supports **transactions** and "committed read" isolation level
 
+HerdDB uses **Apache Calcite** as SQL parser and SQL Planner
+
 ## Basic concepts
 
 Data, as in any **SQL database**, is organized in tables and, in order to leverage HerdDB replication function, tables are grouped inside **Tablespaces**.

@@ -33,6 +33,20 @@
             <projectNameForChangelog>HerdDB</projectNameForChangelog>
             <releases>
                 <release>
+                    <version>0.6.0</version>
+                    <date>July 2018</date>
+                    <href>https://github.com/diennea/herddb/releases</href>
+                    <text>
+                        Improvements to the wire protocol,
+                        Zero-copy for basic comparison operators,
+                        New BRIN Index implementation
+                        Enhancements to MySQL conversion tools,
+                        Bug fixes on replication,
+                        Support for Prometheus.io for metrics,
+                        JDBC Metadata getIndexInfo support
+                    </text>
+                </release>
+                <release>
                     <version>0.5.0</version>
                     <date>April 2018</date>
                     <href>https://github.com/diennea/herddb/releases</href>
