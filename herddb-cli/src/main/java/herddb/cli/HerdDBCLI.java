@@ -1002,6 +1002,7 @@ public class HerdDBCLI {
 
     }
 
+    @SuppressFBWarnings("SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING")
     private static void executeStatementInSqlFile(
             String query, final Statement statement, SqlFileStatus sqlFileStatus) throws SQLException, ScriptException {
         query = query.trim();
