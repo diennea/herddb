@@ -38,5 +38,6 @@ public class LogEntryType {
     public static final short CREATE_INDEX = 10;
     public static final short DROP_INDEX = 11;
     public static final short TRUNCATE_TABLE = 12;
+    public static final short NOOP = 13;
 
 }

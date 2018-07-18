@@ -111,7 +111,7 @@ import herddb.utils.DefaultJVMHalt;
  */
 public class DBManager implements AutoCloseable, MetadataChangeListener {
 
-    private static final boolean USE_CALCITE = true;
+    
     private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
     private final MetadataStorageManager metadataStorageManager;
