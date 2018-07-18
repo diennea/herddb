@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -58,7 +59,7 @@ public final class Message {
     }
 
     public static Message CLIENT_SHUTDOWN() {
-        return new Message( TYPE_CLIENT_SHUTDOWN, new HashMap<>());
+        return new Message(TYPE_CLIENT_SHUTDOWN, new HashMap<>());
     }
 
     public static Message EXECUTE_STATEMENT(String tableSpace, String query, long tx,
@@ -231,14 +232,14 @@ public final class Message {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
-        return new Message( TYPE_PUSH_TXLOGCHUNK, data);
+        return new Message(TYPE_PUSH_TXLOGCHUNK, data);
     }
 
     public static Message PUSH_TRANSACTIONSBLOCK(String tableSpace, List<byte[]> chunk) {
         HashMap<String, Object> data = new HashMap<>();
         data.put("tableSpace", tableSpace);
         data.put("data", chunk);
-        return new Message( TYPE_PUSH_TRANSACTIONSBLOCK, data);
+        return new Message(TYPE_PUSH_TRANSACTIONSBLOCK, data);
     }
 
     public final int type;
@@ -326,7 +327,7 @@ public final class Message {
         }
     }
 
-    public Message(int type, Map<String, Object> parameters) {        
+    public Message(int type, Map<String, Object> parameters) {
         this.type = type;
         this.parameters = parameters;
     }
@@ -359,4 +360,39 @@ public final class Message {
         this.parameters.put(key, value);
         return this;
     }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 89 * hash + (int) (this.messageId ^ (this.messageId >>> 32));
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Message other = (Message) obj;
+        if (this.type != other.type) {
+            return false;
+        }
+        if (this.messageId != other.messageId) {
+            return false;
+        }
+        if (this.replyMessageId != other.replyMessageId) {
+            return false;
+        }
+        if (!Objects.equals(this.parameters, other.parameters)) {
+            return false;
+        }
+        return true;
+    }
+
 }

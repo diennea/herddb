@@ -61,13 +61,13 @@ public class SimpleScanTest {
                 try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client)) {
 
                     try (Connection con = dataSource.getConnection();
-                        Statement statement = con.createStatement();) {
+                            Statement statement = con.createStatement();) {
                         statement.execute("CREATE TABLE mytable (k1 string primary key, n1 int, l1 long, t1 timestamp, nu string, b1 bool, d1 double)");
 
                     }
 
                     try (Connection con = dataSource.getConnection();
-                        PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)");) {
+                            PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(k1,n1,l1,t1,nu,b1,d1) values(?,?,?,?,?,?,?)");) {
 
                         for (int n = 0; n < 10; ++n) {
                             int i = 1;
@@ -85,7 +85,7 @@ public class SimpleScanTest {
                         int[] batches = statement.executeBatch();
                         Assert.assertEquals(10, batches.length);
 
-                        for(int batch : batches) {
+                        for (int batch : batches) {
                             Assert.assertEquals(1, batch);
                         }
                     }
@@ -129,6 +129,60 @@ public class SimpleScanTest {
                                 }
                             }
                             assertEquals(8, count);
+                        }
+
+                    }
+
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testSingleColumnHeapTable() throws Exception {
+        try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
+            server.start();
+            server.waitForStandaloneBoot();
+
+            try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()))) {
+                client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
+
+                try (BasicHerdDBDataSource dataSource = new BasicHerdDBDataSource(client)) {
+
+                    try (Connection con = dataSource.getConnection();
+                            Statement statement = con.createStatement();) {
+                        statement.execute("CREATE TABLE mytable (id string)"); // no primary key
+
+                    }
+
+                    try (Connection con = dataSource.getConnection();
+                            PreparedStatement statement = con.prepareStatement("INSERT INTO mytable(id) values(?)");) {
+
+                        for (int n = 0; n < 10; ++n) {
+                            int i = 1;
+                            statement.setString(i++, "mykey_" + n);
+                            statement.addBatch();
+                        }
+
+                        int[] batches = statement.executeBatch();
+                        Assert.assertEquals(10, batches.length);
+
+                        for (int batch : batches) {
+                            Assert.assertEquals(1, batch);
+                        }
+                    }
+
+                    try (Connection con = dataSource.getConnection()) {
+
+                        try (PreparedStatement statement = con.prepareStatement("SELECT * FROM mytable")) {
+                            int count = 0;
+                            try (ResultSet rs = statement.executeQuery()) {
+                                while (rs.next()) {
+                                    assertNotNull(rs.getString(1));
+                                    ++count;
+                                }
+                            }
+                            assertEquals(10, count);
                         }
 
                     }

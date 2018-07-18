@@ -65,7 +65,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
     private Table(String uuid, String name, Column[] columns, String[] primaryKey, String tablespace, boolean auto_increment, int maxSerialPosition) {
         this.uuid = uuid;
         this.name = name;
-        this.columns = columns;
+        this.columns = reorderColumnsPrimaryKeyFirst(columns, primaryKey);
         this.maxSerialPosition = maxSerialPosition;
         this.primaryKey = primaryKey;
         this.tablespace = tablespace;
@@ -75,7 +75,7 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         this.columnNames = new String[columns.length];
         int i = 0;
         this.primaryKeyProjection = new int[columns.length];
-        for (Column c : columns) {
+        for (Column c : this.columns) {
             String cname = c.name.toLowerCase();
             columnsByName.put(cname, c);
             if (c.serialPosition < 0) {
@@ -88,6 +88,37 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         }
         this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));
 
+    }
+
+    private static Column[] reorderColumnsPrimaryKeyFirst(Column[] columns, String[] primaryKey) throws IllegalStateException, IllegalArgumentException {        
+        Column[] _columns = new Column[columns.length];
+        int pos = 0;
+        Set<String> pkCols = new HashSet<>();
+        for (String pkCol : primaryKey) {
+            pkCols.add(pkCol.toLowerCase());
+            boolean found = false;
+            for (Column column : columns) {
+                if (column.name.equalsIgnoreCase(pkCol)) {
+                    _columns[pos++] = column;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                throw new IllegalArgumentException("pk col " + pkCol + " not found in columns definition " + Arrays.toString(columns));
+            }
+        }
+        for (Column column : columns) {
+            if (!pkCols.contains(column.name.toLowerCase())) {
+                _columns[pos++] = column;
+            }
+        }
+        if (pos != columns.length) {
+            throw new IllegalStateException();
+        }
+        System.out.println("BEFORE: "+Arrays.toString(columns));
+        System.out.println("AFTER: "+Arrays.toString(_columns));
+        return _columns;
     }
 
     public boolean isPrimaryKeyColumn(String column) {

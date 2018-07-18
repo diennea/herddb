@@ -126,7 +126,7 @@ public class LedgerManagementTest {
             LedgersInfo actualLedgersList = log.getActualLedgersList();
             System.out.println("actualLedgersList:" + actualLedgersList + " lastLedgerId " + log.getLastLedgerId());
             assertEquals(2, log.getLastLedgerId());
-            assertEquals(2, actualLedgersList.getActiveLedgers().size());
+            assertEquals(3, actualLedgersList.getActiveLedgers().size());
             assertTrue(actualLedgersList.getActiveLedgers().contains(0L));
             // ledger id 1 dropped at restart
             assertTrue(actualLedgersList.getActiveLedgers().contains(2L));
