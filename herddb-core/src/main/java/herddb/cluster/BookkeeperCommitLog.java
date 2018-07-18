@@ -65,7 +65,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private final String tableSpaceUUID;
     private final String tableSpaceName; // only for logging
     private final String localNodeId; // only for logging
-    private final AtomicLong lastWriteTs = new AtomicLong(0);
+    private volatile long lastWriteTs = 0;
     private volatile CommitFileWriter writer;
     private volatile long currentLedgerId = 0;
     private volatile long lastLedgerId = -1;
@@ -96,7 +96,7 @@ public class BookkeeperCommitLog extends CommitLog {
         if (maxIdleTime <= 0 || closed) {
             return;
         }
-        long _lastWriteTs = lastWriteTs.get();
+        long _lastWriteTs = lastWriteTs;
         long idleTime = System.currentTimeMillis() - _lastWriteTs;
         if (_lastWriteTs > 0 && idleTime > maxIdleTime) {
             CommitFileWriter _writer = writer;
@@ -136,7 +136,7 @@ public class BookkeeperCommitLog extends CommitLog {
             CompletableFuture<LogSequenceNumber> res = new CompletableFuture<>();
             this.out.asyncAddEntry(serialize, (int rc, LedgerHandle lh, long offset, Object o) -> {
                 if (rc == BKException.Code.OK) {
-                    lastWriteTs.set(System.currentTimeMillis());
+                    lastWriteTs = System.currentTimeMillis();
                     res.complete(new LogSequenceNumber(lh.getId(), offset));
                 } else {
                     errorOccurredDuringWrite = true;
