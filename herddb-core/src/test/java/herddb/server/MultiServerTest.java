@@ -91,6 +91,7 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
@@ -147,6 +148,70 @@ public class MultiServerTest {
     }
 
     @Test
+    public void testForLastConfirmedBackground() throws Exception {
+        ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
+        serverconfig_1.set(ServerConfiguration.PROPERTY_PORT, 7867);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_MODE, ServerConfiguration.PROPERTY_MODE_CLUSTER);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, testEnv.getAddress());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
+        serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        // send a dummy write after 1 seconds of inactivity
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 1000);
+
+        ServerConfiguration serverconfig_2 = serverconfig_1
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
+
+        try (Server server_1 = new Server(serverconfig_1)) {
+            server_1.start();
+            server_1.waitForStandaloneBoot();
+            Table table = Table.builder()
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
+            server_1.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 3)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+            server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            DMLStatementExecutionResult executeUpdateTransaction = server_1.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 5)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
+            server_1.getManager().executeStatement(new CommitTransactionStatement(TableSpace.DEFAULT, executeUpdateTransaction.transactionId), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+            try (Server server_2 = new Server(serverconfig_2)) {
+                server_2.start();
+
+                server_1.getManager().executeStatement(new AlterTableSpaceStatement(TableSpace.DEFAULT,
+                        new HashSet<>(Arrays.asList("server1", "server2")), "server1", 2, 0), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+
+                assertTrue(server_2.getManager().waitForTablespace(TableSpace.DEFAULT, 60000, false));
+
+                // wait for data to arrive on server_2
+                for (int i = 0; i < 100; i++) {
+                    GetResult found = server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(5), null, false), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
+                    if (found.found()) {
+                        break;
+                    }
+                    Thread.sleep(100);
+                }
+                for (int i = 1; i <= 5; i++) {
+                    System.out.println("checking key c=" + i);
+                    assertTrue(server_2.getManager().get(new GetStatement(TableSpace.DEFAULT, "t1", Bytes.from_int(i), null, false),
+                            StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(),
+                            TransactionContext.NO_TRANSACTION).found());
+                }
+
+            }
+
+        }
+    }
+
+    @Test
     public void test_leader_offline_log_available() throws Exception {
         ServerConfiguration serverconfig_1 = new ServerConfiguration(folder.newFolder().toPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_NODEID, "server1");
@@ -156,6 +221,7 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
@@ -211,6 +277,7 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 1);
         serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
@@ -305,6 +372,7 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_PATH, testEnv.getPath());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, testEnv.getTimeout());
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()
@@ -410,6 +478,7 @@ public class MultiServerTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
         serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, 1);
         serverconfig_1.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, 0);
+        serverconfig_1.set(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, 0); // disabled
 
         ServerConfiguration serverconfig_2 = serverconfig_1
                 .copy()

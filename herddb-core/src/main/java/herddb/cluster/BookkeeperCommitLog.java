@@ -41,6 +41,7 @@ import herddb.log.CommitLog;
 import herddb.log.CommitLogResult;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
+import herddb.log.LogEntryFactory;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
@@ -58,11 +59,13 @@ public class BookkeeperCommitLog extends CommitLog {
 
     private final String sharedSecret = "herddb";
     private final BookKeeper bookKeeper;
+    private final BookkeeperCommitLogManager parent;
     private final ZookeeperMetadataStorageManager metadataManager;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final String tableSpaceUUID;
     private final String tableSpaceName; // only for logging
     private final String localNodeId; // only for logging
+    private volatile long lastWriteTs = 0;
     private volatile CommitFileWriter writer;
     private volatile long currentLedgerId = 0;
     private volatile long lastLedgerId = -1;
@@ -72,6 +75,8 @@ public class BookkeeperCommitLog extends CommitLog {
     private int writeQuorumSize = 1;
     private int ackQuorumSize = 1;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
+    private long maxIdleTime = 0;
+
     private volatile boolean closed = false;
     private volatile boolean failed = false;
 
@@ -85,6 +90,20 @@ public class BookkeeperCommitLog extends CommitLog {
 
     public void rollNewLedger() {
         openNewLedger();
+    }
+
+    void forceLastAddConfirmed() {
+        if (maxIdleTime <= 0 || closed) {
+            return;
+        }
+        long _lastWriteTs = lastWriteTs;
+        long idleTime = System.currentTimeMillis() - _lastWriteTs;
+        if (_lastWriteTs > 0 && idleTime > maxIdleTime) {
+            CommitFileWriter _writer = writer;
+            if (_writer != null) {
+                _writer.writeNoop();
+            }
+        }
     }
 
     private class CommitFileWriter implements AutoCloseable {
@@ -117,6 +136,7 @@ public class BookkeeperCommitLog extends CommitLog {
             CompletableFuture<LogSequenceNumber> res = new CompletableFuture<>();
             this.out.asyncAddEntry(serialize, (int rc, LedgerHandle lh, long offset, Object o) -> {
                 if (rc == BKException.Code.OK) {
+                    lastWriteTs = System.currentTimeMillis();
                     res.complete(new LogSequenceNumber(lh.getId(), offset));
                 } else {
                     errorOccurredDuringWrite = true;
@@ -147,15 +167,25 @@ public class BookkeeperCommitLog extends CommitLog {
             }
         }
 
+        private void writeNoop() {
+            // write a dummy entry, this will force LastAddConfirmed to be piggybacked
+            try {
+                log(LogEntryFactory.noop(), false);
+            } catch (Throwable t) {
+                LOGGER.log(Level.SEVERE, "error", t);
+            }
+        }
+
     }
 
     public BookkeeperCommitLog(String tableSpaceUUID, String tableSpaceName, String localNodeId,
-            ZookeeperMetadataStorageManager metadataStorageManager, BookKeeper bookkeeper) throws LogNotAvailableException {
+            ZookeeperMetadataStorageManager metadataStorageManager, BookKeeper bookkeeper, BookkeeperCommitLogManager parent) throws LogNotAvailableException {
         this.metadataManager = metadataStorageManager;
         this.tableSpaceUUID = tableSpaceUUID;
         this.tableSpaceName = tableSpaceName;
         this.localNodeId = localNodeId;
         this.bookKeeper = bookkeeper;
+        this.parent = parent;
     }
 
     public long getLastLedgerId() {
@@ -192,6 +222,14 @@ public class BookkeeperCommitLog extends CommitLog {
 
     public void setLedgersRetentionPeriod(long ledgersRetentionPeriod) {
         this.ledgersRetentionPeriod = ledgersRetentionPeriod;
+    }
+
+    public long getMaxIdleTime() {
+        return maxIdleTime;
+    }
+
+    public void setMaxIdleTime(long maxIdleTime) {
+        this.maxIdleTime = maxIdleTime;
     }
 
     @Override
@@ -271,7 +309,7 @@ public class BookkeeperCommitLog extends CommitLog {
             closeCurrentWriter();
             writer = new CommitFileWriter();
             currentLedgerId = writer.getLedgerId();
-            LOGGER.log(Level.SEVERE, "Opened new ledger:" + currentLedgerId);
+            LOGGER.log(Level.SEVERE, "Tablespace {1}, opened new ledger:{0}", new Object[]{currentLedgerId, tableSpaceDescription()});
             if (actualLedgersList.getFirstLedger() < 0) {
                 actualLedgersList.setFirstLedger(currentLedgerId);
             }
@@ -284,24 +322,25 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public void recovery(LogSequenceNumber snapshotSequenceNumber, BiConsumer<LogSequenceNumber, LogEntry> consumer, boolean fencing) throws LogNotAvailableException {
+        String tableSpaceDescription = tableSpaceDescription();
         this.actualLedgersList = metadataManager.getActualLedgersList(tableSpaceUUID);
-        LOGGER.log(Level.SEVERE, "Actual ledgers list:" + actualLedgersList + " tableSpace " + tableSpaceDescription());
+        LOGGER.log(Level.SEVERE, "Actual ledgers list:{0} tableSpace {1}", new Object[]{actualLedgersList, tableSpaceDescription});
         this.lastLedgerId = snapshotSequenceNumber.ledgerId;
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
         this.lastSequenceNumber.set(snapshotSequenceNumber.offset);
-        LOGGER.log(Level.SEVERE, "recovery from latest snapshotSequenceNumber:" + snapshotSequenceNumber);
+        LOGGER.log(Level.SEVERE, "recovery from latest snapshotSequenceNumber:{0} tableSpace", new Object[]{snapshotSequenceNumber, tableSpaceDescription});
         if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId) && !this.actualLedgersList.getActiveLedgers().isEmpty()) {
             // TODO: download snapshot from another remote broker
-            throw new FullRecoveryNeededException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId));
+            throw new FullRecoveryNeededException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId+" tablespace "+tableSpaceDescription));
         }
         if (snapshotSequenceNumber.isStartOfTime() && !this.actualLedgersList.getActiveLedgers().isEmpty() && !this.actualLedgersList.getActiveLedgers().contains(this.actualLedgersList.getFirstLedger())) {
-            throw new FullRecoveryNeededException(new Exception("Local data is absent, and actual ledger list " + this.actualLedgersList.getActiveLedgers() + " does not contain first ledger of ever: " + this.actualLedgersList.getFirstLedger()));
+            throw new FullRecoveryNeededException(new Exception("Tablespace "+tableSpaceDescription+": Local data is absent, and actual ledger list " + this.actualLedgersList.getActiveLedgers() + " does not contain first ledger of ever: " + this.actualLedgersList.getFirstLedger()));
         }
         try {
             for (long ledgerId : actualLedgersList.getActiveLedgers()) {
 
                 if (ledgerId < snapshotSequenceNumber.ledgerId) {
-                    LOGGER.log(Level.SEVERE, "Skipping ledger " + ledgerId);
+                    LOGGER.log(Level.FINER, "Skipping ledger {0}", ledgerId);
                     continue;
                 }
                 LedgerHandle handle;
@@ -314,14 +353,14 @@ public class BookkeeperCommitLog extends CommitLog {
                     long first;
                     if (ledgerId == snapshotSequenceNumber.ledgerId) {
                         first = snapshotSequenceNumber.offset;
-                        LOGGER.log(Level.SEVERE, "Recovering from latest snapshot ledger " + ledgerId + ", starting from entry " + first);
+                        LOGGER.log(Level.FINE, "Tablespace "+tableSpaceDescription+", recovering from latest snapshot ledger " + ledgerId + ", starting from entry " + first);
                     } else {
                         first = 0;
-                        LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", starting from entry " + first);
+                        LOGGER.log(Level.FINE, "Tablespace "+tableSpaceDescription+", recovering from ledger " + ledgerId + ", starting from entry " + first);
                     }
                     long lastAddConfirmed = handle.getLastAddConfirmed();
-                    LOGGER.log(Level.SEVERE, "Recovering from ledger " + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
-
+                    LOGGER.log(Level.INFO, "Tablespace "+tableSpaceDescription+", Recovering from ledger " + ledgerId + ", first=" + first + " lastAddConfirmed=" + lastAddConfirmed);
+                    
                     final int BATCH_SIZE = 10000;
                     if (lastAddConfirmed >= 0) {
 
@@ -334,7 +373,7 @@ public class BookkeeperCommitLog extends CommitLog {
                             b = end + 1;
                             double percent = ((start - first) * 100.0 / (lastAddConfirmed + 1));
                             int entriesToRead = (int) (1 + end - start);
-                            LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %)", new Object[]{start, end, percent});
+                            LOGGER.log(Level.FINE, "From entry {0}, to entry {1} ({2} %)", new Object[]{start, end, percent, tableSpaceDescription});
                             long _start = System.currentTimeMillis();
 
                             Enumeration<LedgerEntry> entries = handle.readEntries(start, end);
@@ -356,25 +395,25 @@ public class BookkeeperCommitLog extends CommitLog {
                                 }
                                 localEntryCount++;
                             }
-                            LOGGER.log(Level.SEVERE, "read " + localEntryCount + " entries from ledger " + ledgerId + ", expected " + entriesToRead);
+                            LOGGER.log(Level.FINER, "read " + localEntryCount + " entries from ledger " + ledgerId + ", expected " + entriesToRead);
 
-                            LOGGER.log(Level.SEVERE, "finished waiting for " + entriesToRead + " entries to be read from ledger " + ledgerId);
+                            LOGGER.log(Level.FINER, "finished waiting for " + entriesToRead + " entries to be read from ledger " + ledgerId);
                             if (localEntryCount != entriesToRead) {
                                 throw new LogNotAvailableException("Read " + localEntryCount + " entries, expected " + entriesToRead);
                             }
                             lastLedgerId = ledgerId;
                             lastSequenceNumber.set(end);
                             long _stop = System.currentTimeMillis();
-                            LOGGER.log(Level.SEVERE, "From entry {0}, to entry {1} ({2} %) read time {3}", new Object[]{start, end, percent, (_stop - _start) + " ms"});
+                            LOGGER.log(Level.INFO, "{4} From entry {0}, to entry {1} ({2} %) read time {3}", new Object[]{start, end, percent, (_stop - _start) + " ms", tableSpaceDescription});
                         }
                     }
                 } finally {
                     handle.close();
                 }
             }
-            LOGGER.severe("After recovery of " + tableSpaceDescription() + " lastSequenceNumber " + getLastSequenceNumber());
+            LOGGER.log(Level.INFO, "After recovery of {0} lastSequenceNumber {1}", new Object[]{tableSpaceDescription, getLastSequenceNumber()});
         } catch (InterruptedException | EOFException | RuntimeException | BKException err) {
-            LOGGER.log(Level.SEVERE, "Fatal error during recovery", err);
+            LOGGER.log(Level.SEVERE, "Fatal error during recovery of "+tableSpaceDescription, err);
             signalLogFailed();
             throw new LogNotAvailableException(err);
         }
@@ -430,6 +469,7 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public final void close() {
+        parent.releaseLog(this.tableSpaceUUID);
         lock.writeLock().lock();
         try {
             if (closed) {
@@ -492,13 +532,13 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
                 try {
                     long lastAddConfirmed = lh.getLastAddConfirmed();
-                    LOGGER.log(Level.FINE, "followTheLeader {3} openLedger {0} -> lastAddConfirmed:{1}, nextEntry:{2}", new Object[]{previous, lastAddConfirmed, nextEntry, tableSpaceDescription()});
+//                    LOGGER.log(Level.INFO, "followTheLeader {3} openLedger {0} -> lastAddConfirmed:{1}, nextEntry:{2}", new Object[]{previous, lastAddConfirmed, nextEntry, tableSpaceDescription()});
                     if (nextEntry > lastAddConfirmed) {
                         nextEntry = 0;
                         continue;
                     }
                     Enumeration<LedgerEntry> entries
-                            = lh.readEntries(nextEntry, lh.getLastAddConfirmed());
+                            = lh.readEntries(nextEntry, lastAddConfirmed);
 
                     while (entries.hasMoreElements()) {
                         LedgerEntry e = entries.nextElement();

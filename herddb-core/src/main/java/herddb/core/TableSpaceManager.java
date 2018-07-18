@@ -294,6 +294,10 @@ public class TableSpaceManager {
             LOGGER.log(Level.FINEST, "apply entry {0} {1}", new Object[]{position, entry});
         }
         switch (entry.type) {
+            case LogEntryType.NOOP: {
+                // NOOP
+            }
+            break;
             case LogEntryType.BEGINTRANSACTION: {
                 long id = entry.transactionId;
                 Transaction transaction = new Transaction(id, tableSpaceName, position);

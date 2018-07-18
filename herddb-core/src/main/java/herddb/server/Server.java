@@ -323,6 +323,8 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
                 bkmanager.setWriteQuorumSize(configuration.getInt(ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE, ServerConfiguration.PROPERTY_BOOKKEEPER_WRITEQUORUMSIZE_DEFAULT));
                 long ledgersRetentionPeriod = configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD, ServerConfiguration.PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT);
                 bkmanager.setLedgersRetentionPeriod(ledgersRetentionPeriod);
+                long maxIdleTime = configuration.getLong(ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME, ServerConfiguration.PROPERTY_BOOKKEEPER_MAX_IDLE_TIME_DEFAULT);
+                bkmanager.setMaxIdleTime(maxIdleTime);
                 long checkPointperiod = configuration.getLong(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD_DEFAULT);
 
                 if (checkPointperiod > 0 && ledgersRetentionPeriod > 0) {

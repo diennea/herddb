@@ -83,4 +83,9 @@ public class LogEntryFactory {
                 transaction != null ? transaction.transactionId : 0, table.name, null, null);
     }
 
+    public static LogEntry noop() {
+        return new LogEntry(System.currentTimeMillis(), LogEntryType.NOOP,
+                -1, null, null, null);
+    }
+
 }

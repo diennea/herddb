@@ -25,6 +25,11 @@ import herddb.log.LogNotAvailableException;
 import herddb.server.ServerConfiguration;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.apache.bookkeeper.client.BKException;
@@ -44,9 +49,12 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
     private int writeQuorumSize = 1;
     private int ackQuorumSize = 1;
     private BookKeeper bookKeeper;
-    private StatsLogger statsLogger;
+    private ScheduledExecutorService forceLastAddConfirmedTimer;
+    private final StatsLogger statsLogger;
     private final ClientConfiguration config;
     private long ledgersRetentionPeriod = 1000 * 60 * 60 * 24;
+    private long maxIdleTime = 0;
+    private ConcurrentHashMap<String, BookkeeperCommitLog> activeLogs = new ConcurrentHashMap<>();
 
     public BookkeeperCommitLogManager(ZookeeperMetadataStorageManager metadataStorageManager, ServerConfiguration serverConfiguration, StatsLogger statsLogger) {
         this.statsLogger = statsLogger;
@@ -75,6 +83,20 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
             LOG.log(Level.CONFIG, "{0}={1}", new Object[]{key, config.getProperty(key + "")});
         }
         this.metadataStorageManager = metadataStorageManager;
+        this.forceLastAddConfirmedTimer = Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "force-lac-thread");
+                t.setDaemon(true);
+                return t;
+            }
+        });
+    }
+
+    private void forceLastAddConfirmed() {
+        activeLogs.values().forEach(l -> {
+            l.forceLastAddConfirmed();
+        });
     }
 
     @Override
@@ -85,6 +107,11 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
                             .forConfig(config)
                             .statsLogger(statsLogger)
                             .build();
+            if (maxIdleTime > 0) {
+                this.forceLastAddConfirmedTimer.scheduleWithFixedDelay(() -> {
+                    this.forceLastAddConfirmed();
+                }, maxIdleTime, maxIdleTime, TimeUnit.MILLISECONDS);
+            }
         } catch (IOException | InterruptedException | BKException t) {
             close();
             throw new LogNotAvailableException(t);
@@ -93,6 +120,13 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
 
     @Override
     public void close() {
+        if (forceLastAddConfirmedTimer != null) {
+            try {
+                forceLastAddConfirmedTimer.shutdown();
+            } finally {
+                forceLastAddConfirmedTimer = null;
+            }
+        }
         if (bookKeeper != null) {
             try {
                 bookKeeper.close();
@@ -135,14 +169,28 @@ public class BookkeeperCommitLogManager extends CommitLogManager {
         this.ledgersRetentionPeriod = ledgersRetentionPeriod;
     }
 
+    public long getMaxIdleTime() {
+        return maxIdleTime;
+    }
+
+    public void setMaxIdleTime(long maxIdleTime) {
+        this.maxIdleTime = maxIdleTime;
+    }
+
     @Override
-    public CommitLog createCommitLog(String tableSpace, String tableSpaceName, String localNodeId) throws LogNotAvailableException {
-        BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpace, tableSpaceName, localNodeId, metadataStorageManager, bookKeeper);
+    public CommitLog createCommitLog(String tableSpaceUUID, String tableSpaceName, String localNodeId) throws LogNotAvailableException {
+        BookkeeperCommitLog res = new BookkeeperCommitLog(tableSpaceUUID, tableSpaceName, localNodeId, metadataStorageManager, bookKeeper, this);
         res.setAckQuorumSize(ackQuorumSize);
         res.setEnsemble(ensemble);
         res.setLedgersRetentionPeriod(ledgersRetentionPeriod);
+        res.setMaxIdleTime(maxIdleTime);
         res.setWriteQuorumSize(writeQuorumSize);
+        activeLogs.put(tableSpaceUUID, res);
         return res;
+    }
+
+    void releaseLog(String tableSpaceUUID) {
+        activeLogs.remove(tableSpaceUUID);
     }
 
 }

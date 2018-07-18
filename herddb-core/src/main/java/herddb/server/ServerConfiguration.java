@@ -94,6 +94,9 @@ public final class ServerConfiguration {
     public static final int PROPERTY_BOOKKEEPER_ACKQUORUMSIZE_DEFAULT = 1;
     public static final String PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD = "server.bookkeeper.ledgers.retention.period";
     public static final long PROPERTY_BOOKKEEPER_LEDGERS_RETENTION_PERIOD_DEFAULT = 1000L * 60 * 60 * 24 * 2;
+    
+    public static final String PROPERTY_BOOKKEEPER_MAX_IDLE_TIME = "server.bookkeeper.max.idle.time";
+    public static final long PROPERTY_BOOKKEEPER_MAX_IDLE_TIME_DEFAULT = 1000L * 10;
 
     public static final String PROPERTY_CHECKPOINT_PERIOD = "server.checkpoint.period";
     public static final long PROPERTY_CHECKPOINT_PERIOD_DEFAULT = 1000L * 60 * 15;
