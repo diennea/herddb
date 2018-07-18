@@ -1254,7 +1254,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     private void stopTableSpace(String tableSpace, String uuid) throws MetadataStorageManagerException {
-        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " uuid " + uuid + ", on " + nodeId, new Exception("QUI").fillInStackTrace());
+        LOGGER.log(Level.SEVERE, "stopTableSpace " + tableSpace + " uuid " + uuid + ", on " + nodeId);
         try {
             tablesSpaces.get(tableSpace).close();
         } catch (LogNotAvailableException err) {
