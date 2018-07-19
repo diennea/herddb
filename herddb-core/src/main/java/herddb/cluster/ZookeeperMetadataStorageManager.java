@@ -428,8 +428,7 @@ public class ZookeeperMetadataStorageManager extends MetadataStorageManager {
     @Override
     public List<NodeMetadata> listNodes() throws MetadataStorageManagerException {
         try {
-            List<String> children = ensureZooKeeper().getChildren(nodesPath, mainWatcher, null);
-            LOGGER.severe("listNodes: for " + nodesPath + ": " + children);
+            List<String> children = ensureZooKeeper().getChildren(nodesPath, mainWatcher, null);            
             List<NodeMetadata> result = new ArrayList<>();
             for (String child : children) {
                 NodeMetadata nodeMetadata = getNode(child);
