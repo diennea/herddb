@@ -189,6 +189,8 @@ public class LogEntry {
                 case LogEntryType.COMMITTRANSACTION:
                 case LogEntryType.ROLLBACKTRANSACTION:
                     break;
+                case LogEntryType.NOOP:
+                    break;
                 default:
                     throw new IllegalArgumentException("unsupported type " + type);
             }
