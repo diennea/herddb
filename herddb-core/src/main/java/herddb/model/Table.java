@@ -116,8 +116,6 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
         if (pos != columns.length) {
             throw new IllegalStateException();
         }
-        System.out.println("BEFORE: "+Arrays.toString(columns));
-        System.out.println("AFTER: "+Arrays.toString(_columns));
         return _columns;
     }
 
