@@ -94,7 +94,7 @@ public class ServerMain implements AutoCloseable {
 
     public static void main(String... args) {
         try {
-            LOG.severe("Starting HerdDB version " + herddb.utils.Version.getVERSION());
+            LOG.log(Level.INFO, "Starting HerdDB version {0}", herddb.utils.Version.getVERSION());
             Properties configuration = new Properties();
 
             boolean configFileFromParameter = false;
@@ -102,7 +102,7 @@ public class ServerMain implements AutoCloseable {
                 String arg = args[i];
                 if (!arg.startsWith("-")) {
                     File configFile = new File(args[i]).getAbsoluteFile();
-                    LOG.severe("Reading configuration from " + configFile);
+                    LOG.log(Level.INFO, "Reading configuration from {0}", configFile);
                     try (InputStreamReader reader = new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
                     }
@@ -123,7 +123,7 @@ public class ServerMain implements AutoCloseable {
             }
             if (!configFileFromParameter) {
                 File configFile = new File("conf/server.properties").getAbsoluteFile();
-                System.out.println("Reading configuration from " + configFile);
+                LOG.log(Level.INFO, "Reading configuration from {0}", configFile);
                 if (configFile.isFile()) {
                     try (InputStreamReader reader = new InputStreamReader(new FileInputStream(configFile), StandardCharsets.UTF_8)) {
                         configuration.load(reader);
@@ -207,7 +207,7 @@ public class ServerMain implements AutoCloseable {
             String httphost = config.getString("http.host", server.getNetworkServer().getHost());
             String httpadvertisedhost = config.getString("http.advertised.host", server.getServerHostData().getHost());
             int httpport = config.getInt("http.port", 9845);
-            int httpadvertisedport = config.getInt("http.advertised.port", 9845);
+            int httpadvertisedport = config.getInt("http.advertised.port", httpport);
 
             httpserver = new org.eclipse.jetty.server.Server(new InetSocketAddress(httphost, httpport));
             ContextHandlerCollection contexts = new ContextHandlerCollection();
