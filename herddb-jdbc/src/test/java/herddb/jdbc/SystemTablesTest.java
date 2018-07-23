@@ -182,7 +182,7 @@ public class SystemTablesTest {
                             }
                             records.add(record);
                         }
-                        assertEquals(18, records.size());
+                        assertEquals(20, records.size());
                     }
                     try (ResultSet rs = metaData.getSchemas()) {
                         List<List<String>> records = new ArrayList<>();

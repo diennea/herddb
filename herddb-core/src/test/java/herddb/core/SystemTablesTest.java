@@ -182,7 +182,7 @@ public class SystemTablesTest {
                         })
                         .findAny()
                         .isPresent());
-                assertEquals(21, records.size());
+                assertEquals(23, records.size());
             }
             
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexcolumns where table_name like '%tsql' order by index_name, column_name",
