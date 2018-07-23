@@ -64,11 +64,12 @@
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <libs.netty4>4.1.21.Final</libs.netty4>
+        <libs.netty4>4.1.27.Final</libs.netty4>
+        <libs.netty4ssl>2.0.12.Final</libs.netty4ssl>
         <libs.calcite>1.17.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
-        <libs.zookeeper>3.5.3-beta</libs.zookeeper>
+        <libs.zookeeper>3.5.4-beta</libs.zookeeper>
         <libs.jsqlparser>0.9.7</libs.jsqlparser>
         <libs.curator>2.12.0</libs.curator>
         <libs.guava>21.0</libs.guava>        
@@ -123,6 +124,11 @@
                 <artifactId>netty-all</artifactId>
                 <version>${libs.netty4}</version>
             </dependency> 
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-tcnative-boringssl-static</artifactId>            
+                <version>${libs.netty4ssl}</version>
+            </dependency>
             <dependency>
                 <groupId>org.apache.calcite</groupId>
                 <artifactId>calcite-core</artifactId>
@@ -313,7 +319,7 @@
                 <module>herddb-bench</module>                
                 <module>herddb-website</module>                
                 <module>herddb-site-skin</module>                
-		<module>herddb-backward-compatibility</module>
+                <module>herddb-backward-compatibility</module>
             </modules>
             <distributionManagement>        
                 <repository>            
@@ -508,7 +514,7 @@
                 <module>herddb-ui</module>
                 <module>herddb-website</module>
                 <module>herddb-site-skin</module>
-		<module>herddb-backward-compatibility</module>
+                <module>herddb-backward-compatibility</module>
             </modules>           
             <build>        
                 <plugins>                                           
