@@ -42,6 +42,7 @@ import herddb.log.CommitLogResult;
 import herddb.log.FullRecoveryNeededException;
 import herddb.log.LogEntry;
 import herddb.log.LogEntryFactory;
+import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
@@ -65,7 +66,7 @@ public class BookkeeperCommitLog extends CommitLog {
     private final String tableSpaceUUID;
     private final String tableSpaceName; // only for logging
     private final String localNodeId; // only for logging
-    private volatile long lastWriteTs = 0;
+    private volatile long lastApplicationWriteTs = 0;
     private volatile CommitFileWriter writer;
     private volatile long currentLedgerId = 0;
     private volatile long lastLedgerId = -1;
@@ -96,7 +97,7 @@ public class BookkeeperCommitLog extends CommitLog {
         if (maxIdleTime <= 0 || closed) {
             return;
         }
-        long _lastWriteTs = lastWriteTs;
+        long _lastWriteTs = lastApplicationWriteTs;
         long idleTime = System.currentTimeMillis() - _lastWriteTs;
         if (_lastWriteTs > 0 && idleTime > maxIdleTime) {
             CommitFileWriter _writer = writer;
@@ -137,7 +138,9 @@ public class BookkeeperCommitLog extends CommitLog {
             CompletableFuture<LogSequenceNumber> res = new CompletableFuture<>();
             this.out.asyncAddEntry(serialize, (int rc, LedgerHandle lh, long offset, Object o) -> {
                 if (rc == BKException.Code.OK) {
-                    lastWriteTs = System.currentTimeMillis();
+                    if (edit.type != LogEntryType.NOOP) { // do not take into account NOOPs
+                        lastApplicationWriteTs = System.currentTimeMillis();
+                    }
                     res.complete(new LogSequenceNumber(lh.getId(), offset));
                 } else {
                     errorOccurredDuringWrite = true;
