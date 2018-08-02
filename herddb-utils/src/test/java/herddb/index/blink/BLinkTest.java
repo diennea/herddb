@@ -21,9 +21,13 @@ package herddb.index.blink;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,12 +39,10 @@ import org.junit.Test;
 import herddb.core.PageReplacementPolicy;
 import herddb.core.RandomPageReplacementPolicy;
 import herddb.index.blink.BLink.SizeEvaluator;
+import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 import herddb.utils.Holder;
 import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Simpler tests for {@link BLink}
@@ -58,6 +60,7 @@ public class BLinkTest {
         @Override
         public Map<Comparable<K>, Long> loadNodePage(long pageId) throws IOException {
             swapIn.incrementAndGet();
+            @SuppressWarnings("unchecked")
             Map<Comparable<K>, Long> res = (Map<Comparable<K>, Long>) datas.get(pageId);
             return res != null ? new HashMap<>(res) : null;
         }
@@ -65,6 +68,7 @@ public class BLinkTest {
         @Override
         public Map<Comparable<K>, V> loadLeafPage(long pageId) throws IOException {
             swapIn.incrementAndGet();
+            @SuppressWarnings("unchecked")
             Map<Comparable<K>, V> res = (Map<Comparable<K>, V>) datas.get(pageId);
             return res != null ? new HashMap<>(res) : null;
         }
@@ -162,6 +166,90 @@ public class BLinkTest {
             }
 
             assertEquals(data.length, blinkFromMeta.size());
+        }
+
+    }
+
+    @Test
+    public void testUnknownSizeAndRestore() throws Exception {
+
+        String[] data = new String[]{
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+            "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
+        };
+
+        BLinkIndexDataStorage<Sized<String>, Long> storage = new DummyBLinkIndexDataStorage<>();
+
+        BLinkMetadata<Sized<String>> metadata;
+        try (BLink<Sized<String>, Long> blink = new BLink<>(2048L, new StringSizeEvaluator(), new RandomPageReplacementPolicy(3), storage)) {
+
+            for (int i = 0; i < data.length; ++i) {
+                blink.insert(Sized.valueOf(data[i]), i + 1L);
+            }
+
+            assertEquals(data.length, blink.size());
+
+            metadata = blink.checkpoint();
+        }
+
+        /* Reset each node size to unknown */
+        List<BLinkNodeMetadata<Sized<String>>> unknownSizeNodes = new ArrayList<>(metadata.nodes.size());
+        for (BLinkNodeMetadata<Sized<String>> node : metadata.nodes) {
+            unknownSizeNodes.add(new BLinkNodeMetadata<>(
+                    node.leaf,
+                    node.id,
+                    node.storeId,
+                    node.empty,
+                    node.keys,
+                    BLink.UNKNOWN_SIZE,
+                    node.outlink,
+                    node.rightlink,
+                    node.rightsep));
+
+        }
+
+        BLinkMetadata<Sized<String>> unknownSizeMetadata = new BLinkMetadata<>(
+                metadata.nextID,
+                metadata.fast,
+                metadata.fastheight,
+                metadata.top,
+                metadata.topheight,
+                metadata.first,
+                metadata.values,
+                unknownSizeNodes);
+
+        /* Checks that node size has been changed for each node */
+        for(int i = 0; i < metadata.nodes.size(); ++i) {
+            BLinkNodeMetadata<Sized<String>> node = metadata.nodes.get(i);
+            BLinkNodeMetadata<Sized<String>> unknownSizeNode = unknownSizeMetadata.nodes.get(i);
+
+            assertNotNull(unknownSizeNode);
+            assertNotEquals(node.bytes, unknownSizeNode.bytes);
+        }
+
+
+        BLinkMetadata<Sized<String>> rebuildMetadata;
+        try (BLink<Sized<String>, Long> blinkFromMeta = new BLink<>(2048L, new StringSizeEvaluator(), new RandomPageReplacementPolicy(3), storage, unknownSizeMetadata)) {
+
+            /* Require at least two nodes! */
+            assertNotEquals(1, metadata.nodes.size());
+
+            for (int i = 0; i < data.length; ++i) {
+                assertEquals(i + 1L, (long) blinkFromMeta.search(Sized.valueOf(data[i])));
+            }
+
+            assertEquals(data.length, blinkFromMeta.size());
+
+            rebuildMetadata = blinkFromMeta.checkpoint();
+        }
+
+        /* Checks that node size has been restored for each node */
+        for(int i = 0; i < metadata.nodes.size(); ++i) {
+            BLinkNodeMetadata<Sized<String>> node = metadata.nodes.get(i);
+            BLinkNodeMetadata<Sized<String>> rebuildNode = rebuildMetadata.nodes.get(i);
+
+            assertNotNull(rebuildNode);
+            assertEquals(node.bytes, rebuildNode.bytes);
         }
 
     }

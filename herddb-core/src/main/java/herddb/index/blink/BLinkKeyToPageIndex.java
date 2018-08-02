@@ -100,7 +100,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     public static String deriveIndexName(String tableName) {
         return tableName + "_primary";
     }
-    
+
     public BLinkKeyToPageIndex(String tableSpace, String tableName, MemoryManager memoryManager, DataStorageManager dataStorageManager) {
         super();
         this.tableSpace = tableSpace;
@@ -370,6 +370,9 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
             try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
 
+                /* data version */
+                edos.writeVLong(BLinkNodeMetadata.CURRENT_VERSION);
+
                 /* flags for future implementations, actually unused */
                 edos.writeVLong(0L);
                 edos.writeByte(METADATA_PAGE);
@@ -426,9 +429,18 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
             try (SimpleByteArrayInputStream bis = new SimpleByteArrayInputStream(data);
                 ExtendedDataInputStream edis = new ExtendedDataInputStream(bis)) {
 
-                /* flags for future implementations, actually unused */
+                long version = edis.readVLong();
+
+                /*
+                 * Check if byte size needs to be recalculated (between v.0 and v.1 was changed size evaluation
+                 * algorithm so v.0 stored size is meaningless)
+                 */
+                boolean recalculateSize = version == 0;
+
+                /* flags for future implementations, actually unused (exists from version 1)*/
                 @SuppressWarnings("unused")
-                long flags = edis.readVLong();
+                long flags = version > 0 ? edis.readVLong() : 0L;
+
                 byte rtype = edis.readByte();
 
                 if (rtype != METADATA_PAGE) {
@@ -465,6 +477,11 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
                     int keys = edis.readVInt();
                     long bytes = edis.readVLong();
+
+                    if (recalculateSize) {
+                        /* Set size to unknown to force node size recalculation */
+                        bytes = BLink.UNKNOWN_SIZE;
+                    }
 
                     long outlink = edis.readZLong();
                     long rightlink = edis.readZLong();

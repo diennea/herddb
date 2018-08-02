@@ -83,6 +83,12 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
     private static final Logger LOGGER = Logger.getLogger(BLink.class.getName());
 
+    /**
+     * Signal that a node size is unknown and need to be recalculated (if a node has really size 0
+     * recalculation will trigger too but isn't a problem: nothing to recalculate)
+     */
+    static final long UNKNOWN_SIZE = 0L;
+
 //    type
 //        locktype = (readlock, writelock);
 //        nodeptr = "node;
@@ -2540,19 +2546,49 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             }
         }
 
+        @SuppressWarnings("unchecked")
         private void readNodePage(long pageId) throws IOException {
             final Map<Comparable<X>,Long> data = owner.storage.loadNodePage(pageId);
             map = newNodeMap();
-            data.forEach((x,y) -> {
-                Node<X,Y> node = owner.nodes.get(y);
-                map.put(x, node);
-            });
+
+            if (size == UNKNOWN_SIZE) {
+                size = NODE_CONSTANT_SIZE;
+                data.forEach((x,y) -> {
+                    Node<X,Y> node = owner.nodes.get(y);
+                    map.put(x, node);
+
+                    if (x == EverBiggerKey.INSTANCE) {
+                        /* EverBiggerKey being singleton is practically considered 0 size */
+                        size += ENTRY_CONSTANT_SIZE;
+                    } else {
+                        size += owner.evaluator.evaluateKey((X) x) + ENTRY_CONSTANT_SIZE;
+                    }
+                });
+            } else {
+                /* No need to recalculate page size */
+                data.forEach((x,y) -> {
+                    Node<X,Y> node = owner.nodes.get(y);
+                    map.put(x, node);
+                });
+            }
         }
 
+        @SuppressWarnings("unchecked")
         private void readLeafPage(long pageId) throws IOException {
             final Map<Comparable<X>,Y> data = owner.storage.loadLeafPage(pageId);
             map = newNodeMap();
-            map.putAll(data);
+
+            if (size == UNKNOWN_SIZE) {
+                size = NODE_CONSTANT_SIZE;
+                /* Avoid a double entries loop and both put and evaluate in one loop */
+                data.forEach((x,y) -> {
+                    map.put(x, y);
+                    size += owner.evaluator.evaluateAll((X) x,y) + ENTRY_CONSTANT_SIZE;
+                });
+            } else {
+                /* Just a simple putAll, no need to recalculate page size */
+                map.putAll(data);
+            }
         }
 
         @Override

@@ -57,7 +57,7 @@ public final class BLinkMetadata<K> {
 
     public BLinkMetadata(long nextID,
             long fast, int fastheight, long top, int topheight,
-            long first, long size,
+            long first, long values,
             List<BLinkNodeMetadata<K>> nodes) {
         super();
         this.nextID = nextID;
@@ -66,7 +66,7 @@ public final class BLinkMetadata<K> {
         this.top = top;
         this.topheight = topheight;
         this.first = first;
-        this.values = size;
+        this.values = values;
         this.nodes = nodes;
     }
 
@@ -90,6 +90,7 @@ public final class BLinkMetadata<K> {
     public static final class BLinkNodeMetadata<K> {
 
         public static final long NO_LINK = -1;
+        public static final long CURRENT_VERSION = 1L;
 
         final boolean leaf;
 
