@@ -1342,10 +1342,10 @@ public class TableSpaceManager {
             logSequenceNumber = log.getLastSequenceNumber();
 
             if (logSequenceNumber.isStartOfTime()) {
-                LOGGER.log(Level.INFO, nodeId + " checkpoint " + tableSpaceName + " at " + logSequenceNumber + ". skipped (no write ever issued to log)");
+                LOGGER.log(Level.INFO, "{0} checkpoint {1} at {2}. skipped (no write ever issued to log)", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
                 return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
             }
-            LOGGER.log(Level.INFO, nodeId + " checkpoint start " + tableSpaceName + " at " + logSequenceNumber);
+            LOGGER.log(Level.INFO, "{0} checkpoint start {1} at {2}", new Object[]{nodeId, tableSpaceName, logSequenceNumber});
             if (actualLogSequenceNumber == null) {
                 throw new DataStorageManagerException("actualLogSequenceNumber cannot be null");
             }
