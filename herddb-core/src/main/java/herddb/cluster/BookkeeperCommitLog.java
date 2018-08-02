@@ -48,6 +48,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import java.util.HashMap;
 import java.util.Map;
+import org.apache.bookkeeper.client.BKException.BKClientClosedException;
 
 /**
  * Commit log replicated on Apache Bookkeeper
@@ -332,7 +333,7 @@ public class BookkeeperCommitLog extends CommitLog {
         this.lastLedgerId = snapshotSequenceNumber.ledgerId;
         this.currentLedgerId = snapshotSequenceNumber.ledgerId;
         this.lastSequenceNumber.set(snapshotSequenceNumber.offset);
-        LOGGER.log(Level.SEVERE, "recovery from latest snapshotSequenceNumber:{0} tableSpace", new Object[]{snapshotSequenceNumber, tableSpaceDescription});
+        LOGGER.log(Level.SEVERE, "recovery from latest snapshotSequenceNumber:{0} tableSpace {1}, node {2}, fencing {3}", new Object[]{snapshotSequenceNumber, tableSpaceDescription, localNodeId, fencing});
         if (currentLedgerId > 0 && !this.actualLedgersList.getActiveLedgers().contains(currentLedgerId) && !this.actualLedgersList.getActiveLedgers().isEmpty()) {
             // TODO: download snapshot from another remote broker
             throw new FullRecoveryNeededException(new Exception("Actual ledgers list does not include latest snapshot ledgerid:" + currentLedgerId + " tablespace " + tableSpaceDescription));
@@ -357,6 +358,11 @@ public class BookkeeperCommitLog extends CommitLog {
                     long first;
                     if (ledgerId == snapshotSequenceNumber.ledgerId) {
                         first = snapshotSequenceNumber.offset;
+                        if (first == -1) {
+                            // this can happen if checkpoint  happened while starting to follow a new ledger but actually no entry was ever read
+                            LOGGER.log(Level.SEVERE, "Tablespace " + tableSpaceDescription + ", recovering from latest snapshot ledger " + ledgerId + ", first entry " + first + " is not valid. Adjusting to 0");
+                            first = 0;
+                        }
                         LOGGER.log(Level.FINE, "Tablespace " + tableSpaceDescription + ", recovering from latest snapshot ledger " + ledgerId + ", starting from entry " + first);
                     } else {
                         first = 0;
@@ -556,7 +562,7 @@ public class BookkeeperCommitLog extends CommitLog {
                             lastSequenceNumber.accumulateAndGet(number.offset, EnsureLongIncrementAccumulator.INSTANCE);
                         } else {
                             lastSequenceNumber.set(number.offset);
-                        }                        
+                        }
                         lastLedgerId = number.ledgerId;
                         currentLedgerId = number.ledgerId;
                         consumer.accept(number, statusEdit);
@@ -572,6 +578,8 @@ public class BookkeeperCommitLog extends CommitLog {
                     }
                 }
             }
+        } catch (BKClientClosedException err) {
+            LOGGER.log(Level.INFO, "stop following " + tableSpaceDescription() + " due to " + err);
         } catch (InterruptedException | EOFException | BKException err) {
             LOGGER.log(Level.SEVERE, "internal error", err);
             throw new LogNotAvailableException(err);
