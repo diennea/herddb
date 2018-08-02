@@ -371,6 +371,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         /**
          * Added flags options after version in metadata and forced byte size recalculation due to changes
          * on size evaluation algorithm
+         *
+         * @since 0.6.0
          */
         private static final long VERSION_1 = 1L;
 
