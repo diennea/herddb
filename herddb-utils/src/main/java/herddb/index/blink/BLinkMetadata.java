@@ -90,7 +90,6 @@ public final class BLinkMetadata<K> {
     public static final class BLinkNodeMetadata<K> {
 
         public static final long NO_LINK = -1;
-        public static final long CURRENT_VERSION = 1L;
 
         final boolean leaf;
 

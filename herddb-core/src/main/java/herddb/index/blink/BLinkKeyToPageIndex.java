@@ -365,16 +365,29 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         public static final MetadataSerializer INSTANCE = new MetadataSerializer();
 
+        /** Original Version */
+        private static final long VERSION_0 = 0L;
+
+        /**
+         * Added flags options after version in metadata and forced byte size recalculation due to changes
+         * on size evaluation algorithm
+         */
+        private static final long VERSION_1 = 1L;
+
+        public static final long CURRENT_VERSION = VERSION_1;
+
+        private static final long NO_FLAGS = 0L;
+
         public byte[] write(BLinkMetadata<Bytes> metadata) throws IOException {
 
             final VisibleByteArrayOutputStream bos = new VisibleByteArrayOutputStream();
             try (ExtendedDataOutputStream edos = new ExtendedDataOutputStream(bos)) {
 
                 /* data version */
-                edos.writeVLong(BLinkNodeMetadata.CURRENT_VERSION);
+                edos.writeVLong(CURRENT_VERSION);
 
                 /* flags for future implementations, actually unused */
-                edos.writeVLong(0L);
+                edos.writeVLong(NO_FLAGS);
                 edos.writeByte(METADATA_PAGE);
 
                 edos.writeVLong(metadata.nextID);
@@ -435,11 +448,11 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                  * Check if byte size needs to be recalculated (between v.0 and v.1 was changed size evaluation
                  * algorithm so v.0 stored size is meaningless)
                  */
-                boolean recalculateSize = version == 0;
+                boolean recalculateSize = version == VERSION_0;
 
                 /* flags for future implementations, actually unused (exists from version 1)*/
                 @SuppressWarnings("unused")
-                long flags = version > 0 ? edis.readVLong() : 0L;
+                long flags = version > VERSION_0 ? edis.readVLong() : NO_FLAGS;
 
                 byte rtype = edis.readByte();
 
