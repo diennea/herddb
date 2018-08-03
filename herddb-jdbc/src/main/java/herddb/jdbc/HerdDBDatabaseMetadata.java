@@ -1095,7 +1095,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * @param schema a schema name; must match the schema name as it is stored
      * in this database; "" retrieves those without a schema; <code>null</code>
      * means that the schema name should not be used to narrow the search
-     * @param table a table name; must match the table name as it is stored in
+     * @param tableNamePattern a table name; must match the table name as it is stored in
      * this database
      * @param onlyUnique when true, return only indices for unique values; when
      * false, return indices regardless of whether unique or not
