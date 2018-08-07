@@ -1363,7 +1363,7 @@ public class TableSpaceManager {
                     TableCheckpoint checkpoint = full ? tableManager.fullCheckpoint(pin) : tableManager.checkpoint(pin);
 
                     if (checkpoint != null) {
-                        LOGGER.log(Level.INFO, "checkpoint done for table " + tableSpaceName + "." + tableManager.getTable().name + " (pin: " + pin + ")");
+                        LOGGER.log(Level.INFO, "checkpoint done for table {0}.{1} (pin: {2})", new Object[]{tableSpaceName, tableManager.getTable().name, pin});
                         actions.addAll(checkpoint.actions);
                         checkpointsTableNameSequenceNumber.put(checkpoint.tableName, checkpoint.sequenceNumber);
                         if (afterTableCheckPointAction != null) {

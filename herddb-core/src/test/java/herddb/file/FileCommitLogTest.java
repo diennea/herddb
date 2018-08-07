@@ -46,35 +46,38 @@ public class FileCommitLogTest {
 
     @Test
     public void testLog() throws Exception {
-        FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);
-        int writeCount = 0;
-        final long _startWrite = System.currentTimeMillis();
-        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
-            log.startWriting();
-            for (int i = 0; i < 10_000; i++) {
-                log.log(LogEntryFactory.beginTransaction(0), false);
-                writeCount++;
-            }
-        }
-        final long _endWrite = System.currentTimeMillis();
-        AtomicInteger readCount = new AtomicInteger();
-        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
-            log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
-                @Override
-                public void accept(LogSequenceNumber t, LogEntry u) {
-                    readCount.incrementAndGet();
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);) {
+            manager.start();
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                for (int i = 0; i < 10_000; i++) {
+                    log.log(LogEntryFactory.beginTransaction(0), false);
+                    writeCount++;
                 }
-            }, true);
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
         }
-        final long _endRead = System.currentTimeMillis();
-        assertEquals(writeCount, readCount.get());
-        System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
-        System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
     }
 
     @Test
     public void testDiskFullLogMissingFooter() throws Exception {
         try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024)) {
+            manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
@@ -128,6 +131,7 @@ public class FileCommitLogTest {
     @Test
     public void testDiskFullLogBrokenEntry() throws Exception {
         try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024)) {
+            manager.start();
             int writeCount = 0;
             final long _startWrite = System.currentTimeMillis();
             try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
@@ -180,59 +184,63 @@ public class FileCommitLogTest {
 
     @Test
     public void testLogsynch() throws Exception {
-        FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);
-        int writeCount = 0;
-        final long _startWrite = System.currentTimeMillis();
-        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
-            log.startWriting();
-            for (int i = 0; i < 100; i++) {
-                log.log(LogEntryFactory.beginTransaction(0), true);
-                writeCount++;
-            }
-        }
-        final long _endWrite = System.currentTimeMillis();
-        AtomicInteger readCount = new AtomicInteger();
-        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
-            log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
-                @Override
-                public void accept(LogSequenceNumber t, LogEntry u) {
-                    readCount.incrementAndGet();
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 64 * 1024 * 1024);) {
+            manager.start();
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                for (int i = 0; i < 100; i++) {
+                    log.log(LogEntryFactory.beginTransaction(0), true);
+                    writeCount++;
                 }
-            }, true);
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
         }
-        final long _endRead = System.currentTimeMillis();
-        assertEquals(writeCount, readCount.get());
-        System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
-        System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
     }
 
     @Test
     public void testLogMultiFiles() throws Exception {
-        FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 1024);
+        try (FileCommitLogManager manager = new FileCommitLogManager(folder.newFolder().toPath(), 1024);) {
+            manager.start();
 
-        int writeCount = 0;
-        final long _startWrite = System.currentTimeMillis();
-        try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
-            log.startWriting();
-            for (int i = 0; i < 10_000; i++) {
-                log.log(LogEntryFactory.beginTransaction(0), false);
-                writeCount++;
-            }
-        }
-        final long _endWrite = System.currentTimeMillis();
-        AtomicInteger readCount = new AtomicInteger();
-        try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
-            log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
-                @Override
-                public void accept(LogSequenceNumber t, LogEntry u) {
-                    readCount.incrementAndGet();
+            int writeCount = 0;
+            final long _startWrite = System.currentTimeMillis();
+            try (FileCommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.startWriting();
+                for (int i = 0; i < 10_000; i++) {
+                    log.log(LogEntryFactory.beginTransaction(0), false);
+                    writeCount++;
                 }
-            }, true);
+            }
+            final long _endWrite = System.currentTimeMillis();
+            AtomicInteger readCount = new AtomicInteger();
+            try (CommitLog log = manager.createCommitLog("tt", "aa", "nodeid");) {
+                log.recovery(LogSequenceNumber.START_OF_TIME, new BiConsumer<LogSequenceNumber, LogEntry>() {
+                    @Override
+                    public void accept(LogSequenceNumber t, LogEntry u) {
+                        readCount.incrementAndGet();
+                    }
+                }, true);
+            }
+            final long _endRead = System.currentTimeMillis();
+            assertEquals(writeCount, readCount.get());
+            System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
+            System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
         }
-        final long _endRead = System.currentTimeMillis();
-        assertEquals(writeCount, readCount.get());
-        System.out.println("Write time: " + (_endWrite - _startWrite) + " ms");
-        System.out.println("Read time: " + (_endRead - _endWrite) + " ms");
     }
 
 }

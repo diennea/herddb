@@ -457,7 +457,7 @@ public class FileDataStorageManager extends DataStorageManager {
             if (Files.isRegularFile(checkpointFile)) {
                 TableStatus actualStatus = readTableStatusFromFile(checkpointFile);
                 if (actualStatus != null && actualStatus.equals(tableStatus)) {
-                    LOGGER.log(Level.INFO,
+                    LOGGER.log(Level.FINE,
                             "tableCheckpoint " + tableSpace + ", " + tableName + ": " + tableStatus + " (pin:" + pin + ") already saved on file " + checkpointFile);
                     return Collections.emptyList();
                 }
@@ -1352,7 +1352,7 @@ public class FileDataStorageManager extends DataStorageManager {
         @Override
         public void run() {
             try {
-                LOGGER.log(Level.INFO, description);
+                LOGGER.log(Level.FINE, description);
                 Files.deleteIfExists(p);
             } catch (IOException err) {
                 LOGGER.log(Level.SEVERE, "Could not delete file " + p.toAbsolutePath() + ":" + err, err);
