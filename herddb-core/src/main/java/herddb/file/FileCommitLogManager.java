@@ -20,9 +20,16 @@
 package herddb.file;
 
 import herddb.log.CommitLogManager;
+import herddb.log.LogNotAvailableException;
+import herddb.utils.SystemProperties;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 
@@ -33,9 +40,15 @@ import org.apache.bookkeeper.stats.StatsLogger;
  */
 public class FileCommitLogManager extends CommitLogManager {
 
+    private final static int MAXCONCURRENTFSYNCS = SystemProperties.getIntSystemProperty(
+            "herddb.file.maxconcurrentfsyncs", 1);
+
+    private static final Logger LOG = Logger.getLogger(FileCommitLogManager.class.getName());
+
     private final Path baseDirectory;
     private final long maxLogFileSize;
     private final StatsLogger statsLogger;
+    private ExecutorService fsyncThreadPool;
 
     public FileCommitLogManager(Path baseDirectory, long maxLogFileSize) {
         this(baseDirectory, maxLogFileSize, new NullStatsLogger());
@@ -45,17 +58,41 @@ public class FileCommitLogManager extends CommitLogManager {
         this.baseDirectory = baseDirectory;
         this.maxLogFileSize = maxLogFileSize;
         this.statsLogger = statsLogger;
+
     }
 
     @Override
     public FileCommitLog createCommitLog(String tableSpace, String tablespaceName, String localNodeId) {
         try {
+            if (fsyncThreadPool == null) {
+                throw new IllegalStateException("FileCommitLogManager not started");
+            }
             Path folder = baseDirectory.resolve(tableSpace + ".txlog");
             Files.createDirectories(folder);
             return new FileCommitLog(folder, tablespaceName,
-                    maxLogFileSize, statsLogger.scope(tablespaceName));
+                    maxLogFileSize, fsyncThreadPool, statsLogger.scope(tablespaceName));
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
     }
+
+    @Override
+    public void close() {
+        ExecutorService _fsyncThreadPool = fsyncThreadPool;
+        fsyncThreadPool = null;
+        if (_fsyncThreadPool != null) {
+            try {
+                _fsyncThreadPool.shutdown();
+                _fsyncThreadPool.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException ex) {
+                LOG.log(Level.INFO, "Interrupted while waiting for fsync threadpool to exit");
+            }
+        }
+    }
+
+    @Override
+    public void start() throws LogNotAvailableException {
+        this.fsyncThreadPool = Executors.newFixedThreadPool(MAXCONCURRENTFSYNCS);
+    }
+
 }
