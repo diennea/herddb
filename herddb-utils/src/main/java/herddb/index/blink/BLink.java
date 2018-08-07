@@ -22,7 +22,9 @@ package herddb.index.blink;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
@@ -418,7 +420,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     public V search(K v) {
 
         Node<K,V> n;
-        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
+        @SuppressWarnings("unchecked")
+        Deque<ResultCouple<K,V>> descent = DummyDeque.INSTANCE;
 
         try {
 
@@ -456,7 +459,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     public Stream<Entry<K,V>> scan(K from, K to) {
 
         Node<K,V> n;
-        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
+
+        @SuppressWarnings("unchecked")
+        Deque<ResultCouple<K,V>> descent = DummyDeque.INSTANCE;
 
         if (from == null) {
             lock_anchor(READ_LOCK);
@@ -489,7 +494,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     public Stream<Entry<K,V>> scan(K from, K to, boolean toInclusive) {
 
         Node<K,V> n;
-        Deque<ResultCouple<K,V>> descent = new LinkedList<>();
+
+        @SuppressWarnings("unchecked")
+        Deque<ResultCouple<K,V>> descent = DummyDeque.INSTANCE;
 
         if (from == null) {
             lock_anchor(READ_LOCK);
@@ -2102,22 +2109,23 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                  */
 
                 @SuppressWarnings("rawtypes")
-                final Entry<Comparable,Object> ceiling = map.ceilingEntry(v);
-
-                @SuppressWarnings("rawtypes")
                 final Entry<Comparable,Object> first = map.firstEntry();
 
                 /* Check if is the first */
-                if (ceiling.getKey().compareTo(first.getKey()) == 0) {
+                if (first.getKey().compareTo(v) >= 0) {
                     /* First: i == 1 -> return (pi,ubleftsep) */
                     /* Cast to Long: is a node */
-                    return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), ubleftsep);
-                } else {
-                    /* Not the first: i > 1 return (pi,si-1) */
-                    /* Cast to Long: is a node */
-                    final Comparable<X> key = map.lowerKey(v);
-                    return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), key);
+                    return new ResultCouple<>((Node<X,Y>)first.getValue(), ubleftsep);
                 }
+
+                final Comparable<X> key = map.lowerKey(v);
+
+                @SuppressWarnings("rawtypes")
+                final Entry<Comparable,Object> ceiling = map.ceilingEntry(v);
+
+                /* Not the first: i > 1 return (pi,si-1) */
+                /* Cast to Long: is a node */
+                return new ResultCouple<>((Node<X,Y>)ceiling.getValue(), key);
 
             } finally {
                 loadLock.unlock();
@@ -2734,6 +2742,200 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 return o1.compareTo(o2);
             }
         }
+    }
+
+    /**
+     * A dummy ever empty, discarding {@link Deque}, useful when queue isn't really needed
+     *
+     * @author diego.salvi
+     */
+    private static final class DummyDeque<E> implements Deque<E> {
+
+        private static final Object[] EMPTY_ARRAY = new Object[0];
+
+        @SuppressWarnings("rawtypes")
+        public static final Deque INSTANCE = new DummyDeque();
+
+        @SuppressWarnings("unchecked")
+        public static final <X> Deque<X> getInstance() {
+            return INSTANCE;
+        }
+
+        /** No instances! Use {@link #getInstance()} */
+        private DummyDeque () {}
+
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
+
+        @Override
+        public Object[] toArray() {
+            return EMPTY_ARRAY;
+        }
+
+        @Override
+        public <T> T[] toArray(T[] a) {
+            Arrays.fill(a, null);
+            return a;
+        }
+
+        @Override
+        public boolean containsAll(Collection<?> c) {
+            return false;
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends E> c) {
+            return false;
+        }
+
+        @Override
+        public boolean removeAll(Collection<?> c) {
+            return false;
+        }
+
+        @Override
+        public boolean retainAll(Collection<?> c) {
+            return false;
+        }
+
+        @Override
+        public void clear() {
+        }
+
+        @Override
+        public void addFirst(E e) {
+        }
+
+        @Override
+        public void addLast(E e) {
+        }
+
+        @Override
+        public boolean offerFirst(E e) {
+            return false;
+        }
+
+        @Override
+        public boolean offerLast(E e) {
+            return false;
+        }
+
+        @Override
+        public E removeFirst() {
+            return null;
+        }
+
+        @Override
+        public E removeLast() {
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public E pollFirst() {
+            return null;
+        }
+
+        @Override
+        public E pollLast() {
+            return null;
+        }
+
+        @Override
+        public E getFirst() {
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public E getLast() {
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public E peekFirst() {
+            return null;
+        }
+
+        @Override
+        public E peekLast() {
+            return null;
+        }
+
+        @Override
+        public boolean removeFirstOccurrence(Object o) {
+            return false;
+        }
+
+        @Override
+        public boolean removeLastOccurrence(Object o) {
+            return false;
+        }
+
+        @Override
+        public boolean add(E e) {
+            return false;
+        }
+
+        @Override
+        public boolean offer(E e) {
+            return false;
+        }
+
+        @Override
+        public E remove() {
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public E poll() {
+            return null;
+        }
+
+        @Override
+        public E element() {
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public E peek() {
+            return null;
+        }
+
+        @Override
+        public void push(E e) {
+        }
+
+        @Override
+        public E pop() {
+            throw new NoSuchElementException();
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            return false;
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return false;
+        }
+
+        @Override
+        public int size() {
+            return 0;
+        }
+
+        @Override
+        public Iterator<E> iterator() {
+            return Collections.emptyIterator();
+        }
+
+        @Override
+        public Iterator<E> descendingIterator() {
+            return Collections.emptyIterator();
+        }
+
     }
 
     private final class ScanIterator implements Iterator<Entry<K,V>> {
