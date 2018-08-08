@@ -42,8 +42,16 @@ public final class Message {
     }
 
     public static Message ERROR(Throwable error) {
+        return ERROR(error, null);
+    }
+
+    public static Message ERROR(Throwable error, String additionalInfo) {
         Map<String, Object> params = new HashMap<>();
-        params.put("error", error + "");
+        if (additionalInfo != null) {
+            params.put("error", error + " " + additionalInfo);
+        } else {
+            params.put("error", error + "");
+        }
         StringWriter writer = new StringWriter();
         error.printStackTrace(new PrintWriter(writer));
         params.put("stackTrace", writer.toString());

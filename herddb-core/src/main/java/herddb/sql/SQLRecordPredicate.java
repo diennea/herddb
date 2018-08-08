@@ -53,10 +53,10 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
 
     static boolean isConstant(Expression exp) {
         return exp instanceof StringValue
-            || exp instanceof LongValue
-            || exp instanceof NullValue
-            || exp instanceof TimestampValue
-            || exp instanceof JdbcParameter;
+                || exp instanceof LongValue
+                || exp instanceof NullValue
+                || exp instanceof TimestampValue
+                || exp instanceof JdbcParameter;
     }
 
     static boolean isConstant(CompiledSQLExpression exp) {
@@ -93,8 +93,8 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
             return PrimaryKeyMatchOutcome.FAILED;
         } else {
             return where == primaryKeyFilter
-                ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
-                : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
+                    ? PrimaryKeyMatchOutcome.FULL_CONDITION_VERIFIED
+                    : PrimaryKeyMatchOutcome.NEED_FULL_RECORD_EVALUATION;
         }
     }
 
@@ -147,15 +147,19 @@ public class SQLRecordPredicate extends Predicate implements TuplePredicate {
         if (value == null) {
             return null;
         }
-        switch (type) {
-            case ColumnTypes.INTEGER:
-                return ((Number) value).intValue();
-            case ColumnTypes.LONG:
-                return ((Number) value).longValue();
-            case ColumnTypes.DOUBLE:
-                return ((Number) value).doubleValue();
-            default:
-                return value;
+        try {
+            switch (type) {
+                case ColumnTypes.INTEGER:
+                    return ((Number) value).intValue();
+                case ColumnTypes.LONG:
+                    return ((Number) value).longValue();
+                case ColumnTypes.DOUBLE:
+                    return ((Number) value).doubleValue();
+                default:
+                    return value;
+            }
+        } catch (ClassCastException err) {
+            throw new IllegalArgumentException("Unexpected error on cast of value "+value+" ("+value.getClass()+"): "+err, err);
         }
     }
 

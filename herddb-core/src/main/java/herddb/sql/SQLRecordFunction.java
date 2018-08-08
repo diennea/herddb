@@ -60,20 +60,24 @@ public class SQLRecordFunction extends RecordFunction {
 
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
-        Map<String, Object> res = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
-        DataAccessor bean = previous != null ? previous.getDataAccessor(table) : DataAccessor.NULL;
-        for (int i = 0; i < columns.size(); i++) {
-            CompiledSQLExpression e = expressions.get(i);
-            String columnName = columns.get(i);
-            herddb.model.Column column = table.getColumn(columnName);
-            if (column == null) {
-                throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);
+        try {
+            Map<String, Object> res = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
+            DataAccessor bean = previous != null ? previous.getDataAccessor(table) : DataAccessor.NULL;
+            for (int i = 0; i < columns.size(); i++) {
+                CompiledSQLExpression e = expressions.get(i);
+                String columnName = columns.get(i);
+                herddb.model.Column column = table.getColumn(columnName);
+                if (column == null) {
+                    throw new StatementExecutionException("unknown column " + columnName + " in table " + table.name);
+                }
+                columnName = column.name;
+                Object value = RecordSerializer.convert(column.type, e.evaluate(bean, context));
+                res.put(columnName, value);
             }
-            columnName = column.name;
-            Object value = RecordSerializer.convert(column.type, e.evaluate(bean, context));
-            res.put(columnName, value);
+            return RecordSerializer.toRecord(res, table).value.data;
+        } catch (IllegalArgumentException err) {
+            throw new StatementExecutionException(err);
         }
-        return RecordSerializer.toRecord(res, table).value.data;
     }
 
     @Override

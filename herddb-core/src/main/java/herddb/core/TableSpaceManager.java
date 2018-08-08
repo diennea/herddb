@@ -61,6 +61,7 @@ import herddb.core.system.SysindexcolumnsTableManager;
 import herddb.core.system.SysindexesTableManager;
 import herddb.core.system.SyslogstatusManager;
 import herddb.core.system.SysnodesTableManager;
+import herddb.core.system.SysstatementsTableManager;
 import herddb.core.system.SystablesTableManager;
 import herddb.core.system.SystablespacereplicastateTableManager;
 import herddb.core.system.SystablespacesTableManager;
@@ -195,7 +196,8 @@ public class TableSpaceManager {
         registerSystemTableManager(new SystablespacesTableManager(this));
         registerSystemTableManager(new SystablespacereplicastateTableManager(this));
         registerSystemTableManager(new SysnodesTableManager(this));
-        
+        registerSystemTableManager(new SysstatementsTableManager(this));
+
     }
 
     private void registerSystemTableManager(AbstractTableManager tableManager) {
@@ -1377,8 +1379,7 @@ public class TableSpaceManager {
             actions.addAll(dataStorageManager.writeCheckpointSequenceNumber(tableSpaceUUID, logSequenceNumber));
 
             /* Indexes checkpoint is handled by TableManagers */
-            
-            if (leader) {                
+            if (leader) {
                 log.dropOldLedgers(logSequenceNumber);
             }
 

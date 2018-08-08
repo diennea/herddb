@@ -111,7 +111,6 @@ import herddb.utils.DefaultJVMHalt;
  */
 public class DBManager implements AutoCloseable, MetadataChangeListener {
 
-    
     private final static Logger LOGGER = Logger.getLogger(DBManager.class.getName());
     private final Map<String, TableSpaceManager> tablesSpaces = new ConcurrentHashMap<>();
     private final MetadataStorageManager metadataStorageManager;
@@ -146,13 +145,12 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private Runnable haltProcedure = DefaultJVMHalt.INSTANCE;
     private final AtomicLong lastCheckPointTs = new AtomicLong(System.currentTimeMillis());
 
-    private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread t = new Thread(r, r + "");
-            t.setDaemon(true);
-            return t;
-        }
+    private final ConcurrentHashMap<Long, RunningStatementInfo> runningStatements = new ConcurrentHashMap<>();
+
+    private final ExecutorService threadPool = Executors.newCachedThreadPool((Runnable r) -> {
+        Thread t = new Thread(r, r + "");
+        t.setDaemon(true);
+        return t;
     });
 
     public DBManager(String nodeId, MetadataStorageManager metadataStorageManager, DataStorageManager dataStorageManager,
@@ -1165,10 +1163,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             try {
                 String tableSpaceUuid = entry.getValue().getTableSpaceUUID();
                 if (entry.getValue().isFailed()) {
-                    LOGGER.log(Level.SEVERE,"tablespace "+tableSpaceUuid+" failed");
+                    LOGGER.log(Level.SEVERE, "tablespace " + tableSpaceUuid + " failed");
                     failedTableSpaces.add(entry.getKey());
                 } else if (!entry.getKey().equals(virtualTableSpaceId) && !actualTablesSpaces.contains(entry.getKey().toLowerCase())) {
-                    LOGGER.log(Level.SEVERE,"tablespace "+tableSpaceUuid+" should not run here");
+                    LOGGER.log(Level.SEVERE, "tablespace " + tableSpaceUuid + " should not run here");
                     failedTableSpaces.add(entry.getKey());
                 } else if (entry.getValue().isLeader()) {
                     metadataStorageManager.updateTableSpaceReplicaState(
@@ -1316,4 +1314,16 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         this.clearAtBoot = clearAtBoot;
     }
 
+    public void registerRunningStatement(RunningStatementInfo info) {
+        runningStatements.put(info.getId(), info);
+    }
+
+    public void unregisterRunningStatement(RunningStatementInfo info) {
+
+        runningStatements.remove(info.getId());
+    }
+
+    public ConcurrentHashMap<Long, RunningStatementInfo> getRunningStatements() {
+        return runningStatements;
+    }
 }
