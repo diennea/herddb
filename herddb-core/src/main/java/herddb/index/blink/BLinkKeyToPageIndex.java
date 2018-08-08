@@ -46,7 +46,6 @@ import herddb.index.KeyToPageIndex;
 import herddb.index.PrimaryIndexPrefixScan;
 import herddb.index.PrimaryIndexRangeScan;
 import herddb.index.PrimaryIndexSeek;
-import herddb.index.blink.BLink.EverBiggerKey;
 import herddb.index.blink.BLink.SizeEvaluator;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 import herddb.log.LogSequenceNumber;
@@ -359,6 +358,12 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         public long evaluateAll(Bytes key, Long value) {
             return key.getEstimatedSize() + 24L;
         }
+
+        @Override
+        public Bytes getPosiviveInfinityKey() {
+            return Bytes.POSITIVE_INFINITY;
+        }
+        
     }
 
     public static final class MetadataSerializer {
@@ -420,7 +425,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     edos.writeZLong(node.outlink);
                     edos.writeZLong(node.rightlink);
 
-                    boolean hasInf = node.rightsep == EverBiggerKey.INSTANCE;
+                    boolean hasInf = node.rightsep == Bytes.POSITIVE_INFINITY;
 
                     edos.writeBoolean(hasInf);
 
@@ -505,7 +510,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
                     Comparable<Bytes> rightsep;
                     if (hasInf) {
-                        rightsep = EverBiggerKey.INSTANCE;
+                        rightsep = Bytes.POSITIVE_INFINITY;
                     } else {
                         rightsep = Bytes.from_array(edis.readArray());
                     }
@@ -567,7 +572,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                             break;
 
                         case NODE_PAGE_INF_BLOCK:
-                            map.put(EverBiggerKey.INSTANCE, in.readVLong());
+                            map.put(Bytes.POSITIVE_INFINITY, in.readVLong());
                             break;
 
                         default:
@@ -624,7 +629,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
                 data.forEach((x, y) -> {
                     try {
-                        if (x == EverBiggerKey.INSTANCE) {
+                        if (x == Bytes.POSITIVE_INFINITY) {
                             // Handle special case for +inf key
                             out.writeByte(NODE_PAGE_INF_BLOCK);
                             out.writeVLong(y);

@@ -35,6 +35,8 @@ import java.nio.ByteOrder;
 @SuppressFBWarnings(value = {"EI_EXPOSE_REP2", "EI_EXPOSE_REP", "UUF_UNUSED_PUBLIC_OR_PROTECTED_FIELD"})
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
+    public static final Bytes POSITIVE_INFINITY = new Bytes(new byte[0]);
+    
     private static final boolean UNALIGNED = PlatformDependent.isUnaligned();
     private static final boolean HAS_UNSAFE = PlatformDependent.hasUnsafe();
     private static final boolean BIG_ENDIAN_NATIVE_ORDER = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
@@ -290,6 +292,11 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     @Override
     public int compareTo(Bytes o) {
+        if (this == POSITIVE_INFINITY) {
+            return this == o ? 0 : 1;
+        } else if (o == POSITIVE_INFINITY) {
+            return -1;
+        }
         return compare(this.data, o.data);
     }
 
