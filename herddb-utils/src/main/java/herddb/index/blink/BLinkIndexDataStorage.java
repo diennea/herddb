@@ -25,7 +25,7 @@ import java.util.Map;
 /**
  * @author diego.salvi
  */
-interface BLinkIndexDataStorage<X,Y> {
+public interface BLinkIndexDataStorage<X,Y> {
 
     public static final long NEW_PAGE = -1;
 

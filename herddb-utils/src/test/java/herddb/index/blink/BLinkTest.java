@@ -43,6 +43,7 @@ import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 import herddb.utils.Holder;
 import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Simpler tests for {@link BLink}
@@ -114,6 +115,14 @@ public class BLinkTest {
         public long evaluateAll(Sized<String> key, Long value) {
             return evaluateKey(key) + evaluateValue(value);
         }
+
+        private static final Sized<String> THE_BIGGEST_STRING = Sized.valueOf("{{{{{{{{{{{{{{{{{");
+        
+        @Override
+        public Sized<String> getPosiviveInfinityKey() {
+            return THE_BIGGEST_STRING;
+        }
+
     }
 
     static final class LongSizeEvaluator implements SizeEvaluator<Sized<Long>, Long> {
@@ -132,6 +141,14 @@ public class BLinkTest {
         public long evaluateAll(Sized<Long> key, Long value) {
             return evaluateKey(key) + evaluateValue(value);
         }
+
+        private static final Sized<Long> THE_BIGGEST_LONG = Sized.valueOf(Long.MAX_VALUE);
+        
+        @Override
+        public Sized<Long> getPosiviveInfinityKey() {
+            return THE_BIGGEST_LONG;
+        }
+                
     }
 
     @Test
@@ -177,6 +194,10 @@ public class BLinkTest {
             "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
             "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
         };
+        StringSizeEvaluator evaluator = new StringSizeEvaluator();
+        for (String d : data) {
+            assertTrue(Sized.valueOf(d).compareTo(evaluator.getPosiviveInfinityKey()) < 0);
+        }
 
         BLinkIndexDataStorage<Sized<String>, Long> storage = new DummyBLinkIndexDataStorage<>();
 
@@ -219,14 +240,13 @@ public class BLinkTest {
                 unknownSizeNodes);
 
         /* Checks that node size has been changed for each node */
-        for(int i = 0; i < metadata.nodes.size(); ++i) {
+        for (int i = 0; i < metadata.nodes.size(); ++i) {
             BLinkNodeMetadata<Sized<String>> node = metadata.nodes.get(i);
             BLinkNodeMetadata<Sized<String>> unknownSizeNode = unknownSizeMetadata.nodes.get(i);
 
             assertNotNull(unknownSizeNode);
             assertNotEquals(node.bytes, unknownSizeNode.bytes);
         }
-
 
         BLinkMetadata<Sized<String>> rebuildMetadata;
         try (BLink<Sized<String>, Long> blinkFromMeta = new BLink<>(2048L, new StringSizeEvaluator(), new RandomPageReplacementPolicy(3), storage, unknownSizeMetadata)) {
@@ -244,7 +264,7 @@ public class BLinkTest {
         }
 
         /* Checks that node size has been restored for each node */
-        for(int i = 0; i < metadata.nodes.size(); ++i) {
+        for (int i = 0; i < metadata.nodes.size(); ++i) {
             BLinkNodeMetadata<Sized<String>> node = metadata.nodes.get(i);
             BLinkNodeMetadata<Sized<String>> rebuildNode = rebuildMetadata.nodes.get(i);
 
@@ -289,7 +309,7 @@ public class BLinkTest {
     }
 
     private void testDataSet(List<Long> data, int maxSize) throws Exception {
-        System.out.println("testDataSet " + data.size() + " maxSize:" + maxSize+": "+data);
+        System.out.println("testDataSet " + data.size() + " maxSize:" + maxSize + ": " + data);
         BLinkIndexDataStorage<Sized<Long>, Long> storage = new DummyBLinkIndexDataStorage<>();
         BLinkMetadata<Sized<Long>> metadata;
         try (BLink<Sized<Long>, Long> blink = new BLink<>(maxSize, new LongSizeEvaluator(), new RandomPageReplacementPolicy(10), storage)) {
