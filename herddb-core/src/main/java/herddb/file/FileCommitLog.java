@@ -50,6 +50,7 @@ import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.FileUtils;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SystemProperties;
+import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.ExecutorService;
 import org.apache.bookkeeper.stats.Counter;
 import org.apache.bookkeeper.stats.OpStatsLogger;
@@ -110,6 +111,7 @@ public class FileCommitLog extends CommitLog {
         final Path filename;
         final FileChannel channel;
         final ExtendedDataOutputStream out;
+        volatile boolean writerClosed;
 
         private CommitFileWriter(long ledgerId, long sequenceNumber) throws IOException {
             this.ledgerId = ledgerId;
@@ -145,14 +147,19 @@ public class FileCommitLog extends CommitLog {
             }
             long now = System.nanoTime();
             /* We don't need to flush file metadatas, flush just data! */
-            this.channel.force(false);
+            try {
+                this.channel.force(false);
+            } catch (ClosedChannelException closed) {
+                if (!writerClosed) {
+                    throw closed;
+                }
+            }
             statsFsyncTime.registerSuccessfulEvent(System.nanoTime() - now, TimeUnit.NANOSECONDS);
         }
 
         @Override
         public void close() throws LogNotAvailableException {
             try {
-
                 try {
                     out.flush();
                     sync();
@@ -161,6 +168,10 @@ public class FileCommitLog extends CommitLog {
                 }
             } finally {
                 try {
+                    // we are closing this writer, every write has been fsync'd so
+                    // new fsyncs in another thread may ignore errors
+                    writerClosed = true;
+                    
                     out.close();
                     channel.close();
                 } catch (IOException err) {
