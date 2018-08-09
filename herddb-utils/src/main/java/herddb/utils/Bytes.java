@@ -289,6 +289,10 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
     public static double toDouble(byte[] bytes, int offset) {
         return Double.longBitsToDouble(toLong(bytes, offset));
     }
+    
+    public static int compare(byte[] left, byte[] right) {
+        return CompareBytesUtils.compare(left, right);
+    }
 
     @Override
     public int compareTo(Bytes o) {
