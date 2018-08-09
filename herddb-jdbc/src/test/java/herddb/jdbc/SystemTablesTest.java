@@ -91,6 +91,7 @@ public class SystemTablesTest {
                         assertTrue(records.stream().filter(s -> s.contains("mytable2")).findAny().isPresent());
                         assertTrue(records.stream().filter(s -> s.contains("systables")).findAny().isPresent());
                         assertTrue(records.stream().filter(s -> s.contains("syscolumns")).findAny().isPresent());
+                        assertTrue(records.stream().filter(s -> s.contains("sysstatements")).findAny().isPresent());
 
                     }
 
@@ -182,7 +183,8 @@ public class SystemTablesTest {
                             }
                             records.add(record);
                         }
-                        assertEquals(20, records.size());
+                        // this is to be incremented at every new systable
+                        assertEquals(21, records.size());
                     }
                     try (ResultSet rs = metaData.getSchemas()) {
                         List<List<String>> records = new ArrayList<>();
