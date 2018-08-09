@@ -23,4 +23,57 @@
             <artifactId>lz4</artifactId>
         </dependency>
     </dependencies>
+    <profiles>
+        <profile>
+            <id>jdk9</id>
+            <activation>
+                <jdk>[9,)</jdk>
+            </activation>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-compiler-plugin</artifactId>
+                            <executions>
+                                <execution>
+                                    <id>jdk9</id>
+                                    <goals>
+                                        <goal>compile</goal>
+                                    </goals>
+                                    <configuration>
+                                        <release>9</release>
+                                        <compileSourceRoots>
+                                            <compileSourceRoot>${project.basedir}/src/main/java9</compileSourceRoot>
+                                        </compileSourceRoots>
+                                        <outputDirectory>${project.build.outputDirectory}/META-INF/versions/9</outputDirectory>
+                                        <compilerArgs>
+                                            <arg>--patch-module</arg>
+                                            <arg>example.mrjar=${project.build.outputDirectory}</arg>
+                                        </compilerArgs>
+                                    </configuration>
+                                </execution>
+                            </executions>
+                        </plugin>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-jar-plugin</artifactId>
+                            <executions>
+                                <execution>
+                                    <id>default-jar</id>
+                                    <configuration>
+                                        <archive>
+                                            <manifestEntries>
+                                                <Multi-Release>true</Multi-Release>
+                                            </manifestEntries>
+                                        </archive>
+                                    </configuration>
+                                </execution>
+                            </executions>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+    </profiles>
 </project>
