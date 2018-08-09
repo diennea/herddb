@@ -33,13 +33,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.Spliterators;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -55,8 +56,6 @@ import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 
 /**
  * Java implementation of b-link tree derived from Vladimir Lanin and Dennis
@@ -156,11 +155,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Evaluate both key and value size
          */
         public long evaluateAll(X key, Y value);
-        
+
         /**
          * Returns a value which is greater than all of the other values.
          * Code will check using '==', so this value must be a singleton.
-         * 
+         *
          * @return a value which is greater than every other value
          */
         public X getPosiviveInfinityKey();
@@ -679,7 +678,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @param descent
      * @return
      */
-    @SuppressWarnings("unchecked")
     private Node<K, V> locate_leaf(K v, int lastlock, Deque<ResultCouple<K, V>> descent) throws IOException {
 
         Node<K, V> n, m;
@@ -689,7 +687,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * ubleftsep stands for "upper bound on the leftsep of the current node". This value is recorded for
          * each node on the descent stack so that an ascending process can tell if it's too far to the right.
          */
-        Comparable<K> ubleftsep;
+        K ubleftsep;
 
         lock_anchor(READ_LOCK);
         n = anchor.fast;
@@ -761,7 +759,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @param rw
      * @return
      */
-    private ResultCouple<K, V> move_right(K v, Node<K, V> n, Comparable<K> ubleftsep, int rw) {
+    private ResultCouple<K, V> move_right(K v, Node<K, V> n, K ubleftsep, int rw) {
 
         Node<K, V> m;
 
@@ -888,7 +886,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      */
     private void ascend(int t, K sep, Node<K, V> child, int toheight, Deque<ResultCouple<K, V>> descent, Queue<CriticJob> maintenance) throws IOException {
         Node<K, V> n;
-        Comparable<K> ubleftsep;
+        K ubleftsep;
 
         ResultCouple<K, V> locate_internal = locate_internal(sep, toheight, descent, maintenance);
         n = locate_internal.node;
@@ -1031,12 +1029,11 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
      * @param descent
      * @return
      */
-    @SuppressWarnings("unchecked")
     private ResultCouple<K, V> locate_internal(K v, int toheight, Deque<ResultCouple<K, V>> descent, Queue<CriticJob> maintenance) throws IOException {
 
         Node<K, V> n, m, newroot;
         int h, enterheight;
-        Comparable<K> ubleftsep;
+        K ubleftsep;
 
         if (descent.isEmpty()) {
             /*
@@ -1245,7 +1242,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     /*
      * The search structure operations. Locking ensures that they are atomic.
      */
-    @SuppressWarnings("unchecked")
     private Node<K, V> allocate_node(boolean leaf) {
         final Long nodeID = nextID.getAndIncrement();
         final Node<K, V> node = new Node<>(nodeID, leaf, this, positiveInfinity);
@@ -1424,8 +1420,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                         /* No other nodes currently loaded and can't require to unload itself */
                         final LockAndUnload<K, V> loadLock = node.loadAndLock(true);
                         try {
-                            for (Entry<Comparable<K>, V> child
-                                    : (Collection<Entry<Comparable<K>, V>>) (Collection<?>) node.map.entrySet()) {
+                            for (Entry<K, V> child
+                                    : (Collection<Entry<K, V>>) (Collection<?>) node.map.entrySet()) {
 
                                 builder.append(child.getValue()).append(" <- ").append(child.getKey()).append(" | ");
                             }
@@ -1449,8 +1445,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                         /* No other nodes currently loaded and can't require to unload itself */
                         final LockAndUnload<K, V> loadLock = node.loadAndLock(true);
                         try {
-                            for (Entry<Comparable<K>, Node<K, V>> child
-                                    : (Collection<Entry<Comparable<K>, Node<K, V>>>) (Collection<?>) node.map.entrySet()) {
+                            for (Entry<K, Node<K, V>> child
+                                    : (Collection<Entry<K, Node<K, V>>>) (Collection<?>) node.map.entrySet()) {
 
                                 builder.append(child.getValue().pageId).append(" <- ").append(child.getKey()).append(" | ");
                                 cstack.push(new Object[]{child.getValue(), indents + 1});
@@ -1623,16 +1619,14 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         /**
          * Inner nodes will have Long values, leaves Y values
          */
-        @SuppressWarnings("rawtypes")
-        NavigableMap<Comparable, Object> map;
+        NavigableMap<X, Object> map;
 
         /*
          * Next fields won't need to be volatile. They are written only during write lock AND no other thread
          * will have an opportunity do read this field until the lock is released.
          */
         /**
-         * Managed key set size, {@link ConcurrentSkipListMap} size isn't a O(1)
-         * operation but a O(n)
+         * Managed key set size, {@link NavigableMap} size could not be a a O(1) operation.
          */
         int keys;
 
@@ -1641,7 +1635,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          */
         long size;
 
-        Comparable<X> rightsep;
+        X rightsep;
 
         Node<X, Y> outlink;
 
@@ -1653,7 +1647,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         volatile boolean dirty;
 
-        Node(long id, boolean leaf, BLink<X, Y> tree, Comparable<X> rightsep) {
+        Node(long id, boolean leaf, BLink<X, Y> tree, X rightsep) {
 
             super(tree, id);
 
@@ -1679,8 +1673,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             this.dirty = true;
         }
 
-        @SuppressWarnings("rawtypes")
-        private static final NavigableMap<Comparable, Object> newNodeMap() {
+        private static final <A,B> NavigableMap<A, B> newNodeMap() {
             return new TreeMap<>();
         }
 
@@ -1735,7 +1728,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             return size > owner.maxSize;
         }
 
-        Comparable<X> rightsep() {
+        X rightsep() {
             /*
              * Could be an positiveInfinity... pay real attention how you check it (positiveInfinity can compare to
              * any key but no otherwise)
@@ -1761,8 +1754,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         X half_merge(Node<X, Y> right) throws IOException {
 
             // Cast to K, is K for sure because it has a right sibling
-            @SuppressWarnings("unchecked")
-            final X half_merge = (X) rightsep;
+            final X half_merge = rightsep;
 
             LockAndUnload<X, Y> thisLoadLock = null;
             LockAndUnload<X, Y> rightLoadLock = null;
@@ -1868,7 +1860,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             long keeping = 0L;
             int count = 0;
 
-            Comparable<X> lastKey = null;
+            X lastKey = null;
             /*
              * No other nodes currently loaded (right isn't currently known to page policy) and can't require
              * to unload itself.
@@ -1877,18 +1869,18 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             try {
 
                 boolean toright = false;
-                for (Iterator<Entry<Comparable, Object>> entryIt = map.entrySet().iterator();
+                for (Iterator<Entry<X, Object>> entryIt = map.entrySet().iterator();
                         entryIt.hasNext(); ) {
-                    Entry<Comparable, Object> entry = entryIt.next();
+                    Entry<X, Object> entry = entryIt.next();
                     if (toright) {
                         right.map.put(entry.getKey(), entry.getValue());
                         entryIt.remove();
                     } else {
                         ++count;
                         if (leaf) {
-                            keeping += owner.evaluator.evaluateAll((X) entry.getKey(), (Y) entry.getValue()) + ENTRY_CONSTANT_SIZE;
+                            keeping += owner.evaluator.evaluateAll(entry.getKey(), (Y) entry.getValue()) + ENTRY_CONSTANT_SIZE;
                         } else {
-                            keeping += owner.evaluator.evaluateKey((X) entry.getKey()) + ENTRY_CONSTANT_SIZE;
+                            keeping += owner.evaluator.evaluateKey(entry.getKey()) + ENTRY_CONSTANT_SIZE;
                         }
                         if (keeping >= limit) {
                             toright = true;
@@ -1920,7 +1912,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
             // the return value is the new rightmost separator in n
             // Cast to K, is K for sure because it has a right sibling
-            return (X) rightsep;
+            return rightsep;
         }
 
         /* ****************** */
@@ -1935,8 +1927,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X, Y> loadLock = loadAndLock(true);
 
-            @SuppressWarnings("rawtypes")
-            final Map<Comparable, Object> sub;
+            final Map<X, Object> sub;
             try {
 
                 /*
@@ -2130,7 +2121,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * returns (pi,si-1) otherwise (pi,ubleftsep).
          */
         @SuppressWarnings("unchecked")
-        ResultCouple<X, Y> find(X v, Comparable<X> ubleftsep) throws IOException {
+        ResultCouple<X, Y> find(X v, X ubleftsep) throws IOException {
 
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X, Y> loadLock = loadAndLock(true);
@@ -2139,23 +2130,19 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 /*
                  * ...,(pi-1,si-1),(pi,si),(pi+1,si+1)...
                  */
-                @SuppressWarnings("rawtypes")
-                final Entry<Comparable, Object> first = map.firstEntry();
+                final Entry<X, Object> first = map.firstEntry();
 
                 /* Check if is the first */
                 if (first.getKey().compareTo(v) >= 0) {
                     /* First: i == 1 -> return (pi,ubleftsep) */
- /* Cast to Long: is a node */
                     return new ResultCouple<>((Node<X, Y>) first.getValue(), ubleftsep);
                 }
 
-                final Comparable<X> key = map.lowerKey(v);
+                final X key = map.lowerKey(v);
 
-                @SuppressWarnings("rawtypes")
-                final Entry<Comparable, Object> ceiling = map.ceilingEntry(v);
+                final Entry<X, Object> ceiling = map.ceilingEntry(v);
 
                 /* Not the first: i > 1 return (pi,si-1) */
- /* Cast to Long: is a node */
                 return new ResultCouple<>((Node<X, Y>) ceiling.getValue(), key);
 
             } finally {
@@ -2173,14 +2160,12 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * operation returns false. Otherwise, it changes the sequence in parent
          * to (.., pi,s,child,si,...) and returns true.
          */
-        @SuppressWarnings("unchecked")
         boolean add_link(X s, Node<X, Y> child) throws IOException {
 
             /* No other nodes currently loaded and can't require to unload itself */
             final LockAndUnload<X, Y> loadLock = loadAndLock(true);
             try {
-                @SuppressWarnings("rawtypes")
-                final Entry<Comparable, Object> ceiling = map.ceilingEntry(s);
+                final Entry<X, Object> ceiling = map.ceilingEntry(s);
 
                 if (ceiling.getKey().compareTo(s) == 0) {
                     return false;
@@ -2233,8 +2218,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                     return false;
                 }
 
-                @SuppressWarnings("rawtypes")
-                final Entry<Comparable, Object> eip1 = map.higherEntry(s);
+                final Entry<X, Object> eip1 = map.higherEntry(s);
                 if (eip1.getValue().equals(child)) {
 
                     /*
@@ -2559,7 +2543,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         @SuppressWarnings("unchecked")
         private long writeNodePage(long pageId) throws IOException {
-            final Map<Comparable<X>, Long> pointers = new HashMap<>(keys);
+            final Map<X, Long> pointers = new HashMap<>(keys);
             map.forEach((x, y) -> {
                 pointers.put(x, ((Node<X, Y>) y).pageId);
             });
@@ -2576,10 +2560,10 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         private long writeLeafPage(long pageId) throws IOException {
 
             if (pageId == BLinkIndexDataStorage.NEW_PAGE) {
-                return owner.storage.createLeafPage((Map<Comparable<X>, Y>) (Map<?, ?>) map);
+                return owner.storage.createLeafPage((Map<X, Y>) (Map<?, ?>) map);
             }
 
-            owner.storage.overwriteLeafPage(pageId, (Map<Comparable<X>, Y>) (Map<?, ?>) map);
+            owner.storage.overwriteLeafPage(pageId, (Map<X, Y>) (Map<?, ?>) map);
             return pageId;
         }
 
@@ -2591,9 +2575,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             }
         }
 
-        @SuppressWarnings("unchecked")
         private void readNodePage(long pageId) throws IOException {
-            final Map<Comparable<X>, Long> data = owner.storage.loadNodePage(pageId);
+            final Map<X, Long> data = new HashMap<>();
+            owner.storage.loadNodePage(pageId, data);
             map = newNodeMap();
 
             if (size == UNKNOWN_SIZE) {
@@ -2601,16 +2585,15 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                 data.forEach((x, y) -> {
                     Node<X, Y> node = owner.nodes.get(y);
                     map.put(x, node);
-                    
+
                     long entrySize;
                     if (x == owner.positiveInfinity) {
                         /* positiveInfinity being singleton is practically considered 0 size */
                         entrySize = ENTRY_CONSTANT_SIZE;
                     } else {
-                        entrySize = owner.evaluator.evaluateKey((X) x) + ENTRY_CONSTANT_SIZE;
+                        entrySize = owner.evaluator.evaluateKey(x) + ENTRY_CONSTANT_SIZE;
                     }
                     size += entrySize;
-                    System.out.println("QUI: "+x+" "+System.identityHashCode(x)+" vs "+owner.positiveInfinity+" "+System.identityHashCode(owner.positiveInfinity) +"-> "+entrySize);
                 });
             } else {
                 /* No need to recalculate page size */
@@ -2621,21 +2604,17 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             }
         }
 
-        @SuppressWarnings("unchecked")
         private void readLeafPage(long pageId) throws IOException {
-            final Map<Comparable<X>, Y> data = owner.storage.loadLeafPage(pageId);
             map = newNodeMap();
+            owner.storage.loadLeafPage(pageId, (Map<X,Y>) map);
 
+            /* Recalculate size if needed */
             if (size == UNKNOWN_SIZE) {
                 size = NODE_CONSTANT_SIZE;
                 /* Avoid a double entries loop and both put and evaluate in one loop */
-                data.forEach((x, y) -> {
-                    map.put(x, y);
-                    size += owner.evaluator.evaluateAll((X) x, y) + ENTRY_CONSTANT_SIZE;
+                map.forEach((x, y) -> {
+                    size += owner.evaluator.evaluateAll(x, (Y) y) + ENTRY_CONSTANT_SIZE;
                 });
-            } else {
-                /* Just a simple putAll, no need to recalculate page size */
-                map.putAll(data);
             }
         }
 
@@ -2664,9 +2643,9 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
     private static final class ResultCouple<X extends Comparable<X>, Y> {
 
         final Node<X, Y> node;
-        final Comparable<X> ubleftsep;
+        final X ubleftsep;
 
-        ResultCouple(Node<X, Y> node, Comparable<X> ubleftsep) {
+        ResultCouple(Node<X, Y> node, X ubleftsep) {
             super();
             this.node = node;
             this.ubleftsep = ubleftsep;
@@ -2742,11 +2721,6 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         @SuppressWarnings("rawtypes")
         public static final Deque INSTANCE = new DummyDeque();
-
-        @SuppressWarnings("unchecked")
-        public static final <X> Deque<X> getInstance() {
-            return INSTANCE;
-        }
 
         /**
          * No instances! Use {@link #getInstance()}
@@ -2937,7 +2911,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
         private K lastRead;
 
-        private Comparable<K> rightsep;
+        private K rightsep;
 
         private final K end;
         private final boolean inclusive;
@@ -2991,7 +2965,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
                         node = move_right.node;
 
                         /* Use custom comparator, both node.rightsep and rightsep could be a positiveInfinity instance */
-                        if (node.rightsep.compareTo((K) rightsep) > 0) {
+                        if (node.rightsep.compareTo(rightsep) > 0) {
 
                             /* rightsep changed from last separator... there could be other data to read in the node. */
                             rightsep = node.rightsep;
@@ -3042,7 +3016,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
 
                     /* We couln't get any more data do cleanup */
 
- /* Cleanup: there is no interesting data at right */
+                    /* Cleanup: there is no interesting data at right */
                     rightsep = null;
                     lastRead = null;
                     node = null;
@@ -3080,14 +3054,14 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         /**
          * Differently from move_right given node <b>must be</b> locked
          */
-        private Node<K, V> jump_right(Node<K, V> n, Comparable<K> rightsep) {
+        private Node<K, V> jump_right(Node<K, V> n, K rightsep) {
 
             Node<K, V> m;
 
             /*
              * Jump until we found a node not empty and with a right separator greater than given
              */
-            while (n.empty() || n.rightsep().compareTo((K) rightsep) <= 0) {
+            while (n.empty() || n.rightsep().compareTo(rightsep) <= 0) {
 
                 if (n.empty()) {
                     m = n.outlink(); // v > leftsep (n) = leftsep (m)

@@ -22,6 +22,7 @@ package herddb.index.blink;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,6 @@ import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
 import herddb.utils.Holder;
 import herddb.utils.SizeAwareObject;
 import herddb.utils.Sized;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Simpler tests for {@link BLink}
@@ -59,42 +59,46 @@ public class BLinkTest {
         private ConcurrentHashMap<Long, Object> datas = new ConcurrentHashMap<>();
 
         @Override
-        public Map<Comparable<K>, Long> loadNodePage(long pageId) throws IOException {
+        public void loadNodePage(long pageId, Map<K, Long> data) throws IOException {
             swapIn.incrementAndGet();
             @SuppressWarnings("unchecked")
-            Map<Comparable<K>, Long> res = (Map<Comparable<K>, Long>) datas.get(pageId);
-            return res != null ? new HashMap<>(res) : null;
+            Map<K, Long> res = (Map<K, Long>) datas.get(pageId);
+            if (res != null) {
+                data.putAll(res);
+            }
         }
 
         @Override
-        public Map<Comparable<K>, V> loadLeafPage(long pageId) throws IOException {
+        public void loadLeafPage(long pageId, Map<K, V> data) throws IOException {
             swapIn.incrementAndGet();
             @SuppressWarnings("unchecked")
-            Map<Comparable<K>, V> res = (Map<Comparable<K>, V>) datas.get(pageId);
-            return res != null ? new HashMap<>(res) : null;
+            Map<K, V> res = (Map<K, V>) datas.get(pageId);
+            if (res != null) {
+                data.putAll(res);
+            }
         }
 
         @Override
-        public long createNodePage(Map<Comparable<K>, Long> data) throws IOException {
+        public long createNodePage(Map<K, Long> data) throws IOException {
             long id = newPageId.incrementAndGet();
             datas.put(id, new HashMap<>(data));
             return id;
         }
 
         @Override
-        public long createLeafPage(Map<Comparable<K>, V> data) throws IOException {
+        public long createLeafPage(Map<K, V> data) throws IOException {
             long id = newPageId.incrementAndGet();
             datas.put(id, new HashMap<>(data));
             return id;
         }
 
         @Override
-        public void overwriteNodePage(long pageId, Map<Comparable<K>, Long> data) throws IOException {
+        public void overwriteNodePage(long pageId, Map<K, Long> data) throws IOException {
             datas.put(pageId, new HashMap<>(data));
         }
 
         @Override
-        public void overwriteLeafPage(long pageId, Map<Comparable<K>, V> data) throws IOException {
+        public void overwriteLeafPage(long pageId, Map<K, V> data) throws IOException {
             datas.put(pageId, new HashMap<>(data));
         }
     }
@@ -117,7 +121,7 @@ public class BLinkTest {
         }
 
         private static final Sized<String> THE_BIGGEST_STRING = Sized.valueOf("{{{{{{{{{{{{{{{{{");
-        
+
         @Override
         public Sized<String> getPosiviveInfinityKey() {
             return THE_BIGGEST_STRING;
@@ -143,12 +147,12 @@ public class BLinkTest {
         }
 
         private static final Sized<Long> THE_BIGGEST_LONG = Sized.valueOf(Long.MAX_VALUE);
-        
+
         @Override
         public Sized<Long> getPosiviveInfinityKey() {
             return THE_BIGGEST_LONG;
         }
-                
+
     }
 
     @Test

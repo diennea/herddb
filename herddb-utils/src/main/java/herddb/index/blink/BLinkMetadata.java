@@ -104,9 +104,9 @@ public final class BLinkMetadata<K> {
         final long outlink;
         final long rightlink;
 
-        final Comparable<K> rightsep;
+        final K rightsep;
 
-        public BLinkNodeMetadata(boolean leaf, long id, long storeId, boolean empty, int keys, long size, long outlink, long rightlink, Comparable<K> rightsep) {
+        public BLinkNodeMetadata(boolean leaf, long id, long storeId, boolean empty, int keys, long size, long outlink, long rightlink, K rightsep) {
             super();
             this.leaf = leaf;
             this.id = id;
