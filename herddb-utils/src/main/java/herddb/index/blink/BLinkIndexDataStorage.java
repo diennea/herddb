@@ -32,31 +32,31 @@ public interface BLinkIndexDataStorage<X,Y> {
     /**
      * Load an internal node data page.
      */
-    public Map<Comparable<X>, Long> loadNodePage(long pageId) throws IOException;
+    public void loadNodePage(long pageId, Map<X,Long> data) throws IOException;
 
     /**
      * Load a leaf node data page.
      */
-    public Map<Comparable<X>, Y> loadLeafPage(long pageId) throws IOException;
+    public void loadLeafPage(long pageId, Map<X,Y> data) throws IOException;
 
     /**
      * Create a new internal node page for given data.
      */
-    public long createNodePage(Map<Comparable<X>,Long> data) throws IOException;
+    public long createNodePage(Map<X,Long> data) throws IOException;
 
     /**
      * Create a new leaf node page for given data.
      */
-    public long createLeafPage(Map<Comparable<X>,Y> data) throws IOException;
+    public long createLeafPage(Map<X,Y> data) throws IOException;
 
     /**
      * Overwrite an existing internal node page with given data.
      */
-    public void overwriteNodePage(long pageId, Map<Comparable<X>,Long> data) throws IOException;
+    public void overwriteNodePage(long pageId, Map<X,Long> data) throws IOException;
 
     /**
      * Overwrite an existing leaf node page with given data.
      */
-    public void overwriteLeafPage(long pageId, Map<Comparable<X>,Y> data) throws IOException;
+    public void overwriteLeafPage(long pageId, Map<X,Y> data) throws IOException;
 
 }

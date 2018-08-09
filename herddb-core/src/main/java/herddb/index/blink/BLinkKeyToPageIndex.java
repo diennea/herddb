@@ -24,7 +24,6 @@ import java.io.UncheckedIOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -363,7 +362,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         public Bytes getPosiviveInfinityKey() {
             return Bytes.POSITIVE_INFINITY;
         }
-        
+
     }
 
     public static final class MetadataSerializer {
@@ -430,7 +429,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                     edos.writeBoolean(hasInf);
 
                     if (!hasInf) {
-                        edos.writeArray(((Bytes) node.rightsep).to_array());
+                        edos.writeArray(node.rightsep.to_array());
                     }
                 }
 
@@ -442,7 +441,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
         }
 
-        @SuppressWarnings("unchecked")
         @SuppressFBWarnings(value = "DLS_DEAD_LOCAL_STORE", justification = "flags still not used but it must be forcefully read")
         public BLinkMetadata<Bytes> read(byte[] data) throws IOException {
 
@@ -508,7 +506,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
 
                     boolean hasInf = edis.readBoolean();
 
-                    Comparable<Bytes> rightsep;
+                    Bytes rightsep;
                     if (hasInf) {
                         rightsep = Bytes.POSITIVE_INFINITY;
                     } else {
@@ -530,19 +528,18 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     private final class BLinkIndexDataStorageImpl implements BLinkIndexDataStorage<Bytes, Long> {
 
         @Override
-        public Map<Comparable<Bytes>, Long> loadNodePage(long pageId) throws IOException {
-            return loadPage(pageId, INNER_NODE_PAGE);
+        public void loadNodePage(long pageId, Map<Bytes, Long> data) throws IOException {
+            loadPage(pageId, INNER_NODE_PAGE, data);
         }
 
         @Override
-        public Map<Comparable<Bytes>, Long> loadLeafPage(long pageId) throws IOException {
-            return loadPage(pageId, LEAF_NODE_PAGE);
+        public void loadLeafPage(long pageId, Map<Bytes, Long> data) throws IOException {
+            loadPage(pageId, LEAF_NODE_PAGE, data);
         }
 
-        @SuppressWarnings("unchecked")
-        private Map<Comparable<Bytes>, Long> loadPage(long pageId, byte type) throws IOException {
+        private void loadPage(long pageId, byte type, Map<Bytes, Long> map) throws IOException {
 
-            return dataStorageManager.readIndexPage(tableSpace, indexName, pageId, in -> {
+            dataStorageManager.readIndexPage(tableSpace, indexName, pageId, in -> {
 
                 long version = in.readVLong();
 
@@ -558,8 +555,6 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                 if (rtype != type) {
                     throw new IOException("Wrong page type " + rtype + " expected " + type);
                 }
-
-                final Map<Comparable<Bytes>, Long> map = new HashMap<>();
 
                 byte block;
                 while ((block = in.readByte()) != NODE_PAGE_END_BLOCK) {
@@ -588,30 +583,30 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
         }
 
         @Override
-        public long createNodePage(Map<Comparable<Bytes>, Long> data) throws IOException {
+        public long createNodePage(Map<Bytes, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             return createPage(NEW_PAGE, data, INNER_NODE_PAGE);
         }
 
         @Override
-        public long createLeafPage(Map<Comparable<Bytes>, Long> data) throws IOException {
+        public long createLeafPage(Map<Bytes, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             return createPage(NEW_PAGE, data, LEAF_NODE_PAGE);
         }
 
         @Override
-        public void overwriteNodePage(long pageId, Map<Comparable<Bytes>, Long> data) throws IOException {
+        public void overwriteNodePage(long pageId, Map<Bytes, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             createPage(pageId, data, INNER_NODE_PAGE);
         }
 
         @Override
-        public void overwriteLeafPage(long pageId, Map<Comparable<Bytes>, Long> data) throws IOException {
+        public void overwriteLeafPage(long pageId, Map<Bytes, Long> data) throws IOException {
             /* Both node ids and leaf values are Long, direct both to a common method */
             createPage(pageId, data, LEAF_NODE_PAGE);
         }
 
-        private long createPage(long pageId, Map<Comparable<Bytes>, Long> data, byte type) throws IOException {
+        private long createPage(long pageId, Map<Bytes, Long> data, byte type) throws IOException {
             /* Write/overwrite switch */
             if (pageId == NEW_PAGE) {
                 pageId = newPageId.getAndIncrement();
@@ -635,7 +630,7 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
                             out.writeVLong(y);
                         } else {
                             out.writeByte(NODE_PAGE_KEY_VALUE_BLOCK);
-                            out.writeArray(((Bytes) x).to_array());
+                            out.writeArray(x.to_array());
                             out.writeVLong(y);
                         }
                     } catch (IOException e) {
