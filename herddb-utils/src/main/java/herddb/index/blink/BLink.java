@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,6 +55,8 @@ import herddb.core.Page;
 import herddb.core.Page.Metadata;
 import herddb.core.PageReplacementPolicy;
 import herddb.index.blink.BLinkMetadata.BLinkNodeMetadata;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 
 /**
  * Java implementation of b-link tree derived from Vladimir Lanin and Dennis
@@ -1623,7 +1624,7 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
          * Inner nodes will have Long values, leaves Y values
          */
         @SuppressWarnings("rawtypes")
-        ConcurrentNavigableMap<Comparable, Object> map;
+        NavigableMap<Comparable, Object> map;
 
         /*
          * Next fields won't need to be volatile. They are written only during write lock AND no other thread
@@ -1679,8 +1680,8 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
         }
 
         @SuppressWarnings("rawtypes")
-        private static final ConcurrentNavigableMap<Comparable, Object> newNodeMap() {
-            return new ConcurrentSkipListMap<>();
+        private static final NavigableMap<Comparable, Object> newNodeMap() {
+            return new TreeMap<>();
         }
 
         /**
@@ -1876,10 +1877,12 @@ public class BLink<K extends Comparable<K>, V> implements AutoCloseable, Page.Ow
             try {
 
                 boolean toright = false;
-                for (@SuppressWarnings("rawtypes") Entry<Comparable, Object> entry : map.entrySet()) {
+                for (Iterator<Entry<Comparable, Object>> entryIt = map.entrySet().iterator();
+                        entryIt.hasNext(); ) {
+                    Entry<Comparable, Object> entry = entryIt.next();
                     if (toright) {
                         right.map.put(entry.getKey(), entry.getValue());
-                        map.remove(entry.getKey());
+                        entryIt.remove();
                     } else {
                         ++count;
                         if (leaf) {
