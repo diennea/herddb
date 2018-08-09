@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
 import herddb.core.HerdDBInternalException;
+import herddb.core.RunningStatementInfo;
 import herddb.core.TableManager;
 import herddb.core.stats.ConnectionsInfo;
 import herddb.log.LogSequenceNumber;
@@ -393,11 +394,14 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
         }
+        String _query = query.toString();
+        String _tablespace = tableSpace.toString();
+        RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, parameters != null && parameters.size() > 0 ? parameters.size() + " params" : "");
         try {
             TranslatedQuery translatedQuery = server
                     .getManager()
-                    .getPlanner().translate(tableSpace.toString()
-                            , query.toString(), parameters, true, true, false, maxRows);
+                    .getPlanner().translate(_tablespace,
+                            _query, parameters, true, true, false, maxRows);
 
             if (LOGGER.isLoggable(Level.FINEST)) {
                 LOGGER.log(Level.FINEST, query + " -> " + translatedQuery.plan.mainStatement);
@@ -408,6 +412,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     || translatedQuery.plan.mainStatement instanceof ScanStatement
                     || translatedQuery.plan.joinStatements != null) {
 
+                server.getManager().registerRunningStatement(statementInfo);
                 ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                 DataScanner dataScanner = scanResult.dataScanner;
 
@@ -428,13 +433,15 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
         } catch (DataScannerException | RuntimeException err) {
             LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
-            scanners.remove(scannerId);
+            scanners.remove(scannerId);            
 
             Message error = Message.ERROR(err);
             if (err instanceof NotLeaderException) {
                 error.setParameter("notLeader", "true");
             }
             _channel.sendReplyMessage(message, error);
+        } finally {
+            server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
 
@@ -504,6 +511,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             returnValues = Boolean.FALSE;
         }
         List<List<Object>> batch = (List<List<Object>>) message.parameters.get("params");
+        String _query = query.toString();
+        String _tablespace = tableSpace.toString();
+        RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, "batch of " + batch.size());
         try {
 
             List<Long> updateCounts = new ArrayList<>(batch.size());
@@ -514,10 +524,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 TransactionContext transactionContext = new TransactionContext(transactionId);
                 TranslatedQuery translatedQuery = server
                         .getManager()
-                        .getPlanner().translate(tableSpace.toString(), query.toString(),
+                        .getPlanner().translate(_tablespace, _query,
                                 parameters, false, true, returnValues, -1);
                 Statement statement = translatedQuery.plan.mainStatement;
-
+                server.getManager().registerRunningStatement(statementInfo);
                 StatementExecutionResult result = server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
                 if (transactionId > 0 && result.transactionId > 0 && transactionId != result.transactionId) {
                     throw new StatementExecutionException("transactionid changed during batch execution, " + transactionId + "<>" + result.transactionId);
@@ -540,8 +550,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     }
                     updateCounts.add(Long.valueOf(dml.getUpdateCount()));
                     otherDatas.add(otherData);
-                } else if (result instanceof DDLStatementExecutionResult) {                    
-                    Map<String, Object> otherData = Collections.emptyMap();                    
+                } else if (result instanceof DDLStatementExecutionResult) {
+                    Map<String, Object> otherData = Collections.emptyMap();
                     updateCounts.add(Long.valueOf(1));
                     otherDatas.add(otherData);
                 } else {
@@ -550,11 +560,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
             _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULTS(updateCounts, otherDatas, transactionId));
         } catch (HerdDBInternalException err) {
-            Message error = Message.ERROR(err);
+            Message error = Message.ERROR(err," query was '"+_query+"', with values "+batch);
             if (err instanceof NotLeaderException) {
                 error.setParameter("notLeader", "true");
             }
             _channel.sendReplyMessage(message, error);
+        } finally {
+            server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
 
@@ -571,12 +583,16 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "query " + query + " with " + parameters);
         }
+        String _query = query.toString();
+        String _tablespace = tableSpace.toString();
+        RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, parameters != null && parameters.size() > 0 ? parameters.size() + " params" : "");
         try {
             TransactionContext transactionContext = new TransactionContext(txId);
-            TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(tableSpace.toString(),
-                    query.toString(), parameters, false, true, returnValues, -1);
+            TranslatedQuery translatedQuery = server.getManager().getPlanner().translate(_tablespace,
+                    _query, parameters, false, true, returnValues, -1);
             Statement statement = translatedQuery.plan.mainStatement;
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
+            server.getManager().registerRunningStatement(statementInfo);
             StatementExecutionResult result = server
                     .getManager()
                     .executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -635,19 +651,21 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             }
         } catch (DuplicatePrimaryKeyException err) {
             LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ":" + err, err);
-            Message error = Message.ERROR(err);
+            Message error = Message.ERROR(err," query was '"+_query+"'");
             _channel.sendReplyMessage(message, error);
         } catch (NotLeaderException err) {
             Message error = Message.ERROR(err);
             error.setParameter("notLeader", "true");
             _channel.sendReplyMessage(message, error);
         } catch (StatementExecutionException err) {
-            Message error = Message.ERROR(err);
+            Message error = Message.ERROR(err," query was '"+_query+"'");
             _channel.sendReplyMessage(message, error);
         } catch (RuntimeException err) {
             LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
-            Message error = Message.ERROR(err);
+            Message error = Message.ERROR(err," query was '"+_query+"'");
             _channel.sendReplyMessage(message, error);
+        } finally {
+            server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
 
@@ -676,7 +694,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             if (statement == null) {
                 _channel.sendReplyMessage(message, Message.ERROR(new Exception("unknown command type " + type)));
             } else {
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);                
                 StatementExecutionResult result = server
                         .getManager()
                         .executeStatement(statement, new StatementEvaluationContext(), transactionContext);

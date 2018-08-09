@@ -182,15 +182,15 @@ public class SystemTablesTest {
                         })
                         .findAny()
                         .isPresent());
-                assertEquals(23, records.size());
+                assertEquals(24, records.size());
             }
-            
+
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysindexcolumns where table_name like '%tsql' order by index_name, column_name",
                     Collections.emptyList());) {
                 List<DataAccessor> records = scan.consume();
                 for (DataAccessor da : records) {
                     System.out.println("rec2: " + da.toMap());
-                }                
+                }
                 assertTrue(records
                         .stream()
                         .map(d -> d.toMap())
@@ -334,6 +334,15 @@ public class SystemTablesTest {
                         && t.get("column_name").equals("n1")
                         && t.get("data_type").equals("long")
                         ).findAny().isPresent());
+            }
+
+            manager.registerRunningStatement(new RunningStatementInfo("mock query", System.currentTimeMillis(), "tblspace1", "info"));
+            try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.sysstatements ", Collections.emptyList());) {
+                List<DataAccessor> records = scan.consume();
+                assertEquals(1, records.size());
+                records.forEach(s -> {
+                    System.out.println("STATEMENT: " + s);
+                });
             }
 
         }
