@@ -36,7 +36,7 @@ import java.nio.ByteOrder;
 public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
 
     public static final Bytes POSITIVE_INFINITY = new Bytes(new byte[0]);
-    
+
     private static final boolean UNALIGNED = PlatformDependent.isUnaligned();
     private static final boolean HAS_UNSAFE = PlatformDependent.hasUnsafe();
     private static final boolean BIG_ENDIAN_NATIVE_ORDER = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
@@ -227,38 +227,38 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         }
 
         return ((long) array[index] & 0xff) << 56
-            | //
-            ((long) array[index + 1] & 0xff) << 48
-            | //
-            ((long) array[index + 2] & 0xff) << 40
-            | //
-            ((long) array[index + 3] & 0xff) << 32
-            | //
-            ((long) array[index + 4] & 0xff) << 24
-            | //
-            ((long) array[index + 5] & 0xff) << 16
-            | //
-            ((long) array[index + 6] & 0xff) << 8
-            | //
-            (long) array[index + 7] & 0xff;
+                | //
+                ((long) array[index + 1] & 0xff) << 48
+                | //
+                ((long) array[index + 2] & 0xff) << 40
+                | //
+                ((long) array[index + 3] & 0xff) << 32
+                | //
+                ((long) array[index + 4] & 0xff) << 24
+                | //
+                ((long) array[index + 5] & 0xff) << 16
+                | //
+                ((long) array[index + 6] & 0xff) << 8
+                | //
+                (long) array[index + 7] & 0xff;
     }
 
     public static int compareInt(byte[] array, int index, int value) {
         return Integer.compare(toInt(array, index), value);
     }
-    
+
     public static int compareInt(byte[] array, int index, long value) {
         return Long.compare(toInt(array, index), value);
     }
-    
+
     public static int compareLong(byte[] array, int index, int value) {
         return Long.compare(toLong(array, index), value);
     }
-    
+
     public static int compareLong(byte[] array, int index, long value) {
         return Long.compare(toLong(array, index), value);
     }
-    
+
     public static int toInt(byte[] array, int index) {
         if (HAS_UNSAFE && UNALIGNED) {
             int v = PlatformDependent.getInt(array, index);
@@ -266,12 +266,12 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         }
 
         return ((int) array[index] & 0xff) << 24
-            | //
-            ((int) array[index + 1] & 0xff) << 16
-            | //
-            ((int) array[index + 2] & 0xff) << 8
-            | //
-            (int) array[index + 3] & 0xff;
+                | //
+                ((int) array[index + 1] & 0xff) << 16
+                | //
+                ((int) array[index + 2] & 0xff) << 8
+                | //
+                (int) array[index + 3] & 0xff;
     }
 
     public static java.sql.Timestamp toTimestamp(byte[] bytes, int offset) {
@@ -297,18 +297,7 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         } else if (o == POSITIVE_INFINITY) {
             return -1;
         }
-        return compare(this.data, o.data);
-    }
-
-    public static int compare(byte[] left, byte[] right) {
-        for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-            int a = (left[i] & 0xff);
-            int b = (right[j] & 0xff);
-            if (a != b) {
-                return a - b;
-            }
-        }
-        return left.length - right.length;
+        return CompareBytesUtils.compare(this.data, o.data);
     }
 
     public static boolean startsWith(byte[] left, int len, byte[] right) {
