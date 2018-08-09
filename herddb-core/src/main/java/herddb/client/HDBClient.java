@@ -70,7 +70,7 @@ public class HDBClient implements AutoCloseable {
                 return t;
             }
         });
-        this.networkGroup = NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup(0, thredpool) : new NioEventLoopGroup(0, thredpool);
+        this.networkGroup = NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         this.localEventsGroup = new DefaultEventLoopGroup();
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
         switch (mode) {
