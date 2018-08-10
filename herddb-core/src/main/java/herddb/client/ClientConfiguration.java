@@ -73,6 +73,9 @@ public class ClientConfiguration {
     public static final String PROPERTY_SERVER_ADDRESS_DEFAULT = "localhost";
     public static final boolean PROPERTY_SERVER_SSL_DEFAULT = false;
     public static final int PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT = 40000;
+    
+    public static final int PROPERTY_CLIENT_CALLBACKS_DEFAULT = 64;
+    public static final String PROPERTY_CLIENT_CALLBACKS = "client.network.thread.callback";
 
     public ClientConfiguration(Properties properties) {
         this.properties = new Properties();

@@ -36,7 +36,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -61,15 +66,16 @@ public class HDBClient implements AutoCloseable {
         init();
     }
 
-    private void init() {        
-        this.thredpool = Executors.newCachedThreadPool(new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread t = new Thread(r, "hdb-client");
-                t.setDaemon(true);
-                return t;
-            }
-        });
+    private void init() {
+        int corePoolSize = configuration.getInt(ClientConfiguration.PROPERTY_CLIENT_CALLBACKS, ClientConfiguration.PROPERTY_CLIENT_CALLBACKS_DEFAULT);
+        this.thredpool = new ThreadPoolExecutor(corePoolSize, Integer.MAX_VALUE,
+                120L, TimeUnit.SECONDS,
+                new LinkedBlockingQueue<>(),
+                (Runnable r) -> {
+                    Thread t = new Thread(r, "hdb-client");
+                    t.setDaemon(true);
+                    return t;
+                });
         this.networkGroup = NetworkUtils.isEnableEpoolNative() ? new EpollEventLoopGroup() : new NioEventLoopGroup();
         this.localEventsGroup = new DefaultEventLoopGroup();
         String mode = configuration.getString(ClientConfiguration.PROPERTY_MODE, ClientConfiguration.PROPERTY_MODE_LOCAL);
@@ -77,16 +83,16 @@ public class HDBClient implements AutoCloseable {
             case ClientConfiguration.PROPERTY_MODE_LOCAL:
             case ClientConfiguration.PROPERTY_MODE_STANDALONE:
                 this.clientSideMetadataProvider = new StaticClientSideMetadataProvider(
-                    configuration.getString(ClientConfiguration.PROPERTY_SERVER_ADDRESS, ClientConfiguration.PROPERTY_SERVER_ADDRESS_DEFAULT),
-                    configuration.getInt(ClientConfiguration.PROPERTY_SERVER_PORT, ClientConfiguration.PROPERTY_SERVER_PORT_DEFAULT),
-                    configuration.getBoolean(ClientConfiguration.PROPERTY_SERVER_SSL, ClientConfiguration.PROPERTY_SERVER_SSL_DEFAULT)
+                        configuration.getString(ClientConfiguration.PROPERTY_SERVER_ADDRESS, ClientConfiguration.PROPERTY_SERVER_ADDRESS_DEFAULT),
+                        configuration.getInt(ClientConfiguration.PROPERTY_SERVER_PORT, ClientConfiguration.PROPERTY_SERVER_PORT_DEFAULT),
+                        configuration.getBoolean(ClientConfiguration.PROPERTY_SERVER_SSL, ClientConfiguration.PROPERTY_SERVER_SSL_DEFAULT)
                 );
                 break;
             case ClientConfiguration.PROPERTY_MODE_CLUSTER:
                 this.clientSideMetadataProvider = new ZookeeperClientSideMetadataProvider(
-                    configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
-                    configuration.getInt(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
-                    configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)
+                        configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS, ClientConfiguration.PROPERTY_ZOOKEEPER_ADDRESS_DEFAULT),
+                        configuration.getInt(ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT, ClientConfiguration.PROPERTY_ZOOKEEPER_SESSIONTIMEOUT_DEFAULT),
+                        configuration.getString(ClientConfiguration.PROPERTY_ZOOKEEPER_PATH, ClientConfiguration.PROPERTY_ZOOKEEPER_PATH_DEFAULT)
                 );
                 break;
             default:
@@ -107,7 +113,7 @@ public class HDBClient implements AutoCloseable {
     }
 
     @Override
-    public void close() {        
+    public void close() {
         List<HDBConnection> connectionsAtClose = new ArrayList<>(this.connections.values());
         for (HDBConnection connection : connectionsAtClose) {
             connection.close();
