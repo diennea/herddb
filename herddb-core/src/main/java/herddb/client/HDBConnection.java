@@ -40,7 +40,7 @@ import java.util.logging.Logger;
 public class HDBConnection implements AutoCloseable {
 
     private final Map<String, RoutedClientSideConnection> routes = new HashMap<>();
-    private final AtomicLong IDGENERATOR = new AtomicLong();
+    private final static AtomicLong IDGENERATOR = new AtomicLong();
     private final long id = IDGENERATOR.incrementAndGet();
     private final HDBClient client;
     private final ReentrantLock routesLock = new ReentrantLock(true);
@@ -103,12 +103,12 @@ public class HDBConnection implements AutoCloseable {
             try {
                 RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
                 try (ScanResultSet result = route.executeScan(tableSpace,
-                    "select * "
-                    + "from systablespaces "
-                    + "where tablespace_name=?",
-                    Arrays.asList(tableSpace), TransactionContext.NOTRANSACTION_ID,
-                    1,
-                    1);) {
+                        "select * "
+                        + "from systablespaces "
+                        + "where tablespace_name=?",
+                        Arrays.asList(tableSpace), TransactionContext.NOTRANSACTION_ID,
+                        1,
+                        1);) {
                     boolean ok = result.hasNext();
                     if (ok) {
                         LOGGER.log(Level.INFO, "table space {0} is up now: info {1}", new Object[]{tableSpace,
@@ -250,7 +250,7 @@ public class HDBConnection implements AutoCloseable {
     }
 
     public void dumpTableSpace(String tableSpace, TableSpaceDumpReceiver receiver, int fetchSize,
-        boolean includeTransactionLog) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
+            boolean includeTransactionLog) throws ClientSideMetadataProviderException, HDBException, InterruptedException {
         RoutedClientSideConnection route = getRouteToTableSpace(tableSpace);
         route.dumpTableSpace(tableSpace, fetchSize, includeTransactionLog, receiver);
     }

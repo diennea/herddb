@@ -23,7 +23,6 @@ import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.client.HDBException;
-import herddb.jdbc.utils.SQLExceptionUtils;
 import herddb.model.TableSpace;
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -53,9 +52,20 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     private static final Logger LOGGER = Logger.getLogger(BasicHerdDBDataSource.class.getName());
     protected String url;
     protected String defaultSchema = TableSpace.DEFAULT;
-    private GenericObjectPool<HDBConnection> pool;
     private String waitForTableSpace = "";
     private int waitForTableSpaceTimeout = 60000;
+    private HDBConnection connection;
+    private GenericObjectPool<HerdDBConnection> pool;
+
+    private synchronized HDBConnection getHDBConnection() {
+        if (connection == null) {
+            HDBClient _client = getClient();
+            HDBConnection _connection = _client.openConnection();
+            _connection.setDiscoverTablespaceFromSql(false);
+            connection = _connection;
+        }
+        return connection;
+    }
 
     public synchronized int getWaitForTableSpaceTimeout() {
         return waitForTableSpaceTimeout;
@@ -141,41 +151,6 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         return properties;
     }
 
-    void releaseConnection(HDBConnection connection) {
-        pool.returnObject(connection);
-    }
-
-    private class ConnectionsFactory implements PooledObjectFactory<HDBConnection> {
-
-        @Override
-        public PooledObject<HDBConnection> makeObject() throws Exception {
-            HDBClient _client = getClient();
-            HDBConnection connection = _client.openConnection();
-            connection.setDiscoverTablespaceFromSql(false);
-            return new DefaultPooledObject<>(connection);
-        }
-
-        @Override
-        public void destroyObject(PooledObject<HDBConnection> po) throws Exception {
-            LOGGER.log(Level.SEVERE, "destroyObject {0}", po.getObject());
-            po.getObject().close();
-        }
-
-        @Override
-        public boolean validateObject(PooledObject<HDBConnection> po) {
-            return true;
-        }
-
-        @Override
-        public void activateObject(PooledObject<HDBConnection> po) throws Exception {
-        }
-
-        @Override
-        public void passivateObject(PooledObject<HDBConnection> po) throws Exception {
-        }
-
-    }
-
     protected synchronized void doWaitForTableSpace() throws SQLException {
         if (waitForTableSpaceTimeout > 0 && !waitForTableSpace.isEmpty()) {
             try (HDBConnection con = client.openConnection();) {
@@ -207,14 +182,6 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         }
     }
 
-    protected HDBConnection createNewConnection() throws SQLException {
-        try {
-            return pool.borrowObject();
-        } catch (Exception ex) {
-            throw SQLExceptionUtils.wrapException(ex);
-        }
-    }
-
     protected synchronized void ensureConnection() throws SQLException {
         ensureClient();
     }
@@ -235,7 +202,11 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
         ensureConnection();
-        return new HerdDBConnection(this, createNewConnection(), defaultSchema);
+        try {
+            return pool.borrowObject();
+        } catch (Exception err) {
+            throw new SQLException(err);
+        }
     }
 
     private PrintWriter logWriter;
@@ -281,5 +252,41 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
             client.close();
             client = null;
         }
+    }
+
+    void releaseConnection(HerdDBConnection connection) {
+        pool.returnObject(connection);
+    }
+
+    private class ConnectionsFactory implements PooledObjectFactory<HerdDBConnection> {
+
+        @Override
+        public PooledObject<HerdDBConnection> makeObject() throws Exception {
+            HerdDBConnection res = new HerdDBConnection(BasicHerdDBDataSource.this, getHDBConnection(), defaultSchema);
+            LOGGER.log(Level.SEVERE, "makeObject {0}", res);
+            return new DefaultPooledObject<>(res);
+        }
+
+        @Override
+        public void destroyObject(PooledObject<HerdDBConnection> po) throws Exception {
+            LOGGER.log(Level.SEVERE, "destroyObject {0}", po.getObject());
+            po.getObject().close();
+        }
+
+        @Override
+        public boolean validateObject(PooledObject<HerdDBConnection> po) {
+            return true;
+        }
+
+        @Override
+        public void activateObject(PooledObject<HerdDBConnection> po) throws Exception {
+            po.getObject().reset(defaultSchema);
+            LOGGER.log(Level.SEVERE, "activateObject {0}", po.getObject());
+        }
+
+        @Override
+        public void passivateObject(PooledObject<HerdDBConnection> po) throws Exception {
+        }
+
     }
 }

@@ -42,7 +42,6 @@ import org.junit.rules.TemporaryFolder;
  */
 public class ConnectionPoolMaxActiveTest {
 
-
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
@@ -55,14 +54,13 @@ public class ConnectionPoolMaxActiveTest {
             dataSource.getProperties().setProperty(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             dataSource.getProperties().setProperty(ClientConfiguration.PROPERTY_BASEDIR, folder.newFolder().getAbsolutePath());
             try (Connection con = dataSource.getConnection();
-                Statement statement = con.createStatement();) {
+                    Statement statement = con.createStatement();) {
                 statement.execute("CREATE TABLE mytable (key string primary key, name string)");
             }
 
             Server server = dataSource.getServer();
             List<Connection> connections = new ArrayList<>();
             try {
-
                 for (int i = 0; i < 10; i++) {
                     Connection con = dataSource.getConnection();
                     connections.add(con);
@@ -70,7 +68,8 @@ public class ConnectionPoolMaxActiveTest {
                         assertEquals(1, statement.executeUpdate("INSERT INTO mytable (key,name) values('k1" + i + "','name1')"));
                     }
                 }
-                assertEquals(10, server.getConnectionCount());
+                // this is the number of sockets
+                assertEquals(1, server.getConnectionCount());
             } finally {
                 for (Connection c : connections) {
                     c.close();

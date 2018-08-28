@@ -68,9 +68,16 @@ public class HerdDBConnection implements java.sql.Connection {
         if (connection == null) {
             throw new NullPointerException();
         }
-        this.tableSpace = defaultTablespace;
         this.connection = connection;
         this.datasource = datasource;
+        reset(defaultTablespace);
+    }
+
+    final void reset(String defaultTablespace) {
+        this.autocommit = true;
+        this.tableSpace = defaultTablespace;
+        this.transactionId = 0;
+        this.closed = false;
     }
 
     long ensureTransaction() throws SQLException {
@@ -175,11 +182,12 @@ public class HerdDBConnection implements java.sql.Connection {
             return;
         }
         if (transactionId != NOTRANSACTION_ID
-            && transactionId != AUTOTRANSACTION_ID) {
+                && transactionId != AUTOTRANSACTION_ID) {
             rollback();
         }
-        this.datasource.releaseConnection(connection);
         closed = true;
+
+        datasource.releaseConnection(this);
     }
 
     @Override
