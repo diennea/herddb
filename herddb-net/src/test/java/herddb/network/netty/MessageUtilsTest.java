@@ -24,6 +24,7 @@ import herddb.network.Message;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapDataAccessor;
 import herddb.utils.RawString;
+import herddb.utils.RecordsBatch;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.Test;
@@ -44,10 +46,10 @@ public class MessageUtilsTest {
 
     @Test
     public void testEncodeMessage() {
-       
+
         System.out.println("encodeMessage");
         ByteBuf buffer = Unpooled.buffer();
-        Map<String, Object> payload = new HashMap<>();
+        Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("string", RawString.of("value"));
         payload.put("int", 1234);
         payload.put("long", 12345L);
@@ -69,6 +71,7 @@ public class MessageUtilsTest {
         record2.put("null", null);
         records.add(new MapDataAccessor(record2, colNames));
 
+        // this must be the last
         TuplesList tl = new TuplesList(colNames, records);
         payload.put("data", tl);
 
@@ -84,13 +87,21 @@ public class MessageUtilsTest {
         assertEquals(read.parameters.size(), m.parameters.size());
         read.parameters.forEach((String k, Object v) -> {
             Object o = m.parameters.get(k);
-            assertEquals(o, v);
+            if (v instanceof RecordsBatch) {
+                assertTrue(o instanceof TuplesList);
+            } else {
+                assertEquals(o, v);
+            }
         });
-        TuplesList tl2 = (TuplesList) read.parameters.get("data");
-        assertEquals(4, tl2.tuples.get(0).getValues().length);
-        assertArrayEquals(colNames, tl2.tuples.get(0).getFieldNames());
-        assertEquals(4, tl2.tuples.get(1).getValues().length);
-        assertArrayEquals(colNames, tl2.tuples.get(1).getFieldNames());
+        RecordsBatch tl2 = (RecordsBatch) read.parameters.get("data");
+        DataAccessor next = tl2.next();
+        assertEquals(4, next.getValues().length);
+        assertArrayEquals(colNames, next.getFieldNames());
+        tl2.hasNext();
+        next = tl2.next();
+        assertEquals(4, next.getValues().length);
+        assertArrayEquals(colNames, next.getFieldNames());
+        tl2.release();
     }
 
 }
