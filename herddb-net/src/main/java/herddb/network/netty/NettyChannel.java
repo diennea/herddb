@@ -173,14 +173,12 @@ public class NettyChannel extends Channel {
     }
 
     @Override
-    public void sendMessageWithAsyncReply(Message message, long timeout, ReplyCallback callback) {
+    protected void sendMessageWithAsyncReply(Message message, long timeout, ReplyCallback callback) {
         if (message.getMessageId() < 0) {
             message.assignMessageId();
         }
         if (!isValid()) {
-            submitCallback(() -> {
-                callback.replyReceived(message, null, new Exception(this + " connection is not active"));
-            });
+            callback.replyReceived(message, null, new Exception(this + " connection is not active"));
             return;
         }
         pendingReplyMessages.put(message.getMessageId(), callback);
@@ -192,9 +190,7 @@ public class NettyChannel extends Channel {
             public void messageSent(Message originalMessage, Throwable error) {
                 if (error != null) {
                     LOGGER.log(Level.SEVERE, this + ": error while sending reply message to " + originalMessage, error);
-                    submitCallback(() -> {
-                        callback.replyReceived(message, null, new Exception(this + ": error while sending reply message to " + originalMessage, error));
-                    });
+                    callback.replyReceived(message, null, new Exception(this + ": error while sending reply message to " + originalMessage, error));
                 }
             }
         });

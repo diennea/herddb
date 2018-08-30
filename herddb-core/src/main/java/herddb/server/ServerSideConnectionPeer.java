@@ -747,7 +747,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             if (saslNettyServer.isComplete()) {
                 username = saslNettyServer.getUserName();
                 authenticated = true;
-                LOGGER.log(Level.INFO, "client {0} completed SASL authentication as {1}", new Object[]{channel, username});
+                LOGGER.log(Level.INFO, "client {0} connected as '{1}'", new Object[]{channel.getRemoteAddress(), username});
                 saslNettyServer = null;
             }
             _channel.sendReplyMessage(message, tokenChallenge);

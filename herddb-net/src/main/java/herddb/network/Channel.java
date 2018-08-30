@@ -50,7 +50,7 @@ public abstract class Channel implements AutoCloseable {
 
     public abstract void sendReplyMessage(Message inAnswerTo, Message message);
 
-    public abstract void sendMessageWithAsyncReply(Message message, long timeout, ReplyCallback callback);
+    protected abstract void sendMessageWithAsyncReply(Message message, long timeout, ReplyCallback callback);
 
     public abstract void channelIdle();
 

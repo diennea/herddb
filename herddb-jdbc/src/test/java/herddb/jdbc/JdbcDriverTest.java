@@ -27,6 +27,8 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Enumeration;
 import org.junit.After;
+import org.junit.AfterClass;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import org.junit.Rule;
 import org.junit.Test;
@@ -72,8 +74,45 @@ public class JdbcDriverTest {
         }
     }
 
-    @After
-    public void destroy() throws Exception {
+    @Test
+    public void testResuseConnections() throws Exception {
+
+        ServerConfiguration conf = new ServerConfiguration(folder.newFolder().toPath());
+        conf.set(ServerConfiguration.PROPERTY_PORT, "9123");
+        try (Server server = new Server(conf)) {
+            server.start();
+            server.waitForStandaloneBoot();
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
+                    Connection connection2 = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
+                    Statement statement = connection.createStatement();
+                    Statement statement2 = connection2.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES");
+                    ResultSet rs2 = statement2.executeQuery("SELECT * FROM SYSTABLES")) {
+                int count = 0;
+                while (rs.next()) {
+                    System.out.println("table: " + rs.getString(1));
+                    count++;
+                }
+                assertTrue(count > 0);
+                assertEquals(1, server.getActualConnections().connections.size());
+            }
+
+            try (Connection connection = DriverManager.getConnection("jdbc:herddb:server:localhost:9123?");
+                    Statement statement = connection.createStatement();
+                    ResultSet rs = statement.executeQuery("SELECT * FROM SYSTABLES")) {
+                int count = 0;
+                while (rs.next()) {
+                    System.out.println("table: " + rs.getString(1));
+                    count++;
+                }
+                assertTrue(count > 0);
+                assertEquals(1, server.getActualConnections().connections.size());
+            }
+        }
+    }
+
+    @AfterClass
+    public static void destroy() throws Exception {
         for (Enumeration<java.sql.Driver> drivers = DriverManager.getDrivers(); drivers.hasMoreElements();) {
             DriverManager.deregisterDriver(drivers.nextElement());
         }
