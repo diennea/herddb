@@ -94,13 +94,15 @@ public class MessageUtilsTest {
             }
         });
         RecordsBatch tl2 = (RecordsBatch) read.parameters.get("data");
+        assertTrue(tl2.hasNext());
         DataAccessor next = tl2.next();
         assertEquals(4, next.getValues().length);
         assertArrayEquals(colNames, next.getFieldNames());
-        tl2.hasNext();
+        assertTrue(tl2.hasNext());
         next = tl2.next();
         assertEquals(4, next.getValues().length);
         assertArrayEquals(colNames, next.getFieldNames());
+        assertFalse(tl2.hasNext());
         tl2.release();
     }
 

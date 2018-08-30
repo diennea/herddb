@@ -42,9 +42,9 @@ public class RecordsBatch {
         this.numRecords = numRecords;
         this.columnNames = columnNames;
         this.buffer = buffer;
-        this.currentRecordIndex = 0;
-        if (numRecords > 0) {
-            next = readRecordAtCurrentPosition();
+        this.currentRecordIndex = -1;
+        if (numRecords == 0) {
+            finished = true;
         }
     }
 
@@ -84,6 +84,9 @@ public class RecordsBatch {
     public DataAccessor next() {
         if (finished) {
             throw new IllegalStateException("Scanner is exhausted");
+        }
+        if (next == null) {
+            throw new IllegalStateException("You have to call hasNext");
         }
         DataAccessor _res = next;
         next = null;
