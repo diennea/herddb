@@ -22,6 +22,8 @@ package herddb.client.impl;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.ScanResultSetMetadata;
+import herddb.utils.DataAccessor;
+import herddb.utils.MapDataAccessor;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -53,11 +55,11 @@ public class SingletonScanResultSet extends ScanResultSet {
     }
 
     @Override
-    public Map<String, Object> next() throws HDBException {
+    public DataAccessor next() throws HDBException {
         read = true;
         HashMap<String, Object> result = new HashMap<>();
         result.put("key", key);
-        return result;
+        return new MapDataAccessor(result, HEADER);
     }
 
 }

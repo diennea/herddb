@@ -38,7 +38,7 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.network.Message;
-import herddb.network.netty.MessageUtils;
+import herddb.utils.MessageUtils;
 import herddb.utils.DataAccessor;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;

@@ -31,7 +31,7 @@ import herddb.model.Index;
 import herddb.model.Record;
 import herddb.model.Table;
 import herddb.network.Channel;
-import herddb.network.KeyValue;
+import herddb.utils.KeyValue;
 import herddb.network.Message;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;

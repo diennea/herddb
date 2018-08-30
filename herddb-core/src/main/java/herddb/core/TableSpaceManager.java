@@ -111,7 +111,7 @@ import herddb.model.commands.RollbackTransactionStatement;
 import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
-import herddb.network.KeyValue;
+import herddb.utils.KeyValue;
 import herddb.network.Message;
 import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;

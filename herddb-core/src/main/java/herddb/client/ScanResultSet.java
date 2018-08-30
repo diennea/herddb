@@ -19,6 +19,7 @@
  */
 package herddb.client;
 
+import herddb.utils.DataAccessor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,7 @@ public abstract class ScanResultSet implements AutoCloseable {
 
     public abstract boolean hasNext() throws HDBException;
 
-    public abstract Map<String, Object> next() throws HDBException;
+    public abstract DataAccessor next() throws HDBException;
 
     public final long transactionId;
 
@@ -49,9 +50,10 @@ public abstract class ScanResultSet implements AutoCloseable {
     public List< Map<String, Object>> consume() throws HDBException {
         List<Map<String, Object>> result = new ArrayList<>();
         while (hasNext()) {
-            Map<String, Object> record = next();
+            Map<String, Object> record = next().toMap();
             result.add(record);
         }
+        this.close();
         return result;
     }
 }

@@ -19,12 +19,13 @@
  */
 package herddb.network;
 
-import herddb.utils.DataAccessor;
+import herddb.utils.KeyValue;
 import herddb.utils.TuplesList;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -145,11 +146,14 @@ public final class Message {
     }
 
     public static Message RESULTSET_CHUNK(String scannerId, TuplesList tuplesList, boolean last, long tx) {
-        HashMap<String, Object> data = new HashMap<>();
-        data.put("data", tuplesList);
+        LinkedHashMap<String, Object> data = new LinkedHashMap<>();
         data.put("scannerId", scannerId);
         data.put("last", last);
         data.put("tx", tx);
+        // this must be the last
+        // on the client this TuplesList will be deserialized as a RecordBatch
+        // which must be the last parameter on the message
+        data.put("data", tuplesList);
         return new Message(TYPE_RESULTSET_CHUNK, data);
     }
 

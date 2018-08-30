@@ -22,22 +22,28 @@ package herddb.client.impl;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.ScanResultSetMetadata;
+import herddb.utils.DataAccessor;
+import herddb.utils.MapDataAccessor;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Simple wrapper for static data
  *
  * @author enrico.olivelli
  */
-public class IteratorScanResultSet extends ScanResultSet {
+public class MapListScanResultSet extends ScanResultSet {
 
-    private final Iterator<Map<String, Object>> iterator;
+    private final Iterator<DataAccessor> iterator;
     private final ScanResultSetMetadata metadata;
 
-    public IteratorScanResultSet(long transactionId, ScanResultSetMetadata metadata, Iterator<Map<String, Object>> iterator) {
+    public MapListScanResultSet(long transactionId, ScanResultSetMetadata metadata, String[] columns, List<Map<String, Object>> list) {
         super(transactionId);
-        this.iterator = iterator;
+        this.iterator = list.stream().map(m -> {
+            return (DataAccessor) new MapDataAccessor(m, columns);
+        }).collect(Collectors.toList()).iterator();
         this.metadata = metadata;
     }
 
@@ -52,7 +58,7 @@ public class IteratorScanResultSet extends ScanResultSet {
     }
 
     @Override
-    public Map<String, Object> next() throws HDBException {
+    public DataAccessor next() throws HDBException {
         return iterator.next();
     }
 }

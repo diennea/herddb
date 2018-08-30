@@ -23,7 +23,7 @@ import herddb.client.TableSpaceRestoreSource;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.Table;
-import herddb.network.KeyValue;
+import herddb.utils.KeyValue;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.ExtendedDataInputStream;
 import java.io.EOFException;

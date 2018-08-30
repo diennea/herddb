@@ -66,7 +66,7 @@ import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
-import herddb.network.KeyValue;
+import herddb.utils.KeyValue;
 import herddb.network.Message;
 import herddb.network.ServerSideConnection;
 import herddb.security.sasl.SaslNettyServer;

@@ -22,8 +22,7 @@ package herddb.client.impl;
 import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.ScanResultSetMetadata;
-import java.util.Collections;
-import java.util.Map;
+import herddb.utils.DataAccessor;
 
 /**
  * Empty result set
@@ -49,7 +48,7 @@ public class EmptyScanResultSet extends ScanResultSet {
     }
 
     @Override
-    public Map<String, Object> next() throws HDBException {
+    public DataAccessor next() throws HDBException {
         throw new HDBException("this is an empty result set");
     }
 

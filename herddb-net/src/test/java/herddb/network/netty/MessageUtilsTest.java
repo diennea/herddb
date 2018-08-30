@@ -19,6 +19,7 @@
  */
 package herddb.network.netty;
 
+import herddb.utils.MessageUtils;
 import herddb.network.Message;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapDataAccessor;

@@ -18,7 +18,7 @@
  under the License.
 
  */
-package herddb.network.netty;
+package herddb.utils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -28,13 +28,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import herddb.network.KeyValue;
 import herddb.network.Message;
 import herddb.utils.ByteBufUtils;
 import herddb.utils.DataAccessor;
 import herddb.utils.IntHolder;
-import herddb.utils.MapDataAccessor;
 import herddb.utils.RawString;
+import herddb.utils.RecordsBatch;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 
@@ -72,26 +71,28 @@ public class MessageUtils {
     private static final byte OPCODE_TUPLELIST_VALUE = 25;
 
     /**
-     * When writing int <b>greater than this</b> value are better written directly as int because in vint encoding will
-     * use at least 4 bytes
+     * When writing int <b>greater than this</b> value are better written
+     * directly as int because in vint encoding will use at least 4 bytes
      */
     private static final int WRITE_MAX_V_INT_LIMIT = -1 >>> 11;
 
     /**
-     * When writing negative int <b>smaller than this</b> value are better written directly as int because in zint
-     * encoding will use at least 8 bytes
+     * When writing negative int <b>smaller than this</b> value are better
+     * written directly as int because in zint encoding will use at least 8
+     * bytes
      */
     private static final int WRITE_MIN_Z_INT_LIMIT = -1 << 20;
 
     /**
-     * When writing long <b>greater than this</b> value are better written directly as long because in vint encoding
-     * will use at least 4 bytes
+     * When writing long <b>greater than this</b> value are better written
+     * directly as long because in vint encoding will use at least 4 bytes
      */
     private static final long WRITE_MAX_V_LONG_LIMIT = -1L >>> 15;
 
     /**
-     * When writing negative long <b>smaller than this</b> value are better written directly as long because in zlong
-     * encoding will use at least 8 bytes
+     * When writing negative long <b>smaller than this</b> value are better
+     * written directly as long because in zlong encoding will use at least 8
+     * bytes
      */
     private static final long WRITE_MIN_Z_LONG_LIMIT = -1L << 48;
 
@@ -125,7 +126,8 @@ public class MessageUtils {
         long replyMessageId = -1;
 
         Map<String, Object> params = new HashMap<>();
-        while (encoded.isReadable()) {
+        boolean finished = false;
+        while (encoded.isReadable() && !finished) {
             byte opcode = encoded.readByte();
             switch (opcode) {
                 case OPCODE_REPLYMESSAGEID:
@@ -138,6 +140,11 @@ public class MessageUtils {
                         Object value = readEncodedSimpleValue(encoded);
                         params.put(((RawString) key).toString(), value);
                     }
+                    // we are not expecting other values
+                    // from 0.7.0 one of the parameters could be a RecordsBatch
+                    // which retains a copy of the buffer but DOES NOT advance the 'readerIndex'
+                    // so after that parameter we cannot continue reading from the buffer
+                    finished = true;
                     break;
                 default:
                     throw new RuntimeException("invalid opcode: " + opcode);
@@ -309,7 +316,7 @@ public class MessageUtils {
         }
     }
 
-    private static Object readEncodedSimpleValue(ByteBuf encoded) {
+    public static Object readEncodedSimpleValue(ByteBuf encoded) {
         byte _opcode = encoded.readByte();
         return readEncodedSimpleValue(_opcode, encoded);
     }
@@ -355,16 +362,10 @@ public class MessageUtils {
                     columns[i] = readUTF8String(encoded).toString();
                 }
                 int numRecords = ByteBufUtils.readVInt(encoded);
-                List<DataAccessor> records = new ArrayList<>(numRecords);
-                for (int i = 0; i < numRecords; i++) {
-                    Map<String, Object> map = new HashMap<>();
-                    for (int j = 0; j < numColumns; j++) {
-                        Object value = readEncodedSimpleValue(encoded);
-                        map.put(columns[j], value);
-                    }
-                    records.add(new MapDataAccessor(map, columns));
-                }
-                return new TuplesList(columns, records);
+                ByteBuf slice = encoded.retainedSlice();
+                RecordsBatch recordsBatch = new RecordsBatch(numRecords, columns, slice);
+
+                return recordsBatch;
             }
             case OPCODE_MAP2_VALUE: {
                 Map<Object, Object> ret = new HashMap<>();
