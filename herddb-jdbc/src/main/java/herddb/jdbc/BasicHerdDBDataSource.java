@@ -263,13 +263,11 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         @Override
         public PooledObject<HerdDBConnection> makeObject() throws Exception {
             HerdDBConnection res = new HerdDBConnection(BasicHerdDBDataSource.this, getHDBConnection(), defaultSchema);
-            LOGGER.log(Level.SEVERE, "makeObject {0}", res);
             return new DefaultPooledObject<>(res);
         }
 
         @Override
         public void destroyObject(PooledObject<HerdDBConnection> po) throws Exception {
-            LOGGER.log(Level.SEVERE, "destroyObject {0}", po.getObject());
             po.getObject().close();
         }
 
@@ -281,7 +279,6 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
         @Override
         public void activateObject(PooledObject<HerdDBConnection> po) throws Exception {
             po.getObject().reset(defaultSchema);
-            LOGGER.log(Level.SEVERE, "activateObject {0}", po.getObject());
         }
 
         @Override
