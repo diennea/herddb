@@ -649,7 +649,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 fetchBuffer = (RecordsBatch) result.parameters.get("data");
                 lastChunk = (Boolean) result.parameters.get("last");
-                if (fetchBuffer.isEmpty()) {
+                if (!fetchBuffer.hasNext()) {
                     noMoreData = true;
                 }
             } catch (InterruptedException | TimeoutException err) {
