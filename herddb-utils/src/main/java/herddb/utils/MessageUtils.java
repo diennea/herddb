@@ -20,6 +20,10 @@
  */
 package herddb.utils;
 
+import herddb.proto.flatbuf.BooleanValue;
+import herddb.proto.flatbuf.DoubleValue;
+import herddb.proto.flatbuf.IntValue;
+import herddb.proto.flatbuf.TimestampValue;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,14 +32,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import herddb.network.Message;
-import herddb.utils.ByteBufUtils;
-import herddb.utils.DataAccessor;
-import herddb.utils.IntHolder;
-import herddb.utils.RawString;
-import herddb.utils.RecordsBatch;
-import herddb.utils.TuplesList;
+import herddb.proto.flatbuf.AnyValue;
+import herddb.proto.flatbuf.AnyValueList;
+import herddb.proto.flatbuf.AnyValueWrapper;
+import herddb.proto.flatbuf.LongValue;
+import herddb.proto.flatbuf.MapEntry;
+import herddb.proto.flatbuf.StringValue;
 import io.netty.buffer.ByteBuf;
+import java.nio.ByteBuffer;
+import java.util.Collections;
 
 /**
  *
@@ -95,68 +100,6 @@ public class MessageUtils {
      * bytes
      */
     private static final long WRITE_MIN_Z_LONG_LIMIT = -1L << 48;
-
-    public static void encodeMessage(ByteBuf buffer, Message m) {
-
-        buffer.writeByte(VERSION);
-        ByteBufUtils.writeVInt(buffer, m.type);
-        ByteBufUtils.writeVLong(buffer, m.messageId);
-        if (m.replyMessageId >= 0) {
-            buffer.writeByte(OPCODE_REPLYMESSAGEID);
-            ByteBufUtils.writeVLong(buffer, m.replyMessageId);
-        }
-        if (m.parameters != null) {
-            buffer.writeByte(OPCODE_PARAMETERS);
-            ByteBufUtils.writeVInt(buffer, m.parameters.size());
-            for (Map.Entry<String, Object> p : m.parameters.entrySet()) {
-                writeEncodedSimpleValue(buffer, p.getKey());
-                writeEncodedSimpleValue(buffer, p.getValue());
-            }
-        }
-    }
-
-    public static Message decodeMessage(ByteBuf encoded) {
-        byte version = encoded.readByte();
-        if (version != VERSION) {
-            throw new RuntimeException("bad protocol version " + version);
-        }
-
-        int type = ByteBufUtils.readVInt(encoded);
-        long messageId = ByteBufUtils.readVLong(encoded);
-        long replyMessageId = -1;
-
-        Map<String, Object> params = new HashMap<>();
-        boolean finished = false;
-        while (encoded.isReadable() && !finished) {
-            byte opcode = encoded.readByte();
-            switch (opcode) {
-                case OPCODE_REPLYMESSAGEID:
-                    replyMessageId = ByteBufUtils.readVLong(encoded);
-                    break;
-                case OPCODE_PARAMETERS:
-                    int size = ByteBufUtils.readVInt(encoded);
-                    for (int i = 0; i < size; i++) {
-                        Object key = readEncodedSimpleValue(encoded);
-                        Object value = readEncodedSimpleValue(encoded);
-                        params.put(((RawString) key).toString(), value);
-                    }
-                    // we are not expecting other values
-                    // from 0.7.0 one of the parameters could be a RecordsBatch
-                    // which retains a copy of the buffer but DOES NOT advance the 'readerIndex'
-                    // so after that parameter we cannot continue reading from the buffer
-                    finished = true;
-                    break;
-                default:
-                    throw new RuntimeException("invalid opcode: " + opcode);
-            }
-        }
-        Message m = new Message(type, params);
-        if (replyMessageId >= 0) {
-            m.replyMessageId = replyMessageId;
-        }
-        m.messageId = messageId;
-        return m;
-    }
 
     private static void writeUTF8String(ByteBuf buffer, String s) {
         byte[] array = s.getBytes(StandardCharsets.UTF_8);
@@ -355,18 +298,18 @@ public class MessageUtils {
                 }
                 return ret;
             }
-            case OPCODE_TUPLELIST_VALUE: {
-                int numColumns = ByteBufUtils.readVInt(encoded);
-                String[] columns = new String[numColumns];
-                for (int i = 0; i < numColumns; i++) {
-                    columns[i] = readUTF8String(encoded).toString();
-                }
-                int numRecords = ByteBufUtils.readVInt(encoded);
-                ByteBuf slice = encoded.retainedSlice();
-                RecordsBatch recordsBatch = new RecordsBatch(numRecords, columns, slice);
-
-                return recordsBatch;
-            }
+//            case OPCODE_TUPLELIST_VALUE: {
+//                int numColumns = ByteBufUtils.readVInt(encoded);
+//                String[] columns = new String[numColumns];
+//                for (int i = 0; i < numColumns; i++) {
+//                    columns[i] = readUTF8String(encoded).toString();
+//                }
+//                int numRecords = ByteBufUtils.readVInt(encoded);
+//                ByteBuf slice = encoded.retainedSlice();
+//                RecordsBatch recordsBatch = new RecordsBatch(numRecords, columns, slice);
+//
+//                return recordsBatch;
+//            }
             case OPCODE_MAP2_VALUE: {
                 Map<Object, Object> ret = new HashMap<>();
                 while (true) {
@@ -412,6 +355,76 @@ public class MessageUtils {
             default:
                 throw new RuntimeException("invalid opcode: " + _opcode);
         }
+    }
+
+    public static byte[] bufferToArray(ByteBuffer data) {
+        byte[] arr = new byte[data.remaining()];
+        data.get(arr);
+        return arr;
+    }
+
+    public static RawString readRawString(ByteBuffer data) {
+        return new RawString(bufferToArray(data));
+    }
+
+    public static String readString(ByteBuffer data) {
+        return new String(bufferToArray(data), StandardCharsets.UTF_8);
+    }
+
+    public static List<Object> decodeAnyValueList(AnyValueList params) {
+        List<Object> res = new ArrayList<>();
+        if (params != null) {
+            for (int i = 0; i < params.itemsLength(); i++) {
+                Object value = decodeObject(params.items(i));
+                res.add(value);
+            }
+        }
+        return res;
+    }
+
+    public static Object decodeObject(AnyValueWrapper item) throws IllegalArgumentException {
+        Object value = null;
+        switch (item.valueType()) {
+            case AnyValue.NullValue:
+                value = null;
+                break;
+            case AnyValue.BooleanValue:
+                value = ((BooleanValue) item.value(new BooleanValue())).value();
+                break;
+            case AnyValue.LongValue:
+                value = ((LongValue) item.value(new LongValue())).value();
+                break;
+            case AnyValue.IntValue:
+                value = ((IntValue) item.value(new IntValue())).value();
+                break;
+            case AnyValue.DoubleValue:
+                value = Double.longBitsToDouble(((DoubleValue) item.value(new DoubleValue())).value());
+                break;
+            case AnyValue.TimestampValue:
+                value = new java.sql.Timestamp(((TimestampValue) item.value(new TimestampValue())).value());
+                break;
+            case AnyValue.StringValue:
+                value = readRawString(((StringValue) item.value(new StringValue())).valueAsByteBuffer());
+                break;
+            default:
+                throw new IllegalArgumentException("bad jdbc param type " + item.valueType());
+        }
+        return value;
+    }
+
+    public static Map<RawString, Object> decodeMap(herddb.proto.flatbuf.Map newValue) {
+        if (newValue == null) {
+            return Collections.emptyMap();
+        }
+        Map<RawString, Object> res = new HashMap<>();
+        int size = newValue.entriesLength();
+        for (int i = 0; i < size; i++) {
+            MapEntry entry = newValue.entries(i);
+            String key = entry.key();
+            Object o = decodeObject(entry.value());
+            res.put(RawString.of(key), o);
+        }
+        return res;
     }
 
 }

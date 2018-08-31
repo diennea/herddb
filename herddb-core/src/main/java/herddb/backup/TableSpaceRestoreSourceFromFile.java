@@ -25,6 +25,7 @@ import herddb.model.Index;
 import herddb.model.Table;
 import herddb.utils.KeyValue;
 import herddb.storage.DataStorageManagerException;
+import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import java.io.EOFException;
 import java.io.IOException;

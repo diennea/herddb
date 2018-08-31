@@ -97,9 +97,8 @@ public class NettyConnector {
                                 ch.pipeline().addLast("lengthprepender", new LengthFieldPrepender(4));
                                 ch.pipeline().addLast("lengthbaseddecoder", new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4));
 //
-                                ch.pipeline().addLast("messageencoder", new DataMessageEncoder());
-                                ch.pipeline().addLast("messagedecoder", new DataMessageDecoder());
-                                ch.pipeline().addLast(new InboundMessageHandler(channel));
+                                ch.pipeline().addLast("messagedecoder", new ProtocolMessageDecoder());
+                                ch.pipeline().addLast(new ClientInboundMessageHandler(channel));
                             } catch (Throwable t) {
                                 LOGGER.log(Level.SEVERE, "error connecting", t);
                                 ch.close();

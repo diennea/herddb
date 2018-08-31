@@ -14,7 +14,16 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <buildNumber>${maven.build.timestamp}</buildNumber>
     </properties>
-    <dependencies>        
+    <dependencies>
+        <dependency>
+            <groupId>com.google.flatbuffers</groupId>
+            <artifactId>flatbuffers-java</artifactId>    
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-proto</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>herddb-utils</artifactId>
@@ -98,7 +107,7 @@
                 <exclusion>
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>*</artifactId>
-               </exclusion>
+                </exclusion>
                 <exclusion>
                     <groupId>com.yahoo.datasketches</groupId>
                     <artifactId>*</artifactId>

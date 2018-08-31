@@ -26,5 +26,5 @@ package herddb.network;
  */
 public interface SendResultCallback {
 
-    public void messageSent(Message originalMessage, Throwable error);
+    public void messageSent(Throwable error);
 }

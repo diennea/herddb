@@ -81,7 +81,9 @@
         <libs.spotbugs>3.1.0</libs.spotbugs> 
         <libs.jcipi-annotations>1.0</libs.jcipi-annotations> 
         <libs.spotbugsannotations>3.1.0</libs.spotbugsannotations>
-        <libs.spotbugsmaven>3.1.2</libs.spotbugsmaven>   
+        <libs.spotbugsmaven>3.1.2</libs.spotbugsmaven>
+        <fbs.version>1.9.0</fbs.version>          
+        <fbs.flatc.version>1.2.0-3f79e055</fbs.flatc.version>  
     </properties>
         
     <dependencies>
@@ -113,7 +115,12 @@
     </dependencies>
 
     <dependencyManagement>
-        <dependencies>
+        <dependencies>  
+            <dependency>
+                <groupId>com.google.flatbuffers</groupId>
+                <artifactId>flatbuffers-java</artifactId>
+                <version>${fbs.version}</version>
+            </dependency>
             <dependency>
                 <groupId>commons-lang</groupId>
                 <artifactId>commons-lang</artifactId>
@@ -309,6 +316,7 @@
                 <activeByDefault>true</activeByDefault>                
             </activation> 
             <modules>
+                <module>herddb-proto</module>
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
@@ -350,7 +358,6 @@
                             <reuseForks>false</reuseForks>
                             <forkedProcessTimeoutInSeconds>1800</forkedProcessTimeoutInSeconds>
                             <argLine> -Xmx2G -XX:+UseG1GC -Djava.io.tmpdir=${project.build.directory}</argLine>
-                            <redirectTestOutputToFile>false</redirectTestOutputToFile>
                             <trimStackTrace>false</trimStackTrace>
                         </configuration>
                     </plugin>            
@@ -404,6 +411,7 @@
                 <activeByDefault>false</activeByDefault>                
             </activation>   
             <modules>
+                <module>herddb-proto</module>
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
@@ -505,6 +513,7 @@
                 <activeByDefault>false</activeByDefault>                
             </activation> 
             <modules>
+                <module>herddb-proto</module>
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>
@@ -560,6 +569,7 @@
                 <activeByDefault>false</activeByDefault>                
             </activation> 
             <modules>
+                <module>herddb-proto</module>
                 <module>herddb-utils</module>
                 <module>herddb-net</module>
                 <module>herddb-core</module>

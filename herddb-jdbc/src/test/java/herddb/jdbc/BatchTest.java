@@ -56,7 +56,7 @@ public class BatchTest {
                         PreparedStatement statementCreatePage = con.prepareStatement("CREATE TABLE mytable (n1 int primary key auto_increment, name string)");
                         PreparedStatement statement = con.prepareStatement("INSERT INTO mytable (name) values(?)");) {
                     statementCreatePage.addBatch();
-                    
+
                     // use executeBatch for DDL, like in MySQL import scripts
                     int[] resultsCreate = statementCreatePage.executeBatch();
                     assertEquals(1, resultsCreate[0]);

@@ -19,11 +19,14 @@
  */
 package herddb.network;
 
+import herddb.proto.flatbuf.Response;
+import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Abstract for two-way async comunication channels
@@ -31,6 +34,11 @@ import java.util.concurrent.TimeoutException;
  * @author enrico.olivelli
  */
 public abstract class Channel implements AutoCloseable {
+
+    protected interface ResponseCallback {
+
+        public void responseReceived(ResponseWrapper message, Throwable error);
+    }
 
     protected ChannelEventListener messagesReceiver;
     protected String name = "unnamed";
@@ -46,11 +54,11 @@ public abstract class Channel implements AutoCloseable {
         this.messagesReceiver = messagesReceiver;
     }
 
-    public abstract void sendOneWayMessage(Message message, SendResultCallback callback);
+    public abstract void sendOneWayMessage(ByteBuf message, SendResultCallback callback);
 
-    public abstract void sendReplyMessage(Message inAnswerTo, Message message);
+    public abstract void sendReplyMessage(long inAnswerTo, ByteBuf message);
 
-    protected abstract void sendMessageWithAsyncReply(Message message, long timeout, ReplyCallback callback);
+    protected abstract void sendRequestWithAsyncReply(long id, ByteBuf message, long timeout, ResponseCallback callback);
 
     public abstract void channelIdle();
 
@@ -59,10 +67,16 @@ public abstract class Channel implements AutoCloseable {
     @Override
     public abstract void close();
 
-    public Message sendMessageWithReply(Message message, long timeout) throws InterruptedException, TimeoutException {
-        CompletableFuture<Message> resp = new CompletableFuture<>();
+    private final static AtomicLong requestIdGeneator = new AtomicLong();
+
+    public final long generateRequestId() {
+        return requestIdGeneator.incrementAndGet();
+    }
+
+    public ResponseWrapper sendMessageWithReply(long id, ByteBuf request, long timeout) throws InterruptedException, TimeoutException {
+        CompletableFuture<ResponseWrapper> resp = new CompletableFuture<>();
         long _start = System.currentTimeMillis();
-        sendMessageWithAsyncReply(message, timeout, (Message originalMessage, Message message1, Throwable error) -> {
+        sendRequestWithAsyncReply(id, request, timeout, (ResponseWrapper message1, Throwable error) -> {
             if (error != null) {
                 resp.completeExceptionally(error);
             } else {

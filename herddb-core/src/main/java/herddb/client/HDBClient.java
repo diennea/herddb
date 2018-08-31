@@ -29,6 +29,7 @@ import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.MultithreadEventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.concurrent.FastThreadLocalThread;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -72,7 +73,7 @@ public class HDBClient implements AutoCloseable {
                 120L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(),
                 (Runnable r) -> {
-                    Thread t = new Thread(r, "hdb-client");
+                    Thread t = new FastThreadLocalThread(r, "hdb-client");
                     t.setDaemon(true);
                     return t;
                 });

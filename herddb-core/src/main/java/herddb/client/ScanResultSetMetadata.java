@@ -19,7 +19,10 @@
  */
 package herddb.client;
 
+import com.google.common.collect.ImmutableMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import java.util.Arrays;
+import java.util.Map;
 
 /**
  * Metadta about a ResultSet
@@ -30,6 +33,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 public class ScanResultSetMetadata {
 
     private String[] columnNames;
+    private Map<String, Integer> columnNameToPosition;
 
     public ScanResultSetMetadata(String[] columnNames) {
         this.columnNames = columnNames;
@@ -37,6 +41,33 @@ public class ScanResultSetMetadata {
 
     public String[] getColumnNames() {
         return columnNames;
+    }
+
+    /**
+     * Returns the index (base 0) of the column. The search is not case
+     * sensitive
+     *
+     * @param columnName
+     * @return returns -1 if column not found
+     */
+    public int getColumnPosition(String columnName) {
+        if (columnNameToPosition == null) {
+            ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+            int i = 1;
+            for (String _columnName : columnNames) {
+                if (_columnName == null) {
+                    throw new IllegalStateException("Invalid columnName null, in " + Arrays.toString(columnNames));
+                }
+                builder.put(_columnName, i++);
+
+            }
+            columnNameToPosition = builder.build();
+        }
+        Integer pos = columnNameToPosition.get(columnName);
+        if (pos == null) {
+            pos = columnNameToPosition.get(columnName.toLowerCase());
+        }
+        return (pos == null) ? 0 : pos;
     }
 
     public void setColumnNames(String[] columnNames) {

@@ -26,14 +26,7 @@ package herddb.network;
  */
 public interface ChannelEventListener {
 
-    /**
-     * Called for each message which is not a direct reply to another message.
-     * Any unchecked Exception thrown by this method will cause the channel to
-     * be closed
-     *
-     * @param message
-     */
-    public default void messageReceived(Message message, Channel channel) {
+    public default void requestReceived(RequestWrapper message, Channel channel) {
     }
 
     public default void channelClosed(Channel channel) {

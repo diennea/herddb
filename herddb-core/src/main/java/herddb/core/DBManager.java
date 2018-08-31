@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -92,8 +91,9 @@ import herddb.model.commands.GetStatement;
 import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
-import herddb.network.Message;
+import herddb.network.MessageBuilder;
 import herddb.network.ServerHostData;
+import herddb.proto.flatbuf.Request;
 import herddb.server.ServerConfiguration;
 import herddb.sql.AbstractSQLPlanner;
 import herddb.sql.CalcitePlanner;
@@ -930,13 +930,13 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
         }
     }
 
-    public void dumpTableSpace(String tableSpace, String dumpId, Message message, Channel _channel, int fetchSize, boolean includeLog) {
+    public void dumpTableSpace(String tableSpace, String dumpId, Request message, Channel _channel, int fetchSize, boolean includeLog) {
         TableSpaceManager manager = tablesSpaces.get(tableSpace);
         if (manager == null) {
-            _channel.sendReplyMessage(message, Message.ERROR(new Exception("tableSpace " + tableSpace + " not booted here")));
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("tableSpace " + tableSpace + " not booted here")));
             return;
         } else {
-            _channel.sendReplyMessage(message, Message.ACK());
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         }
         try {
             manager.dumpTableSpace(dumpId, _channel, fetchSize, includeLog);

@@ -22,6 +22,11 @@
             <groupId>net.jpountz.lz4</groupId>
             <artifactId>lz4</artifactId>
         </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>herddb-proto</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
     <profiles>
         <profile>

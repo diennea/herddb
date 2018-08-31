@@ -32,7 +32,7 @@ import herddb.model.Record;
 import herddb.model.Table;
 import herddb.network.Channel;
 import herddb.utils.KeyValue;
-import herddb.network.Message;
+import herddb.network.MessageBuilder;
 import herddb.storage.FullTableScanConsumer;
 import herddb.storage.TableStatus;
 
@@ -64,20 +64,17 @@ class SingleTableDumper implements FullTableScanConsumer {
     public void acceptTableStatus(TableStatus tableStatus) {
         try {
             Table table = tableManager.getTable();
-            byte[] serialized = table.serialize();
-            Map<String, Object> beginTableData = new HashMap<>();
+            byte[] tableDefinition = table.serialize();
             TableManagerStats stats = tableManager.getStats();
-            beginTableData.put("command", "beginTable");
-            beginTableData.put("table", serialized);
-            beginTableData.put("estimatedSize", stats.getTablesize());
-            beginTableData.put("dumpLedgerid", tableStatus.sequenceNumber.ledgerId);
-            beginTableData.put("dumpOffset", tableStatus.sequenceNumber.offset);
             List<byte[]> indexes = tableManager.getAvailableIndexes()
-                .stream()
-                .map(Index::serialize)
-                .collect(Collectors.toList());
-            beginTableData.put("indexes", indexes);
-            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, beginTableData), timeout);
+                    .stream()
+                    .map(Index::serialize)
+                    .collect(Collectors.toList());
+            long id = _channel.generateRequestId();
+            _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+                    id, tableSpaceName, dumpId, "beginTable", tableDefinition, stats.getTablesize(),
+                    tableStatus.sequenceNumber.ledgerId, tableStatus.sequenceNumber.offset,
+                    indexes, null), timeout);
         } catch (InterruptedException | TimeoutException err) {
             throw new HerdDBInternalException(err);
         }
@@ -92,11 +89,7 @@ class SingleTableDumper implements FullTableScanConsumer {
         try {
             batch.add(new KeyValue(record.key.data, record.value.data));
             if (batch.size() == fetchSize) {
-                Map<String, Object> data = new HashMap<>();
-                data.put("command", "data");
-                data.put("records", batch);
-                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, data), timeout);
-                batch.clear();
+                sendBatch();
             }
         } catch (Exception error) {
             throw new RuntimeException(error);
@@ -111,18 +104,25 @@ class SingleTableDumper implements FullTableScanConsumer {
     public void endTable() {
         try {
             if (!batch.isEmpty()) {
-                Map<String, Object> data = new HashMap<>();
-                data.put("command", "data");
-                data.put("records", batch);
-                _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, data), timeout);
-                batch.clear();
+                sendBatch();
             }
-            Map<String, Object> endTableData = new HashMap<>();
-            endTableData.put("command", "endTable");
-            _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, endTableData), timeout);
+            long id = _channel.generateRequestId();
+            _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+                    id, tableSpaceName, dumpId, "endTable", null, 0,
+                    0, 0,
+                    null, null), timeout);
         } catch (Exception error) {
             throw new RuntimeException(error);
         }
+    }
+
+    private void sendBatch() throws TimeoutException, InterruptedException {
+        long id = _channel.generateRequestId();
+        _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+                id, tableSpaceName, dumpId, "data", null, 0,
+                0, 0,
+                null, batch), timeout);
+        batch.clear();
     }
 
 }

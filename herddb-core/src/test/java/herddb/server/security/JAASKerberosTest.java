@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.server;
+package herddb.server.security;
 
 import static org.junit.Assert.assertEquals;
 
@@ -40,10 +40,14 @@ import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
 
 /**
- * Demonstates the usage of the update "newvalue" facility to implement atomic-counters
+ * Demonstates the usage of the update "newvalue" facility to implement
+ * atomic-counters
  *
  * @author enrico.olivelli
  */
@@ -83,25 +87,25 @@ public class JAASKerberosTest {
         File jaas_file = new File(workDir.getRoot(), "jaas.conf");
         try (FileWriter writer = new FileWriter(jaas_file)) {
             writer.write("\n"
-                + "HerdDBServer {\n"
-                + "  com.sun.security.auth.module.Krb5LoginModule required debug=true\n"
-                + "  useKeyTab=true\n"
-                + "  keyTab=\"" + keytabServer.getAbsolutePath() + "\n"
-                + "  storeKey=true\n"
-                + "  useTicketCache=false\n"
-                + "  principal=\"" + principalServer + "\";\n"
-                + "};\n"
-                + "\n"
-                + "\n"
-                + "\n"
-                + "HerdDBClient {\n"
-                + "  com.sun.security.auth.module.Krb5LoginModule required debug=true\n"
-                + "  useKeyTab=true\n"
-                + "  keyTab=\"" + keytabClient.getAbsolutePath() + "\n"
-                + "  storeKey=true\n"
-                + "  useTicketCache=false\n"
-                + "  principal=\"" + principalClient + "\";\n"
-                + "};\n"
+                    + "HerdDBServer {\n"
+                    + "  com.sun.security.auth.module.Krb5LoginModule required debug=true\n"
+                    + "  useKeyTab=true\n"
+                    + "  keyTab=\"" + keytabServer.getAbsolutePath() + "\n"
+                    + "  storeKey=true\n"
+                    + "  useTicketCache=false\n"
+                    + "  principal=\"" + principalServer + "\";\n"
+                    + "};\n"
+                    + "\n"
+                    + "\n"
+                    + "\n"
+                    + "HerdDBClient {\n"
+                    + "  com.sun.security.auth.module.Krb5LoginModule required debug=true\n"
+                    + "  useKeyTab=true\n"
+                    + "  keyTab=\"" + keytabClient.getAbsolutePath() + "\n"
+                    + "  storeKey=true\n"
+                    + "  useTicketCache=false\n"
+                    + "  principal=\"" + principalClient + "\";\n"
+                    + "};\n"
             );
 
         }
@@ -109,13 +113,13 @@ public class JAASKerberosTest {
         File krb5file = new File(workDir.getRoot(), "krb5.conf");
         try (FileWriter writer = new FileWriter(krb5file)) {
             writer.write("[libdefaults]\n"
-                + " default_realm = " + kdc.getRealm() + "\n"
-                + "\n"
-                + "\n"
-                + "[realms]\n"
-                + " " + kdc.getRealm() + "  = {\n"
-                + "  kdc = " + kdc.getHost() + ":" + kdc.getPort() + "\n"
-                + " }"
+                    + " default_realm = " + kdc.getRealm() + "\n"
+                    + "\n"
+                    + "\n"
+                    + "[realms]\n"
+                    + " " + kdc.getRealm() + "  = {\n"
+                    + "  kdc = " + kdc.getHost() + ":" + kdc.getPort() + "\n"
+                    + " }"
             );
 
         }
@@ -144,11 +148,11 @@ public class JAASKerberosTest {
         try (Server server = new Server(serverConfig)) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, Arrays.asList("test_0", 1, 2)).updateCount);

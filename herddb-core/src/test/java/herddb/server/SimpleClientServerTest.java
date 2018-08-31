@@ -85,7 +85,7 @@ public class SimpleClientServerTest {
                     HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
-                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, 100));                
+                assertTrue(connection.waitForTableSpace(TableSpace.DEFAULT, 100));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
                         "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
@@ -103,7 +103,7 @@ public class SimpleClientServerTest {
                         "SELECT * FROM mytable WHERE id='test'", tx, Collections.emptyList());
                 Map<RawString, Object> record = res.data;
                 Assert.assertNotNull(record);
-                
+
                 assertEquals(RawString.of("test"), record.get(RawString.of("id")));
                 assertEquals(Long.valueOf(1), record.get(RawString.of("n1")));
                 assertEquals(Integer.valueOf(2), record.get(RawString.of("n2")));
@@ -147,6 +147,17 @@ public class SimpleClientServerTest {
                     }
                     assertEquals(1, all.size());
                 }
+
+                List<DMLResult> executeUpdatesWithoutParams = connection.executeUpdates(TableSpace.DEFAULT,
+                        "UPDATE mytable set n2=1 WHERE id='test'", -1,
+                        false,
+                        Arrays.asList(
+                                // empty list of parameters
+                                Arrays.asList()
+                        )
+                );
+                assertEquals(1, executeUpdatesWithoutParams.size());
+                assertEquals(1, executeUpdatesWithoutParams.get(0).updateCount);
 
             }
         }

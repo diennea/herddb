@@ -19,7 +19,9 @@
  */
 package herddb.network.netty;
 
-import herddb.network.Message;
+import herddb.network.RequestWrapper;
+import herddb.network.ResponseWrapper;
+import herddb.proto.flatbuf.Request;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import java.util.logging.Level;
@@ -30,13 +32,13 @@ import java.util.logging.Logger;
  *
  * @author enrico.olivelli
  */
-public class InboundMessageHandler extends ChannelInboundHandlerAdapter {
+public class ClientInboundMessageHandler extends ChannelInboundHandlerAdapter {
 
-    private static final Logger LOG = Logger.getLogger(InboundMessageHandler.class.getName());
+    private static final Logger LOG = Logger.getLogger(ClientInboundMessageHandler.class.getName());
 
     private final NettyChannel session;
 
-    public InboundMessageHandler(NettyChannel session) {
+    public ClientInboundMessageHandler(NettyChannel session) {
         this.session = session;
     }
 
@@ -54,8 +56,13 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        Message message = (Message) msg;
-        session.messageReceived(message);
+        if (msg instanceof ResponseWrapper) {
+            ResponseWrapper message = (ResponseWrapper) msg;
+            session.responseReceived(message);
+        } else if (msg instanceof RequestWrapper) {
+            RequestWrapper message = (RequestWrapper) msg;
+            session.requestReceived(message);
+        }
     }
 
 }

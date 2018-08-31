@@ -19,7 +19,8 @@
  */
 package herddb.client;
 
-import herddb.network.Message;
+import herddb.proto.flatbuf.MessageType;
+import herddb.proto.flatbuf.Response;
 
 /**
  * Generic client side exception
@@ -32,10 +33,10 @@ public class HDBException extends Exception {
         super(message);
     }
 
-    public HDBException(Message reply) {
-        super(reply.type == reply.TYPE_ERROR
-            ? reply.parameters.get("error") + "" : reply + "",
-            new Exception("server-side-error:" + reply));
+    public HDBException(Response reply) {
+        super(reply.type() == MessageType.TYPE_ERROR
+                ? reply.error() + "" : reply + "",
+                new Exception("server-side-error:" + reply));
 
     }
 

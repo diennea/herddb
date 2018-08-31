@@ -65,7 +65,7 @@ public class SimpleClientScanTest {
                 // maxRows
                 assertEquals(17, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable", Collections.emptyList(), 0, 17, 10).consume().size());
 
-                // empty result set                
+                // empty result set
                 assertEquals(0, connection.executeScan(TableSpace.DEFAULT, "SELECT * FROM mytable WHERE id='none'", Collections.emptyList(), 0, 0, 10).consume().size());
 
                 // single fetch result test
