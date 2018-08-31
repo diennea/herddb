@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.network;
+package herddb.utils;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 

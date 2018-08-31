@@ -19,11 +19,14 @@
  */
 package herddb.network.netty;
 
+import herddb.utils.MessageUtils;
 import herddb.network.Message;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Encodes messages to bytes
@@ -31,6 +34,8 @@ import io.netty.channel.ChannelPromise;
  * @author enrico.olivelli
  */
 public class DataMessageEncoder extends ChannelOutboundHandlerAdapter {
+
+    private static final Logger LOG = Logger.getLogger(DataMessageEncoder.class.getName());
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
@@ -42,7 +47,7 @@ public class DataMessageEncoder extends ChannelOutboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        cause.printStackTrace();
+        LOG.log(Level.SEVERE, "Error on encoder, channel " + ctx, cause);
     }
 
 }

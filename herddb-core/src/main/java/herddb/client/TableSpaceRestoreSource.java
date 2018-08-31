@@ -20,7 +20,7 @@
 package herddb.client;
 
 import herddb.backup.DumpedTableMetadata;
-import herddb.network.KeyValue;
+import herddb.utils.KeyValue;
 import herddb.storage.DataStorageManagerException;
 import java.util.List;
 

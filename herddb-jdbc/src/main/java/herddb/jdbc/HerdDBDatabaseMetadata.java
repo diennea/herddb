@@ -22,7 +22,7 @@ package herddb.jdbc;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ScanResultSetMetadata;
 import herddb.client.impl.EmptyScanResultSet;
-import herddb.client.impl.IteratorScanResultSet;
+import herddb.client.impl.MapListScanResultSet;
 import herddb.model.TransactionContext;
 import herddb.utils.SQLUtils;
 import java.sql.Connection;
@@ -764,7 +764,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
             }
             ScanResultSetMetadata metadata = new ScanResultSetMetadata(GET_TABLES_SCHEMA);
-            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
+            return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, GET_TABLES_SCHEMA, results));
         }
     }
 
@@ -794,7 +794,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
             }
             ScanResultSetMetadata metadata = new ScanResultSetMetadata(GET_SCHEMAS_SCHEMA);
-            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
+            return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, GET_SCHEMAS_SCHEMA, results));
         }
     }
 
@@ -995,7 +995,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
             }
             ScanResultSetMetadata metadata = new ScanResultSetMetadata(GET_COLUMNS_SCHEMA);
-            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
+            return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, GET_COLUMNS_SCHEMA, results));
         }
     }
 
@@ -1095,8 +1095,8 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
      * @param schema a schema name; must match the schema name as it is stored
      * in this database; "" retrieves those without a schema; <code>null</code>
      * means that the schema name should not be used to narrow the search
-     * @param tableNamePattern a table name; must match the table name as it is stored in
-     * this database
+     * @param tableNamePattern a table name; must match the table name as it is
+     * stored in this database
      * @param onlyUnique when true, return only indices for unique values; when
      * false, return indices regardless of whether unique or not
      * @param approximate when true, result is allowed to reflect approximate or
@@ -1110,7 +1110,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
         String query = "SELECT * FROM SYSINDEXCOLUMNS";
         if (tableNamePattern != null && !tableNamePattern.isEmpty()) {
             query = query + " WHERE table_name LIKE '" + SQLUtils.escape(tableNamePattern) + "'";
-        }        
+        }
         try (Statement statement = con.createStatement();
                 ResultSet rs = statement.executeQuery(query)) {
 
@@ -1123,7 +1123,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
                 boolean clustered = rs.getInt("clustered") == 1;
                 boolean uniqueValues = rs.getInt("unique") == 1;
 
-                if (onlyUnique && !uniqueValues) {                    
+                if (onlyUnique && !uniqueValues) {
                     continue;
                 }
 
@@ -1147,7 +1147,7 @@ public class HerdDBDatabaseMetadata implements DatabaseMetaData {
 
             }
             ScanResultSetMetadata metadata = new ScanResultSetMetadata(GET_INDEXES_SCHEMA);
-            return new HerdDBResultSet(new IteratorScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, results.iterator()));
+            return new HerdDBResultSet(new MapListScanResultSet(TransactionContext.NOTRANSACTION_ID, metadata, GET_INDEXES_SCHEMA, results));
         }
     }
 

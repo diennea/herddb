@@ -22,6 +22,8 @@ package herddb.network.netty;
 import herddb.network.Message;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Handles messages
@@ -30,7 +32,9 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
  */
 public class InboundMessageHandler extends ChannelInboundHandlerAdapter {
 
-    NettyChannel session;
+    private static final Logger LOG = Logger.getLogger(InboundMessageHandler.class.getName());
+
+    private final NettyChannel session;
 
     public InboundMessageHandler(NettyChannel session) {
         this.session = session;
@@ -38,7 +42,7 @@ public class InboundMessageHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        cause.printStackTrace();
+        LOG.log(Level.SEVERE, "error on channel " + ctx, cause);
         ctx.close();
         session.exceptionCaught(cause);
     }

@@ -23,6 +23,7 @@ import herddb.client.HDBException;
 import herddb.client.ScanResultSet;
 import herddb.client.ScanResultSetMetadata;
 import herddb.jdbc.utils.SQLExceptionUtils;
+import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import java.io.InputStream;
 import java.io.Reader;
@@ -56,7 +57,7 @@ import java.util.Map;
 public class HerdDBResultSet implements ResultSet {
 
     private final ScanResultSet scanResult;
-    private Map<String, Object> actualValue;
+    private DataAccessor actualValue;
     private Object lastValue;
     private final ScanResultSetMetadata metadata;
 

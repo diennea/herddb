@@ -43,7 +43,7 @@ import herddb.model.Table;
 import herddb.model.Transaction;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
-import herddb.network.KeyValue;
+import herddb.utils.KeyValue;
 import herddb.network.Message;
 import herddb.network.ServerHostData;
 import herddb.security.sasl.SaslNettyClient;
@@ -52,6 +52,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
+import herddb.utils.RecordsBatch;
 import herddb.utils.TuplesList;
 
 /**
@@ -397,7 +398,6 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             throw new HDBException(err);
         }
     }
-    
 
     void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
@@ -452,13 +452,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 }
                 throw new HDBException(reply);
             }
-            TuplesList data = (TuplesList) reply.parameters.get("data");
-            List<DataAccessor> initialFetchBuffer = data.tuples;
-            String[] columnNames = data.columnNames;
+            RecordsBatch data = (RecordsBatch) reply.parameters.get("data");
             boolean last = (Boolean) reply.parameters.get("last");
             long transactionId = (Long) reply.parameters.get("tx");
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
-            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, columnNames, initialFetchBuffer, fetchSize, last, transactionId);
+            ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId);
 
             return impl;
         } catch (InterruptedException | TimeoutException err) {
@@ -582,14 +580,21 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         private final String scannerId;
         private final ScanResultSetMetadata metadata;
 
-        private ScanResultSetImpl(String scannerId, String[] columns, List<DataAccessor> fetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
-            super(tx);
-            this.scannerId = scannerId;
-            this.metadata = new ScanResultSetMetadata(columns);
+        RecordsBatch fetchBuffer;
+        DataAccessor next;
+        boolean finished;
+        boolean noMoreData;
+        int fetchSize;
+        boolean lastChunk;
 
-            this.fetchBuffer.addAll(fetchBuffer);
+        private ScanResultSetImpl(String scannerId, RecordsBatch firstFetchBuffer, int fetchSize, boolean onlyOneChunk, long tx) {
+            super(tx);
+
+            this.scannerId = scannerId;
+            this.metadata = new ScanResultSetMetadata(firstFetchBuffer.columnNames);
             this.fetchSize = fetchSize;
-            if (fetchBuffer.isEmpty()) {
+            this.fetchBuffer = firstFetchBuffer;
+            if (firstFetchBuffer.isEmpty()) {
                 // empty result set
                 finished = true;
                 noMoreData = true;
@@ -604,17 +609,17 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             return metadata;
         }
 
-        final List<DataAccessor> fetchBuffer = new ArrayList<>();
-        Map<String, Object> next;
-        boolean finished;
-        boolean noMoreData;
-        int bufferPosition;
-        int fetchSize;
-        boolean lastChunk;
-
         @Override
         public void close() {
             finished = true;
+            releaseBuffer();
+        }
+
+        private void releaseBuffer() {
+            if (fetchBuffer != null) {
+                fetchBuffer.release();
+                fetchBuffer = null;
+            }
         }
 
         @Override
@@ -626,13 +631,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         }
 
         private void fillBuffer() throws HDBException {
+            releaseBuffer();
             if (lastChunk) {
-                fetchBuffer.clear();
                 noMoreData = true;
-                bufferPosition = 0;
                 return;
             }
-            fetchBuffer.clear();
             Channel _channel = ensureOpen();
             try {
                 Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(scannerId, fetchSize), 10000);
@@ -644,14 +647,11 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     finished = true;
                     throw new HDBException("protocol error: " + result);
                 }
-                TuplesList data = (TuplesList) result.parameters.get("data");
-                List<DataAccessor> records = data.tuples;
+                fetchBuffer = (RecordsBatch) result.parameters.get("data");
                 lastChunk = (Boolean) result.parameters.get("last");
-                if (records.isEmpty()) {
+                if (!fetchBuffer.hasNext()) {
                     noMoreData = true;
                 }
-                fetchBuffer.addAll(records);
-                bufferPosition = 0;
             } catch (InterruptedException | TimeoutException err) {
                 throw new HDBException(err);
             }
@@ -661,23 +661,23 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
             if (next != null) {
                 return true;
             }
-            if (bufferPosition == fetchBuffer.size()) {
+            if (!fetchBuffer.hasNext()) {
                 fillBuffer();
                 if (noMoreData) {
                     finished = true;
                     return false;
                 }
             }
-            next = fetchBuffer.get(bufferPosition++).toMap();
+            next = fetchBuffer.next();
             return true;
         }
 
         @Override
-        public Map<String, Object> next() throws HDBException {
+        public DataAccessor next() throws HDBException {
             if (finished) {
                 throw new HDBException("Scanner is exhausted");
             }
-            Map<String, Object> _next = next;
+            DataAccessor _next = next;
             next = null;
             return _next;
         }

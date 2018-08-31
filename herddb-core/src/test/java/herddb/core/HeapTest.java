@@ -38,17 +38,21 @@ import herddb.model.StatementEvaluationContext;
 import herddb.model.TransactionContext;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.network.Message;
-import herddb.network.netty.MessageUtils;
+import herddb.utils.MessageUtils;
 import herddb.utils.DataAccessor;
+import herddb.utils.RecordsBatch;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.List;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 /**
- * Tests on table creation. An heap is a table without primary key, that is that the full record is the PK
+ * Tests on table creation. An heap is a table without primary key, that is that
+ * the full record is the PK
  *
  * @author enrico.olivelli
  */
@@ -77,13 +81,26 @@ public class HeapTest {
                 for (DataAccessor da : records) {
                     assertThat(da, instanceOf(DataAccessorForFullRecord.class));
                 }
+                assertEquals(1, records.size());
                 TuplesList tuplesList = new TuplesList(columns, records);
                 Message msg = Message.RESULTSET_CHUNK("xxx", tuplesList, true, dataScanner.transactionId);
                 msg.assignMessageId();
                 ByteBuf buffer = Unpooled.buffer();
                 MessageUtils.encodeMessage(buffer, msg);
                 Message msgDecoded = MessageUtils.decodeMessage(buffer);
-                assertEquals(msgDecoded, msg);
+
+                // remote the two different forms of the same datum
+                RecordsBatch batchReceived = (RecordsBatch) msgDecoded.parameters.remove("data");
+                TuplesList batchSent = (TuplesList) msg.parameters.remove("data");
+
+                assertEquals(msgDecoded.messageId, msg.messageId);
+
+                assertTrue(batchReceived.hasNext());
+                DataAccessor recordReceived = batchReceived.next();
+                DataAccessor recordSent = batchSent.tuples.get(0);
+                assertFalse(batchReceived.hasNext());
+                batchReceived.release();
+                assertEquals(recordReceived, recordSent);
             }
 
         }
