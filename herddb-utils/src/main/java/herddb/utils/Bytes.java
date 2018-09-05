@@ -82,6 +82,12 @@ public final class Bytes implements Comparable<Bytes>, SizeAwareObject {
         putLong(res, 0, value);
         return res;
     }
+    
+    public static byte[] doubleToByteArray(double value) {
+        byte[] res = new byte[8];
+        putLong(res, 0, Double.doubleToLongBits(value));
+        return res;
+    }
 
     public static Bytes from_long(long value) {
         byte[] res = new byte[8];

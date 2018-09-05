@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.server;
+package herddb.server.security;
 
 import static org.junit.Assert.assertEquals;
 
@@ -35,10 +35,14 @@ import herddb.client.ClientConfiguration;
 import herddb.client.HDBClient;
 import herddb.client.HDBConnection;
 import herddb.model.TableSpace;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
 
 /**
- * Demonstates the usage of the update "newvalue" facility to implement atomic-counters
+ * Demonstates the usage of the update "newvalue" facility to implement
+ * atomic-counters
  *
  * @author enrico.olivelli
  */
@@ -53,11 +57,11 @@ public class JAASMD5Test {
         try (Server server = new Server(new ServerConfiguration(folder.newFolder().toPath()))) {
             server.start();
             try (HDBClient client = new HDBClient(new ClientConfiguration(folder.newFolder().toPath()));
-                HDBConnection connection = client.openConnection()) {
+                    HDBConnection connection = client.openConnection()) {
                 client.setClientSideMetadataProvider(new StaticClientSideMetadataProvider(server));
 
                 long resultCreateTable = connection.executeUpdate(TableSpace.DEFAULT,
-                    "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
+                        "CREATE TABLE mytable (id string primary key, n1 long, n2 integer)", 0, false, Collections.emptyList()).updateCount;
                 Assert.assertEquals(1, resultCreateTable);
 
                 Assert.assertEquals(1, connection.executeUpdate(TableSpace.DEFAULT, "INSERT INTO mytable (id,n1,n2) values(?,?,?)", 0, false, Arrays.asList("test_0", 1, 2)).updateCount);

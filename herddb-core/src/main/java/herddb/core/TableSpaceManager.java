@@ -112,9 +112,12 @@ import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.utils.KeyValue;
-import herddb.network.Message;
+import herddb.network.MessageBuilder;
+import herddb.network.ResponseWrapper;
 import herddb.network.SendResultCallback;
 import herddb.network.ServerHostData;
+import herddb.proto.flatbuf.MessageType;
+import herddb.proto.flatbuf.Response;
 import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -789,17 +792,18 @@ public class TableSpaceManager {
         }
 
         try {
-
             final int timeout = 60000;
-            Map<String, Object> startData = new HashMap<>();
-            startData.put("command", "start");
             LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
-            startData.put("ledgerid", logSequenceNumber.ledgerId);
-            startData.put("offset", logSequenceNumber.offset);
-            Message response_to_start = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, startData), timeout);
-            if (response_to_start.type != Message.TYPE_ACK) {
-                LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.parameters);
-                return;
+
+            long id = _channel.generateRequestId();
+            LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, _channel});
+            try (ResponseWrapper response_to_start = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+                    id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), logSequenceNumber.ledgerId, logSequenceNumber.offset, null, null), timeout);) {
+
+                if (response_to_start.type() != MessageType.TYPE_ACK) {
+                    LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.response.error());
+                    return;
+                }
             }
 
             if (includeLog) {
@@ -809,10 +813,10 @@ public class TableSpaceManager {
                 for (Transaction t : transactionsSnapshot) {
                     batch.add(t);
                     if (batch.size() == 10) {
-                        sendTransactionsDump(batch, _channel, dumpId, timeout, response_to_start);
+                        sendTransactionsDump(batch, _channel, dumpId, timeout);
                     }
                 }
-                sendTransactionsDump(batch, _channel, dumpId, timeout, response_to_start);
+                sendTransactionsDump(batch, _channel, dumpId, timeout);
             }
 
             for (Entry<String, LogSequenceNumber> entry : checkpoint.tablesCheckpoints.entrySet()) {
@@ -825,10 +829,14 @@ public class TableSpaceManager {
                     FullTableScanConsumer sink = new SingleTableDumper(tableSpaceName, tableManager, _channel, dumpId, timeout, fetchSize);
                     tableManager.dump(sequenceNumber, sink);
                 } catch (DataStorageManagerException err) {
-                    Map<String, Object> errorOnData = new HashMap<>();
-                    errorOnData.put("command", "error");
-                    _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, errorOnData), timeout);
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
+                    long errorid = _channel.generateRequestId();
+                    try (ResponseWrapper response = _channel.sendMessageWithReply(errorid, MessageBuilder.TABLESPACE_DUMP_DATA(
+                            id, tableSpaceName, dumpId, "error", null, 0,
+                            0, 0,
+                            null, null), timeout);) {
+                    }
+
                     return;
                 }
             }
@@ -838,18 +846,15 @@ public class TableSpaceManager {
                 sendDumpedCommitLog(txlogentries, _channel, dumpId, timeout);
             }
 
-            Map<String, Object> finishData = new HashMap<>();
             LogSequenceNumber finishLogSequenceNumber = log.getLastSequenceNumber();
-            finishData.put("ledgerid", finishLogSequenceNumber.ledgerId);
-            finishData.put("offset", finishLogSequenceNumber.offset);
-            finishData.put("command", "finish");
-            _channel.sendOneWayMessage(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, finishData), new SendResultCallback() {
-                @Override
-                public void messageSent(Message originalMessage, Throwable error) {
-                }
-            });
+            long requestId2 = _channel.generateRequestId();
+
+            _channel.sendMessageWithReply(requestId2, MessageBuilder.TABLESPACE_DUMP_DATA(
+                    id, tableSpaceName, dumpId, "finish", null, 0,
+                    finishLogSequenceNumber.ledgerId, finishLogSequenceNumber.offset,
+                    null, null), timeout);
         } catch (InterruptedException | TimeoutException error) {
-            LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId);
+            LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
             generalLock.readLock().unlock();
 
@@ -869,36 +874,44 @@ public class TableSpaceManager {
 
     }
 
-    private void sendTransactionsDump(List<Transaction> batch, Channel _channel, String dumpId, final int timeout, Message response_to_start) throws TimeoutException, InterruptedException {
+    private void sendTransactionsDump(List<Transaction> batch, Channel _channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
         if (batch.isEmpty()) {
             return;
         }
-        Map<String, Object> transactionsData = new HashMap<>();
-        transactionsData.put("command", "transactions");
-        List<byte[]> encodedTransactions = batch
+        List<KeyValue> encodedTransactions = batch
                 .stream()
                 .map(tr -> {
-                    return tr.serialize();
+                    return new KeyValue(Bytes.longToByteArray(tr.transactionId), tr.serialize());
                 })
-                .
-                collect(Collectors.toList());
-        transactionsData.put("transactions", encodedTransactions);
-        Message response_to_transactionsData = _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, transactionsData), timeout);
-        if (response_to_transactionsData.type != Message.TYPE_ACK) {
-            LOGGER.log(Level.SEVERE, "error response at transactionsData command: " + response_to_start.parameters);
+                .collect(Collectors.toList());
+        long id = _channel.generateRequestId();
+        try (ResponseWrapper response_to_transactionsData = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+                id, tableSpaceName, dumpId, "transactions", null, 0,
+                0, 0,
+                null, encodedTransactions), timeout);) {
+            if (response_to_transactionsData.type() != MessageType.TYPE_ACK) {
+                LOGGER.log(Level.SEVERE, "error response at transactionsData command: " + response_to_transactionsData.response.error());
+            }
         }
         batch.clear();
     }
 
     private void sendDumpedCommitLog(List<DumpedLogEntry> txlogentries, Channel _channel, String dumpId, final int timeout) throws TimeoutException, InterruptedException {
-        Map<String, Object> data = new HashMap<>();
         List<KeyValue> batch = new ArrayList<>();
         for (DumpedLogEntry e : txlogentries) {
             batch.add(new KeyValue(e.logSequenceNumber.serialize(), e.entryData));
         }
-        data.put("command", "txlog");
-        data.put("records", batch);
-        _channel.sendMessageWithReply(Message.TABLESPACE_DUMP_DATA(tableSpaceName, dumpId, data), timeout);
+        long id = _channel.generateRequestId();
+        try (ResponseWrapper response_to_txlog = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+                id, tableSpaceName, dumpId, "txlog", null, 0,
+                0, 0,
+                null, batch), timeout);) {
+
+            if (response_to_txlog.type() != MessageType.TYPE_ACK) {
+                LOGGER.log(Level.SEVERE, "error response at txlog command: " + response_to_txlog.response.error());
+            }
+        }
+
     }
 
     public void restoreFinished() throws DataStorageManagerException {

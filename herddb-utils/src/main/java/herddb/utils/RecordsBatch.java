@@ -19,8 +19,10 @@
  */
 package herddb.utils;
 
-import io.netty.buffer.ByteBuf;
-import java.util.Arrays;
+import herddb.network.ResponseWrapper;
+import herddb.proto.flatbuf.AnyValueWrapper;
+import herddb.proto.flatbuf.Response;
+import herddb.proto.flatbuf.Row;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,19 +34,37 @@ import java.util.Map;
 public class RecordsBatch {
 
     public final String[] columnNames;
+
     public final int numRecords;
     private int currentRecordIndex;
-    public final ByteBuf buffer;
+    public final ResponseWrapper buffer;
     private DataAccessor next;
     private boolean finished;
+    public Map<String, Integer> columnNameToPosition;
 
-    public RecordsBatch(int numRecords, String[] columnNames, ByteBuf buffer) {
-        this.numRecords = numRecords;
-        this.columnNames = columnNames;
-        this.buffer = buffer;
+    public RecordsBatch(ResponseWrapper replyWrapper) {
+        Response reply = replyWrapper.response;
+        this.numRecords = reply.rowsLength();
+        this.columnNames = new String[reply.columnNamesLength()];
+        this.buffer = replyWrapper;
+        for (int i = 0; i < columnNames.length; i++) {
+            String columnName = MessageUtils.readString(replyWrapper.response.columnNames(i).nameAsByteBuffer());
+            columnNames[i] = columnName;
+        }
+
         this.currentRecordIndex = -1;
         if (numRecords == 0) {
             finished = true;
+        }
+    }
+
+    private void ensureColumnNameToPosition() {
+        if (columnNameToPosition == null) {
+            columnNameToPosition = new HashMap<>();
+            for (int i = 0; i < columnNames.length; i++) {
+                String columnName = MessageUtils.readString(buffer.response.columnNames(i).nameAsByteBuffer());
+                columnNameToPosition.put(columnName, i);
+            }
         }
     }
 
@@ -52,13 +72,45 @@ public class RecordsBatch {
         return numRecords == 0;
     }
 
-    private DataAccessor readRecordAtCurrentPosition() {
-        Map<String, Object> map = new HashMap<>();
-        for (int i = 0; i < columnNames.length; i++) {
-            Object value = MessageUtils.readEncodedSimpleValue(buffer);
-            map.put(columnNames[i], value);
+    private final class RowDataAccessor implements DataAccessor {
+
+        private final Row row;
+
+        public RowDataAccessor(Row row) {
+            this.row = row;
         }
-        return new MapDataAccessor(map, columnNames);
+
+        @Override
+        public Object get(int index) {
+            AnyValueWrapper cell = row.cells(index);
+            return MessageUtils.decodeObject(cell);
+        }
+
+        @Override
+        public int getNumFields() {
+            return columnNames.length;
+        }
+
+        @Override
+        public Object get(String property) {
+            ensureColumnNameToPosition();
+            Integer i = columnNameToPosition.get(property);
+            if (i == null) {
+                return null;
+            }
+            return get(i);
+        }
+
+        @Override
+        public String[] getFieldNames() {
+            return columnNames;
+        }
+
+    }
+
+    private DataAccessor readRecordAtCurrentPosition() {
+        Row row = buffer.response.rows(currentRecordIndex);
+        return new RowDataAccessor(row);
     }
 
     public boolean hasNext() {

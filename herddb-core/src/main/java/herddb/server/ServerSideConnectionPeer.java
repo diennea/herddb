@@ -66,15 +66,19 @@ import herddb.model.commands.SQLPlannedOperationStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
-import herddb.utils.KeyValue;
-import herddb.network.Message;
+import herddb.network.MessageBuilder;
+import herddb.network.RequestWrapper;
 import herddb.network.ServerSideConnection;
+import herddb.proto.flatbuf.MessageType;
+import herddb.proto.flatbuf.Request;
 import herddb.security.sasl.SaslNettyServer;
 import herddb.sql.TranslatedQuery;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.MessageUtils;
 import herddb.utils.RawString;
 import herddb.utils.TuplesList;
+import io.netty.buffer.ByteBuf;
 
 /**
  * Handles a client Connection
@@ -112,136 +116,141 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     @Override
-    public void messageReceived(Message message, Channel _channel) {
-        LOGGER.log(Level.FINEST, "messageReceived {0}", message);
+    public void requestReceived(RequestWrapper messageWrapper, Channel _channel) {
+        Request message = messageWrapper.request;
+        try {
+            LOGGER.log(Level.FINEST, "messageReceived {0}", message);
 
-        switch (message.type) {
-            case Message.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
-                handleSaslTokenMessageRequest(message, _channel);
+            switch (message.type()) {
+                case MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST: {
+                    handleSaslTokenMessageRequest(message, _channel);
+                    break;
+                }
+                case MessageType.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
+                    handleSaslTokenMessage(_channel, message);
+                    break;
+                }
+                case MessageType.TYPE_EXECUTE_STATEMENT: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleExecuteStatement(message, _channel);
+                }
                 break;
-            }
-            case Message.TYPE_SASL_TOKEN_MESSAGE_TOKEN: {
-                handleSaslTokenMessage(_channel, message);
+                case MessageType.TYPE_TX_COMMAND: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleTxCommand(message, _channel);
+                }
                 break;
-            }
-            case Message.TYPE_EXECUTE_STATEMENT: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
+                case MessageType.TYPE_EXECUTE_STATEMENTS: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleExecuteStatements(message, _channel);
                 }
-                handleExecuteStatement(message, _channel);
-            }
-            break;
-            case Message.TYPE_TX_COMMAND: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handleTxCommand(message, _channel);
-            }
-            break;
-            case Message.TYPE_EXECUTE_STATEMENTS: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handleExecuteStatements(message, _channel);
-            }
-            break;
-            case Message.TYPE_REQUEST_TABLESPACE_DUMP: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handleRequestTablespaceDump(message, _channel);
-            }
-            break;
-            case Message.TYPE_REQUEST_TABLE_RESTORE: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handleRequestTableRestore(message, _channel);
-            }
-            break;
-            case Message.TYPE_PUSH_TABLE_DATA: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handlePushTableData(message, _channel);
-            }
-            break;
-            case Message.TYPE_TABLE_RESTORE_FINISHED: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handleTableRestoreFinished(message, _channel);
-            }
-            break;
-            case Message.TYPE_RESTORE_FINISHED: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handleRestoreFinished(message, _channel);
-            }
-            break;
-            case Message.TYPE_PUSH_TXLOGCHUNK: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handlePushTxLogChunk(message, _channel);
-            }
-            break;
-            case Message.TYPE_PUSH_TRANSACTIONSBLOCK: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handlePushTransactionsBlock(message, _channel);
-            }
-            break;
-            case Message.TYPE_OPENSCANNER: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
-                }
-                handleOpenScanner(message, _channel);
                 break;
-            }
-
-            case Message.TYPE_FETCHSCANNERDATA: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
+                case MessageType.TYPE_REQUEST_TABLESPACE_DUMP: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleRequestTablespaceDump(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_REQUEST_TABLE_RESTORE: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleRequestTableRestore(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_PUSH_TABLE_DATA: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handlePushTableData(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_TABLE_RESTORE_FINISHED: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleTableRestoreFinished(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_RESTORE_FINISHED: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleRestoreFinished(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_PUSH_TXLOGCHUNK: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handlePushTxLogChunk(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_PUSH_TRANSACTIONSBLOCK: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handlePushTransactionsBlock(message, _channel);
+                }
+                break;
+                case MessageType.TYPE_OPENSCANNER: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleOpenScanner(message, _channel);
                     break;
                 }
-                handleFetchScannerData(message, _channel);
-            }
-            break;
 
-            case Message.TYPE_CLOSESCANNER: {
-                if (!authenticated) {
-                    sendAuthRequiredError(_channel, message);
-                    break;
+                case MessageType.TYPE_FETCHSCANNERDATA: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleFetchScannerData(message, _channel);
                 }
-                handleCloseScanner(message, _channel);
-            }
-            break;
+                break;
 
-            default:
-                _channel.sendReplyMessage(message, Message.ERROR(new Exception("unsupported message type " + message.type)));
+                case MessageType.TYPE_CLOSESCANNER: {
+                    if (!authenticated) {
+                        sendAuthRequiredError(_channel, message);
+                        break;
+                    }
+                    handleCloseScanner(message, _channel);
+                }
+                break;
+
+                default:
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unsupported message type " + message.type())));
+            }
+        } finally {
+            messageWrapper.release();
         }
     }
 
-    private void handleRequestTableRestore(Message message, Channel _channel) {
+    private void handleRequestTableRestore(Request message, Channel _channel) {
         try {
-            RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-            byte[] table = (byte[]) message.parameters.get("table");
-            long dumpLedgerId = (long) message.parameters.get("dumpLedgerId");
-            long dumpOffset = (long) message.parameters.get("dumpOffset");
+            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+            byte[] table = MessageUtils.bufferToArray(message.tableDefinition().schemaAsByteBuffer());
+            long dumpLedgerId = message.dumpLedgerId();
+            long dumpOffset = message.dumpOffset();
             Table tableSchema = Table.deserialize(table);
             tableSchema = Table
                     .builder()
@@ -252,145 +261,138 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     .getTableSpaceManager(tableSpace.toString())
                     .beginRestoreTable(tableSchema.serialize(), new LogSequenceNumber(dumpLedgerId, dumpOffset));
 
-            _channel.sendReplyMessage(message, Message.ACK());
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         } catch (StatementExecutionException err) {
-            Message error = Message.ERROR(err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 
-    private void handleTableRestoreFinished(Message message, Channel _channel) {
+    private void handleTableRestoreFinished(Request message, Channel _channel) {
         try {
-            RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-            RawString table = (RawString) message.parameters.get("table");
+            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+            RawString table = MessageUtils.readRawString(message.tableNameAsByteBuffer());
 
-            List<byte[]> indexesDef = (List<byte[]>) message.parameters.get("indexes");
-            List<Index> indexes = indexesDef.stream().map(Index::deserialize).collect(Collectors.toList());
+            int numIndexes = message.indexesDefinitionLength();
+            List<Index> indexes = new ArrayList<>(numIndexes);
+            for (int i = 0; i < numIndexes; i++) {
+                indexes.add(Index.deserialize(MessageUtils.bufferToArray(message.indexesDefinition(i).schemaAsByteBuffer())));
+            }
+            LOGGER.log(Level.INFO, "tableRestoreFinished, table {0}, with {1} indexes", new Object[]{table, indexes.size()});
 
             server.getManager()
                     .getTableSpaceManager(tableSpace.toString())
                     .restoreTableFinished(table.toString(), indexes);
 
-            _channel.sendReplyMessage(message, Message.ACK());
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         } catch (StatementExecutionException err) {
-            Message error = Message.ERROR(err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 
-    private void handleRestoreFinished(Message message, Channel _channel) {
+    private void handleRestoreFinished(Request message, Channel _channel) {
         try {
-            RawString tableSpace = (RawString) message.parameters.get("tableSpace");
+            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
 
             server.getManager()
                     .getTableSpaceManager(tableSpace.toString())
                     .restoreFinished();
 
-            _channel.sendReplyMessage(message, Message.ACK());
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         } catch (StatementExecutionException err) {
-            Message error = Message.ERROR(err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 
-    private void handlePushTableData(Message message, Channel _channel) {
+    private void handlePushTableData(Request message, Channel _channel) {
         try {
-            RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-            RawString table = (RawString) message.parameters.get("table");
-            List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
-            LOGGER.log(Level.INFO, "Received {0} records for restore of table {1} in tableSpace {2}", new Object[]{data.size(), table, tableSpace});
+            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+            RawString table = MessageUtils.readRawString(message.tableNameAsByteBuffer());
+
             long _start = System.currentTimeMillis();
-            List<Record> records = new ArrayList<>(data.size());
-            for (KeyValue kv : data) {
-                records.add(new Record(Bytes.from_array(kv.key), Bytes.from_array(kv.value)));
+            int size = message.rawDataChunkLength();
+            List<Record> records = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                herddb.proto.flatbuf.KeyValue keyValue = message.rawDataChunk(i);
+                records.add(new Record(
+                        Bytes.from_array(MessageUtils.bufferToArray(keyValue.keyAsByteBuffer())),
+                        Bytes.from_array(MessageUtils.bufferToArray(keyValue.valueAsByteBuffer()))));
             }
+            LOGGER.log(Level.INFO, "Received {0} records for restore of table {1} in tableSpace {2}", new Object[]{records.size(), table, tableSpace});
             TableManager tableManager = (TableManager) server.getManager()
                     .getTableSpaceManager(tableSpace.toString())
                     .getTableManager(table.toString());
             tableManager.writeFromDump(records);
             long _stop = System.currentTimeMillis();
-            LOGGER.log(Level.INFO, "Time restore {0} records: data {1} ms", new Object[]{data.size(), _stop - _start});
-            _channel.sendReplyMessage(message, Message.ACK());
+            LOGGER.log(Level.INFO, "Time restore {0} records: data {1} ms", new Object[]{records.size(), _stop - _start});
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         } catch (StatementExecutionException err) {
-            Message error = Message.ERROR(err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 
-    private void handlePushTxLogChunk(Message message, Channel _channel) {
+    private void handlePushTxLogChunk(Request message, Channel _channel) {
         try {
-            RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-            List<KeyValue> data = (List<KeyValue>) message.parameters.get("data");
-            LOGGER.log(Level.INFO, "Received {0} records for restore of txlog in tableSpace {1}", new Object[]{data.size(), tableSpace});
+            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
 
-            List<DumpedLogEntry> entries = new ArrayList<>(data.size());
-            for (KeyValue kv : data) {
-                entries.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
-
+            int size = message.rawDataChunkLength();
+            List<DumpedLogEntry> entries = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                herddb.proto.flatbuf.KeyValue kv = message.rawDataChunk(i);
+                entries.add(new DumpedLogEntry(
+                        LogSequenceNumber.deserialize(MessageUtils.bufferToArray(kv.keyAsByteBuffer())),
+                        MessageUtils.bufferToArray(kv.valueAsByteBuffer())));
             }
+            LOGGER.log(Level.INFO, "Received {0} records for restore of txlog in tableSpace {1}", new Object[]{entries.size(), tableSpace});
+
             server.getManager().getTableSpaceManager(tableSpace.toString())
                     .restoreRawDumpedEntryLogs(entries);
 
-            _channel.sendReplyMessage(message, Message.ACK());
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         } catch (Exception err) {
-            Message error = Message.ERROR(err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 
-    private void handlePushTransactionsBlock(Message message, Channel _channel) {
+    private void handlePushTransactionsBlock(Request message, Channel _channel) {
         try {
-            RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-            List<byte[]> data = (List<byte[]>) message.parameters.get("data");
-            LOGGER.log(Level.INFO, "Received " + data.size() + " records for restore of transactions in tableSpace " + tableSpace);
+            RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
 
             String _tableSpace = tableSpace.toString();
-            List<Transaction> entries = new ArrayList<>(data.size());
-            for (byte[] serializedTx : data) {
-                entries.add(Transaction.deserialize(_tableSpace, serializedTx));
+            int size = message.dumpTxLogEntriesLength();
+            List<Transaction> entries = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                herddb.proto.flatbuf.TxLogEntry kv = message.dumpTxLogEntries(i);
+                entries.add(Transaction.deserialize(_tableSpace, MessageUtils.bufferToArray(kv.entryAsByteBuffer())));
             }
+
+            LOGGER.log(Level.INFO, "Received " + entries.size() + " records for restore of transactions in tableSpace " + tableSpace);
+
             server.getManager().getTableSpaceManager(_tableSpace).restoreRawDumpedTransactions(entries);
 
-            _channel.sendReplyMessage(message, Message.ACK());
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         } catch (Exception err) {
-            Message error = Message.ERROR(err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 
-    private void handleOpenScanner(Message message, Channel _channel) {
-        RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-        Long tx = (Long) message.parameters.get("tx");
-        long txId = tx != null ? tx : 0;
-        RawString query = (RawString) message.parameters.get("query");
-        RawString scannerId = (RawString) message.parameters.get("scannerId");
-        int fetchSize = 10;
-        if (message.parameters.containsKey("fetchSize")) {
-            fetchSize = (Integer) message.parameters.get("fetchSize");
+    private void handleOpenScanner(Request message, Channel _channel) {
+        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+        long txId = message.tx();
+        RawString query = MessageUtils.readRawString(message.queryAsByteBuffer());
+        RawString scannerId = MessageUtils.readRawString(message.scannerIdAsByteBuffer());
+        int fetchSize = message.fetchSize();
+        if (fetchSize <= 0) {
+            fetchSize = 10;
         }
-        int maxRows = 0;
-        if (message.parameters.containsKey("maxRows")) {
-            maxRows = (Integer) message.parameters.get("maxRows");
-        }
-        List<Object> parameters = (List<Object>) message.parameters.get("params");
+        int maxRows = (int) message.maxRows(); // default 0
+
+        List<Object> parameters = MessageUtils.decodeAnyValueList(message.params());        
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
         }
@@ -426,28 +428,28 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                 if (!last) {
                     scanners.put(scannerId, scanner);
                 }
-                _channel.sendReplyMessage(message,
-                        Message.RESULTSET_CHUNK(scannerId.toString(), tuplesList, last, dataScanner.transactionId));
+                _channel.sendReplyMessage(message.id(),
+                        MessageBuilder.RESULTSET_CHUNK(message.id(), tuplesList, last, dataScanner.transactionId));
             } else {
-                _channel.sendReplyMessage(message, Message.ERROR(new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unsupported query type for scan " + query + ": PLAN is " + translatedQuery.plan)));
             }
         } catch (DataScannerException | RuntimeException err) {
             LOGGER.log(Level.SEVERE, "error on scanner " + scannerId + ": " + err, err);
-            scanners.remove(scannerId);            
+            scanners.remove(scannerId);
 
-            Message error = Message.ERROR(err);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         } finally {
             server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
 
-    private void handleFetchScannerData(Message message, Channel _channel) {
-        RawString scannerId = (RawString) message.parameters.get("scannerId");
-        int fetchSize = (Integer) message.parameters.get("fetchSize");
+    private void handleFetchScannerData(Request message, Channel _channel) {
+        RawString scannerId = MessageUtils.readRawString(message.scannerIdAsByteBuffer());
+        int fetchSize = message.fetchSize();
+        if (fetchSize <= 0) {
+            fetchSize = 10;
+        }
         ServerSideScannerPeer scanner = scanners.get(scannerId);
         if (scanner != null) {
             try {
@@ -463,62 +465,65 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     last = true;
                 }
 //                        LOGGER.log(Level.SEVERE, "sending " + converted.size() + " records to scanner " + scannerId);
-                _channel.sendReplyMessage(message, Message.RESULTSET_CHUNK(scannerId.toString(), tuplesList, last, dataScanner.transactionId));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.RESULTSET_CHUNK(message.id(), tuplesList, last, dataScanner.transactionId));
             } catch (DataScannerException error) {
-                _channel.sendReplyMessage(message, Message.ERROR(error).setParameter("scannerId", scannerId));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), error));
             }
         } else {
-            _channel.sendReplyMessage(message, Message.ERROR(new Exception("no such scanner " + scannerId + ", only " + scanners.keySet())).setParameter("scannerId", scannerId));
+            _channel.sendReplyMessage(message.id(),
+                    MessageBuilder.ERROR(message.id(), new Exception("no such scanner " + scannerId + ", only " + scanners.keySet())));
         }
     }
 
-    private void handleCloseScanner(Message message, Channel _channel) {
-        RawString scannerId = (RawString) message.parameters.get("scannerId");
+    private void handleCloseScanner(Request message, Channel _channel) {
+        RawString scannerId = MessageUtils.readRawString(message.scannerIdAsByteBuffer());
         LOGGER.log(Level.SEVERE, "remove scanner " + scannerId + " as requested by client");
         ServerSideScannerPeer removed = scanners.remove(scannerId);
         if (removed != null) {
             removed.clientClose();
-            _channel.sendReplyMessage(message, Message.ACK().setParameter("scannerId", scannerId));
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
         } else {
-            _channel.sendReplyMessage(message, Message.ERROR(new Exception("no such scanner " + scannerId)).setParameter("scannerId", scannerId));
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("no such scanner " + scannerId)));
         }
     }
 
-    private void sendAuthRequiredError(Channel _channel, Message message) {
-        Message error = Message.ERROR(new Exception("autentication required (client " + channel + ")"));
-        _channel.sendReplyMessage(message, error);
+    private void sendAuthRequiredError(Channel _channel, Request message) {
+        ByteBuf error = MessageBuilder.ERROR(message.id(), new Exception("autentication required (client " + channel + ")"));
+        _channel.sendReplyMessage(message.id(), error);
     }
 
-    private void handleRequestTablespaceDump(Message message, Channel _channel) {
-        RawString dumpId = (RawString) message.parameters.get("dumpId");
-        int fetchSize = 10;
-        if (message.parameters.containsKey("fetchSize")) {
-            fetchSize = (Integer) message.parameters.get("fetchSize");
+    private void handleRequestTablespaceDump(Request message, Channel _channel) {
+        RawString dumpId = MessageUtils.readRawString(message.dumpIdAsByteBuffer());
+        int fetchSize = message.fetchSize();
+        if (fetchSize <= 0) {
+            fetchSize = 10;
         }
-        RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-        boolean includeTransactionLog = (Boolean) message.parameters.get("includeTransactionLog");
+        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+        boolean includeTransactionLog = message.includeTransactionLog();
         server.getManager().dumpTableSpace(tableSpace.toString(), dumpId.toString(), message, _channel, fetchSize, includeTransactionLog);
     }
 
-    private void handleExecuteStatements(Message message, Channel _channel) {
-        Long tx = (Long) message.parameters.get("tx");
-        long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
+    private void handleExecuteStatements(Request message, Channel _channel) {
+        long txId = message.tx();
         long transactionId = txId;
-        RawString query = (RawString) message.parameters.get("query");
-        RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-        Boolean returnValues = (Boolean) message.parameters.get("returnValues");
-        if (returnValues == null) {
-            returnValues = Boolean.FALSE;
+        RawString query = MessageUtils.readRawString(message.queryAsByteBuffer());
+        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+        boolean returnValues = message.returnValues();
+
+        int numStatements = message.batchParamsLength();
+        List<List<Object>> batch = new ArrayList<>(numStatements);
+        for (int i = 0; i < numStatements; i++) {
+            List<Object> batchParams = MessageUtils.decodeAnyValueList(message.batchParams(i));
+            batch.add(batchParams);
         }
-        List<List<Object>> batch = (List<List<Object>>) message.parameters.get("params");
         String _query = query.toString();
         String _tablespace = tableSpace.toString();
-        RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, "batch of " + batch.size());
+        RunningStatementInfo statementInfo = new RunningStatementInfo(_query, System.currentTimeMillis(), _tablespace, "batch of " + numStatements);
         try {
 
-            List<Long> updateCounts = new ArrayList<>(batch.size());
-            List<Map<String, Object>> otherDatas = new ArrayList<>(batch.size());
-            for (int i = 0; i < batch.size(); i++) {
+            List<Long> updateCounts = new ArrayList<>(numStatements);
+            List<Map<String, Object>> otherDatas = new ArrayList<>(numStatements);
+            for (int i = 0; i < numStatements; i++) {
                 List<Object> parameters = batch.get(i);
 
                 TransactionContext transactionContext = new TransactionContext(transactionId);
@@ -542,10 +547,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         Table table = server.getManager().getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
                         Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
                         otherData = new HashMap<>();
-                        otherData.put("key", key);
+                        otherData.put("_key", key);
                         if (dml.getNewvalue() != null) {
                             Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
-                            otherData.put("newvalue", newvalue);
+                            otherData.putAll(newvalue);
                         }
                     }
                     updateCounts.add(Long.valueOf(dml.getUpdateCount()));
@@ -555,31 +560,26 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     updateCounts.add(Long.valueOf(1));
                     otherDatas.add(otherData);
                 } else {
-                    _channel.sendReplyMessage(message, Message.ERROR(new Exception("bad result type " + result.getClass() + " (" + result + ")")));
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("bad result type " + result.getClass() + " (" + result + ")")));
                 }
             }
-            _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULTS(updateCounts, otherDatas, transactionId));
+            _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULTS(message.id(), updateCounts, otherDatas, transactionId));
         } catch (HerdDBInternalException err) {
-            Message error = Message.ERROR(err," query was '"+_query+"', with values "+batch);
-            if (err instanceof NotLeaderException) {
-                error.setParameter("notLeader", "true");
-            }
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "', with values " + batch, err instanceof NotLeaderException);
+            _channel.sendReplyMessage(message.id(), error);
         } finally {
             server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
 
-    private void handleExecuteStatement(Message message, Channel _channel) {
-        Long tx = (Long) message.parameters.get("tx");
-        long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
-        RawString query = (RawString) message.parameters.get("query");
-        RawString tableSpace = (RawString) message.parameters.get("tableSpace");
-        Boolean returnValues = (Boolean) message.parameters.get("returnValues");
-        if (returnValues == null) {
-            returnValues = Boolean.FALSE;
-        }
-        List<Object> parameters = (List<Object>) message.parameters.get("params");
+    private void handleExecuteStatement(Request message, Channel _channel) {
+        long tx = message.tx();
+        long txId = message.tx();
+        RawString query = MessageUtils.readRawString(message.queryAsByteBuffer());
+        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
+        boolean returnValues = message.returnValues();
+
+        List<Object> parameters = MessageUtils.decodeAnyValueList(message.params());
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "query " + query + " with " + parameters);
         }
@@ -599,36 +599,32 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
             if (result instanceof DMLStatementExecutionResult) {
                 DMLStatementExecutionResult dml = (DMLStatementExecutionResult) result;
-                Map<String, Object> otherData = null;
+                Map<String, Object> newRecord = null;
 
                 if (returnValues && dml.getKey() != null) {
-                    TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class
-                    );
+                    TableAwareStatement tableStatement = statement.unwrap(TableAwareStatement.class);
                     Table table = server
                             .getManager()
                             .getTableSpaceManager(statement.getTableSpace()).getTableManager(tableStatement.getTable()).getTable();
-
-                    otherData = new HashMap<>();
-                    Object key = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
-                    otherData.put("key", key);
+                    newRecord = new HashMap<>();
+                    Object newKey = RecordSerializer.deserializePrimaryKey(dml.getKey().data, table);
+                    newRecord.put("_key", newKey);
                     if (dml.getNewvalue() != null) {
-                        Map<String, Object> newvalue = RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table);
-                        otherData.put("newvalue", newvalue);
+                        newRecord.putAll(RecordSerializer.toBean(new Record(dml.getKey(), dml.getNewvalue()), table));
                     }
-
                 }
-                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(dml.getUpdateCount(), otherData, dml.transactionId));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(
+                        message.id(), dml.getUpdateCount(), newRecord, dml.transactionId));
             } else if (result instanceof GetResult) {
                 GetResult get = (GetResult) result;
                 if (!get.found()) {
-                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(0, null, get.transactionId));
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 0, null, get.transactionId));
                 } else {
                     Map<String, Object> record = get.getRecord().toBean(get.getTable());
-                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, record, get.transactionId));
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, record, get.transactionId));
                 }
             } else if (result instanceof TransactionResult) {
                 TransactionResult txresult = (TransactionResult) result;
-                Map<String, Object> data = new HashMap<>();
                 Set<Long> transactionsForTableSpace = openTransactions.computeIfAbsent(
                         RawString.of(statement.getTableSpace()), k -> new ConcurrentSkipListSet<>());
                 switch (txresult.getOutcome()) {
@@ -641,50 +637,47 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         transactionsForTableSpace.remove(txresult.getTransactionId());
                         break;
                 }
-                data.put("tx", txresult.getTransactionId());
-                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data, txresult.transactionId));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
             } else if (result instanceof DDLStatementExecutionResult) {
                 DDLStatementExecutionResult ddl = (DDLStatementExecutionResult) result;
-                _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, null, ddl.transactionId));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, ddl.transactionId));
             } else {
-                _channel.sendReplyMessage(message, Message.ERROR(new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
             }
         } catch (DuplicatePrimaryKeyException err) {
             LOGGER.log(Level.SEVERE, "error on query " + query + ", parameters: " + parameters + ":" + err, err);
-            Message error = Message.ERROR(err," query was '"+_query+"'");
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", false);
+            _channel.sendReplyMessage(message.id(), error);
         } catch (NotLeaderException err) {
-            Message error = Message.ERROR(err);
-            error.setParameter("notLeader", "true");
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", true);
+            _channel.sendReplyMessage(message.id(), error);
         } catch (StatementExecutionException err) {
-            Message error = Message.ERROR(err," query was '"+_query+"'");
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", false);
+            _channel.sendReplyMessage(message.id(), error);
         } catch (RuntimeException err) {
             LOGGER.log(Level.SEVERE, "unexpected error on query " + query + ", parameters: " + parameters + ":" + err, err);
-            Message error = Message.ERROR(err," query was '"+_query+"'");
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, " query was '" + _query + "'", false);
+            _channel.sendReplyMessage(message.id(), error);
         } finally {
             server.getManager().unregisterRunningStatement(statementInfo);
         }
     }
 
-    private void handleTxCommand(Message message, Channel _channel) {
-        Long tx = (Long) message.parameters.get("tx");
-        long txId = tx != null ? tx : TransactionContext.NOTRANSACTION_ID;
-        int type = (Integer) message.parameters.get("t");
-        RawString tableSpace = (RawString) message.parameters.get("tableSpace");
+    private void handleTxCommand(Request message, Channel _channel) {
+        long txId = message.tx();
+        int type = message.txCommand();
+        RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
         try {
             TransactionContext transactionContext = new TransactionContext(txId);
             Statement statement;
             switch (type) {
-                case Message.TX_COMMAND_COMMIT_TRANSACTION:
+                case MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION:
                     statement = new CommitTransactionStatement(tableSpace.toString(), txId);
                     break;
-                case Message.TX_COMMAND_ROLLBACK_TRANSACTION:
+                case MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION:
                     statement = new RollbackTransactionStatement(tableSpace.toString(), txId);
                     break;
-                case Message.TX_COMMAND_BEGIN_TRANSACTION:
+                case MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION:
                     statement = new BeginTransactionStatement(tableSpace.toString());
                     break;
                 default:
@@ -692,7 +685,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             }
             if (statement == null) {
-                _channel.sendReplyMessage(message, Message.ERROR(new Exception("unknown command type " + type)));
+                _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown command type " + type)));
             } else {
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);                
                 StatementExecutionResult result = server
@@ -701,7 +694,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
                 if (result instanceof TransactionResult) {
                     TransactionResult txresult = (TransactionResult) result;
-                    Map<String, Object> data = new HashMap<>();
+
                     Set<Long> transactionsForTableSpace = openTransactions.computeIfAbsent(
                             RawString.of(statement.getTableSpace()), k -> new ConcurrentSkipListSet<>());
                     switch (txresult.getOutcome()) {
@@ -714,71 +707,71 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             transactionsForTableSpace.remove(txresult.getTransactionId());
                             break;
                     }
-                    data.put("tx", txresult.getTransactionId());
-                    _channel.sendReplyMessage(message, Message.EXECUTE_STATEMENT_RESULT(1, data, txresult.transactionId));
+
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
                 } else {
-                    _channel.sendReplyMessage(message, Message.ERROR(new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
                 }
             }
         } catch (NotLeaderException err) {
-            Message error = Message.ERROR(err);
-            error.setParameter("notLeader", "true");
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
+            _channel.sendReplyMessage(message.id(), error);
         } catch (StatementExecutionException err) {
-            Message error = Message.ERROR(err);
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+            _channel.sendReplyMessage(message.id(), error);
         } catch (RuntimeException err) {
             LOGGER.log(Level.SEVERE, "unexpected error on tx command: ", err);
-            Message error = Message.ERROR(err);
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 
-    private void handleSaslTokenMessage(Channel _channel, Message message) {
+    private void handleSaslTokenMessage(Channel _channel, Request message) {
         try {
             if (saslNettyServer == null) {
-                Message error = Message.ERROR(new Exception("Authentication failed (SASL protocol error)"));
-                _channel.sendReplyMessage(message, error);
+                ByteBuf error = MessageBuilder.ERROR(message.id(), new Exception("Authentication failed (SASL protocol error)"));
+                _channel.sendReplyMessage(message.id(), error);
                 return;
             }
-            byte[] token = (byte[]) message.parameters.get("token");
+            byte[] token = MessageUtils.bufferToArray(message.tokenAsByteBuffer());
             byte[] responseToken = saslNettyServer.response(token);
-            Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
+            ByteBuf tokenChallenge = MessageBuilder.SASL_TOKEN_SERVER_RESPONSE(message.id(), responseToken);
             if (saslNettyServer.isComplete()) {
                 username = saslNettyServer.getUserName();
                 authenticated = true;
-                LOGGER.log(Level.INFO, "client {0} connected as '{1}'", new Object[]{channel.getRemoteAddress(), username});
+                LOGGER.log(Level.INFO, "client {0} connected as {1}", new Object[]{channel.getRemoteAddress(), username});
                 saslNettyServer = null;
             }
-            _channel.sendReplyMessage(message, tokenChallenge);
+            _channel.sendReplyMessage(message.id(), tokenChallenge);
         } catch (Exception err) {
             if (err instanceof javax.security.sasl.SaslException) {
                 LOGGER.log(Level.SEVERE, "SASL error " + err, err);
-                Message error = Message.ERROR(new Exception("Authentication failed (SASL error)"));
-                _channel.sendReplyMessage(message, error);
+                ByteBuf error = MessageBuilder.ERROR(message.id(), new Exception("Authentication failed (SASL error)"));
+                _channel.sendReplyMessage(message.id(), error);
             } else {
-                Message error = Message.ERROR(err);
-                _channel.sendReplyMessage(message, error);
+                LOGGER.log(Level.SEVERE, "Bad auth error " + err, err);
+                ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+                _channel.sendReplyMessage(message.id(), error);
             }
         }
     }
 
-    private void handleSaslTokenMessageRequest(Message message, Channel _channel) {
+    private void handleSaslTokenMessageRequest(Request message, Channel _channel) {
         try {
-            byte[] token = (byte[]) message.parameters.get("token");
+            byte[] token = MessageUtils.bufferToArray(message.tokenAsByteBuffer());
             if (token == null) {
                 token = new byte[0];
             }
-            RawString mech = (RawString) message.parameters.get("mech");
+            RawString mech = MessageUtils.readRawString(message.mechAsByteBuffer());
             if (saslNettyServer == null) {
                 saslNettyServer = new SaslNettyServer(server, mech.toString());
             }
             byte[] responseToken = saslNettyServer.response(token);
-            Message tokenChallenge = Message.SASL_TOKEN_SERVER_RESPONSE(responseToken);
-            _channel.sendReplyMessage(message, tokenChallenge);
+            ByteBuf tokenChallenge = MessageBuilder.SASL_TOKEN_SERVER_RESPONSE(message.id(), responseToken);
+            _channel.sendReplyMessage(message.id(), tokenChallenge);
         } catch (Exception err) {
-            Message error = Message.ERROR(err);
-            _channel.sendReplyMessage(message, error);
+            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+            _channel.sendReplyMessage(message.id(), error);
         }
     }
 

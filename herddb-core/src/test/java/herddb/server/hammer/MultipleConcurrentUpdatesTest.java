@@ -17,7 +17,7 @@
  under the License.
 
  */
-package herddb.server;
+package herddb.server.hammer;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -37,6 +37,9 @@ import herddb.client.HDBConnection;
 import herddb.core.stats.TableManagerStats;
 import herddb.model.TableSpace;
 import herddb.model.TransactionContext;
+import herddb.server.Server;
+import herddb.server.ServerConfiguration;
+import herddb.server.StaticClientSideMetadataProvider;
 import herddb.utils.RawString;
 import java.util.ArrayList;
 import java.util.Map;
@@ -58,7 +61,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class MultipleConcurrentUpdatesTest {
 
-    private static int TABLESIZE = 10_000;
+    private static int TABLESIZE = 2000;
     private static int MULTIPLIER = 2;
     private static int THREADPOLSIZE = 100;
 
@@ -112,7 +115,7 @@ public class MultipleConcurrentUpdatesTest {
         ServerConfiguration serverConfiguration = new ServerConfiguration(baseDir);
 
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_LOGICAL_PAGE_SIZE, 10 * 1024);
-        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 1024 * 1024);
+        serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_DATA_MEMORY, 1024 * 1024 / 4);
         serverConfiguration.set(ServerConfiguration.PROPERTY_MAX_PK_MEMORY, 1024 * 1024);
         serverConfiguration.set(ServerConfiguration.PROPERTY_CHECKPOINT_PERIOD, checkPointPeriod);
         serverConfiguration.set(ServerConfiguration.PROPERTY_DATADIR, folder.newFolder().getAbsolutePath());

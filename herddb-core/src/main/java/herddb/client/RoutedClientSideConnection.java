@@ -20,7 +20,6 @@
 package herddb.client;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,16 +43,24 @@ import herddb.model.Transaction;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.utils.KeyValue;
-import herddb.network.Message;
+import herddb.network.MessageBuilder;
+import herddb.network.RequestWrapper;
+import herddb.network.ResponseWrapper;
 import herddb.network.ServerHostData;
+import herddb.proto.flatbuf.Message;
+import herddb.proto.flatbuf.MessageType;
+import herddb.proto.flatbuf.Request;
+import herddb.proto.flatbuf.Response;
 import herddb.security.sasl.SaslNettyClient;
 import herddb.security.sasl.SaslUtils;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
+import herddb.utils.MessageUtils;
 import herddb.utils.RawString;
 import herddb.utils.RecordsBatch;
-import herddb.utils.TuplesList;
+import io.netty.buffer.ByteBuf;
+import java.util.HashMap;
 
 /**
  * A real connection to a server
@@ -74,7 +81,7 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     private static final RawString RAWSTRING_LEDGERID = RawString.of("ledgerid");
     private static final RawString RAWSTRING_COMMAND = RawString.of("command");
     private static final RawString RAWSTRING_NEWVALUE = RawString.of("newvalue");
-    private static final RawString RAWSTRING_KEY = RawString.of("key");
+    private static final RawString RAWSTRING_KEY = RawString.of("_key");
     private static final RawString RAWSTRING_TX = RawString.of("tx");
 
     private final HDBConnection connection;
@@ -109,126 +116,165 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         if (saslNettyClient.hasInitialResponse()) {
             firstToken = saslNettyClient.evaluateChallenge(new byte[0]);
         }
-        Message saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_REQUEST(SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
 
-        for (int i = 0; i < 100; i++) {
-            byte[] responseToSendToServer;
-            switch (saslResponse.type) {
-                case Message.TYPE_SASL_TOKEN_SERVER_RESPONSE:
-                    byte[] token = (byte[]) saslResponse.parameters.get("token");
-                    responseToSendToServer = saslNettyClient.evaluateChallenge(token);
-                    saslResponse = _channel.sendMessageWithReply(Message.SASL_TOKEN_MESSAGE_TOKEN(responseToSendToServer), timeout);
-                    if (saslNettyClient.isComplete()) {
-                        LOGGER.finest("SASL auth completed with success");
-                        return;
-                    }
-                    break;
-                case Message.TYPE_ERROR:
-                    throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + saslResponse.parameters + ")");
-                default:
-                    throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
+        long requestId = _channel.generateRequestId();
+        ResponseWrapper saslResponse = _channel.sendMessageWithReply(requestId,
+                MessageBuilder.SASL_TOKEN_MESSAGE_REQUEST(requestId, SaslUtils.AUTH_DIGEST_MD5, firstToken), timeout);
+        try {
+            for (int i = 0; i < 100; i++) {
+                byte[] responseToSendToServer;
+                switch (saslResponse.type()) {
+                    case MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE:
+                        byte[] token = (byte[]) MessageUtils.bufferToArray(saslResponse.response.tokenAsByteBuffer());
+                        responseToSendToServer = saslNettyClient.evaluateChallenge(token);
+                        requestId = _channel.generateRequestId();
+                        saslResponse.release();
+                        saslResponse = _channel.sendMessageWithReply(requestId, MessageBuilder.SASL_TOKEN_MESSAGE_TOKEN(requestId, responseToSendToServer), timeout);
+                        if (saslNettyClient.isComplete()) {
+                            LOGGER.finest("SASL auth completed with success");
+                            return;
+                        }
+                        break;
+                    case MessageType.TYPE_ERROR:
+                        throw new Exception("Server returned ERROR during SASL negotiation, Maybe authentication failure (" + saslResponse.response.error() + ")");
+                    default:
+                        throw new Exception("Unexpected server response during SASL negotiation (" + saslResponse + ")");
+                }
             }
+        } finally {
+            saslResponse.release();
         }
         throw new Exception("SASL negotiation took too many steps");
     }
 
     @Override
     @SuppressFBWarnings(value = "SF_SWITCH_NO_DEFAULT")
-    public void messageReceived(Message message, Channel _channel) {
-        switch (message.type) {
-            case Message.TYPE_TABLESPACE_DUMP_DATA: {
-                RawString dumpId = (RawString) message.parameters.get("dumpId");
-                TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
-                LOGGER.log(Level.FINE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
-                if (receiver == null) {
-                    if (_channel != null) {
-                        _channel.sendReplyMessage(message, Message.ERROR(new Exception("no such dump receiver " + dumpId)));
+    @SuppressWarnings("empty-statement")
+    public void requestReceived(RequestWrapper messageWrapper, Channel _channel) {
+        try {
+            Request message = messageWrapper.request;
+            switch (message.type()) {
+                case MessageType.TYPE_TABLESPACE_DUMP_DATA: {
+                    RawString dumpId = MessageUtils.readRawString(message.dumpIdAsByteBuffer());
+                    TableSpaceDumpReceiver receiver = dumpReceivers.get(dumpId);
+                    LOGGER.log(Level.FINE, "receiver for {0}: {1}", new Object[]{dumpId, receiver});
+                    if (receiver == null) {
+                        if (_channel != null) {
+                            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("no such dump receiver " + dumpId)));
+                        }
+                        return;
                     }
-                    return;
-                }
-                try {
-                    Map<RawString, Object> values = (Map<RawString, Object>) message.parameters.get("values");
-                    String command = ((RawString) values.get(RAWSTRING_COMMAND)).toString();
-                    boolean sendAck = true;
-                    switch (command) {
-                        case "start": {
-                            long ledgerId = (long) values.get(RAWSTRING_LEDGERID);
-                            long offset = (long) values.get(RAWSTRING_OFFSET);
-                            receiver.start(new LogSequenceNumber(ledgerId, offset));
-                            break;
-                        }
-                        case "beginTable": {
-                            byte[] tableDefinition = (byte[]) values.get(RAWSTRING_TABLE);
-                            Table table = Table.deserialize(tableDefinition);
-                            Long estimatedSize = (Long) values.get(RAWSTRING_ESTIMATEDSIZE);
-                            long dumpLedgerId = (Long) values.get(RAWSTRING_DUMPLEDGERID);
-                            long dumpOffset = (Long) values.get(RAWSTRING_DUMPOFFSET);
-                            List<byte[]> indexesDef = (List<byte[]>) values.get(RAWSTRING_INDEXES);
-                            List<Index> indexes = indexesDef
-                                    .stream()
-                                    .map(Index::deserialize)
-                                    .collect(Collectors.toList());
-                            Map<String, Object> stats = new HashMap<>();
-                            stats.put("estimatedSize", estimatedSize);
-                            stats.put("dumpLedgerId", dumpLedgerId);
-                            stats.put("dumpOffset", dumpOffset);
-                            receiver.beginTable(new DumpedTableMetadata(table,
-                                    new LogSequenceNumber(dumpLedgerId, dumpOffset), indexes),
-                                    stats);
-                            break;
-                        }
-                        case "endTable": {
-                            receiver.endTable();
-                            break;
-                        }
-                        case "finish": {
-                            long ledgerId = (long) values.get(RAWSTRING_LEDGERID);
-                            long offset = (long) values.get(RAWSTRING_OFFSET);
-                            receiver.finish(new LogSequenceNumber(ledgerId, offset));
-                            sendAck = false;
-                            break;
-                        }
-                        case "data": {
-                            List<KeyValue> data = (List<KeyValue>) values.get(RAWSTRING_RECORDS);
-                            List<Record> records = new ArrayList<>(data.size());
-                            for (KeyValue kv : data) {
-                                records.add(new Record(new Bytes(kv.key), new Bytes(kv.value)));
+                    try {
+                        String command = message.command();
+                        boolean sendAck = true;
+                        switch (command) {
+                            case "start": {
+                                long ledgerId = message.dumpLedgerId();
+                                long offset = message.dumpOffset();
+                                receiver.start(new LogSequenceNumber(ledgerId, offset));
+                                break;
                             }
-                            receiver.receiveTableDataChunk(records);
-                            break;
-                        }
-                        case "txlog": {
-                            List<KeyValue> data = (List<KeyValue>) values.get(RAWSTRING_RECORDS);
-                            List<DumpedLogEntry> records = new ArrayList<>(data.size());
-                            for (KeyValue kv : data) {
-                                records.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
+                            case "beginTable": {
+                                byte[] tableDefinition = MessageUtils.bufferToArray(message.tableDefinition().schemaAsByteBuffer());
+                                Table table = Table.deserialize(tableDefinition);
+                                Long estimatedSize = message.estimatedSize();
+                                long dumpLedgerId = message.dumpLedgerId();
+                                long dumpOffset = message.dumpOffset();
+                                List<byte[]> indexesDef = new ArrayList<>();
+                                int numIndexes = message.indexesDefinitionLength();
+                                for (int i = 0; i < numIndexes; i++) {
+                                    indexesDef.add(MessageUtils.bufferToArray(message.indexesDefinition(i).schemaAsByteBuffer()));
+                                }
+                                List<Index> indexes = indexesDef
+                                        .stream()
+                                        .map(Index::deserialize)
+                                        .collect(Collectors.toList());
+                                Map<String, Object> stats = new HashMap<>();
+                                stats.put("estimatedSize", estimatedSize);
+                                stats.put("dumpLedgerId", dumpLedgerId);
+                                stats.put("dumpOffset", dumpOffset);
+                                receiver.beginTable(new DumpedTableMetadata(table,
+                                        new LogSequenceNumber(dumpLedgerId, dumpOffset), indexes),
+                                        stats);
+                                break;
                             }
-                            receiver.receiveTransactionLogChunk(records);
-                            break;
-                        }
-                        case "transactions": {
-                            List<byte[]> data = (List<byte[]>) values.get(RAWSTRING_TRANSACTIONS);
-                            List<Transaction> transactions = data.stream().map(array -> {
-                                return Transaction.deserialize(null, array);
-                            }).collect(Collectors.toList());
-                            receiver.receiveTransactionsAtDump(transactions);
-                            break;
-                        }
-                        default:
-                            throw new DataStorageManagerException("invalid dump command:" + command);
-                    }
-                    if (_channel != null && sendAck) {
-                        _channel.sendReplyMessage(message, Message.ACK());
-                    }
-                } catch (DataStorageManagerException error) {
-                    LOGGER.log(Level.SEVERE, "error while handling dump data", error);
-                    if (_channel != null) {
-                        _channel.sendReplyMessage(message, Message.ERROR(error));
-                    }
-                }
-            }
-            break;
+                            case "endTable": {
+                                receiver.endTable();
+                                break;
+                            }
+                            case "finish": {
+                                long ledgerId = message.dumpLedgerId();
+                                long offset = message.dumpOffset();
+                                receiver.finish(new LogSequenceNumber(ledgerId, offset));
+                                sendAck = false;
+                                break;
+                            }
+                            case "data": {
+                                int dataSize = message.rawDataChunkLength();
+                                List<KeyValue> data = new ArrayList<>(dataSize);
+                                for (int i = 0; i < dataSize; i++) {
+                                    herddb.proto.flatbuf.KeyValue rawDataChunkEntry = message.rawDataChunk(i);
+                                    byte[] key = MessageUtils.bufferToArray(rawDataChunkEntry.keyAsByteBuffer());
+                                    byte[] value = MessageUtils.bufferToArray(rawDataChunkEntry.valueAsByteBuffer());
+                                    data.add(new KeyValue(key, value));
+                                }
 
+                                List<Record> records = new ArrayList<>(data.size());
+                                for (KeyValue kv : data) {
+                                    records.add(new Record(new Bytes(kv.key), new Bytes(kv.value)));
+                                }
+                                receiver.receiveTableDataChunk(records);
+                                break;
+                            }
+                            case "txlog": {
+                                int dataSize = message.rawDataChunkLength();
+                                List<KeyValue> data = new ArrayList<>(dataSize);
+                                for (int i = 0; i < dataSize; i++) {
+                                    herddb.proto.flatbuf.KeyValue rawDataChunkEntry = message.rawDataChunk(i);
+                                    byte[] key = MessageUtils.bufferToArray(rawDataChunkEntry.keyAsByteBuffer());
+                                    byte[] value = MessageUtils.bufferToArray(rawDataChunkEntry.valueAsByteBuffer());
+                                    data.add(new KeyValue(key, value));
+                                }
+                                List<DumpedLogEntry> records = new ArrayList<>(data.size());
+                                for (KeyValue kv : data) {
+                                    records.add(new DumpedLogEntry(LogSequenceNumber.deserialize(kv.key), kv.value));
+                                }
+                                receiver.receiveTransactionLogChunk(records);
+                                break;
+                            }
+                            case "transactions": {
+                                int dataSize = message.rawDataChunkLength();
+                                List<KeyValue> data = new ArrayList<>(dataSize);
+                                for (int i = 0; i < dataSize; i++) {
+                                    herddb.proto.flatbuf.KeyValue rawDataChunkEntry = message.rawDataChunk(i);
+                                    byte[] key = MessageUtils.bufferToArray(rawDataChunkEntry.keyAsByteBuffer());
+                                    byte[] value = MessageUtils.bufferToArray(rawDataChunkEntry.valueAsByteBuffer());
+                                    data.add(new KeyValue(key, value));
+                                }
+                                List<Transaction> transactions = data.stream().map(array -> {
+                                    return Transaction.deserialize(null, array.value);
+                                }).collect(Collectors.toList());
+                                receiver.receiveTransactionsAtDump(transactions);
+                                break;
+                            }
+                            default:
+                                throw new DataStorageManagerException("invalid dump command:" + command);
+                        }
+                        if (_channel != null && sendAck) {
+                            _channel.sendReplyMessage(message.id(), MessageBuilder.ACK(message.id()));
+                        }
+                    } catch (DataStorageManagerException error) {
+                        LOGGER.log(Level.SEVERE, "error while handling dump data", error);
+                        if (_channel != null) {
+                            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), error));
+                        }
+                    }
+                }
+                break;
+
+            }
+        } finally {
+            messageWrapper.release();
         }
     }
 
@@ -294,28 +340,28 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     DMLResult executeUpdate(String tableSpace, String query, long tx, boolean returnValues, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(tableSpace, query, tx, returnValues, params);
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
-                if (notLeader) {
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.EXECUTE_STATEMENT(requestId, tableSpace, query, tx, returnValues, params);
+            try (ResponseWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
+                Response reply = replyWrapper.response;
+                if (reply.type() == MessageType.TYPE_ERROR) {
+                    boolean notLeader = reply.notLeader();
+                    if (notLeader) {
+                        this.connection.requestMetadataRefresh();
+                        throw new RetryRequestException(reply + "");
+                    }
+                    throw new HDBException(reply);
                 }
-                throw new HDBException(reply);
-            }
-            long updateCount = (Long) reply.parameters.get("updateCount");
-            long transactionId = (Long) reply.parameters.get("tx");
+                long updateCount = (Long) reply.updateCount();
+                long transactionId = (Long) reply.tx();
 
-            Object key = null;
-            Map<RawString, Object> newvalue = null;
-            Map<RawString, Object> data = (Map<RawString, Object>) reply.parameters.get("data");
-
-            if (data != null) {
-                key = data.get(RAWSTRING_KEY);
-                newvalue = (Map<RawString, Object>) data.get(RAWSTRING_NEWVALUE);
+                Object key = null;
+                Map<RawString, Object> newvalue = MessageUtils.decodeMap(reply.newValue());
+                if (newvalue != null) {
+                    key = newvalue.get(RAWSTRING_KEY);
+                }
+                return new DMLResult(updateCount, key, newvalue, transactionId);
             }
-            return new DMLResult(updateCount, key, newvalue, transactionId);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -324,31 +370,38 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     List<DMLResult> executeUpdates(String tableSpace, String query, long tx, boolean returnValues, List<List<Object>> batch) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENTS(tableSpace, query, tx, returnValues, batch);
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
-                if (notLeader) {
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.EXECUTE_STATEMENTS(requestId, tableSpace, query, tx, returnValues, batch);
+            try (ResponseWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
+                Response reply = replyWrapper.response;
+                if (reply.type() == MessageType.TYPE_ERROR) {
+                    boolean notLeader = reply.notLeader();
+                    if (notLeader) {
+                        this.connection.requestMetadataRefresh();
+                        throw new RetryRequestException(reply + "");
+                    }
+                    throw new HDBException(reply);
                 }
-                throw new HDBException(reply);
+
+                long transactionId = reply.tx();
+                int numResults = reply.batchResultsLength();
+
+                List<DMLResult> results = new ArrayList<>(numResults);
+
+                for (int i = 0; i < numResults; i++) {
+                    herddb.proto.flatbuf.DMLResult result = reply.batchResults(i);
+                    long updateCount = result.updateCount();
+                    Object key = null;
+                    Map<RawString, Object> newvalue = MessageUtils.decodeMap(reply.newValue());
+                    if (newvalue != null) {
+                        key = newvalue.get(RAWSTRING_KEY);
+                    }
+
+                    DMLResult res = new DMLResult(updateCount, key, newvalue, transactionId);
+                    results.add(res);
+                }
+                return results;
             }
-
-            long transactionId = (Long) reply.parameters.get("tx");
-
-            List<Map<String, Object>> data = (List<Map<String, Object>>) reply.parameters.get("data");
-            List<Long> updateCounts = (List<Long>) reply.parameters.get("updateCount");
-            List<DMLResult> results = new ArrayList<>();
-
-            for (int i = 0; i < updateCounts.size(); i++) {
-                Object key = data.get(0).get(RAWSTRING_KEY);
-                Map<RawString, Object> newvalue = (Map<RawString, Object>) data.get(i).get(RAWSTRING_NEWVALUE);
-                DMLResult res = new DMLResult(updateCounts.get(i), key, newvalue, transactionId);
-                results.add(res);
-            }
-
-            return results;
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -357,22 +410,26 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     GetResult executeGet(String tableSpace, String query, long tx, List<Object> params) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.EXECUTE_STATEMENT(tableSpace, query, tx, false, params);
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
-                if (notLeader) {
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.EXECUTE_STATEMENT(requestId, tableSpace, query, tx, false, params);
+            try (ResponseWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
+                Response reply = replyWrapper.response;
+                if (reply.type() == MessageType.TYPE_ERROR) {
+                    boolean notLeader = reply.notLeader();
+                    if (notLeader) {
+                        this.connection.requestMetadataRefresh();
+                        throw new RetryRequestException(reply + "");
+                    }
+                    throw new HDBException(reply);
                 }
-                throw new HDBException(reply);
-            }
-            long found = (Long) reply.parameters.get("updateCount");
-            long transactionId = (Long) reply.parameters.get("tx");
-            if (found <= 0) {
-                return new GetResult(null, transactionId);
-            } else {
-                return new GetResult((Map<RawString, Object>) reply.parameters.get("data"), transactionId);
+                long found = reply.updateCount();
+                long transactionId = reply.tx();
+                if (found <= 0) {
+                    return new GetResult(null, transactionId);
+                } else {
+                    Map<RawString, Object> data = MessageUtils.decodeMap(reply.newValue());
+                    return new GetResult(data, transactionId);
+                }
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -382,18 +439,20 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     long beginTransaction(String tableSpace) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.TX_COMMAND(tableSpace, Message.TX_COMMAND_BEGIN_TRANSACTION, 0);
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
-                if (notLeader) {
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION, 0);
+            try (ResponseWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
+                Response reply = replyWrapper.response;
+                if (reply.type() == MessageType.TYPE_ERROR) {
+                    boolean notLeader = reply.notLeader();
+                    if (notLeader) {
+                        this.connection.requestMetadataRefresh();
+                        throw new RetryRequestException(reply + "");
+                    }
+                    throw new HDBException(reply);
                 }
-                throw new HDBException(reply);
+                return reply.tx();
             }
-            Map<RawString, Object> data = (Map<RawString, Object>) reply.parameters.get("data");
-            return (Long) data.get(RAWSTRING_TX);
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
         }
@@ -402,15 +461,18 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void commitTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.TX_COMMAND(tableSpace, Message.TX_COMMAND_COMMIT_TRANSACTION, tx);
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
-                if (notLeader) {
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION, tx);
+            try (ResponseWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
+                Response reply = replyWrapper.response;
+                if (reply.type() == MessageType.TYPE_ERROR) {
+                    boolean notLeader = reply.notLeader();
+                    if (notLeader) {
+                        this.connection.requestMetadataRefresh();
+                        throw new RetryRequestException(reply + "");
+                    }
+                    throw new HDBException(reply);
                 }
-                throw new HDBException(reply);
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -420,15 +482,18 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
     void rollbackTransaction(String tableSpace, long tx) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
         try {
-            Message message = Message.TX_COMMAND(tableSpace, Message.TX_COMMAND_ROLLBACK_TRANSACTION, tx);
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
-                if (notLeader) {
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.TX_COMMAND(requestId, tableSpace, MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION, tx);
+            try (ResponseWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
+                Response reply = replyWrapper.response;
+                if (reply.type() == MessageType.TYPE_ERROR) {
+                    boolean notLeader = reply.notLeader();
+                    if (notLeader) {
+                        this.connection.requestMetadataRefresh();
+                        throw new RetryRequestException(reply + "");
+                    }
+                    throw new HDBException(reply);
                 }
-                throw new HDBException(reply);
             }
         } catch (InterruptedException | TimeoutException err) {
             throw new HDBException(err);
@@ -439,27 +504,36 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
 
     ScanResultSet executeScan(String tableSpace, String query, List<Object> params, long tx, int maxRows, int fetchSize) throws HDBException, ClientSideMetadataProviderException {
         Channel _channel = ensureOpen();
+        ResponseWrapper reply = null;
         try {
             String scannerId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
-            Message message = Message.OPEN_SCANNER(tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.OPEN_SCANNER(requestId, tableSpace, query, scannerId, tx, params, fetchSize, maxRows);
             LOGGER.log(Level.FINEST, "open scanner {0} for query {1}, params {2}", new Object[]{scannerId, query, params});
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
+            reply = _channel.sendMessageWithReply(requestId, message, timeout);
+            if (reply.type() == MessageType.TYPE_ERROR) {
+                boolean notLeader = reply.response.notLeader();
                 if (notLeader) {
+                    reply.release();
                     this.connection.requestMetadataRefresh();
                     throw new RetryRequestException(reply + "");
                 }
-                throw new HDBException(reply);
+                try {
+                    throw new HDBException(reply.response);
+                } finally {
+                    reply.release();
+                }
             }
-            RecordsBatch data = (RecordsBatch) reply.parameters.get("data");
-            boolean last = (Boolean) reply.parameters.get("last");
-            long transactionId = (Long) reply.parameters.get("tx");
+            RecordsBatch data = new RecordsBatch(reply);
+            boolean last = (Boolean) reply.response.last();
+            long transactionId = (Long) reply.response.tx();
             //LOGGER.log(Level.SEVERE, "received first " + initialFetchBuffer.size() + " records for query " + query);
             ScanResultSetImpl impl = new ScanResultSetImpl(scannerId, data, fetchSize, last, transactionId);
-
             return impl;
         } catch (InterruptedException | TimeoutException err) {
+            if (reply != null) {
+                reply.release();
+            }
             throw new HDBException(err);
         }
     }
@@ -468,18 +542,21 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
         Channel _channel = ensureOpen();
         try {
             String dumpId = this.clientId + ":" + SCANNERID_GENERATOR.incrementAndGet();
-            Message message = Message.REQUEST_TABLESPACE_DUMP(tableSpace, dumpId, fetchSize, includeTransactionLog);
-            LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace);
+            long requestId = _channel.generateRequestId();
+            ByteBuf message = MessageBuilder.REQUEST_TABLESPACE_DUMP(requestId, tableSpace, dumpId, fetchSize, includeTransactionLog);
+            LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}", new Object[]{dumpId, tableSpace});
             dumpReceivers.put(RawString.of(dumpId), receiver);
-            Message reply = _channel.sendMessageWithReply(message, timeout);
-            LOGGER.log(Level.SEVERE, "dumpTableSpace id " + dumpId + " for tablespace " + tableSpace + ": first reply " + reply.parameters);
-            if (reply.type == Message.TYPE_ERROR) {
-                boolean notLeader = reply.parameters.get("notLeader") != null;
-                if (notLeader) {
-                    this.connection.requestMetadataRefresh();
-                    throw new RetryRequestException(reply + "");
+            try (ResponseWrapper replyWrapper = _channel.sendMessageWithReply(requestId, message, timeout);) {
+                Response reply = replyWrapper.response;
+                LOGGER.log(Level.SEVERE, "dumpTableSpace id {0} for tablespace {1}: first reply {2}", new Object[]{dumpId, tableSpace, reply});
+                if (reply.type() == MessageType.TYPE_ERROR) {
+                    boolean notLeader = reply.notLeader();
+                    if (notLeader) {
+                        this.connection.requestMetadataRefresh();
+                        throw new RetryRequestException(reply + "");
+                    }
+                    throw new HDBException(reply);
                 }
-                throw new HDBException(reply);
             }
 
         } catch (InterruptedException | TimeoutException err) {
@@ -502,18 +579,22 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     case BackupFileConstants.ENTRY_TYPE_TABLE: {
                         DumpedTableMetadata table = source.nextTable();
                         Channel _channel = ensureOpen();
-                        Message message_create_table = Message.REQUEST_TABLE_RESTORE(tableSpace,
+                        long id = _channel.generateRequestId();
+                        ByteBuf message_create_table = MessageBuilder.REQUEST_TABLE_RESTORE(id, tableSpace,
                                 table.table.serialize(), table.logSequenceNumber.ledgerId, table.logSequenceNumber.offset);
-                        Message reply_create_table = _channel.sendMessageWithReply(message_create_table, timeout);
-                        if (reply_create_table.type == Message.TYPE_ERROR) {
-                            throw new HDBException(reply_create_table);
+                        try (ResponseWrapper reply_create_table = _channel.sendMessageWithReply(id, message_create_table, timeout);) {
+                            if (reply_create_table.type() == MessageType.TYPE_ERROR) {
+                                throw new HDBException(reply_create_table.response);
+                            }
                         }
                         List<KeyValue> chunk = source.nextTableDataChunk();
                         while (chunk != null) {
-                            Message message = Message.PUSH_TABLE_DATA(tableSpace, table.table.name, chunk);
-                            Message reply = _channel.sendMessageWithReply(message, timeout);
-                            if (reply.type == Message.TYPE_ERROR) {
-                                throw new HDBException(reply);
+                            id = _channel.generateRequestId();
+                            ByteBuf message = MessageBuilder.PUSH_TABLE_DATA(id, tableSpace, table.table.name, chunk);
+                            try (ResponseWrapper reply = _channel.sendMessageWithReply(id, message, timeout);) {
+                                if (reply.type() == MessageType.TYPE_ERROR) {
+                                    throw new HDBException(reply.response);
+                                }
                             }
                             chunk = source.nextTableDataChunk();
                         }
@@ -524,20 +605,24 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                     case BackupFileConstants.ENTRY_TYPE_TXLOGCHUNK: {
                         Channel _channel = ensureOpen();
                         List<KeyValue> chunk = source.nextTransactionLogChunk();
-                        Message message = Message.PUSH_TXLOGCHUNK(tableSpace, chunk);
-                        Message reply = _channel.sendMessageWithReply(message, timeout);
-                        if (reply.type == Message.TYPE_ERROR) {
-                            throw new HDBException(reply);
+                        long id = _channel.generateRequestId();
+                        ByteBuf message = MessageBuilder.PUSH_TXLOGCHUNK(id, tableSpace, chunk);
+                        try (ResponseWrapper reply = _channel.sendMessageWithReply(id, message, timeout);) {
+                            if (reply.type() == MessageType.TYPE_ERROR) {
+                                throw new HDBException(reply.response);
+                            }
                         }
                         break;
                     }
                     case BackupFileConstants.ENTRY_TYPE_TRANSACTIONS: {
                         Channel _channel = ensureOpen();
                         List<byte[]> chunk = source.nextTransactionsBlock();
-                        Message message = Message.PUSH_TRANSACTIONSBLOCK(tableSpace, chunk);
-                        Message reply = _channel.sendMessageWithReply(message, timeout);
-                        if (reply.type == Message.TYPE_ERROR) {
-                            throw new HDBException(reply);
+                        long id = _channel.generateRequestId();
+                        ByteBuf message = MessageBuilder.PUSH_TRANSACTIONSBLOCK(id, tableSpace, chunk);
+                        try (ResponseWrapper reply = _channel.sendMessageWithReply(id, message, timeout);) {
+                            if (reply.type() == MessageType.TYPE_ERROR) {
+                                throw new HDBException(reply.response);
+                            }
                         }
                         break;
                     }
@@ -549,18 +634,22 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                         for (DumpedTableMetadata table : tables) {
                             List<byte[]> indexes = table.indexes.stream().map(Index::serialize).collect(Collectors.toList());
 
-                            Message message_table_finished = Message.TABLE_RESTORE_FINISHED(tableSpace,
+                            long id = _channel.generateRequestId();
+                            ByteBuf message_table_finished = MessageBuilder.TABLE_RESTORE_FINISHED(id, tableSpace,
                                     table.table.name, indexes);
-                            Message reply_table_finished = _channel.sendMessageWithReply(message_table_finished, timeout);
-                            if (reply_table_finished.type == Message.TYPE_ERROR) {
-                                throw new HDBException(reply_table_finished);
+                            try (ResponseWrapper reply_table_finished = _channel.sendMessageWithReply(id, message_table_finished, timeout);) {
+                                if (reply_table_finished.type() == MessageType.TYPE_ERROR) {
+                                    throw new HDBException(reply_table_finished.response);
+                                }
                             }
                         }
 
-                        Message message_restore_finished = Message.RESTORE_FINISHED(tableSpace);
-                        Message reply_restore_finished = _channel.sendMessageWithReply(message_restore_finished, timeout);
-                        if (reply_restore_finished.type == Message.TYPE_ERROR) {
-                            throw new HDBException(reply_restore_finished);
+                        long id = _channel.generateRequestId();
+                        ByteBuf message_restore_finished = MessageBuilder.RESTORE_FINISHED(id, tableSpace);
+                        try (ResponseWrapper reply_restore_finished = _channel.sendMessageWithReply(id, message_restore_finished, timeout);) {
+                            if (reply_restore_finished.type() == MessageType.TYPE_ERROR) {
+                                throw new HDBException(reply_restore_finished.response);
+                            }
                         }
 
                         return;
@@ -637,22 +726,32 @@ public class RoutedClientSideConnection implements AutoCloseable, ChannelEventLi
                 return;
             }
             Channel _channel = ensureOpen();
+            ResponseWrapper result = null;
             try {
-                Message result = _channel.sendMessageWithReply(Message.FETCH_SCANNER_DATA(scannerId, fetchSize), 10000);
+                long requestId = _channel.generateRequestId();
+                ByteBuf message = MessageBuilder.FETCH_SCANNER_DATA(requestId, scannerId, fetchSize);
+                result = _channel.sendMessageWithReply(requestId, message, 10000);
                 //LOGGER.log(Level.SEVERE, "fillBuffer result " + result);
-                if (result.type == Message.TYPE_ERROR) {
-                    throw new HDBException(result);
+                if (result.type() == MessageType.TYPE_ERROR) {
+                    try {
+                        throw new HDBException(result.response);
+                    } finally {
+                        result.release();
+                    }
                 }
-                if (result.type != Message.TYPE_RESULTSET_CHUNK) {
+                if (result.type() != MessageType.TYPE_RESULTSET_CHUNK) {
                     finished = true;
                     throw new HDBException("protocol error: " + result);
                 }
-                fetchBuffer = (RecordsBatch) result.parameters.get("data");
-                lastChunk = (Boolean) result.parameters.get("last");
+                fetchBuffer = new RecordsBatch(result);
+                lastChunk = result.response.last();
                 if (!fetchBuffer.hasNext()) {
                     noMoreData = true;
                 }
             } catch (InterruptedException | TimeoutException err) {
+                if (result != null) {
+                    result.release();
+                }
                 throw new HDBException(err);
             }
         }

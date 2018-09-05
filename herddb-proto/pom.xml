@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.herddb</groupId>
+        <artifactId>herddb-parent</artifactId>
+        <version>0.7.0-SNAPSHOT</version>
+        <relativePath>..</relativePath>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <name>HerdDB Protocol Artifacts</name>
+    <artifactId>herddb-proto</artifactId>
+    <packaging>jar</packaging>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>        
+        <flatc.executable>${basedir}/flatc</flatc.executable>
+        <flatc.generated.files>${project.build.directory}/generated-sources/flatc</flatc.generated.files>
+        <os-maven-plugin.version>1.5.0.Final</os-maven-plugin.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>com.google.flatbuffers</groupId>
+            <artifactId>flatbuffers-java</artifactId>    
+        </dependency>
+    </dependencies>
+    <build>
+        <extensions>
+            <!-- provides os.detected.classifier (i.e. linux-x86_64, osx-x86_64) property -->
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>${os-maven-plugin.version}</version>
+            </extension>
+        </extensions>
+
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.6.0</version>
+                <executions>
+                    <execution> <!-- make the flatbuffer compiler executable -->
+                        <id>script-chmod</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>generate-sources</phase>
+                        <configuration>
+                            <executable>chmod</executable>
+                            <arguments>
+                                <argument>+x</argument>
+                                <argument>${flatc.executable}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>generate-sources</phase>
+                        <configuration>
+                            <executable>${flatc.executable}</executable>
+                            <arguments>
+                                <argument>-j</argument>
+                                <argument>-o</argument>
+                                <argument>${flatc.generated.files}</argument>
+                                <argument>src/main/resources/Common.fbs</argument>                                
+                                <argument>src/main/resources/Request.fbs</argument>                                
+                                <argument>src/main/resources/Response.fbs</argument>                                
+                                <argument>src/main/resources/Message.fbs</argument>                                
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin> <!-- add generated sources to classpath -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.0.0</version>
+                <executions>
+                    <execution>
+                        <id>add-generated-sources-to-classpath</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${flatc.generated.files}</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>           
+        </plugins>
+    </build>
+</project>

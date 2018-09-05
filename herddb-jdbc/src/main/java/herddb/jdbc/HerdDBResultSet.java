@@ -92,96 +92,93 @@ public class HerdDBResultSet implements ResultSet {
         return wasNull;
     }
 
-    private String resolveColumnNameByIndex(int columnIndex) throws SQLException {
-        try {
-            return metadata.getColumnNames()[columnIndex - 1];
-        } catch (ArrayIndexOutOfBoundsException err) {
-            throw new SQLException("invalid index " + columnIndex + ", min value is 1, max value is " + metadata.getColumnNames().length);
-        }
+    private int resolveColumnIndexByName(String columnName) throws SQLException {
+        // returns -1 if column not found (non case sensitive)
+        return metadata.getColumnPosition(columnName);
     }
 
     @Override
-    public String getString(int columnIndex) throws SQLException {
-        return getString(resolveColumnNameByIndex(columnIndex));
+    public String getString(String columnIndex) throws SQLException {
+        return getString(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public boolean getBoolean(int columnIndex) throws SQLException {
-        return getBoolean(resolveColumnNameByIndex(columnIndex));
+    public boolean getBoolean(String columnIndex) throws SQLException {
+        return getBoolean(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public byte getByte(int columnIndex) throws SQLException {
-        return getByte(resolveColumnNameByIndex(columnIndex));
+    public byte getByte(String columnIndex) throws SQLException {
+        return getByte(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public short getShort(int columnIndex) throws SQLException {
-        return getShort(resolveColumnNameByIndex(columnIndex));
+    public short getShort(String columnIndex) throws SQLException {
+        return getShort(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public int getInt(int columnIndex) throws SQLException {
-        return getInt(resolveColumnNameByIndex(columnIndex));
+    public int getInt(String columnIndex) throws SQLException {
+        return getInt(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public long getLong(int columnIndex) throws SQLException {
-        return getLong(resolveColumnNameByIndex(columnIndex));
+    public long getLong(String columnIndex) throws SQLException {
+        return getLong(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public float getFloat(int columnIndex) throws SQLException {
-        return getFloat(resolveColumnNameByIndex(columnIndex));
+    public float getFloat(String columnIndex) throws SQLException {
+        return getFloat(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public double getDouble(int columnIndex) throws SQLException {
-        return getDouble(resolveColumnNameByIndex(columnIndex));
+    public double getDouble(String columnIndex) throws SQLException {
+        return getDouble(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        return getBigDecimal(resolveColumnNameByIndex(columnIndex), scale);
+    public BigDecimal getBigDecimal(String columnIndex, int scale) throws SQLException {
+        return getBigDecimal(resolveColumnIndexByName(columnIndex), scale);
     }
 
     @Override
-    public byte[] getBytes(int columnIndex) throws SQLException {
-        return getBytes(resolveColumnNameByIndex(columnIndex));
+    public byte[] getBytes(String columnIndex) throws SQLException {
+        return getBytes(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public Date getDate(int columnIndex) throws SQLException {
-        return getDate(resolveColumnNameByIndex(columnIndex));
+    public Date getDate(String columnIndex) throws SQLException {
+        return getDate(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public Time getTime(int columnIndex) throws SQLException {
+    public Time getTime(String columnIndex) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        return getTimestamp(resolveColumnNameByIndex(columnIndex));
+    public Timestamp getTimestamp(String columnIndex) throws SQLException {
+        return getTimestamp(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public InputStream getAsciiStream(int columnIndex) throws SQLException {
+    public InputStream getAsciiStream(String columnIndex) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public InputStream getUnicodeStream(int columnIndex) throws SQLException {
+    public InputStream getUnicodeStream(String columnIndex) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public InputStream getBinaryStream(int columnIndex) throws SQLException {
+    public InputStream getBinaryStream(String columnIndex) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public String getString(String columnLabel) throws SQLException {
+    public String getString(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -191,10 +188,11 @@ public class HerdDBResultSet implements ResultSet {
         }
     }
 
-    private void fillLastValue(String columnLabel) {
-        lastValue = actualValue.get(columnLabel);
-        if (lastValue == null) {
-            lastValue = actualValue.get(columnLabel.toLowerCase());
+    private void fillLastValue(int columnLabel) {
+        if (columnLabel <= 0) {
+            lastValue = null;
+        } else {
+            lastValue = actualValue.get(columnLabel - 1);
         }
     }
 
@@ -207,7 +205,7 @@ public class HerdDBResultSet implements ResultSet {
     private boolean wasNull;
 
     @Override
-    public boolean getBoolean(String columnLabel) throws SQLException {
+    public boolean getBoolean(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -220,17 +218,17 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public byte getByte(String columnLabel) throws SQLException {
+    public byte getByte(int columnLabel) throws SQLException {
         return (byte) getInt(columnLabel);
     }
 
     @Override
-    public short getShort(String columnLabel) throws SQLException {
+    public short getShort(int columnLabel) throws SQLException {
         return (short) getInt(columnLabel);
     }
 
     @Override
-    public int getInt(String columnLabel) throws SQLException {
+    public int getInt(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -243,7 +241,7 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public long getLong(String columnLabel) throws SQLException {
+    public long getLong(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -262,12 +260,12 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public float getFloat(String columnLabel) throws SQLException {
+    public float getFloat(int columnLabel) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public double getDouble(String columnLabel) throws SQLException {
+    public double getDouble(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -283,17 +281,17 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
+    public BigDecimal getBigDecimal(int columnLabel, int scale) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public byte[] getBytes(String columnLabel) throws SQLException {
+    public byte[] getBytes(int columnLabel) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public Date getDate(String columnLabel) throws SQLException {
+    public Date getDate(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -312,12 +310,12 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public Time getTime(String columnLabel) throws SQLException {
+    public Time getTime(int columnLabel) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public Timestamp getTimestamp(String columnLabel) throws SQLException {
+    public Timestamp getTimestamp(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -336,17 +334,17 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public InputStream getAsciiStream(String columnLabel) throws SQLException {
+    public InputStream getAsciiStream(int columnLabel) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public InputStream getUnicodeStream(String columnLabel) throws SQLException {
+    public InputStream getUnicodeStream(int columnLabel) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public InputStream getBinaryStream(String columnLabel) throws SQLException {
+    public InputStream getBinaryStream(int columnLabel) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
@@ -496,12 +494,12 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public Object getObject(int columnIndex) throws SQLException {
-        return getObject(resolveColumnNameByIndex(columnIndex));
+    public Object getObject(String columnIndex) throws SQLException {
+        return getObject(resolveColumnIndexByName(columnIndex));
     }
 
     @Override
-    public Object getObject(String columnLabel) throws SQLException {
+    public Object getObject(int columnLabel) throws SQLException {
         ensureNextCalled();
         fillLastValue(columnLabel);
         if (lastValue != null) {
@@ -518,23 +516,20 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public int findColumn(String columnLabel) throws SQLException {
-        int index = 0;
-        for (String c : metadata.getColumnNames()) {
-            if (c.equalsIgnoreCase(columnLabel)) {
-                return index + 1;
-            }
-            index++;
+        int index = metadata.getColumnPosition(columnLabel);
+        if (index <= 0) {
+            throw new SQLException("no such column " + columnLabel + ", only " + Arrays.toString(metadata.getColumnNames()));
         }
-        throw new SQLException("no such column " + columnLabel + ", only " + Arrays.toString(metadata.getColumnNames()));
+        return index;
     }
 
     @Override
-    public Reader getCharacterStream(int columnIndex) throws SQLException {
+    public Reader getCharacterStream(String columnIndex) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
-    public Reader getCharacterStream(String columnLabel) throws SQLException {
+    public Reader getCharacterStream(int columnLabel) throws SQLException {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
@@ -1254,12 +1249,12 @@ public class HerdDBResultSet implements ResultSet {
     }
 
     @Override
-    public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        return getObject(resolveColumnNameByIndex(columnIndex), type);
+    public <T> T getObject(String columnIndex, Class<T> type) throws SQLException {
+        return getObject(resolveColumnIndexByName(columnIndex), type);
     }
 
     @Override
-    public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
+    public <T> T getObject(int columnLabel, Class<T> type) throws SQLException {
         return (T) getObject(columnLabel);
     }
 

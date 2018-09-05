@@ -19,26 +19,46 @@
  */
 package herddb.network.netty;
 
-import herddb.utils.MessageUtils;
+import herddb.network.RequestWrapper;
+import herddb.network.ResponseWrapper;
+import herddb.proto.flatbuf.Message;
+import herddb.proto.flatbuf.Request;
+import herddb.proto.flatbuf.Response;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.util.ReferenceCountUtil;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Decodes bytes to messages
  *
  * @author enrico.olivelli
  */
-public class DataMessageDecoder extends ChannelInboundHandlerAdapter {
+public class ProtocolMessageDecoder extends ChannelInboundHandlerAdapter {
+
+    private static final Logger LOGGER = Logger.getLogger(ProtocolMessageDecoder.class.getName());
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         ByteBuf in = (ByteBuf) msg;
-        try {
-            ctx.fireChannelRead(MessageUtils.decodeMessage(in));
-        } finally {
-            ReferenceCountUtil.release(msg);
+
+        if (LOGGER.isLoggable(Level.FINEST)) {
+            StringBuilder dumper = new StringBuilder();
+            ByteBufUtil.appendPrettyHexDump(dumper, in);
+            LOGGER.log(Level.FINEST, "Received from {}: {}", new Object[]{ctx.channel(), dumper});
+        }
+
+        Message message = Message.getRootAsMessage(in.nioBuffer());
+        Response response = message.response();
+        if (response != null) {
+            ctx.fireChannelRead(new ResponseWrapper(response, in));
+            return;
+        }
+        Request request = message.request();
+        if (request != null) {
+            ctx.fireChannelRead(new RequestWrapper(request, in));
         }
 
     }

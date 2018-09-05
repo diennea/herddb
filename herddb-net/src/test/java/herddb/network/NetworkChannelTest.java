@@ -1,11 +1,18 @@
 package herddb.network;
 
+import static herddb.network.Utils.buildAckRequest;
+import static herddb.network.Utils.buildAckResponse;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.network.netty.NettyConnector;
 import herddb.network.netty.NetworkUtils;
+import herddb.proto.flatbuf.MessageType;
+import herddb.proto.flatbuf.Request;
+import herddb.proto.flatbuf.Response;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,38 +26,25 @@ public class NetworkChannelTest {
     public void test() throws Exception {
         try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
             acceptor.setEnableJVMNetwork(false);
-            acceptor.setAcceptor(new ServerSideConnectionAcceptor() {
+            acceptor.setAcceptor((ServerSideConnectionAcceptor) (Channel channel) -> {
+                channel.setMessagesReceiver(new ChannelEventListener() {
+                    @Override
+                    public void requestReceived(RequestWrapper message, Channel channel) {
+                        ByteBuffer msg = buildAckResponse(message.request);
+                        channel.sendReplyMessage(message.request.id(), Unpooled.wrappedBuffer(msg));
+                        message.release();
+                    }
 
-                @Override
-                public ServerSideConnection createConnection(Channel channel) {
-                    channel.setMessagesReceiver(new ChannelEventListener() {
+                    @Override
+                    public void channelClosed(Channel channel) {
 
-                        @Override
-                        public void messageReceived(Message message, Channel channel) {
-                            channel.sendReplyMessage(message, Message.ACK());
-                        }
-
-                        @Override
-                        public void channelClosed(Channel channel) {
-
-                        }
-                    });
-                    return new ServerSideConnection() {
-                        @Override
-                        public long getConnectionId() {
-                            return new Random().nextLong();
-                        }
-                    };
-                }
+                    }
+                });
+                return (ServerSideConnection) () -> new Random().nextLong();
             });
             acceptor.start();
             ExecutorService executor = Executors.newCachedThreadPool();
             try (Channel client = NettyConnector.connect("localhost", 1111, true, 0, 0, new ChannelEventListener() {
-
-                @Override
-                public void messageReceived(Message message, Channel channel) {
-                    System.out.println("client messageReceived " + message);
-                }
 
                 @Override
                 public void channelClosed(Channel channel) {
@@ -59,9 +53,10 @@ public class NetworkChannelTest {
                 }
             }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
                 for (int i = 0; i < 100; i++) {
-                    Message result = client.sendMessageWithReply(Message.ACK(), 10000);
-                    assertEquals(Message.TYPE_ACK, result.type);
-//                        System.out.println("result:" + result);
+                    ByteBuffer buffer = buildAckRequest(i);
+                    ResponseWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000);
+                    assertEquals(MessageType.TYPE_ACK, result.response.type());
+                    result.release();
                 }
             } finally {
                 executor.shutdown();
@@ -70,38 +65,25 @@ public class NetworkChannelTest {
         if (NetworkUtils.isEnableEpoolNative()) {
             try (NettyChannelAcceptor acceptor = new NettyChannelAcceptor("localhost", 1111, true)) {
                 acceptor.setEnableJVMNetwork(false);
-                acceptor.setAcceptor(new ServerSideConnectionAcceptor() {
+                acceptor.setAcceptor((ServerSideConnectionAcceptor) (Channel channel) -> {
+                    channel.setMessagesReceiver(new ChannelEventListener() {
+                        @Override
+                        public void requestReceived(RequestWrapper message, Channel channel) {
+                            ByteBuffer msg = buildAckResponse(message.request);
+                            channel.sendReplyMessage(message.request.id(), Unpooled.wrappedBuffer(msg));
+                            message.release();
+                        }
 
-                    @Override
-                    public ServerSideConnection createConnection(Channel channel) {
-                        channel.setMessagesReceiver(new ChannelEventListener() {
+                        @Override
+                        public void channelClosed(Channel channel) {
 
-                            @Override
-                            public void messageReceived(Message message, Channel channel) {
-                                channel.sendReplyMessage(message, Message.ACK());
-                            }
-
-                            @Override
-                            public void channelClosed(Channel channel) {
-
-                            }
-                        });
-                        return new ServerSideConnection() {
-                            @Override
-                            public long getConnectionId() {
-                                return new Random().nextLong();
-                            }
-                        };
-                    }
+                        }
+                    });
+                    return (ServerSideConnection) () -> new Random().nextLong();
                 });
                 acceptor.start();
                 ExecutorService executor = Executors.newCachedThreadPool();
                 try (Channel client = NettyConnector.connect("localhost", 1111, true, 0, 0, new ChannelEventListener() {
-
-                    @Override
-                    public void messageReceived(Message message, Channel channel) {
-                        System.out.println("client messageReceived " + message);
-                    }
 
                     @Override
                     public void channelClosed(Channel channel) {
@@ -110,9 +92,10 @@ public class NetworkChannelTest {
                     }
                 }, executor, new EpollEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
                     for (int i = 0; i < 100; i++) {
-                        Message result = client.sendMessageWithReply(Message.ACK(), 10000);
-                        assertEquals(Message.TYPE_ACK, result.type);
-//                        System.out.println("result:" + result);
+                        ByteBuffer buffer = buildAckRequest(i);
+                        ResponseWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000);
+                        assertEquals(MessageType.TYPE_ACK, result.response.type());
+                        result.release();
                     }
                 } finally {
                     executor.shutdown();
