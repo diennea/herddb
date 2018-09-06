@@ -84,6 +84,7 @@ public final class MessageWrapper implements AutoCloseable {
     }
 
     private static final Recycler<MessageWrapper> RECYCLER = new Recycler<MessageWrapper>() {
+        @Override
         protected MessageWrapper newObject(Recycler.Handle<MessageWrapper> handle) {
             return new MessageWrapper(handle);
         }

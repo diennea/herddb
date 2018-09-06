@@ -1,8 +1,10 @@
 package com.google.flatbuffers;
 
 import static com.google.flatbuffers.FlatBufferBuilder.growByteBuffer;
+import herddb.network.MessageWrapper;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.util.Recycler;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.IdentityHashMap;
@@ -13,19 +15,23 @@ import java.util.function.Consumer;
  *
  * @author Enrico Olivelli
  */
-public final class ByteBufFlatBufferBuilder extends FlatBufferBuilder {
+public final class ByteBufFlatBufferBuilder extends FlatBufferBuilder
+        implements AutoCloseable {
 
     private static final int INITIAL_BUFFER_SIZE = 1024;
     private static final ByteBuffer DUMMY_BUFFER = ByteBuffer.wrap(new byte[0]);
+    private static final Recycler<ByteBufFlatBufferBuilder> RECYCLER = new Recycler<ByteBufFlatBufferBuilder>() {
+        @Override
+        protected ByteBufFlatBufferBuilder newObject(Recycler.Handle<ByteBufFlatBufferBuilder> handle) {
+            return new ByteBufFlatBufferBuilder(handle);
+        }
+    };
 
-    private final Consumer<ByteBuffer> byteBufferReleaser;
     private final IdentityHashMap<ByteBuffer, ByteBuf> byteBufferToByteBufMapping = new IdentityHashMap<>();
 
-    public ByteBufFlatBufferBuilder() {
+    public ByteBufFlatBufferBuilder(Recycler.Handle<ByteBufFlatBufferBuilder> recyclerHandle) {
         super(DUMMY_BUFFER, null); // this is needed
-
-        init(allocateNewByteBuffer(INITIAL_BUFFER_SIZE), this::allocateNewByteBuffer);
-        this.byteBufferReleaser = this::releaseByteBuffer;
+        this.recyclerHandle = recyclerHandle;
     }
 
     /**
@@ -50,7 +56,7 @@ public final class ByteBufFlatBufferBuilder extends FlatBufferBuilder {
             if (bb != prev) {
                 // RELEASE PREV MEMORY
                 // this will be ByteBufferFactory#releaseByteBuffer in FB 1.10.0
-                byteBufferReleaser.accept(prev);
+                releaseByteBuffer(prev);
             }
             space += bb.capacity() - old_buf_size;
         }
@@ -74,7 +80,19 @@ public final class ByteBufFlatBufferBuilder extends FlatBufferBuilder {
     }
 
     public static ByteBufFlatBufferBuilder newFlatBufferBuilder() {
-        return new ByteBufFlatBufferBuilder();
+        ByteBufFlatBufferBuilder res = RECYCLER.get();
+        res.init(res.allocateNewByteBuffer(INITIAL_BUFFER_SIZE), res::allocateNewByteBuffer);
+        return res;
+    }
+
+    @Override
+    public void close() {
+        if (!byteBufferToByteBufMapping.isEmpty()) {
+            throw new IllegalStateException();
+        }
+        byteBufferToByteBufMapping.clear();
+        bb = null;
+        recyclerHandle.recycle(this);
     }
 
     private void releaseByteBuffer(ByteBuffer byteBuffer) {
@@ -94,5 +112,7 @@ public final class ByteBufFlatBufferBuilder extends FlatBufferBuilder {
 
         return byteBuf;
     }
+
+    private final Recycler.Handle<ByteBufFlatBufferBuilder> recyclerHandle;
 
 }

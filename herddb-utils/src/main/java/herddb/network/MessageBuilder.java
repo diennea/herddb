@@ -63,11 +63,12 @@ import java.util.logging.Logger;
 public abstract class MessageBuilder {
 
     public static ByteBuf ACK(long reply) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        Response.startResponse(builder);
-        Response.addReplyMessageId(builder, reply);
-        Response.addType(builder, MessageType.TYPE_ACK);
-        return finishAsResponse(builder);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            Response.startResponse(builder);
+            Response.addReplyMessageId(builder, reply);
+            Response.addType(builder, MessageType.TYPE_ACK);
+            return finishAsResponse(builder);
+        }
     }
 
     public static ByteBuf ERROR(long replyId, Throwable error) {
@@ -79,30 +80,31 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf ERROR(long replyId, Throwable error, String additionalInfo, boolean notLeader) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
 
-        int errorOffset;
-        if (additionalInfo != null) {
-            errorOffset = addString(builder, error + " " + additionalInfo);
-        } else {
-            errorOffset = addString(builder, error + "");
+            int errorOffset;
+            if (additionalInfo != null) {
+                errorOffset = addString(builder, error + " " + additionalInfo);
+            } else {
+                errorOffset = addString(builder, error + "");
+            }
+
+            StringWriter writer = new StringWriter();
+            error.printStackTrace(new PrintWriter(writer));
+
+            int stackTrace = addString(builder, writer.toString());
+
+            Response.startResponse(builder);
+            Response.addReplyMessageId(builder, replyId);
+            Response.addType(builder, MessageType.TYPE_ERROR);
+            Response.addNotLeader(builder, notLeader);
+
+            Response.addError(builder, errorOffset);
+
+            Response.addStackTrace(builder, stackTrace);
+
+            return finishAsResponse(builder);
         }
-
-        StringWriter writer = new StringWriter();
-        error.printStackTrace(new PrintWriter(writer));
-
-        int stackTrace = addString(builder, writer.toString());
-
-        Response.startResponse(builder);
-        Response.addReplyMessageId(builder, replyId);
-        Response.addType(builder, MessageType.TYPE_ERROR);
-        Response.addNotLeader(builder, notLeader);
-
-        Response.addError(builder, errorOffset);
-
-        Response.addStackTrace(builder, stackTrace);
-
-        return finishAsResponse(builder);
     }
 
     public static ByteBuf finishAsResponse(ByteBufFlatBufferBuilder builder) {
@@ -127,24 +129,25 @@ public abstract class MessageBuilder {
             boolean returnValues,
             List<Object> params) {
 
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        int queryOffset = addString(builder, query);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            int queryOffset = addString(builder, query);
 
-        int paramsOffset = encodeAnyValueList(params, false, builder);
+            int paramsOffset = encodeAnyValueList(params, false, builder);
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addTx(builder, tx);
-        Request.addReturnValues(builder, returnValues);
-        Request.addQuery(builder, queryOffset);
-        Request.addType(builder, MessageType.TYPE_EXECUTE_STATEMENT);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addTx(builder, tx);
+            Request.addReturnValues(builder, returnValues);
+            Request.addQuery(builder, queryOffset);
+            Request.addType(builder, MessageType.TYPE_EXECUTE_STATEMENT);
 
-        if (paramsOffset >= 0) {
-            Request.addParams(builder, paramsOffset);
+            if (paramsOffset >= 0) {
+                Request.addParams(builder, paramsOffset);
+            }
+            return finishAsRequest(builder);
         }
-        return finishAsRequest(builder);
 
     }
 
@@ -303,81 +306,85 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf TX_COMMAND(long id, String tableSpace, int type, long tx) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addType(builder, MessageType.TYPE_TX_COMMAND);
-        Request.addTx(builder, tx);
-        Request.addTxCommand(builder, (byte) type);
-        return finishAsRequest(builder);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addType(builder, MessageType.TYPE_TX_COMMAND);
+            Request.addTx(builder, tx);
+            Request.addTxCommand(builder, (byte) type);
+            return finishAsRequest(builder);
+        }
     }
 
     public static ByteBuf EXECUTE_STATEMENTS(long id, String tableSpace, String query,
             long tx, boolean returnValues, List<List<Object>> params) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        int queryOffset = addString(builder, query);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            int queryOffset = addString(builder, query);
 
-        int batchParamsOffset = encodeBatchParams(params, builder);
+            int batchParamsOffset = encodeBatchParams(params, builder);
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addTx(builder, tx);
-        Request.addReturnValues(builder, returnValues);
-        Request.addQuery(builder, queryOffset);
-        Request.addType(builder, MessageType.TYPE_EXECUTE_STATEMENTS);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addTx(builder, tx);
+            Request.addReturnValues(builder, returnValues);
+            Request.addQuery(builder, queryOffset);
+            Request.addType(builder, MessageType.TYPE_EXECUTE_STATEMENTS);
 
-        if (batchParamsOffset >= 0) {
-            Request.addBatchParams(builder, batchParamsOffset);
+            if (batchParamsOffset >= 0) {
+                Request.addBatchParams(builder, batchParamsOffset);
+            }
+            return finishAsRequest(builder);
         }
-        return finishAsRequest(builder);
     }
 
     public static ByteBuf OPEN_SCANNER(long id, String tableSpace, String query,
             String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
 
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        int queryOffset = addString(builder, query);
-        int scannerIdOffset = addString(builder, scannerId);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            int queryOffset = addString(builder, query);
+            int scannerIdOffset = addString(builder, scannerId);
 
-        int paramsOffset = encodeAnyValueList(params, false, builder);
+            int paramsOffset = encodeAnyValueList(params, false, builder);
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addScannerId(builder, scannerIdOffset);
-        Request.addTx(builder, tx);
-        Request.addFetchSize(builder, fetchSize);
-        Request.addMaxRows(builder, maxRows);
-        Request.addQuery(builder, queryOffset);
-        Request.addType(builder, MessageType.TYPE_OPENSCANNER);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addScannerId(builder, scannerIdOffset);
+            Request.addTx(builder, tx);
+            Request.addFetchSize(builder, fetchSize);
+            Request.addMaxRows(builder, maxRows);
+            Request.addQuery(builder, queryOffset);
+            Request.addType(builder, MessageType.TYPE_OPENSCANNER);
 
-        if (paramsOffset >= 0) {
-            Request.addParams(builder, paramsOffset);
+            if (paramsOffset >= 0) {
+                Request.addParams(builder, paramsOffset);
+            }
+            return finishAsRequest(builder);
         }
-        return finishAsRequest(builder);
     }
 
     public static ByteBuf REQUEST_TABLESPACE_DUMP(long id, String tableSpace, String dumpId, int fetchSize,
             boolean includeTransactionLog) {
 
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        int dumpIdOffset = addString(builder, dumpId);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            int dumpIdOffset = addString(builder, dumpId);
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addDumpId(builder, dumpIdOffset);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addDumpId(builder, dumpIdOffset);
 
-        Request.addFetchSize(builder, fetchSize);
-        Request.addIncludeTransactionLog(builder, includeTransactionLog);
-        Request.addType(builder, MessageType.TYPE_REQUEST_TABLESPACE_DUMP);
-        return finishAsRequest(builder);
+            Request.addFetchSize(builder, fetchSize);
+            Request.addIncludeTransactionLog(builder, includeTransactionLog);
+            Request.addType(builder, MessageType.TYPE_REQUEST_TABLESPACE_DUMP);
+            return finishAsRequest(builder);
+        }
 
     }
 
@@ -386,386 +393,401 @@ public abstract class MessageBuilder {
             long dumpLedgerid, long dumpOffset, List<byte[]> indexesDefinition,
             List<KeyValue> records) {
 
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        int dumpIdOffset = addString(builder, dumpId);
-        int commandOffset = builder.createString(command);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            int dumpIdOffset = addString(builder, dumpId);
+            int commandOffset = builder.createString(command);
 
-        int tableDefinitionOffset = -1;
-        if (tableDefinition != null) {
-            int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, tableDefinition);
-            TableDefinition.startTableDefinition(builder);
-            TableDefinition.addSchema(builder, schemaDefinitionOffset);
-            tableDefinitionOffset = TableDefinition.endTableDefinition(builder);
-        }
-        int indexesOffset = -1;
-        if (indexesDefinition != null && !indexesDefinition.isEmpty()) {
-            int[] indexesOffsets = new int[indexesDefinition.size()];
-            int i = 0;
-            for (byte[] indexDefinition : indexesDefinition) {
-                int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, indexDefinition);
-                IndexDefinition.startIndexDefinition(builder);
-                IndexDefinition.addSchema(builder, schemaDefinitionOffset);
-                indexesOffsets[i++] = IndexDefinition.endIndexDefinition(builder);
+            int tableDefinitionOffset = -1;
+            if (tableDefinition != null) {
+                int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, tableDefinition);
+                TableDefinition.startTableDefinition(builder);
+                TableDefinition.addSchema(builder, schemaDefinitionOffset);
+                tableDefinitionOffset = TableDefinition.endTableDefinition(builder);
             }
-            indexesOffset = Request.createIndexesDefinitionVector(builder, indexesOffsets);
-        }
-        int rawDataChunkOffset = -1;
-        if (records != null && !records.isEmpty()) {
-            int[] entriesOffsets = new int[records.size()];
-            int i = 0;
-            for (KeyValue kekValue : records) {
-                int keyOffset = builder.createByteVector(kekValue.key);
-                int valueOffset = builder.createByteVector(kekValue.value);
-                herddb.proto.flatbuf.KeyValue.startKeyValue(builder);
-                herddb.proto.flatbuf.KeyValue.addKey(builder, keyOffset);
-                herddb.proto.flatbuf.KeyValue.addValue(builder, valueOffset);
-                entriesOffsets[i++] = herddb.proto.flatbuf.KeyValue.endKeyValue(builder);
+            int indexesOffset = -1;
+            if (indexesDefinition != null && !indexesDefinition.isEmpty()) {
+                int[] indexesOffsets = new int[indexesDefinition.size()];
+                int i = 0;
+                for (byte[] indexDefinition : indexesDefinition) {
+                    int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, indexDefinition);
+                    IndexDefinition.startIndexDefinition(builder);
+                    IndexDefinition.addSchema(builder, schemaDefinitionOffset);
+                    indexesOffsets[i++] = IndexDefinition.endIndexDefinition(builder);
+                }
+                indexesOffset = Request.createIndexesDefinitionVector(builder, indexesOffsets);
             }
-            rawDataChunkOffset = Request.createRawDataChunkVector(builder, entriesOffsets);
-        }
+            int rawDataChunkOffset = -1;
+            if (records != null && !records.isEmpty()) {
+                int[] entriesOffsets = new int[records.size()];
+                int i = 0;
+                for (KeyValue kekValue : records) {
+                    int keyOffset = builder.createByteVector(kekValue.key);
+                    int valueOffset = builder.createByteVector(kekValue.value);
+                    herddb.proto.flatbuf.KeyValue.startKeyValue(builder);
+                    herddb.proto.flatbuf.KeyValue.addKey(builder, keyOffset);
+                    herddb.proto.flatbuf.KeyValue.addValue(builder, valueOffset);
+                    entriesOffsets[i++] = herddb.proto.flatbuf.KeyValue.endKeyValue(builder);
+                }
+                rawDataChunkOffset = Request.createRawDataChunkVector(builder, entriesOffsets);
+            }
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addDumpId(builder, dumpIdOffset);
-        Request.addDumpLedgerId(builder, dumpLedgerid);
-        Request.addDumpOffset(builder, dumpOffset);
-        Request.addCommand(builder, commandOffset);
-        if (tableDefinitionOffset >= 0) {
-            Request.addTableDefinition(builder, tableDefinitionOffset);
-        }
-        if (indexesOffset >= 0) {
-            Request.addIndexesDefinition(builder, indexesOffset);
-        }
-        if (rawDataChunkOffset >= 0) {
-            Request.addRawDataChunk(builder, rawDataChunkOffset);
-        }
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addDumpId(builder, dumpIdOffset);
+            Request.addDumpLedgerId(builder, dumpLedgerid);
+            Request.addDumpOffset(builder, dumpOffset);
+            Request.addCommand(builder, commandOffset);
+            if (tableDefinitionOffset >= 0) {
+                Request.addTableDefinition(builder, tableDefinitionOffset);
+            }
+            if (indexesOffset >= 0) {
+                Request.addIndexesDefinition(builder, indexesOffset);
+            }
+            if (rawDataChunkOffset >= 0) {
+                Request.addRawDataChunk(builder, rawDataChunkOffset);
+            }
 
-        Request.addType(builder, MessageType.TYPE_TABLESPACE_DUMP_DATA);
-        return finishAsRequest(builder);
+            Request.addType(builder, MessageType.TYPE_TABLESPACE_DUMP_DATA);
+            return finishAsRequest(builder);
+        }
     }
 
     public static ByteBuf RESULTSET_CHUNK(long replyId, TuplesList tuplesList, boolean last, long tx) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
 
-        int columnsOffset = encodeColumDefinitionsList(tuplesList.columnNames, builder);
-        int rowsOffset = -1;
-        if (!tuplesList.tuples.isEmpty()) {
-            int numColumns = tuplesList.columnNames.length;
-            int[] rowsOffsets = new int[tuplesList.tuples.size()];
-            int rowIndex = 0;
-            for (DataAccessor da : tuplesList.tuples) {
+            int columnsOffset = encodeColumDefinitionsList(tuplesList.columnNames, builder);
+            int rowsOffset = -1;
+            if (!tuplesList.tuples.isEmpty()) {
+                int numColumns = tuplesList.columnNames.length;
+                int[] rowsOffsets = new int[tuplesList.tuples.size()];
+                int rowIndex = 0;
+                for (DataAccessor da : tuplesList.tuples) {
 
-                int[] cellsOffsets = new int[numColumns];
-                IntHolder currentColumn = new IntHolder();
-                da.forEach((String key, Object value) -> {
-                    String expectedColumnName = tuplesList.columnNames[currentColumn.value];
-                    while (!key.equals(expectedColumnName)) {
-                        // nulls are not returned for some special accessors, lie DataAccessorForFullRecord
+                    int[] cellsOffsets = new int[numColumns];
+                    IntHolder currentColumn = new IntHolder();
+                    da.forEach((String key, Object value) -> {
+                        String expectedColumnName = tuplesList.columnNames[currentColumn.value];
+                        while (!key.equals(expectedColumnName)) {
+                            // nulls are not returned for some special accessors, lie DataAccessorForFullRecord
+                            int valueOffset = encodeObject(builder, null);
+                            cellsOffsets[currentColumn.value++] = valueOffset;
+                            expectedColumnName = tuplesList.columnNames[currentColumn.value];
+                        }
+                        int valueOffset = encodeObject(builder, value);
+                        cellsOffsets[currentColumn.value++] = valueOffset;
+                    });
+
+                    // fill with nulls
+                    while (currentColumn.value < numColumns) {
                         int valueOffset = encodeObject(builder, null);
                         cellsOffsets[currentColumn.value++] = valueOffset;
-                        expectedColumnName = tuplesList.columnNames[currentColumn.value];
                     }
-                    int valueOffset = encodeObject(builder, value);
-                    cellsOffsets[currentColumn.value++] = valueOffset;
-                });
+                    if (currentColumn.value > numColumns) {
+                        throw new RuntimeException("unexpected number of columns " + currentColumn.value + " > " + numColumns);
+                    }
+                    int cellsOffset = Row.createCellsVector(builder, cellsOffsets);
 
-                // fill with nulls
-                while (currentColumn.value < numColumns) {
-                    int valueOffset = encodeObject(builder, null);
-                    cellsOffsets[currentColumn.value++] = valueOffset;
+                    Row.startRow(builder);
+                    Row.addCells(builder, cellsOffset);
+                    int rowOffset = Row.endRow(builder);
+                    rowsOffsets[rowIndex++] = rowOffset;
                 }
-                if (currentColumn.value > numColumns) {
-                    throw new RuntimeException("unexpected number of columns " + currentColumn.value + " > " + numColumns);
-                }
-                int cellsOffset = Row.createCellsVector(builder, cellsOffsets);
-
-                Row.startRow(builder);
-                Row.addCells(builder, cellsOffset);
-                int rowOffset = Row.endRow(builder);
-                rowsOffsets[rowIndex++] = rowOffset;
+                rowsOffset = Response.createRowsVector(builder, rowsOffsets);
             }
-            rowsOffset = Response.createRowsVector(builder, rowsOffsets);
-        }
 
-        Response.startResponse(builder);
-        Response.addReplyMessageId(builder, replyId);
-        Response.addLast(builder, last);
-        Response.addTx(builder, tx);
-        Response.addType(builder, MessageType.TYPE_RESULTSET_CHUNK);
-        Response.addColumnNames(builder, columnsOffset);
-        if (rowsOffset >= 0) {
-            Response.addRows(builder, rowsOffset);
+            Response.startResponse(builder);
+            Response.addReplyMessageId(builder, replyId);
+            Response.addLast(builder, last);
+            Response.addTx(builder, tx);
+            Response.addType(builder, MessageType.TYPE_RESULTSET_CHUNK);            
+            if (rowsOffset >= 0) {
+                Response.addRows(builder, rowsOffset);
+            }
+            Response.addColumnNames(builder, columnsOffset);
+            return finishAsResponse(builder);
         }
-        return finishAsResponse(builder);
 
     }
 
     public static ByteBuf CLOSE_SCANNER(long id, String scannerId) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int scannerIdOffset = addString(builder, scannerId);
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addScannerId(builder, scannerIdOffset);
-        Request.addType(builder, MessageType.TYPE_CLOSESCANNER);
-        return finishAsRequest(builder);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int scannerIdOffset = addString(builder, scannerId);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addScannerId(builder, scannerIdOffset);
+            Request.addType(builder, MessageType.TYPE_CLOSESCANNER);
+            return finishAsRequest(builder);
+        }
     }
 
     public static ByteBuf FETCH_SCANNER_DATA(long id, String scannerId, int fetchSize) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int scannerIdOffset = addString(builder, scannerId);
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addScannerId(builder, scannerIdOffset);
-        Request.addType(builder, MessageType.TYPE_FETCHSCANNERDATA);
-        Request.addFetchSize(builder, fetchSize);
-        return finishAsRequest(builder);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int scannerIdOffset = addString(builder, scannerId);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addScannerId(builder, scannerIdOffset);
+            Request.addType(builder, MessageType.TYPE_FETCHSCANNERDATA);
+            Request.addFetchSize(builder, fetchSize);
+            return finishAsRequest(builder);
+        }
 
     }
 
     public static ByteBuf EXECUTE_STATEMENT_RESULT(long replyId, long updateCount,
             Map<String, Object> record, long tx) {
 
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
 
-        int recordOffset = -1;
-        if (record != null) {
-            recordOffset = encodeMap(builder, record);
-        }
-        Response.startResponse(builder);
-        Response.addReplyMessageId(builder, replyId);
-        Response.addUpdateCount(builder, updateCount);
-        Response.addTx(builder, tx);
-        if (recordOffset >= 0) {
-            Response.addNewValue(builder, recordOffset);
-        }
-        Response.addType(builder, MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE);
-        return finishAsResponse(builder);
-    }
-
-    public static ByteBuf EXECUTE_STATEMENT_RESULTS(long replyId, List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int numResults = updateCounts.size();
-        int[] resultsOffsets = new int[numResults];
-        for (int i = 0; i < numResults; i++) {
-            Map<String, Object> record = otherdata.get(i);
             int recordOffset = -1;
             if (record != null) {
                 recordOffset = encodeMap(builder, record);
             }
-            DMLResult.startDMLResult(builder);
-            DMLResult.addUpdateCount(builder, updateCounts.get(i));
+            Response.startResponse(builder);
+            Response.addReplyMessageId(builder, replyId);
+            Response.addUpdateCount(builder, updateCount);
+            Response.addTx(builder, tx);
             if (recordOffset >= 0) {
-                DMLResult.addNewValue(builder, recordOffset);
+                Response.addNewValue(builder, recordOffset);
             }
-            resultsOffsets[i] = DMLResult.endDMLResult(builder);
+            Response.addType(builder, MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE);
+            return finishAsResponse(builder);
         }
+    }
 
-        int batchResultsOffset = Response.createBatchResultsVector(builder, resultsOffsets);
+    public static ByteBuf EXECUTE_STATEMENT_RESULTS(long replyId, List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int numResults = updateCounts.size();
+            int[] resultsOffsets = new int[numResults];
+            for (int i = 0; i < numResults; i++) {
+                Map<String, Object> record = otherdata.get(i);
+                int recordOffset = -1;
+                if (record != null) {
+                    recordOffset = encodeMap(builder, record);
+                }
+                DMLResult.startDMLResult(builder);
+                DMLResult.addUpdateCount(builder, updateCounts.get(i));
+                if (recordOffset >= 0) {
+                    DMLResult.addNewValue(builder, recordOffset);
+                }
+                resultsOffsets[i] = DMLResult.endDMLResult(builder);
+            }
 
-        Response.startResponse(builder);
-        Response.addReplyMessageId(builder, replyId);
-        Response.addTx(builder, tx);
-        Response.addBatchResults(builder, batchResultsOffset);
-        Response.addType(builder, MessageType.TYPE_EXECUTE_STATEMENTS_RESULT);
-        return finishAsResponse(builder);
+            int batchResultsOffset = Response.createBatchResultsVector(builder, resultsOffsets);
+
+            Response.startResponse(builder);
+            Response.addReplyMessageId(builder, replyId);
+            Response.addTx(builder, tx);
+            Response.addBatchResults(builder, batchResultsOffset);
+            Response.addType(builder, MessageType.TYPE_EXECUTE_STATEMENTS_RESULT);
+            return finishAsResponse(builder);
+        }
 
     }
 
     public static ByteBuf SASL_TOKEN_MESSAGE_REQUEST(long id, String saslMech, byte[] firstToken) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int mechOffset = addString(builder, saslMech);
-        int tokenOffset = builder.createByteVector(firstToken);
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addMech(builder, mechOffset);
-        Request.addToken(builder, tokenOffset);
-        Request.addType(builder, MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST);
-        return finishAsRequest(builder);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int mechOffset = addString(builder, saslMech);
+            int tokenOffset = builder.createByteVector(firstToken);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addMech(builder, mechOffset);
+            Request.addToken(builder, tokenOffset);
+            Request.addType(builder, MessageType.TYPE_SASL_TOKEN_MESSAGE_REQUEST);
+            return finishAsRequest(builder);
+        }
     }
 
     public static ByteBuf SASL_TOKEN_SERVER_RESPONSE(long replyId, byte[] saslTokenChallenge) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tokenOffset = -1;
-        if (saslTokenChallenge != null) {
-            tokenOffset = builder.createByteVector(saslTokenChallenge);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tokenOffset = -1;
+            if (saslTokenChallenge != null) {
+                tokenOffset = builder.createByteVector(saslTokenChallenge);
+            }
+            Response.startResponse(builder);
+            Response.addReplyMessageId(builder, replyId);
+            if (tokenOffset >= 0) {
+                Response.addToken(builder, tokenOffset);
+            }
+            Response.addType(builder, MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE);
+            return finishAsResponse(builder);
         }
-        Response.startResponse(builder);
-        Response.addReplyMessageId(builder, replyId);
-        if (tokenOffset >= 0) {
-            Response.addToken(builder, tokenOffset);
-        }
-        Response.addType(builder, MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE);
-        return finishAsResponse(builder);
     }
 
     public static ByteBuf SASL_TOKEN_MESSAGE_TOKEN(long id, byte[] token) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tokenOffset = 0;
-        if (token != null) {
-            tokenOffset = builder.createByteVector(token);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tokenOffset = 0;
+            if (token != null) {
+                tokenOffset = builder.createByteVector(token);
+            }
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            if (token != null) {
+                Request.addToken(builder, tokenOffset);
+            }
+            Request.addType(builder, MessageType.TYPE_SASL_TOKEN_MESSAGE_TOKEN);
+            return finishAsRequest(builder);
         }
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        if (token != null) {
-            Request.addToken(builder, tokenOffset);
-        }
-        Request.addType(builder, MessageType.TYPE_SASL_TOKEN_MESSAGE_TOKEN);
-        return finishAsRequest(builder);
     }
 
     public static ByteBuf REQUEST_TABLE_RESTORE(long id, String tableSpace, byte[] tableDefinition,
             long dumpLedgerId, long dumpOffset) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
 
-        int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, tableDefinition);
-        TableDefinition.startTableDefinition(builder);
-        TableDefinition.addSchema(builder, schemaDefinitionOffset);
-        int tableDefinitionOffset = TableDefinition.endTableDefinition(builder);
+            int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, tableDefinition);
+            TableDefinition.startTableDefinition(builder);
+            TableDefinition.addSchema(builder, schemaDefinitionOffset);
+            int tableDefinitionOffset = TableDefinition.endTableDefinition(builder);
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addDumpLedgerId(builder, dumpLedgerId);
-        Request.addDumpOffset(builder, dumpOffset);
-        Request.addTableDefinition(builder, tableDefinitionOffset);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addDumpLedgerId(builder, dumpLedgerId);
+            Request.addDumpOffset(builder, dumpOffset);
+            Request.addTableDefinition(builder, tableDefinitionOffset);
 
-        Request.addType(builder, MessageType.TYPE_REQUEST_TABLE_RESTORE);
-        return finishAsRequest(builder);
+            Request.addType(builder, MessageType.TYPE_REQUEST_TABLE_RESTORE);
+            return finishAsRequest(builder);
+        }
     }
 
     public static ByteBuf TABLE_RESTORE_FINISHED(long id, String tableSpace, String tableName,
             List<byte[]> indexesDefinition) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        int tableNameOffset = addString(builder, tableName);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            int tableNameOffset = addString(builder, tableName);
 
-        int indexesOffset = -1;
-        if (indexesDefinition != null && !indexesDefinition.isEmpty()) {
-            int[] indexesOffsets = new int[indexesDefinition.size()];
-            int i = 0;
-            for (byte[] indexDefinition : indexesDefinition) {
-                int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, indexDefinition);
-                IndexDefinition.startIndexDefinition(builder);
-                IndexDefinition.addSchema(builder, schemaDefinitionOffset);
-                indexesOffsets[i++] = IndexDefinition.endIndexDefinition(builder);
+            int indexesOffset = -1;
+            if (indexesDefinition != null && !indexesDefinition.isEmpty()) {
+                int[] indexesOffsets = new int[indexesDefinition.size()];
+                int i = 0;
+                for (byte[] indexDefinition : indexesDefinition) {
+                    int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, indexDefinition);
+                    IndexDefinition.startIndexDefinition(builder);
+                    IndexDefinition.addSchema(builder, schemaDefinitionOffset);
+                    indexesOffsets[i++] = IndexDefinition.endIndexDefinition(builder);
+                }
+                indexesOffset = Request.createIndexesDefinitionVector(builder, indexesOffsets);
             }
-            indexesOffset = Request.createIndexesDefinitionVector(builder, indexesOffsets);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addTableName(builder, tableNameOffset);
+            if (indexesOffset >= 0) {
+                Request.addIndexesDefinition(builder, indexesOffset);
+            }
+            Request.addType(builder, MessageType.TYPE_TABLE_RESTORE_FINISHED);
+            return finishAsRequest(builder);
         }
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addTableName(builder, tableNameOffset);
-        if (indexesOffset >= 0) {
-            Request.addIndexesDefinition(builder, indexesOffset);
-        }
-        Request.addType(builder, MessageType.TYPE_TABLE_RESTORE_FINISHED);
-        return finishAsRequest(builder);
 
     }
 
     public static ByteBuf RESTORE_FINISHED(long id, String tableSpace) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addType(builder, MessageType.TYPE_RESTORE_FINISHED);
-        return finishAsRequest(builder);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addType(builder, MessageType.TYPE_RESTORE_FINISHED);
+            return finishAsRequest(builder);
+        }
 
     }
 
     public static ByteBuf PUSH_TABLE_DATA(long id, String tableSpace, String tableName, List<KeyValue> chunk) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
-        int tableNameOffset = addString(builder, tableName);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
+            int tableNameOffset = addString(builder, tableName);
 
-        int rawDataChunkOffset = -1;
-        if (chunk != null && !chunk.isEmpty()) {
-            int[] entriesOffsets = new int[chunk.size()];
-            int i = 0;
-            for (KeyValue kekValue : chunk) {
-                int keyOffset = builder.createByteVector(kekValue.key);
-                int valueOffset = builder.createByteVector(kekValue.value);
-                herddb.proto.flatbuf.KeyValue.startKeyValue(builder);
-                herddb.proto.flatbuf.KeyValue.addKey(builder, keyOffset);
-                herddb.proto.flatbuf.KeyValue.addValue(builder, valueOffset);
-                entriesOffsets[i++] = herddb.proto.flatbuf.KeyValue.endKeyValue(builder);
+            int rawDataChunkOffset = -1;
+            if (chunk != null && !chunk.isEmpty()) {
+                int[] entriesOffsets = new int[chunk.size()];
+                int i = 0;
+                for (KeyValue kekValue : chunk) {
+                    int keyOffset = builder.createByteVector(kekValue.key);
+                    int valueOffset = builder.createByteVector(kekValue.value);
+                    herddb.proto.flatbuf.KeyValue.startKeyValue(builder);
+                    herddb.proto.flatbuf.KeyValue.addKey(builder, keyOffset);
+                    herddb.proto.flatbuf.KeyValue.addValue(builder, valueOffset);
+                    entriesOffsets[i++] = herddb.proto.flatbuf.KeyValue.endKeyValue(builder);
+                }
+                rawDataChunkOffset = Request.createRawDataChunkVector(builder, entriesOffsets);
             }
-            rawDataChunkOffset = Request.createRawDataChunkVector(builder, entriesOffsets);
-        }
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addTableName(builder, tableNameOffset);
-        Request.addType(builder, MessageType.TYPE_PUSH_TABLE_DATA);
-        if (rawDataChunkOffset >= 0) {
-            Request.addRawDataChunk(builder, rawDataChunkOffset);
-        }
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addTableName(builder, tableNameOffset);
+            Request.addType(builder, MessageType.TYPE_PUSH_TABLE_DATA);
+            if (rawDataChunkOffset >= 0) {
+                Request.addRawDataChunk(builder, rawDataChunkOffset);
+            }
 
-        return finishAsRequest(builder);
+            return finishAsRequest(builder);
+        }
     }
 
     public static ByteBuf PUSH_TXLOGCHUNK(long id, String tableSpace, List<KeyValue> chunk) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
 
-        int rawDataChunkOffset = -1;
-        if (chunk != null && !chunk.isEmpty()) {
-            int[] entriesOffsets = new int[chunk.size()];
-            int i = 0;
-            for (KeyValue kekValue : chunk) {
-                int keyOffset = builder.createByteVector(kekValue.key);
-                int valueOffset = builder.createByteVector(kekValue.value);
-                herddb.proto.flatbuf.KeyValue.startKeyValue(builder);
-                herddb.proto.flatbuf.KeyValue.addKey(builder, keyOffset);
-                herddb.proto.flatbuf.KeyValue.addValue(builder, valueOffset);
-                entriesOffsets[i++] = herddb.proto.flatbuf.KeyValue.endKeyValue(builder);
+            int rawDataChunkOffset = -1;
+            if (chunk != null && !chunk.isEmpty()) {
+                int[] entriesOffsets = new int[chunk.size()];
+                int i = 0;
+                for (KeyValue kekValue : chunk) {
+                    int keyOffset = builder.createByteVector(kekValue.key);
+                    int valueOffset = builder.createByteVector(kekValue.value);
+                    herddb.proto.flatbuf.KeyValue.startKeyValue(builder);
+                    herddb.proto.flatbuf.KeyValue.addKey(builder, keyOffset);
+                    herddb.proto.flatbuf.KeyValue.addValue(builder, valueOffset);
+                    entriesOffsets[i++] = herddb.proto.flatbuf.KeyValue.endKeyValue(builder);
+                }
+                rawDataChunkOffset = Request.createRawDataChunkVector(builder, entriesOffsets);
             }
-            rawDataChunkOffset = Request.createRawDataChunkVector(builder, entriesOffsets);
-        }
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addType(builder, MessageType.TYPE_PUSH_TXLOGCHUNK);
-        if (rawDataChunkOffset >= 0) {
-            Request.addRawDataChunk(builder, rawDataChunkOffset);
-        }
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addType(builder, MessageType.TYPE_PUSH_TXLOGCHUNK);
+            if (rawDataChunkOffset >= 0) {
+                Request.addRawDataChunk(builder, rawDataChunkOffset);
+            }
 
-        return finishAsRequest(builder);
+            return finishAsRequest(builder);
+        }
     }
 
     public static ByteBuf PUSH_TRANSACTIONSBLOCK(long id, String tableSpace, List<byte[]> chunk) {
-        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
-        int tableSpaceOffset = addString(builder, tableSpace);
+        try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {
+            int tableSpaceOffset = addString(builder, tableSpace);
 
-        int dumpTxLogEntriesVectorOffset = -1;
-        if (chunk != null && !chunk.isEmpty()) {
-            int[] entriesOffsets = new int[chunk.size()];
-            int i = 0;
-            for (byte[] entry : chunk) {
-                int itemOffset = builder.createByteVector(entry);
+            int dumpTxLogEntriesVectorOffset = -1;
+            if (chunk != null && !chunk.isEmpty()) {
+                int[] entriesOffsets = new int[chunk.size()];
+                int i = 0;
+                for (byte[] entry : chunk) {
+                    int itemOffset = builder.createByteVector(entry);
 
-                herddb.proto.flatbuf.TxLogEntry.startTxLogEntry(builder);
-                herddb.proto.flatbuf.TxLogEntry.addEntry(builder, itemOffset);
-                entriesOffsets[i++] = herddb.proto.flatbuf.TxLogEntry.endTxLogEntry(builder);
+                    herddb.proto.flatbuf.TxLogEntry.startTxLogEntry(builder);
+                    herddb.proto.flatbuf.TxLogEntry.addEntry(builder, itemOffset);
+                    entriesOffsets[i++] = herddb.proto.flatbuf.TxLogEntry.endTxLogEntry(builder);
+                }
+                dumpTxLogEntriesVectorOffset = Request.createDumpTxLogEntriesVector(builder, entriesOffsets);
             }
-            dumpTxLogEntriesVectorOffset = Request.createDumpTxLogEntriesVector(builder, entriesOffsets);
-        }
 
-        Request.startRequest(builder);
-        Request.addId(builder, id);
-        Request.addTableSpace(builder, tableSpaceOffset);
-        Request.addType(builder, MessageType.TYPE_PUSH_TRANSACTIONSBLOCK);
-        if (dumpTxLogEntriesVectorOffset >= 0) {
-            Request.addDumpTxLogEntries(builder, dumpTxLogEntriesVectorOffset);
-        }
+            Request.startRequest(builder);
+            Request.addId(builder, id);
+            Request.addTableSpace(builder, tableSpaceOffset);
+            Request.addType(builder, MessageType.TYPE_PUSH_TRANSACTIONSBLOCK);
+            if (dumpTxLogEntriesVectorOffset >= 0) {
+                Request.addDumpTxLogEntries(builder, dumpTxLogEntriesVectorOffset);
+            }
 
-        return finishAsRequest(builder);
+            return finishAsRequest(builder);
+        }
     }
 
     public static final int TX_COMMAND_ROLLBACK_TRANSACTION = 1;
