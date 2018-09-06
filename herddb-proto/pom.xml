@@ -60,7 +60,7 @@
                 Use "mvn -P generate-flatbuffers-code clean install" to rebuild flatc stubs                
             -->
             <id>generate-flatbuffers-code</id>                    
-            <build>               
+            <build>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>

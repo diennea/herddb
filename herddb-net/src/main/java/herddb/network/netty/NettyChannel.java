@@ -21,8 +21,7 @@ package herddb.network.netty;
 
 import herddb.network.Channel;
 import herddb.network.MessageBuilder;
-import herddb.network.RequestWrapper;
-import herddb.network.ResponseWrapper;
+import herddb.network.MessageWrapper;
 import herddb.network.SendResultCallback;
 import herddb.proto.flatbuf.Response;
 import io.netty.buffer.ByteBuf;
@@ -76,11 +75,11 @@ public class NettyChannel extends Channel {
         }
     }
 
-    public void responseReceived(ResponseWrapper message) {
+    public void responseReceived(MessageWrapper message) {
         handleResponse(message);
     }
 
-    public void requestReceived(RequestWrapper request) {
+    public void requestReceived(MessageWrapper request) {
         submitCallback(() -> {
             try {
                 messagesReceiver.requestReceived(request, this);
@@ -91,12 +90,12 @@ public class NettyChannel extends Channel {
         });
     }
 
-    private void handleResponse(ResponseWrapper anwermessagewrapper) {
-        Response anwermessage = anwermessagewrapper.response;
+    private void handleResponse(MessageWrapper anwermessagewrapper) {
+        Response anwermessage = anwermessagewrapper.getResponse();
         long replyMessageId = anwermessage.replyMessageId();
         if (replyMessageId < 0) {
             LOGGER.log(Level.SEVERE, "{0}: received response without replyId: type {1}", new Object[]{this, anwermessage.type()});
-            anwermessagewrapper.release();
+            anwermessagewrapper.close();
             return;
         }
         final ResponseCallback callback = pendingReplyRequests.remove(replyMessageId);

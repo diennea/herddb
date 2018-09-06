@@ -19,7 +19,7 @@
  */
 package herddb.utils;
 
-import herddb.network.ResponseWrapper;
+import herddb.network.MessageWrapper;
 import herddb.proto.flatbuf.AnyValueWrapper;
 import herddb.proto.flatbuf.Response;
 import herddb.proto.flatbuf.Row;
@@ -37,18 +37,19 @@ public class RecordsBatch {
 
     public final int numRecords;
     private int currentRecordIndex;
-    public final ResponseWrapper buffer;
+    public MessageWrapper message;
+    public Response response;
     private DataAccessor next;
     private boolean finished;
     public Map<String, Integer> columnNameToPosition;
 
-    public RecordsBatch(ResponseWrapper replyWrapper) {
-        Response reply = replyWrapper.response;
-        this.numRecords = reply.rowsLength();
-        this.columnNames = new String[reply.columnNamesLength()];
-        this.buffer = replyWrapper;
+    public RecordsBatch(MessageWrapper replyWrapper) {
+        this.response = replyWrapper.getResponse();
+        this.numRecords = response.rowsLength();
+        this.columnNames = new String[response.columnNamesLength()];
+        this.message = replyWrapper;
         for (int i = 0; i < columnNames.length; i++) {
-            String columnName = MessageUtils.readString(replyWrapper.response.columnNames(i).nameAsByteBuffer());
+            String columnName = MessageUtils.readString(response.columnNames(i).nameAsByteBuffer());
             columnNames[i] = columnName;
         }
 
@@ -62,7 +63,7 @@ public class RecordsBatch {
         if (columnNameToPosition == null) {
             columnNameToPosition = new HashMap<>();
             for (int i = 0; i < columnNames.length; i++) {
-                String columnName = MessageUtils.readString(buffer.response.columnNames(i).nameAsByteBuffer());
+                String columnName = MessageUtils.readString(response.columnNames(i).nameAsByteBuffer());
                 columnNameToPosition.put(columnName, i);
             }
         }
@@ -109,7 +110,7 @@ public class RecordsBatch {
     }
 
     private DataAccessor readRecordAtCurrentPosition() {
-        Row row = buffer.response.rows(currentRecordIndex);
+        Row row = response.rows(currentRecordIndex);
         return new RowDataAccessor(row);
     }
 
@@ -146,7 +147,10 @@ public class RecordsBatch {
     }
 
     public void release() {
-        buffer.release();
+        message.close();
+        message = null;
+        response = null;
+        next = null;
     }
 
 }

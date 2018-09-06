@@ -37,7 +37,7 @@ public abstract class Channel implements AutoCloseable {
 
     protected interface ResponseCallback {
 
-        public void responseReceived(ResponseWrapper message, Throwable error);
+        public void responseReceived(MessageWrapper message, Throwable error);
     }
 
     protected ChannelEventListener messagesReceiver;
@@ -73,10 +73,10 @@ public abstract class Channel implements AutoCloseable {
         return requestIdGeneator.incrementAndGet();
     }
 
-    public ResponseWrapper sendMessageWithReply(long id, ByteBuf request, long timeout) throws InterruptedException, TimeoutException {
-        CompletableFuture<ResponseWrapper> resp = new CompletableFuture<>();
+    public MessageWrapper sendMessageWithReply(long id, ByteBuf request, long timeout) throws InterruptedException, TimeoutException {
+        CompletableFuture<MessageWrapper> resp = new CompletableFuture<>();
         long _start = System.currentTimeMillis();
-        sendRequestWithAsyncReply(id, request, timeout, (ResponseWrapper message1, Throwable error) -> {
+        sendRequestWithAsyncReply(id, request, timeout, (MessageWrapper message1, Throwable error) -> {
             if (error != null) {
                 resp.completeExceptionally(error);
             } else {

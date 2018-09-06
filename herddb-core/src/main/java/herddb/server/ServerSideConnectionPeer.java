@@ -31,7 +31,6 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 import herddb.backup.DumpedLogEntry;
 import herddb.codec.RecordSerializer;
@@ -67,7 +66,7 @@ import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.ChannelEventListener;
 import herddb.network.MessageBuilder;
-import herddb.network.RequestWrapper;
+import herddb.network.MessageWrapper;
 import herddb.network.ServerSideConnection;
 import herddb.proto.flatbuf.MessageType;
 import herddb.proto.flatbuf.Request;
@@ -116,8 +115,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     @Override
-    public void requestReceived(RequestWrapper messageWrapper, Channel _channel) {
-        Request message = messageWrapper.request;
+    public void requestReceived(MessageWrapper messageWrapper, Channel _channel) {
+        Request message = messageWrapper.getRequest();
         try {
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
 
@@ -241,7 +240,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unsupported message type " + message.type())));
             }
         } finally {
-            messageWrapper.release();
+            messageWrapper.close();
         }
     }
 
@@ -392,7 +391,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
         int maxRows = (int) message.maxRows(); // default 0
 
-        List<Object> parameters = MessageUtils.decodeAnyValueList(message.params());        
+        List<Object> parameters = MessageUtils.decodeAnyValueList(message.params());
         if (LOGGER.isLoggable(Level.FINEST)) {
             LOGGER.log(Level.FINEST, "openScanner txId+" + txId + ", fetchSize " + fetchSize + ", maxRows " + maxRows + "," + query + " with " + parameters);
         }

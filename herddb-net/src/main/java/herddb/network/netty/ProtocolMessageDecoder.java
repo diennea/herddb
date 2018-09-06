@@ -19,11 +19,7 @@
  */
 package herddb.network.netty;
 
-import herddb.network.RequestWrapper;
-import herddb.network.ResponseWrapper;
-import herddb.proto.flatbuf.Message;
-import herddb.proto.flatbuf.Request;
-import herddb.proto.flatbuf.Response;
+import herddb.network.MessageWrapper;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
@@ -50,16 +46,8 @@ public class ProtocolMessageDecoder extends ChannelInboundHandlerAdapter {
             LOGGER.log(Level.FINEST, "Received from {}: {}", new Object[]{ctx.channel(), dumper});
         }
 
-        Message message = Message.getRootAsMessage(in.nioBuffer());
-        Response response = message.response();
-        if (response != null) {
-            ctx.fireChannelRead(new ResponseWrapper(response, in));
-            return;
-        }
-        Request request = message.request();
-        if (request != null) {
-            ctx.fireChannelRead(new RequestWrapper(request, in));
-        }
+        MessageWrapper pooled = MessageWrapper.newMessageWrapper(in);
+        ctx.fireChannelRead(pooled);
 
     }
 }

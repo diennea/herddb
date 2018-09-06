@@ -19,9 +19,7 @@
  */
 package herddb.network.netty;
 
-import herddb.network.RequestWrapper;
-import herddb.network.ResponseWrapper;
-import herddb.proto.flatbuf.Request;
+import herddb.network.MessageWrapper;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import java.util.logging.Level;
@@ -56,11 +54,10 @@ public class ClientInboundMessageHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
-        if (msg instanceof ResponseWrapper) {
-            ResponseWrapper message = (ResponseWrapper) msg;
+        MessageWrapper message = (MessageWrapper) msg;
+        if (message.getResponse() != null) {
             session.responseReceived(message);
-        } else if (msg instanceof RequestWrapper) {
-            RequestWrapper message = (RequestWrapper) msg;
+        } else {
             session.requestReceived(message);
         }
     }

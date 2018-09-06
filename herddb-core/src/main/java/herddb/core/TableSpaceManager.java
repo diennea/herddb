@@ -113,11 +113,9 @@ import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.utils.KeyValue;
 import herddb.network.MessageBuilder;
-import herddb.network.ResponseWrapper;
-import herddb.network.SendResultCallback;
+import herddb.network.MessageWrapper;
 import herddb.network.ServerHostData;
 import herddb.proto.flatbuf.MessageType;
-import herddb.proto.flatbuf.Response;
 import herddb.server.ServerConfiguration;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
@@ -797,11 +795,11 @@ public class TableSpaceManager {
 
             long id = _channel.generateRequestId();
             LOGGER.log(Level.INFO, "start sending dump, dumpId: {0} to client {1}", new Object[]{dumpId, _channel});
-            try (ResponseWrapper response_to_start = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+            try (MessageWrapper response_to_start = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
                     id, tableSpaceName, dumpId, "start", null, stats.getTablesize(), logSequenceNumber.ledgerId, logSequenceNumber.offset, null, null), timeout);) {
 
-                if (response_to_start.type() != MessageType.TYPE_ACK) {
-                    LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.response.error());
+                if (response_to_start.getResponse().type() != MessageType.TYPE_ACK) {
+                    LOGGER.log(Level.SEVERE, "error response at start command: " + response_to_start.getResponse().error());
                     return;
                 }
             }
@@ -831,7 +829,7 @@ public class TableSpaceManager {
                 } catch (DataStorageManagerException err) {
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
                     long errorid = _channel.generateRequestId();
-                    try (ResponseWrapper response = _channel.sendMessageWithReply(errorid, MessageBuilder.TABLESPACE_DUMP_DATA(
+                    try (MessageWrapper response = _channel.sendMessageWithReply(errorid, MessageBuilder.TABLESPACE_DUMP_DATA(
                             id, tableSpaceName, dumpId, "error", null, 0,
                             0, 0,
                             null, null), timeout);) {
@@ -885,12 +883,12 @@ public class TableSpaceManager {
                 })
                 .collect(Collectors.toList());
         long id = _channel.generateRequestId();
-        try (ResponseWrapper response_to_transactionsData = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+        try (MessageWrapper response_to_transactionsData = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
                 id, tableSpaceName, dumpId, "transactions", null, 0,
                 0, 0,
                 null, encodedTransactions), timeout);) {
-            if (response_to_transactionsData.type() != MessageType.TYPE_ACK) {
-                LOGGER.log(Level.SEVERE, "error response at transactionsData command: " + response_to_transactionsData.response.error());
+            if (response_to_transactionsData.getResponse().type() != MessageType.TYPE_ACK) {
+                LOGGER.log(Level.SEVERE, "error response at transactionsData command: " + response_to_transactionsData.getResponse().error());
             }
         }
         batch.clear();
@@ -902,13 +900,13 @@ public class TableSpaceManager {
             batch.add(new KeyValue(e.logSequenceNumber.serialize(), e.entryData));
         }
         long id = _channel.generateRequestId();
-        try (ResponseWrapper response_to_txlog = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
+        try (MessageWrapper response_to_txlog = _channel.sendMessageWithReply(id, MessageBuilder.TABLESPACE_DUMP_DATA(
                 id, tableSpaceName, dumpId, "txlog", null, 0,
                 0, 0,
                 null, batch), timeout);) {
 
-            if (response_to_txlog.type() != MessageType.TYPE_ACK) {
-                LOGGER.log(Level.SEVERE, "error response at txlog command: " + response_to_txlog.response.error());
+            if (response_to_txlog.getResponse().type() != MessageType.TYPE_ACK) {
+                LOGGER.log(Level.SEVERE, "error response at txlog command: " + response_to_txlog.getResponse().error());
             }
         }
 

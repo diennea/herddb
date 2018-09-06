@@ -26,7 +26,7 @@ package herddb.network;
  */
 public interface ChannelEventListener {
 
-    public default void requestReceived(RequestWrapper message, Channel channel) {
+    public default void requestReceived(MessageWrapper message, Channel channel) {
     }
 
     public default void channelClosed(Channel channel) {

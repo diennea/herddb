@@ -5,8 +5,6 @@ import static herddb.network.Utils.buildAckResponse;
 import herddb.network.netty.NettyChannelAcceptor;
 import herddb.network.netty.NettyConnector;
 import herddb.proto.flatbuf.MessageType;
-import herddb.proto.flatbuf.Request;
-import herddb.proto.flatbuf.Response;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -26,10 +24,10 @@ public class ChannelBenchTest {
             acceptor.setAcceptor((ServerSideConnectionAcceptor) (Channel channel) -> {
                 channel.setMessagesReceiver(new ChannelEventListener() {
                     @Override
-                    public void requestReceived(RequestWrapper message, Channel channel) {
-                        ByteBuffer msg = buildAckResponse(message.request);
-                        channel.sendReplyMessage(message.request.id(), Unpooled.wrappedBuffer(msg));
-                        message.release();
+                    public void requestReceived(MessageWrapper message, Channel channel) {
+                        ByteBuffer msg = buildAckResponse(message.getRequest());
+                        channel.sendReplyMessage(message.getRequest().id(), Unpooled.wrappedBuffer(msg));
+                        message.close();
                     }
 
                     @Override
@@ -51,9 +49,9 @@ public class ChannelBenchTest {
             }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
                 for (int i = 0; i < 100; i++) {
                     ByteBuffer buffer = buildAckRequest(i);
-                    ResponseWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000);
-                    assertEquals(MessageType.TYPE_ACK, result.response.type());
-                    result.release();
+                    MessageWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000);
+                    assertEquals(MessageType.TYPE_ACK, result.getResponse().type());
+                    result.close();
                 }
             } finally {
                 executor.shutdown();
