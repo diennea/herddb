@@ -51,6 +51,16 @@ public class ScanResultSetMetadata {
      * @return returns -1 if column not found
      */
     public int getColumnPosition(String columnName) {
+        ensureColumnToPositionMap();
+        Integer pos = columnNameToPosition.get(columnName);
+        if (pos == null) {
+            pos = columnNameToPosition.get(columnName.toLowerCase());
+        }
+        return (pos == null) ? 0 : pos;
+    }
+
+    @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED")
+    private void ensureColumnToPositionMap() throws IllegalStateException {
         if (columnNameToPosition == null) {
             ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
             int i = 1;
@@ -59,15 +69,9 @@ public class ScanResultSetMetadata {
                     throw new IllegalStateException("Invalid columnName null, in " + Arrays.toString(columnNames));
                 }
                 builder.put(_columnName, i++);
-
             }
             columnNameToPosition = builder.build();
         }
-        Integer pos = columnNameToPosition.get(columnName);
-        if (pos == null) {
-            pos = columnNameToPosition.get(columnName.toLowerCase());
-        }
-        return (pos == null) ? 0 : pos;
     }
 
     public void setColumnNames(String[] columnNames) {

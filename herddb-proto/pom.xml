@@ -31,8 +31,16 @@
                 <version>${os-maven-plugin.version}</version>
             </extension>
         </extensions>
-    
+            
         <plugins>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>                
+                <configuration>
+                    <!-- do not to check generated code -->
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
             <plugin> <!-- add generated sources to classpath -->
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>

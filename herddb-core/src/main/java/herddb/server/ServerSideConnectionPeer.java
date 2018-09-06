@@ -572,7 +572,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     private void handleExecuteStatement(Request message, Channel _channel) {
-        long tx = message.tx();
         long txId = message.tx();
         RawString query = MessageUtils.readRawString(message.queryAsByteBuffer());
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceAsByteBuffer());
@@ -580,7 +579,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
         List<Object> parameters = MessageUtils.decodeAnyValueList(message.params());
         if (LOGGER.isLoggable(Level.FINEST)) {
-            LOGGER.log(Level.FINEST, "query " + query + " with " + parameters);
+            LOGGER.log(Level.FINEST, "query {0} with {1}", new Object[]{query, parameters});
         }
         String _query = query.toString();
         String _tablespace = tableSpace.toString();

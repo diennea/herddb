@@ -19,6 +19,7 @@
  */
 package herddb.core;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.EOFException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -755,9 +756,10 @@ public class TableSpaceManager {
         }
     }
 
+    @SuppressFBWarnings("RCN_REDUNDANT_NULLCHECK_OF_NULL_VALUE")
     void dumpTableSpace(String dumpId, Channel _channel, int fetchSize, boolean includeLog) throws DataStorageManagerException, LogNotAvailableException {
 
-        LOGGER.log(Level.INFO, "dumpTableSpace dumpId:" + dumpId + " channel " + _channel + " fetchSize:" + fetchSize + ", includeLog:" + includeLog);
+        LOGGER.log(Level.INFO, "dumpTableSpace dumpId:{0} channel {1} fetchSize:{2}, includeLog:{3}", new Object[]{dumpId, _channel, fetchSize, includeLog});
 
         TableSpaceCheckpoint checkpoint;
 
@@ -828,13 +830,13 @@ public class TableSpaceManager {
                     tableManager.dump(sequenceNumber, sink);
                 } catch (DataStorageManagerException err) {
                     LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, err);
-                    long errorid = _channel.generateRequestId();
+                    long errorid = _channel.generateRequestId();                    
                     try (MessageWrapper response = _channel.sendMessageWithReply(errorid, MessageBuilder.TABLESPACE_DUMP_DATA(
                             id, tableSpaceName, dumpId, "error", null, 0,
                             0, 0,
-                            null, null), timeout);) {
+                            null, null),
+                            timeout);) {
                     }
-
                     return;
                 }
             }
