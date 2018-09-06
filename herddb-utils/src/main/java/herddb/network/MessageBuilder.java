@@ -19,7 +19,8 @@
  */
 package herddb.network;
 
-import com.google.flatbuffers.EnhancedFlatBufferBuilder;
+import com.google.flatbuffers.ByteBufFlatBufferBuilder;
+import static com.google.flatbuffers.ByteBufFlatBufferBuilder.newFlatBufferBuilder;
 import com.google.flatbuffers.FlatBufferBuilder;
 import herddb.utils.KeyValue;
 import herddb.utils.TuplesList;
@@ -46,13 +47,10 @@ import herddb.utils.DataAccessor;
 import herddb.utils.IntHolder;
 import herddb.utils.RawString;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -65,7 +63,7 @@ import java.util.logging.Logger;
 public abstract class MessageBuilder {
 
     public static ByteBuf ACK(long reply) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         Response.startResponse(builder);
         Response.addReplyMessageId(builder, reply);
         Response.addType(builder, MessageType.TYPE_ACK);
@@ -81,7 +79,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf ERROR(long replyId, Throwable error, String additionalInfo, boolean notLeader) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
 
         int errorOffset;
         if (additionalInfo != null) {
@@ -107,37 +105,29 @@ public abstract class MessageBuilder {
         return finishAsResponse(builder);
     }
 
-    public static ByteBuf finishAsResponse(FlatBufferBuilder builder) {
+    public static ByteBuf finishAsResponse(ByteBufFlatBufferBuilder builder) {
         int posResponse = Response.endResponse(builder);
         Message.startMessage(builder);
         Message.addResponse(builder, posResponse);
         int pos = Message.endMessage(builder);
         Message.finishMessageBuffer(builder, pos);
-        ByteBuffer dataBuffer = builder.dataBuffer();
-        ByteBuf original = getByteBuf(dataBuffer);
-        // buffer is filled from the end to the beginnning
-        original.readerIndex(dataBuffer.position());
-        return original;
+        return builder.toByteBuf();
     }
 
-    public static ByteBuf finishAsRequest(FlatBufferBuilder builder) {
+    public static ByteBuf finishAsRequest(ByteBufFlatBufferBuilder builder) {
         int posRequest = Request.endRequest(builder);
         Message.startMessage(builder);
         Message.addRequest(builder, posRequest);
         int pos = Message.endMessage(builder);
         Message.finishMessageBuffer(builder, pos);
-        ByteBuffer dataBuffer = builder.dataBuffer();
-        ByteBuf original = getByteBuf(dataBuffer);
-        // buffer is filled from the end to the beginnning
-        original.readerIndex(dataBuffer.position());
-        return original;
+        return builder.toByteBuf();
     }
 
     public static ByteBuf EXECUTE_STATEMENT(long id, String tableSpace, String query, long tx,
             boolean returnValues,
             List<Object> params) {
 
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         int queryOffset = addString(builder, query);
 
@@ -158,54 +148,7 @@ public abstract class MessageBuilder {
 
     }
 
-    private static FlatBufferBuilder.ByteBufferFactory FACTORY
-            = new FlatBufferBuilder.HeapByteBufferFactory();
-
-//    private static FlatBufferBuilder newFlatBufferBuilder() {
-//        return new EnhancedFlatBufferBuilder(
-//                ByteBuffer.allocateDirect(10).order(ByteOrder.LITTLE_ENDIAN),
-//                (size) -> ByteBuffer.allocateDirect(size).order(ByteOrder.LITTLE_ENDIAN),
-//                (bb) -> {
-//                    PlatformDependent.freeDirectBuffer(bb);
-//                });
-//    }
-    private static final IdentityHashMap<ByteBuffer, ByteBuf> buffers = new IdentityHashMap<>();
-
-    private static ByteBuffer allocate(int size) {
-        ByteBuf directBuffer
-                = PooledByteBufAllocator.DEFAULT.directBuffer(size);
-        directBuffer.writerIndex(size);
-        ByteBuffer order = directBuffer.nioBuffer().order(ByteOrder.LITTLE_ENDIAN);
-        synchronized (buffers) {
-            buffers.put(order, directBuffer);
-        }
-        return order;
-    }
-
-    private static final int INITIAL_BUFFER_SIZE = 1024;
-
-    private static FlatBufferBuilder newFlatBufferBuilder() {
-        return new EnhancedFlatBufferBuilder(
-                allocate(INITIAL_BUFFER_SIZE),
-                (size) -> {
-                    return allocate(size);
-                },
-                (bb) -> {
-                    releaseByteBuffer(bb);
-                });
-    }
     private static final Logger LOG = Logger.getLogger(MessageBuilder.class.getName());
-
-    private static void releaseByteBuffer(ByteBuffer bb) {
-        ByteBuf original = getByteBuf(bb);
-        original.release();
-    }
-
-    private static ByteBuf getByteBuf(ByteBuffer bb) {
-        synchronized (buffers) {
-            return buffers.remove(bb);
-        }
-    }
 
     private static int encodeBatchParams(List<List<Object>> params, FlatBufferBuilder builder) throws IllegalArgumentException {
         if (params == null || params.isEmpty()) {
@@ -360,7 +303,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf TX_COMMAND(long id, String tableSpace, int type, long tx) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         Request.startRequest(builder);
         Request.addId(builder, id);
@@ -373,7 +316,7 @@ public abstract class MessageBuilder {
 
     public static ByteBuf EXECUTE_STATEMENTS(long id, String tableSpace, String query,
             long tx, boolean returnValues, List<List<Object>> params) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         int queryOffset = addString(builder, query);
 
@@ -396,7 +339,7 @@ public abstract class MessageBuilder {
     public static ByteBuf OPEN_SCANNER(long id, String tableSpace, String query,
             String scannerId, long tx, List<Object> params, int fetchSize, int maxRows) {
 
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         int queryOffset = addString(builder, query);
         int scannerIdOffset = addString(builder, scannerId);
@@ -422,7 +365,7 @@ public abstract class MessageBuilder {
     public static ByteBuf REQUEST_TABLESPACE_DUMP(long id, String tableSpace, String dumpId, int fetchSize,
             boolean includeTransactionLog) {
 
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         int dumpIdOffset = addString(builder, dumpId);
 
@@ -443,7 +386,7 @@ public abstract class MessageBuilder {
             long dumpLedgerid, long dumpOffset, List<byte[]> indexesDefinition,
             List<KeyValue> records) {
 
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         int dumpIdOffset = addString(builder, dumpId);
         int commandOffset = builder.createString(command);
@@ -504,7 +447,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf RESULTSET_CHUNK(long replyId, TuplesList tuplesList, boolean last, long tx) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
 
         int columnsOffset = encodeColumDefinitionsList(tuplesList.columnNames, builder);
         int rowsOffset = -1;
@@ -560,7 +503,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf CLOSE_SCANNER(long id, String scannerId) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int scannerIdOffset = addString(builder, scannerId);
         Request.startRequest(builder);
         Request.addId(builder, id);
@@ -570,7 +513,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf FETCH_SCANNER_DATA(long id, String scannerId, int fetchSize) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int scannerIdOffset = addString(builder, scannerId);
         Request.startRequest(builder);
         Request.addId(builder, id);
@@ -584,7 +527,7 @@ public abstract class MessageBuilder {
     public static ByteBuf EXECUTE_STATEMENT_RESULT(long replyId, long updateCount,
             Map<String, Object> record, long tx) {
 
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
 
         int recordOffset = -1;
         if (record != null) {
@@ -602,7 +545,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf EXECUTE_STATEMENT_RESULTS(long replyId, List<Long> updateCounts, List<Map<String, Object>> otherdata, long tx) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int numResults = updateCounts.size();
         int[] resultsOffsets = new int[numResults];
         for (int i = 0; i < numResults; i++) {
@@ -631,7 +574,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf SASL_TOKEN_MESSAGE_REQUEST(long id, String saslMech, byte[] firstToken) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int mechOffset = addString(builder, saslMech);
         int tokenOffset = builder.createByteVector(firstToken);
         Request.startRequest(builder);
@@ -643,7 +586,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf SASL_TOKEN_SERVER_RESPONSE(long replyId, byte[] saslTokenChallenge) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tokenOffset = -1;
         if (saslTokenChallenge != null) {
             tokenOffset = builder.createByteVector(saslTokenChallenge);
@@ -658,7 +601,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf SASL_TOKEN_MESSAGE_TOKEN(long id, byte[] token) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tokenOffset = 0;
         if (token != null) {
             tokenOffset = builder.createByteVector(token);
@@ -674,7 +617,7 @@ public abstract class MessageBuilder {
 
     public static ByteBuf REQUEST_TABLE_RESTORE(long id, String tableSpace, byte[] tableDefinition,
             long dumpLedgerId, long dumpOffset) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
 
         int schemaDefinitionOffset = TableDefinition.createSchemaVector(builder, tableDefinition);
@@ -695,7 +638,7 @@ public abstract class MessageBuilder {
 
     public static ByteBuf TABLE_RESTORE_FINISHED(long id, String tableSpace, String tableName,
             List<byte[]> indexesDefinition) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         int tableNameOffset = addString(builder, tableName);
 
@@ -724,7 +667,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf RESTORE_FINISHED(long id, String tableSpace) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         Request.startRequest(builder);
         Request.addId(builder, id);
@@ -735,7 +678,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf PUSH_TABLE_DATA(long id, String tableSpace, String tableName, List<KeyValue> chunk) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
         int tableNameOffset = addString(builder, tableName);
 
@@ -767,7 +710,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf PUSH_TXLOGCHUNK(long id, String tableSpace, List<KeyValue> chunk) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
 
         int rawDataChunkOffset = -1;
@@ -797,7 +740,7 @@ public abstract class MessageBuilder {
     }
 
     public static ByteBuf PUSH_TRANSACTIONSBLOCK(long id, String tableSpace, List<byte[]> chunk) {
-        FlatBufferBuilder builder = newFlatBufferBuilder();
+        ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();
         int tableSpaceOffset = addString(builder, tableSpace);
 
         int dumpTxLogEntriesVectorOffset = -1;

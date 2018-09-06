@@ -13,7 +13,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>        
         <flatc.executable>${basedir}/flatc</flatc.executable>
-        <flatc.generated.files>${project.build.directory}/generated-sources/flatc</flatc.generated.files>
+        <flatc.generated.files>${basedir}/src/main/flatc</flatc.generated.files>
         <os-maven-plugin.version>1.5.0.Final</os-maven-plugin.version>
     </properties>
     <dependencies>
@@ -31,47 +31,8 @@
                 <version>${os-maven-plugin.version}</version>
             </extension>
         </extensions>
-
+    
         <plugins>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.6.0</version>
-                <executions>
-                    <execution> <!-- make the flatbuffer compiler executable -->
-                        <id>script-chmod</id>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <phase>generate-sources</phase>
-                        <configuration>
-                            <executable>chmod</executable>
-                            <arguments>
-                                <argument>+x</argument>
-                                <argument>${flatc.executable}</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <phase>generate-sources</phase>
-                        <configuration>
-                            <executable>${flatc.executable}</executable>
-                            <arguments>
-                                <argument>-j</argument>
-                                <argument>-o</argument>
-                                <argument>${flatc.generated.files}</argument>
-                                <argument>src/main/resources/Common.fbs</argument>                                
-                                <argument>src/main/resources/Request.fbs</argument>                                
-                                <argument>src/main/resources/Response.fbs</argument>                                
-                                <argument>src/main/resources/Message.fbs</argument>                                
-                            </arguments>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin> <!-- add generated sources to classpath -->
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
@@ -90,7 +51,75 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>           
+            </plugin>     
         </plugins>
-    </build>
+    </build> 
+    <profiles>
+        <profile>
+            <!--
+                Use "mvn -P generate-flatbuffers-code clean install" to rebuild flatc stubs                
+            -->
+            <id>generate-flatbuffers-code</id>                    
+            <build>               
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-clean-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>remove-old-stubs</id>
+                                <goals>
+                                    <goal>clean</goal>
+                                </goals>
+                                <phase>generate-sources</phase>
+                                <configuration>
+                                    <directory>${flatc.generated.files}</directory>                                    
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>1.6.0</version>
+                        <executions>
+                            <execution> <!-- make the flatbuffer compiler executable -->
+                                <id>script-chmod</id>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <phase>generate-sources</phase>
+                                <configuration>
+                                    <executable>chmod</executable>
+                                    <arguments>
+                                        <argument>+x</argument>
+                                        <argument>${flatc.executable}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <phase>generate-sources</phase>
+                                <configuration>
+                                    <executable>${flatc.executable}</executable>
+                                    <arguments>
+                                        <argument>-j</argument>
+                                        <argument>-o</argument>
+                                        <argument>${flatc.generated.files}</argument>
+                                        <argument>src/main/resources/Common.fbs</argument>                                
+                                        <argument>src/main/resources/Request.fbs</argument>                                
+                                        <argument>src/main/resources/Response.fbs</argument>                                
+                                        <argument>src/main/resources/Message.fbs</argument>                                
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>                        
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+    
 </project>
