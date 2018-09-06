@@ -54,6 +54,7 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected String defaultSchema = TableSpace.DEFAULT;
     private String waitForTableSpace = "";
     private int waitForTableSpaceTimeout = 60000;
+    private boolean discoverTableSpaceFromQuery = true;
     private HDBConnection connection;
     private GenericObjectPool<HerdDBConnection> pool;
 
@@ -81,6 +82,14 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
 
     public synchronized void setWaitForTableSpace(String waitForTableSpace) {
         this.waitForTableSpace = waitForTableSpace;
+    }
+
+    public synchronized boolean isDiscoverTableSpaceFromQuery() {
+        return discoverTableSpaceFromQuery;
+    }
+
+    public synchronized void setDiscoverTableSpaceFromQuery(boolean discoverTableSpaceFromQuery) {
+        this.discoverTableSpaceFromQuery = discoverTableSpaceFromQuery;
     }
 
     protected BasicHerdDBDataSource() {
@@ -164,8 +173,15 @@ public class BasicHerdDBDataSource implements javax.sql.DataSource, AutoCloseabl
     protected synchronized void ensureClient() throws SQLException {
         if (client == null) {
             ClientConfiguration clientConfiguration = new ClientConfiguration(properties);
-            LOGGER.log(Level.SEVERE, "Booting HerdDB Client, url:" + url + ", properties:" + properties + " clientConfig " + clientConfiguration);
+            Properties propsNoPassword = new Properties(properties);
+            if (propsNoPassword.contains("password")) {
+                propsNoPassword.setProperty("password", "-------");
+            }
+            LOGGER.log(Level.INFO, "Booting HerdDB Client, url:" + url + ", properties:" + propsNoPassword + " clientConfig " + clientConfiguration);
             clientConfiguration.readJdbcUrl(url);
+            if (properties.containsKey("discoverTableSpaceFromQuery")) {
+                this.discoverTableSpaceFromQuery = clientConfiguration.getBoolean("discoverTableSpaceFromQuery", true);
+            }
             client = new HDBClient(clientConfiguration);
         }
         if (pool == null) {
