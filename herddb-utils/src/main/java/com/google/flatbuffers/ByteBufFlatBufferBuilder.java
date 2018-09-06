@@ -46,7 +46,7 @@ public final class ByteBufFlatBufferBuilder extends FlatBufferBuilder
 
     private final IdentityHashMap<ByteBuffer, ByteBuf> byteBufferToByteBufMapping = new IdentityHashMap<>();
 
-    public ByteBufFlatBufferBuilder(Recycler.Handle<ByteBufFlatBufferBuilder> recyclerHandle) {
+    private ByteBufFlatBufferBuilder(Recycler.Handle<ByteBufFlatBufferBuilder> recyclerHandle) {
         super(DUMMY_BUFFER, null); // this is needed
         this.recyclerHandle = recyclerHandle;
     }
