@@ -21,8 +21,11 @@ package herddb.utils;
 
 import herddb.network.MessageWrapper;
 import herddb.proto.flatbuf.AnyValueWrapper;
+import herddb.proto.flatbuf.ColumnDefinition;
 import herddb.proto.flatbuf.Response;
 import herddb.proto.flatbuf.Row;
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -49,8 +52,15 @@ public class RecordsBatch {
         this.columnNames = new String[response.columnNamesLength()];
         this.message = replyWrapper;
         for (int i = 0; i < columnNames.length; i++) {
-            String columnName = MessageUtils.readString(response.columnNames(i).nameAsByteBuffer());
+            ColumnDefinition columnNameDef = response.columnNames(i);
+            ByteBuffer byteBuffer = columnNameDef.getByteBuffer();
+            int position = byteBuffer.position();
+            int limit = byteBuffer.limit();
+            String columnName = MessageUtils
+                    .readString(columnNameDef.nameInByteBuffer(columnNameDef.getByteBuffer()));
             columnNames[i] = columnName;
+            ((Buffer) byteBuffer).position(position);
+            ((Buffer) byteBuffer).limit(limit);
         }
 
         this.currentRecordIndex = -1;
@@ -63,7 +73,7 @@ public class RecordsBatch {
         if (columnNameToPosition == null) {
             columnNameToPosition = new HashMap<>();
             for (int i = 0; i < columnNames.length; i++) {
-                String columnName = MessageUtils.readString(response.columnNames(i).nameAsByteBuffer());
+                String columnName = columnNames[i];
                 columnNameToPosition.put(columnName, i);
             }
         }

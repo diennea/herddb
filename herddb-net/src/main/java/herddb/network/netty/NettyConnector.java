@@ -55,7 +55,8 @@ public class NettyConnector {
     private static final Logger LOGGER = Logger.getLogger(NettyConnector.class.getName());
 
     public static NettyChannel connect(String host, int port, boolean ssl, int connectTimeout, int socketTimeout,
-            ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup, final DefaultEventLoopGroup localEventsGroup) throws IOException {
+            ChannelEventListener receiver, final ExecutorService callbackExecutor, final MultithreadEventLoopGroup networkGroup,
+            final DefaultEventLoopGroup localEventsGroup) throws IOException {
         try {
             final SslContext sslCtx = !ssl ? null : SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
 
@@ -85,7 +86,8 @@ public class NettyConnector {
                         @Override
                         public void initChannel(Channel ch) throws Exception {
                             try {
-                                NettyChannel channel = new NettyChannel(host + ":" + port, ch, callbackExecutor);
+                                NettyChannel channel = new NettyChannel(host + ":" + port,
+                                        ch, callbackExecutor);
                                 result.set(channel);
                                 channel.setMessagesReceiver(receiver);
                                 if (ssl) {

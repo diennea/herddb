@@ -52,9 +52,9 @@ public class NetworkChannelTest {
             }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
                 for (int i = 0; i < 100; i++) {
                     ByteBuffer buffer = buildAckRequest(i);
-                    MessageWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000);
-                    assertEquals(MessageType.TYPE_ACK, result.getResponse().type());
-                    result.close();
+                    try (MessageWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000)) {
+                        assertEquals(MessageType.TYPE_ACK, result.getResponse().type());
+                    }
                 }
             } finally {
                 executor.shutdown();
@@ -90,10 +90,11 @@ public class NetworkChannelTest {
                     }
                 }, executor, new EpollEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
                     for (int i = 0; i < 100; i++) {
+
                         ByteBuffer buffer = buildAckRequest(i);
-                        MessageWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000);
-                        assertEquals(MessageType.TYPE_ACK, result.getResponse().type());
-                        result.close();
+                        try (MessageWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000)) {
+                            assertEquals(MessageType.TYPE_ACK, result.getResponse().type());
+                        }
                     }
                 } finally {
                     executor.shutdown();

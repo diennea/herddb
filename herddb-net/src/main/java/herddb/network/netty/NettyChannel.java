@@ -24,6 +24,7 @@ import herddb.network.MessageBuilder;
 import herddb.network.MessageWrapper;
 import herddb.network.SendResultCallback;
 import herddb.proto.flatbuf.Response;
+import herddb.utils.SystemProperties;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.socket.SocketChannel;
@@ -34,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -58,13 +60,16 @@ public class NettyChannel extends Channel {
     private boolean ioErrors = false;
     private final long id = idGenerator.incrementAndGet();
     private final String remoteAddress;
+    private long lastAutoFlush;
+    private final AtomicInteger unflushedWrites = new AtomicInteger();
 
     @Override
     public String toString() {
         return "NettyChannel{name=" + name + ", id=" + id + ", socket=" + socket + " pending " + pendingReplyRequests.size() + " msgs}";
     }
 
-    public NettyChannel(String name, io.netty.channel.Channel socket, ExecutorService callbackexecutor) {
+    public NettyChannel(String name, io.netty.channel.Channel socket,
+            ExecutorService callbackexecutor) {
         this.name = name;
         this.socket = socket;
         this.callbackexecutor = callbackexecutor;
@@ -73,6 +78,10 @@ public class NettyChannel extends Channel {
         } else {
             this.remoteAddress = "jvm-local";
         }
+    }
+
+    public long getId() {
+        return id;
     }
 
     public void responseReceived(MessageWrapper message) {
@@ -132,8 +141,8 @@ public class NettyChannel extends Channel {
                     close();
                 }
             }
-
         });
+        unflushedWrites.incrementAndGet();
     }
 
     @Override
@@ -288,5 +297,5 @@ public class NettyChannel extends Channel {
     public void setName(String name) {
         this.name = name;
     }
-
+    
 }

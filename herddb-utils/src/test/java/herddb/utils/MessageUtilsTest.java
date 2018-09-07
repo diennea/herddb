@@ -116,6 +116,20 @@ public class MessageUtilsTest {
             Message message = Message.getRootAsMessage(msg.nioBuffer());
             herddb.proto.flatbuf.Request request = message.request();
             assertEquals(4, request.rawDataChunkLength());
+            String readTableName = MessageUtils.readString(request.tableNameAsByteBuffer());
+            int pos = request.getByteBuffer().position();
+            int limit = request.getByteBuffer().limit();
+            String readTableName2 = MessageUtils.readString(request.tableNameInByteBuffer(request.getByteBuffer()));
+            request.getByteBuffer().position(pos);
+            request.getByteBuffer().limit(limit);
+            System.out.println("readTableName:" + readTableName);
+            System.out.println("readTableName2:" + readTableName2);
+
+//            String readTableSpaceName = MessageUtils.readString(request.tableSpaceAsByteBuffer());
+            String readTableSpaceName2 = MessageUtils.readString(request.tableSpaceInByteBuffer(request.getByteBuffer()));
+//            System.out.println("readTableSpaceName:" + readTableSpaceName);
+            System.out.println("readTableSpaceName2:" + readTableSpaceName2);
+
 //            System.out.println("refcount:" + msg.refCnt());
             assertEquals(1, msg.refCnt());
             assertTrue(msg.release());

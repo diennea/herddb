@@ -208,7 +208,6 @@ public class NettyChannelAcceptor implements AutoCloseable {
                 }
             });
         }
-
         InetSocketAddress address = new InetSocketAddress(host, port);
         LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
         ChannelInitializer<io.netty.channel.Channel> channelInitialized = new ChannelInitializer<io.netty.channel.Channel>() {
@@ -267,8 +266,10 @@ public class NettyChannelAcceptor implements AutoCloseable {
             ChannelFuture local_f = b_local.bind(new LocalAddress(hostAddress + ":" + port + ":" + ssl)).sync();
             this.local_channel = local_f.channel();
         }
+
     }
 
+    @Override
     public void close() {
         if (channel != null) {
             channel.close();

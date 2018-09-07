@@ -46,7 +46,7 @@ public class ChannelBenchTest {
                     System.out.println("client channelClosed");
 
                 }
-            }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {
+            }, executor, new NioEventLoopGroup(10, executor), new DefaultEventLoopGroup())) {                
                 for (int i = 0; i < 100; i++) {
                     ByteBuffer buffer = buildAckRequest(i);
                     MessageWrapper result = client.sendMessageWithReply(i, Unpooled.wrappedBuffer(buffer), 10000);
