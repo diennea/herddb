@@ -19,12 +19,7 @@
  */
 package herddb.network;
 
-import com.google.flatbuffers.ByteBufFlatBufferBuilder;
 import static com.google.flatbuffers.ByteBufFlatBufferBuilder.newFlatBufferBuilder;
-import com.google.flatbuffers.FlatBufferBuilder;
-import herddb.utils.KeyValue;
-import herddb.utils.TuplesList;
-import herddb.proto.flatbuf.*;
 import static herddb.proto.flatbuf.MessageType.TYPE_ACK;
 import static herddb.proto.flatbuf.MessageType.TYPE_CLIENT_SHUTDOWN;
 import static herddb.proto.flatbuf.MessageType.TYPE_CLOSESCANNER;
@@ -43,17 +38,41 @@ import static herddb.proto.flatbuf.MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE;
 import static herddb.proto.flatbuf.MessageType.TYPE_TABLESPACE_DUMP_DATA;
 import static herddb.proto.flatbuf.MessageType.TYPE_TX_COMMAND;
 
-import herddb.utils.DataAccessor;
-import herddb.utils.IntHolder;
-import herddb.utils.RawString;
-import io.netty.buffer.ByteBuf;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+
+import com.google.flatbuffers.ByteBufFlatBufferBuilder;
+import com.google.flatbuffers.FlatBufferBuilder;
+
+import herddb.proto.flatbuf.AnyValue;
+import herddb.proto.flatbuf.AnyValueList;
+import herddb.proto.flatbuf.AnyValueWrapper;
+import herddb.proto.flatbuf.BooleanValue;
+import herddb.proto.flatbuf.DMLResult;
+import herddb.proto.flatbuf.DoubleValue;
+import herddb.proto.flatbuf.IndexDefinition;
+import herddb.proto.flatbuf.IntValue;
+import herddb.proto.flatbuf.LongValue;
+import herddb.proto.flatbuf.MapEntry;
+import herddb.proto.flatbuf.Message;
+import herddb.proto.flatbuf.MessageType;
+import herddb.proto.flatbuf.NullValue;
+import herddb.proto.flatbuf.Request;
+import herddb.proto.flatbuf.Response;
+import herddb.proto.flatbuf.Row;
+import herddb.proto.flatbuf.StringValue;
+import herddb.proto.flatbuf.TableDefinition;
+import herddb.proto.flatbuf.TimestampValue;
+import herddb.utils.DataAccessor;
+import herddb.utils.IntHolder;
+import herddb.utils.KeyValue;
+import herddb.utils.RawString;
+import herddb.utils.TuplesList;
+import io.netty.buffer.ByteBuf;
 
 /**
  * A message (from broker to worker or from worker to broker)
@@ -250,7 +269,7 @@ public abstract class MessageBuilder {
 
         } else if (param instanceof Long) {
             LongValue.startLongValue(builder);
-            LongValue.addValue(builder, ((Number) param).intValue());
+            LongValue.addValue(builder, ((Number) param).longValue());
             int end = LongValue.endLongValue(builder);
             AnyValueWrapper.startAnyValueWrapper(builder);
             AnyValueWrapper.addValueType(builder, AnyValue.LongValue);
@@ -296,7 +315,7 @@ public abstract class MessageBuilder {
         int pIndex = 0;
 
         for (String colName : columnNames) {
-            int stringOffset = addString(builder, (String) colName);
+            int stringOffset = addString(builder, colName);
             StringValue.startStringValue(builder);
             StringValue.addValue(builder, stringOffset);
             int end = StringValue.endStringValue(builder);
@@ -501,7 +520,7 @@ public abstract class MessageBuilder {
             Response.addReplyMessageId(builder, replyId);
             Response.addLast(builder, last);
             Response.addTx(builder, tx);
-            Response.addType(builder, MessageType.TYPE_RESULTSET_CHUNK);            
+            Response.addType(builder, MessageType.TYPE_RESULTSET_CHUNK);
             if (rowsOffset >= 0) {
                 Response.addRows(builder, rowsOffset);
             }
