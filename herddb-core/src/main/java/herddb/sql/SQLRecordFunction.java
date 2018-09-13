@@ -20,6 +20,7 @@
 package herddb.sql;
 
 import herddb.codec.RecordSerializer;
+import static herddb.codec.RecordSerializer.serializeValue;
 import herddb.model.Record;
 import herddb.model.RecordFunction;
 import herddb.model.StatementEvaluationContext;
@@ -63,7 +64,8 @@ public class SQLRecordFunction extends RecordFunction {
         try {
             Map<String, Object> res = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
             DataAccessor bean = previous != null ? previous.getDataAccessor(table) : DataAccessor.NULL;
-            for (int i = 0; i < columns.size(); i++) {
+            final int size = columns.size();
+            for (int i = 0; i < size; i++) {
                 CompiledSQLExpression e = expressions.get(i);
                 String columnName = columns.get(i);
                 herddb.model.Column column = table.getColumn(columnName);
@@ -74,7 +76,7 @@ public class SQLRecordFunction extends RecordFunction {
                 Object value = RecordSerializer.convert(column.type, e.evaluate(bean, context));
                 res.put(columnName, value);
             }
-            return RecordSerializer.toRecord(res, table).value.data;
+            return RecordSerializer.serializeValueRaw(res, table);
         } catch (IllegalArgumentException err) {
             throw new StatementExecutionException(err);
         }

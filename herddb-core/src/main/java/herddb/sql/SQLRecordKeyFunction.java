@@ -82,9 +82,10 @@ public class SQLRecordKeyFunction extends RecordFunction {
     public SQLRecordKeyFunction(List<String> expressionToColumn,
             List<CompiledSQLExpression> expressions, ColumnsList table) {
         this.table = table;
-        this.columns = new Column[expressions.size()];
+        final int size = expressions.size();
+        this.columns = new Column[size];
         this.expressions = new ArrayList<>();
-        this.pkColumnNames = new String[expressions.size()];
+        this.pkColumnNames = new String[size];
         int i = 0;
         boolean constant = true;
         for (String cexp : expressionToColumn) {
@@ -123,8 +124,8 @@ public class SQLRecordKeyFunction extends RecordFunction {
             }
         }
 
-        Map<String, Object> pk = new HashMap<>();
-        for (int i = 0; i < expressions.size(); i++) {
+        Map<String, Object> pk = new HashMap<>();        
+        for (int i = 0; i < columns.length; i++) {
             herddb.model.Column c = columns[i];
             CompiledSQLExpression expression = expressions.get(i);
             Object value = expression.evaluate(DataAccessor.NULL, context);
@@ -150,7 +151,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
             if (i > 0) {
                 b.append(" AND ");
             }
-            b.append(pkColumnNames[i] + "=" + expressions.get(i));
+            b.append(pkColumnNames[i]).append("=").append(expressions.get(i));
         }
         return b.toString();
 
