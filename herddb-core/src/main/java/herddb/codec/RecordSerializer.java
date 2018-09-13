@@ -669,6 +669,10 @@ public final class RecordSerializer {
     }
 
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
+        return new Bytes(serializeValueRaw(record, table));
+    }
+    
+    public static byte[] serializeValueRaw(Map<String, Object> record, Table table) {
         ByteArrayOutputStream value = new ByteArrayOutputStream();
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
             for (Column c : table.columns) {
@@ -682,7 +686,7 @@ public final class RecordSerializer {
             throw new RuntimeException(err);
         }
 
-        return new Bytes(value.toByteArray());
+        return value.toByteArray();
     }
 
     public static Record toRecord(Map<String, Object> record, Table table) {
