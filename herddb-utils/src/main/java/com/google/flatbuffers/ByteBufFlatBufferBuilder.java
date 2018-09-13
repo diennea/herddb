@@ -20,6 +20,7 @@
 package com.google.flatbuffers;
 
 import static com.google.flatbuffers.FlatBufferBuilder.growByteBuffer;
+import herddb.utils.SystemProperties;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.util.Recycler;
@@ -35,7 +36,8 @@ import java.util.IdentityHashMap;
 public final class ByteBufFlatBufferBuilder extends FlatBufferBuilder
         implements AutoCloseable {
 
-    private static final int INITIAL_BUFFER_SIZE = 1024;
+    private static final int INITIAL_BUFFER_SIZE = SystemProperties.getIntSystemProperty("herddb.flatbuffers.initbufsize", 8 * 1024);
+    
     private static final ByteBuffer DUMMY_BUFFER = ByteBuffer.wrap(new byte[0]);
     private static final Recycler<ByteBufFlatBufferBuilder> RECYCLER = new Recycler<ByteBufFlatBufferBuilder>() {
         @Override

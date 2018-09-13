@@ -41,6 +41,7 @@ import herddb.utils.DataAccessor;
 import herddb.utils.RawString;
 import herddb.utils.SQLRecordPredicateFunctions;
 import herddb.utils.SingleEntryMap;
+import herddb.utils.SystemProperties;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -56,6 +57,8 @@ import java.util.function.BiConsumer;
  * @author enrico.olivelli
  */
 public final class RecordSerializer {
+    
+    private static final int INITIAL_BUFFER_SIZE = SystemProperties.getIntSystemProperty("herddb.serializer.initbufsize", 4 * 1024);
 
     public static Object deserialize(byte[] data, int type) {
         switch (type) {
@@ -539,7 +542,7 @@ public final class RecordSerializer {
             }
             return serialize(v, c.type);            
         } else {
-            ByteArrayOutputStream key = new ByteArrayOutputStream();
+            ByteArrayOutputStream key = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan            
             try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
                 int i = 0;
@@ -578,7 +581,7 @@ public final class RecordSerializer {
             byte[] fieldValue = serialize(v, c.type);
             return new Bytes(fieldValue);
         } else {
-            ByteArrayOutputStream key = new ByteArrayOutputStream();
+            ByteArrayOutputStream key = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan
             try (ExtendedDataOutputStream doo_key = new ExtendedDataOutputStream(key);) {
                 int i = 0;
@@ -671,9 +674,9 @@ public final class RecordSerializer {
     public static Bytes serializeValue(Map<String, Object> record, Table table) {
         return new Bytes(serializeValueRaw(record, table));
     }
-    
+        
     public static byte[] serializeValueRaw(Map<String, Object> record, Table table) {
-        ByteArrayOutputStream value = new ByteArrayOutputStream();
+        ByteArrayOutputStream value = new ByteArrayOutputStream(INITIAL_BUFFER_SIZE);
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(value);) {
             for (Column c : table.columns) {
                 Object v = record.get(c.name);
