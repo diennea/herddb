@@ -128,7 +128,8 @@ public final class RecordSerializer {
             case ColumnTypes.LONG:
                 return dii.readLong();
             case ColumnTypes.STRING:
-                return new RawString(dii.readArray());
+                byte[] array = dii.readArray();
+                return array == null ? null : new RawString(array);
             case ColumnTypes.TIMESTAMP:
                 return new java.sql.Timestamp(dii.readLong());
             case ColumnTypes.NULL:
@@ -522,6 +523,9 @@ public final class RecordSerializer {
     }
 
     public static Bytes serializePrimaryKey(Map<String, Object> record, ColumnsList table, String[] columns) {        
+        return new Bytes(serializePrimaryKeyRaw(record, table, columns));
+    }
+    public static byte[] serializePrimaryKeyRaw(Map<String, Object> record, ColumnsList table, String[] columns) {        
         String[] primaryKey = table.getPrimaryKey();
         if (primaryKey.length == 1) {
             String pkColumn = primaryKey[0];
@@ -533,8 +537,7 @@ public final class RecordSerializer {
             if (v == null) {
                 throw new IllegalArgumentException("key field " + pkColumn + " cannot be null. Record data: " + record);
             }
-            byte[] fieldValue = serialize(v, c.type);
-            return new Bytes(fieldValue);
+            return serialize(v, c.type);            
         } else {
             ByteArrayOutputStream key = new ByteArrayOutputStream();
             // beware that we can serialize even only a part of the PK, for instance of a prefix index scan            
@@ -556,7 +559,7 @@ public final class RecordSerializer {
             } catch (IOException err) {
                 throw new RuntimeException(err);
             }
-            return new Bytes(key.toByteArray());
+            return key.toByteArray();
         }
     }
 
