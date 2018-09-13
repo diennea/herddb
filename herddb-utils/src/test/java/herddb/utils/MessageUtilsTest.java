@@ -19,16 +19,18 @@
  */
 package herddb.utils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.nio.Buffer;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.Test;
+
 import herddb.network.MessageBuilder;
 import herddb.proto.flatbuf.Message;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
-import java.util.ArrayList;
-import java.util.List;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import org.junit.Test;
 
 /**
  *
@@ -117,11 +119,12 @@ public class MessageUtilsTest {
             herddb.proto.flatbuf.Request request = message.request();
             assertEquals(4, request.rawDataChunkLength());
             String readTableName = MessageUtils.readString(request.tableNameAsByteBuffer());
-            int pos = request.getByteBuffer().position();
-            int limit = request.getByteBuffer().limit();
+            Buffer byteBuffer = request.getByteBuffer();
+            int pos = byteBuffer.position();
+            int limit = byteBuffer.limit();
             String readTableName2 = MessageUtils.readString(request.tableNameInByteBuffer(request.getByteBuffer()));
-            request.getByteBuffer().position(pos);
-            request.getByteBuffer().limit(limit);
+            byteBuffer.position(pos);
+            byteBuffer.limit(limit);
             System.out.println("readTableName:" + readTableName);
             System.out.println("readTableName2:" + readTableName2);
 

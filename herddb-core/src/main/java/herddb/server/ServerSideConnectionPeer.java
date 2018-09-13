@@ -19,6 +19,8 @@
  */
 package herddb.server;
 
+import java.nio.Buffer;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -78,7 +80,6 @@ import herddb.utils.MessageUtils;
 import herddb.utils.RawString;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
-import java.nio.ByteBuffer;
 
 /**
  * Handles a client Connection
@@ -382,23 +383,23 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     private void handleOpenScanner(Request message, Channel _channel) {
-        
+
         long txId = message.tx();
         ByteBuffer byteBuffer = message.getByteBuffer();
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString query = MessageUtils.readRawString(message.queryInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
-                
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
+
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
-        
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
+
         RawString scannerId = MessageUtils.readRawString(message.scannerIdInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
-        
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
+
         int fetchSize = message.fetchSize();
         if (fetchSize <= 0) {
             fetchSize = 10;
@@ -462,8 +463,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString scannerId = MessageUtils.readRawString(message.scannerIdInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
         int fetchSize = message.fetchSize();
         if (fetchSize <= 0) {
             fetchSize = 10;
@@ -498,8 +499,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString scannerId = MessageUtils.readRawString(message.scannerIdInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
         LOGGER.log(Level.SEVERE, "remove scanner " + scannerId + " as requested by client");
         ServerSideScannerPeer removed = scanners.remove(scannerId);
         if (removed != null) {
@@ -533,12 +534,12 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString query = MessageUtils.readRawString(message.queryInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
-                
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
+
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
         boolean returnValues = message.returnValues();
 
         int numStatements = message.batchParamsLength();
@@ -609,13 +610,13 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString query = MessageUtils.readRawString(message.queryInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
-        
-        
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
+
+
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
         boolean returnValues = message.returnValues();
 
         List<Object> parameters = MessageUtils.decodeAnyValueList(message.params());
@@ -709,8 +710,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
-        byteBuffer.position(position);
-        byteBuffer.limit(limit);
+        ((Buffer) byteBuffer).position(position);
+        ((Buffer) byteBuffer).limit(limit);
         try {
             TransactionContext transactionContext = new TransactionContext(txId);
             Statement statement;
@@ -731,7 +732,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
             if (statement == null) {
                 _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown command type " + type)));
             } else {
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);                
+//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
                 StatementExecutionResult result = server
                         .getManager()
                         .executeStatement(statement, new StatementEvaluationContext(), transactionContext);
