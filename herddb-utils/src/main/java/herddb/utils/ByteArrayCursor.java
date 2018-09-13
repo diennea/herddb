@@ -305,7 +305,7 @@ public class ByteArrayCursor implements Closeable {
     @SuppressFBWarnings(value = "SR_NOT_CHECKED")
     public void skipArray() throws IOException {
         int len = readVInt();
-        if (len == 0) {
+        if (len <= 0) {
             return;
         }
         skip(len);
@@ -332,6 +332,9 @@ public class ByteArrayCursor implements Closeable {
     }
 
     public void skip(int pos) throws IOException {
+        if (pos < 0) {
+            throw new IOException("corrupted data");
+        }
         checkReadable(pos);
         position += pos;
     }

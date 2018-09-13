@@ -133,7 +133,7 @@ public class SQLRecordKeyFunction extends RecordFunction {
         }
         try {
             // maybe this is only a partial primary key
-            byte[] result = RecordSerializer.serializePrimaryKey(pk, table, pkColumnNames).data;
+            byte[] result = RecordSerializer.serializePrimaryKeyRaw(pk, table, pkColumnNames);
             if (isConstant) {
                 statementEvaluationContext.cacheConstant(this, result);
             }
