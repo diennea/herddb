@@ -84,13 +84,12 @@ public class PreferLocalBookiePlacementPolicy implements EnsemblePlacementPolicy
     }
 
     @Override
-    public DistributionSchedule.WriteSet reorderReadSequence(ArrayList<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo,
-            DistributionSchedule.WriteSet writeSet) {
+    public DistributionSchedule.WriteSet reorderReadSequence(List<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
         return writeSet;
     }
 
     @Override
-    public DistributionSchedule.WriteSet reorderReadLACSequence(ArrayList<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
+    public DistributionSchedule.WriteSet reorderReadLACSequence(List<BookieSocketAddress> ensemble, BookiesHealthInfo bookiesHealthInfo, DistributionSchedule.WriteSet writeSet) {
         return writeSet;
     }
 

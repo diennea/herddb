@@ -31,6 +31,8 @@ import java.io.OutputStream;
  */
 public final class ExtendedDataOutputStream extends DataOutputStream {
 
+    public static final ExtendedDataOutputStream NULL = new ExtendedDataOutputStream(NullOutputStream.INSTANCE);
+    
     public ExtendedDataOutputStream(OutputStream out) {
         super(out);
     }

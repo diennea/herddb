@@ -28,6 +28,10 @@ import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.SystemProperties;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufOutputStream;
+import io.netty.buffer.PooledByteBufAllocator;
 
 /**
  * An entry on the log
@@ -75,6 +79,19 @@ public class LogEntry {
         try (ExtendedDataOutputStream doo = new ExtendedDataOutputStream(out)) {
             serialize(doo);
             return out.toByteArray();
+        } catch (IOException err) {
+            throw new RuntimeException(err);
+        }
+    }
+
+    private static final int DEFAULT_BUFFER_SIZE = SystemProperties.getIntSystemProperty("herddb.log.initentrysize", 2024);
+    
+    public ByteBuf serializeAsByteBuf() {
+        ByteBuf buffer = PooledByteBufAllocator.DEFAULT.directBuffer(DEFAULT_BUFFER_SIZE);
+        try (ExtendedDataOutputStream doo
+                = new ExtendedDataOutputStream(new ByteBufOutputStream(buffer))) {
+            serialize(doo);
+            return buffer;
         } catch (IOException err) {
             throw new RuntimeException(err);
         }
