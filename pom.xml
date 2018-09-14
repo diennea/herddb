@@ -19,7 +19,8 @@
         <url>https://github.com/diennea/herddb.git</url>        
         <connection>scm:git:https://github.com/diennea/herddb.git</connection>
         <developerConnection>scm:git:https://github.com/diennea/herddb.git</developerConnection>
-    </scm>
+      <tag>release/0.7</tag>
+  </scm>
     <developers>
         <developer>
             <id>eolivelli</id>
