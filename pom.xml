@@ -17,8 +17,8 @@
     </licenses>    
     <scm>
         <url>https://github.com/diennea/herddb.git</url>        
-        <connection>scm:git:git@github.com:diennea/herddb.git</connection>
-        <developerConnection>scm:git:git@github.com:diennea/herddb.git</developerConnection>
+        <connection>scm:git:https://github.com/diennea/herddb.git</connection>
+        <developerConnection>scm:git:https://github.com/diennea/herddb.git</developerConnection>
     </scm>
     <developers>
         <developer>
