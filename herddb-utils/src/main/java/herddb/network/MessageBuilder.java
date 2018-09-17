@@ -570,7 +570,7 @@ public abstract class MessageBuilder {
             if (recordOffset >= 0) {
                 Response.addNewValue(builder, recordOffset);
             }
-            Response.addType(builder, MessageType.TYPE_SASL_TOKEN_SERVER_RESPONSE);
+            Response.addType(builder, MessageType.TYPE_EXECUTE_STATEMENT_RESULT);
             return finishAsResponse(builder);
         }
     }
