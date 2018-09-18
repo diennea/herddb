@@ -19,6 +19,7 @@
  */
 package herddb.model;
 
+import com.google.common.collect.ImmutableSet;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,11 +87,11 @@ public class Table implements ColumnsList, BindableTableScanColumnNameResolver {
             primaryKeyProjection[i] = findPositionInArray(cname, primaryKey);
             i++;
         }
-        this.primaryKeyColumns = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(primaryKey)));
+        this.primaryKeyColumns = ImmutableSet.<String>builder().addAll(Arrays.asList(primaryKey)).build();
 
     }
 
-    private static Column[] reorderColumnsPrimaryKeyFirst(Column[] columns, String[] primaryKey) throws IllegalStateException, IllegalArgumentException {        
+    private static Column[] reorderColumnsPrimaryKeyFirst(Column[] columns, String[] primaryKey) throws IllegalStateException, IllegalArgumentException {
         Column[] _columns = new Column[columns.length];
         int pos = 0;
         Set<String> pkCols = new HashSet<>();

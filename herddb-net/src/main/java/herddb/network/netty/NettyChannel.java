@@ -60,7 +60,6 @@ public class NettyChannel extends Channel {
     private boolean ioErrors = false;
     private final long id = idGenerator.incrementAndGet();
     private final String remoteAddress;
-    private long lastAutoFlush;
     private final AtomicInteger unflushedWrites = new AtomicInteger();
 
     @Override
