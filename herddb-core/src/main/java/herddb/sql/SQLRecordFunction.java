@@ -62,7 +62,7 @@ public class SQLRecordFunction extends RecordFunction {
     @Override
     public byte[] computeNewValue(Record previous, StatementEvaluationContext context, TableContext tableContext) throws StatementExecutionException {
         try {
-            Map<String, Object> res = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>();
+            Map<String, Object> res = previous != null ? new HashMap<>(previous.toBean(table)) : new HashMap<>(table.columns.length);
             DataAccessor bean = previous != null ? previous.getDataAccessor(table) : DataAccessor.NULL;
             final int size = columns.size();
             for (int i = 0; i < size; i++) {

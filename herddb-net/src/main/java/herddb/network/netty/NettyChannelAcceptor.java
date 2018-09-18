@@ -168,6 +168,15 @@ public class NettyChannelAcceptor implements AutoCloseable {
     private Channel channel;
     private Channel local_channel;
 
+    private static final ThreadFactory threadFactory = new ThreadFactory() {
+        private final AtomicLong count = new AtomicLong();
+
+        @Override
+        public Thread newThread(Runnable r) {
+            return new FastThreadLocalThread(r, "herddb-srvcall-" + count.incrementAndGet());
+        }
+    };
+
     public NettyChannelAcceptor(String host, int port, boolean ssl) {
         this.host = host;
         this.port = port;
@@ -196,17 +205,12 @@ public class NettyChannelAcceptor implements AutoCloseable {
             }
 
         }
-        if (callbackThreads == 0) {
-            callbackExecutor = Executors.newCachedThreadPool();
-        } else {
-            callbackExecutor = Executors.newFixedThreadPool(callbackThreads, new ThreadFactory() {
-                private final AtomicLong count = new AtomicLong();
 
-                @Override
-                public Thread newThread(Runnable r) {
-                    return new FastThreadLocalThread(r, "herddb-callbacks-" + count.incrementAndGet());
-                }
-            });
+        if (callbackThreads == 0) {
+
+            callbackExecutor = Executors.newCachedThreadPool(threadFactory);
+        } else {
+            callbackExecutor = Executors.newFixedThreadPool(callbackThreads, threadFactory);
         }
         InetSocketAddress address = new InetSocketAddress(host, port);
         LOGGER.log(Level.SEVERE, "Starting HerdDB network server at {0}:{1}", new Object[]{host, port + ""});
