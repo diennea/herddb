@@ -65,12 +65,11 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public Long put(Bytes key, Long currentPage) {
+    public void put(Bytes key, Long currentPage) {
         Long res = map.put(key, currentPage);
         if (res == null) {
             keyAdded(key);
         }
-        return res;
     }
 
     private void keyAdded(Bytes key) {
@@ -177,7 +176,7 @@ public class ConcurrentMapKeyToPageIndex implements KeyToPageIndex {
                 predicate = (Map.Entry<Bytes, Long> entry) -> {
                     byte[] datum = entry.getKey().data;
                     return Bytes.compare(datum, refmaxvalue) <= 0
-                        && Bytes.compare(datum, refminvalue) >= 0;
+                            && Bytes.compare(datum, refminvalue) >= 0;
                 };
             } else {
                 predicate = (Map.Entry<Bytes, Long> entry) -> {

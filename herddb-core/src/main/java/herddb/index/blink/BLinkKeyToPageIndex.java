@@ -119,8 +119,8 @@ public class BLinkKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public Long put(Bytes key, Long currentPage) {
-        return getTree().insert(key, currentPage);
+    public void put(Bytes key, Long currentPage) {
+        getTree().insert(key, currentPage);
     }
 
     @Override
