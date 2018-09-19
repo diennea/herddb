@@ -281,7 +281,7 @@ public class SimpleTransactionTest extends BaseTestcase {
 
         Bytes key = Bytes.from_int(1234);
         Bytes value = Bytes.from_long(8888);
-        
+
         Table transacted_table = Table
                 .builder()
                 .tablespace(tableSpace)
