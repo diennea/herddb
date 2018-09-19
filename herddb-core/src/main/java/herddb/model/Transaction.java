@@ -45,8 +45,8 @@ import herddb.utils.VisibleByteArrayOutputStream;
 import java.util.Collection;
 
 /**
- * A Transaction, that is a series of Statement which must be executed with ACID semantics on a set of tables of the
- * same TableSet
+ * A Transaction, that is a series of Statement which must be executed with ACID
+ * semantics on a set of tables of the same TableSet
  *
  * @author enrico.olivelli
  */
@@ -99,13 +99,13 @@ public class Transaction {
             return;
         }
         if (newTables
-            == null) {
+                == null) {
             newTables = new HashMap<>();
         }
 
         newTables.put(table.name, table);
         if (droppedTables
-            == null) {
+                == null) {
             droppedTables = new HashSet<>();
         }
 
@@ -143,17 +143,25 @@ public class Transaction {
         if (updateLastSequenceNumber(writeResult)) {
             return;
         }
+
+        Set<Bytes> deleted = deletedRecords.get(tableName);
+        if (deleted != null) {
+            boolean removed = deleted.remove(key);
+            if (removed) {
+                // special pattern:
+                // DELETE - INSERT
+                // it can be converted to an UPDATE in memory
+                registerRecordUpdate(tableName, key, value, writeResult);
+                return;
+            }
+        }
+
         Map<Bytes, Record> ll = newRecords.get(tableName);
         if (ll == null) {
             ll = new HashMap<>();
             newRecords.put(tableName, ll);
         }
         ll.put(key, new Record(key, value));
-
-        Set<Bytes> deleted = deletedRecords.get(tableName);
-        if (deleted != null) {
-            deleted.remove(key);
-        }
 
     }
 
@@ -203,7 +211,7 @@ public class Transaction {
 
     public synchronized void registerDeleteOnTable(String tableName, Bytes key, CommitLogResult writeResult) {
         if (!writeResult.deferred
-            && lastSequenceNumber != null && lastSequenceNumber.after(writeResult.getLogSequenceNumber())) {
+                && lastSequenceNumber != null && lastSequenceNumber.after(writeResult.getLogSequenceNumber())) {
             return;
         }
         registerRecordUpdate(tableName, key, null, writeResult);
@@ -486,11 +494,11 @@ public class Transaction {
     public boolean isOnTable(String name) {
         // best effort guess
         return locks.containsKey(name)
-            || (newIndexes != null && newIndexes.containsKey(name))
-            || newRecords.containsKey(name)
-            || deletedRecords.containsKey(name)
-            || (droppedTables != null && droppedTables.contains(name))
-            || (newTables != null && newTables.containsKey(name));
+                || (newIndexes != null && newIndexes.containsKey(name))
+                || newRecords.containsKey(name)
+                || deletedRecords.containsKey(name)
+                || (droppedTables != null && droppedTables.contains(name))
+                || (newTables != null && newTables.containsKey(name));
     }
 
     public void synch() throws LogNotAvailableException {
