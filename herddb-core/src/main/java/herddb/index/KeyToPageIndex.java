@@ -56,7 +56,9 @@ public interface KeyToPageIndex extends AutoCloseable {
     public List<PostCheckpointAction> checkpoint(LogSequenceNumber sequenceNumber, boolean pin) throws DataStorageManagerException;
 
     /**
-     * Unpin a previously pinned checkpont (see {@link #checkpoint(LogSequenceNumber, boolean)})
+     * Unpin a previously pinned checkpont (see
+     * {@link #checkpoint(LogSequenceNumber, boolean)})
+     *
      * @throws DataStorageManagerException
      */
     public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
@@ -66,7 +68,7 @@ public interface KeyToPageIndex extends AutoCloseable {
     public Stream<Map.Entry<Bytes, Long>> scanner(IndexOperation operation, StatementEvaluationContext context,
             TableContext tableContext, AbstractIndexManager index) throws DataStorageManagerException, StatementExecutionException;
 
-    public Long put(Bytes key, Long currentPage);
+    public void put(Bytes key, Long currentPage);
 
     public boolean containsKey(Bytes key);
 
