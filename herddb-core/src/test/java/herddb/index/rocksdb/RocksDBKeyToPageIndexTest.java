@@ -46,19 +46,19 @@ public class RocksDBKeyToPageIndexTest {
     public void simple() throws Exception {
         try (RocksDBKeyToPageIndex index = new RocksDBKeyToPageIndex(tmpDir.newFolder(), "table")) {
             index.start(LogSequenceNumber.START_OF_TIME);
-            assertNull(index.put(FOO, 10L));
-            assertEquals(10L, index.put(FOO, 12L).longValue());
+            index.put(FOO, 10L);
+            index.put(FOO, 12L);
             assertEquals(12L, index.get(FOO).longValue());
             assertEquals(12L, index.remove(FOO).longValue());
             assertNull(index.remove(FOO));
             assertNull(index.get(FOO));
-            assertNull(index.put(FOO, 10L));
+            index.put(FOO, 10L);
             assertEquals(10L, index.get(FOO).longValue());
             index.truncate();
             assertNull(index.get(FOO));
             index.truncate();
-            assertNull(index.put(FOO, 13L));
-            assertNull(index.put(FOO2, 14L));
+            index.put(FOO, 13L);
+            index.put(FOO2, 14L);
             assertEquals(13L, index.get(FOO).longValue());
             assertEquals(14L, index.get(FOO2).longValue());
             index.truncate();
@@ -73,8 +73,9 @@ public class RocksDBKeyToPageIndexTest {
         File folder = tmpDir.newFolder();
         try (RocksDBKeyToPageIndex index = new RocksDBKeyToPageIndex(folder, "table")) {
             index.start(LogSequenceNumber.START_OF_TIME);
-            assertNull(index.put(FOO, 10L));
-            assertEquals(10L, index.put(FOO, 12L).longValue());
+            index.put(FOO, 10L);
+            assertEquals(10L, index.get(FOO).longValue());
+            index.put(FOO, 12L);
             assertEquals(12L, index.get(FOO).longValue());
         }
 
@@ -93,11 +94,11 @@ public class RocksDBKeyToPageIndexTest {
 
         try (RocksDBKeyToPageIndex index = new RocksDBKeyToPageIndex(folder, "table")) {
             index.start(LogSequenceNumber.START_OF_TIME);
-            assertNull(index.put(FOO, 10L));
-            assertEquals(10L, index.put(FOO, 12L).longValue());
+            index.put(FOO, 10L);
+            index.put(FOO, 12L);
             assertEquals(12L, index.get(FOO).longValue());
             index.checkpoint(n, false);
-            assertEquals(12L, index.put(FOO, 13L).longValue());
+            index.put(FOO, 13L);
 
         }
 

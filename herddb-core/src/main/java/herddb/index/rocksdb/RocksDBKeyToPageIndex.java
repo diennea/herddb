@@ -290,11 +290,9 @@ public class RocksDBKeyToPageIndex implements KeyToPageIndex {
     }
 
     @Override
-    public Long put(Bytes key, Long currentPage) {
+    public void put(Bytes key, Long currentPage) {
         try {
-            Long prev = get(key);
             db.put(writeOptions, key.data, Bytes.longToByteArray(currentPage));
-            return prev;
         } catch (RocksDBException ex) {
             throw new HerdDBInternalException(ex);
         }
