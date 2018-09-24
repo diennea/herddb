@@ -29,9 +29,9 @@ public final class Response extends Table {
   public ByteBuffer stackTraceInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 14, 1); }
   public boolean notLeader() { int o = __offset(16); return o != 0 ? 0!=bb.get(o + bb_pos) : false; }
   public boolean last() { int o = __offset(18); return o != 0 ? 0!=bb.get(o + bb_pos) : false; }
-  public ColumnDefinition columnNames(int j) { return columnNames(new ColumnDefinition(), j); }
-  public ColumnDefinition columnNames(ColumnDefinition obj, int j) { int o = __offset(20); return o != 0 ? obj.__assign(__indirect(__vector(o) + j * 4), bb) : null; }
-  public int columnNamesLength() { int o = __offset(20); return o != 0 ? __vector_len(o) : 0; }
+  public String columnNames() { int o = __offset(20); return o != 0 ? __string(o + bb_pos) : null; }
+  public ByteBuffer columnNamesAsByteBuffer() { return __vector_as_bytebuffer(20, 1); }
+  public ByteBuffer columnNamesInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 20, 1); }
   public Row rows(int j) { return rows(new Row(), j); }
   public Row rows(Row obj, int j) { int o = __offset(22); return o != 0 ? obj.__assign(__indirect(__vector(o) + j * 4), bb) : null; }
   public int rowsLength() { int o = __offset(22); return o != 0 ? __vector_len(o) : 0; }
@@ -91,8 +91,6 @@ public final class Response extends Table {
   public static void addNotLeader(FlatBufferBuilder builder, boolean notLeader) { builder.addBoolean(6, notLeader, false); }
   public static void addLast(FlatBufferBuilder builder, boolean last) { builder.addBoolean(7, last, false); }
   public static void addColumnNames(FlatBufferBuilder builder, int columnNamesOffset) { builder.addOffset(8, columnNamesOffset, 0); }
-  public static int createColumnNamesVector(FlatBufferBuilder builder, int[] data) { builder.startVector(4, data.length, 4); for (int i = data.length - 1; i >= 0; i--) builder.addOffset(data[i]); return builder.endVector(); }
-  public static void startColumnNamesVector(FlatBufferBuilder builder, int numElems) { builder.startVector(4, numElems, 4); }
   public static void addRows(FlatBufferBuilder builder, int rowsOffset) { builder.addOffset(9, rowsOffset, 0); }
   public static int createRowsVector(FlatBufferBuilder builder, int[] data) { builder.startVector(4, data.length, 4); for (int i = data.length - 1; i >= 0; i--) builder.addOffset(data[i]); return builder.endVector(); }
   public static void startRowsVector(FlatBufferBuilder builder, int numElems) { builder.startVector(4, numElems, 4); }

@@ -311,18 +311,18 @@ public abstract class MessageBuilder {
     }
 
     private static int encodeColumDefinitionsList(String[] columnNames, FlatBufferBuilder builder) throws IllegalArgumentException {
-        int[] columnsOffsets = new int[columnNames.length];
+        StringBuilder res = new StringBuilder();
         int pIndex = 0;
 
         for (String colName : columnNames) {
-            int stringOffset = addString(builder, colName);
-            StringValue.startStringValue(builder);
-            StringValue.addValue(builder, stringOffset);
-            int end = StringValue.endStringValue(builder);
-            columnsOffsets[pIndex++] = end;
+            if (pIndex != 0) {
+                res.append(',');
+            }
+            res.append(colName);
+            pIndex++;
         }
-        return Response.createColumnNamesVector(builder, columnsOffsets);
-    }
+        return builder.createString(res.toString());
+    }    
 
     public static ByteBuf TX_COMMAND(long id, String tableSpace, int type, long tx) {
         try (ByteBufFlatBufferBuilder builder = newFlatBufferBuilder();) {

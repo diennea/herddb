@@ -35,7 +35,8 @@ table Response {
 
   notLeader :bool;
   last: bool;
-  columnNames: [ColumnDefinition];
+  // comma separated list (it is better that a vector in this case)
+  columnNames: string;
   rows: [Row];
   data: [byte];
 
