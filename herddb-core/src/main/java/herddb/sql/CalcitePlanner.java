@@ -62,6 +62,7 @@ import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.RelCollation;
+import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -409,7 +410,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private static List<RelTraitDef> TRAITS = Collections.unmodifiableList(java.util.Arrays.asList(ConventionTraitDef.INSTANCE));
+    private static final List<RelTraitDef> TRAITS = Collections.unmodifiableList(java.util.Arrays.asList(ConventionTraitDef.INSTANCE,
+            RelCollationTraitDef.INSTANCE));
 
     private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
             SqlParseException, ValidationException, MetadataStorageManagerException {
@@ -708,7 +710,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private PlannerOp planEnumerableTableScan(EnumerableTableScan scan, RelDataType rowType) {
+    private PlannerOp planEnumerableTableScan(EnumerableTableScan scan, RelDataType rowType) {        
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
         final TableImpl tableImpl
                 = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class

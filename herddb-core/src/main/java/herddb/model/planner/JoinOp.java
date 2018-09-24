@@ -128,4 +128,11 @@ public class JoinOp implements PlannerOp {
                         b != null ? b : nullsOnRight);
     }
 
+    @Override
+    public String toString() {
+        return "JoinOp{" + "leftKeys=" + Arrays.toString(leftKeys) + ", left=" + left + ", rightKeys=" + Arrays.toString(rightKeys) + ", right=" + right + ", fieldNames=" + Arrays.toString(fieldNames) + ", columns=" + Arrays.toString(columns) + ", generateNullsOnLeft=" + generateNullsOnLeft + ", generateNullsOnRight=" + generateNullsOnRight + ", mergeJoin=" + mergeJoin + '}';
+    }
+    
+    
+
 }
