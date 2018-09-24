@@ -49,20 +49,8 @@ public class RecordsBatch {
     public RecordsBatch(MessageWrapper replyWrapper) {
         this.response = replyWrapper.getResponse();
         this.numRecords = response.rowsLength();
-        this.columnNames = new String[response.columnNamesLength()];
+        this.columnNames = response.columnNames().split(",");
         this.message = replyWrapper;
-        for (int i = 0; i < columnNames.length; i++) {
-            ColumnDefinition columnNameDef = response.columnNames(i);
-            ByteBuffer byteBuffer = columnNameDef.getByteBuffer();
-            int position = byteBuffer.position();
-            int limit = byteBuffer.limit();
-            String columnName = MessageUtils
-                    .readString(columnNameDef.nameInByteBuffer(columnNameDef.getByteBuffer()));
-            columnNames[i] = columnName;
-            ((Buffer) byteBuffer).position(position);
-            ((Buffer) byteBuffer).limit(limit);
-        }
-
         this.currentRecordIndex = -1;
         if (numRecords == 0) {
             finished = true;
