@@ -410,8 +410,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private static final List<RelTraitDef> TRAITS = Collections.unmodifiableList(java.util.Arrays.asList(ConventionTraitDef.INSTANCE,
-            RelCollationTraitDef.INSTANCE));
+    private static final List<RelTraitDef> TRAITS = Collections.unmodifiableList(java.util.Arrays.asList(ConventionTraitDef.INSTANCE));
 
     private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
             SqlParseException, ValidationException, MetadataStorageManagerException {
@@ -885,8 +884,11 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
+        // without adding RelCollationTraitDef.INSTANCE the planner
+        // will output merge joins with unsorted inputs
+        final boolean mergeJoin = false;
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, true);
+                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, mergeJoin);
     }
 
     private Projection buildProjection(
