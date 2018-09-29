@@ -62,7 +62,6 @@ import org.apache.calcite.plan.RelTraitDef;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.prepare.Prepare;
 import org.apache.calcite.rel.RelCollation;
-import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -160,6 +159,8 @@ import herddb.sql.expressions.TypedJdbcParameterExpression;
 import herddb.utils.SQLUtils;
 import herddb.utils.SystemProperties;
 import net.sf.jsqlparser.statement.Statement;
+import org.apache.calcite.rel.RelCollationTraitDef;
+import org.apache.calcite.rel.core.Sort;
 
 /**
  * SQL Planner based upon Apache Calcite
@@ -410,7 +411,9 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private static final List<RelTraitDef> TRAITS = Collections.unmodifiableList(java.util.Arrays.asList(ConventionTraitDef.INSTANCE));
+    private static final List<RelTraitDef> TRAITS = Collections
+            .unmodifiableList(java.util.Arrays.asList(ConventionTraitDef.INSTANCE,
+                    RelCollationTraitDef.INSTANCE));
 
     private PlannerResult runPlanner(String defaultTableSpace, String query) throws RelConversionException,
             SqlParseException, ValidationException, MetadataStorageManagerException {
@@ -448,7 +451,15 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         RelOptCluster cluster = logicalPlan.getCluster();
         final RelOptPlanner optPlanner = cluster.getPlanner();
         RelTraitSet desiredTraits
-                = cluster.traitSet().replace(EnumerableConvention.INSTANCE);
+                = cluster.traitSet()
+                        .replace(EnumerableConvention.INSTANCE);
+        final RelCollation collation
+                = logicalPlan instanceof Sort
+                        ? ((Sort) logicalPlan).collation
+                        : null;
+        if (collation != null) {
+            desiredTraits = desiredTraits.replace(collation);
+        }
         final RelNode newRoot = optPlanner.changeTraits(logicalPlan, desiredTraits);
         optPlanner.setRoot(newRoot);
         RelNode bestExp = optPlanner.findBestExp();
@@ -457,9 +468,6 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
                 SqlExplainLevel.ALL_ATTRIBUTES)});
         }
-//        System.out.println("Query: "+query+"\n"+
-//                RelOptUtil.dumpPlan("-- Best  Plan", bestExp, SqlExplainFormat.TEXT,
-//                SqlExplainLevel.ALL_ATTRIBUTES));
         return new PlannerResult(bestExp, originalRowType, logicalPlan);
     }
 
@@ -709,7 +717,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
 
     }
 
-    private PlannerOp planEnumerableTableScan(EnumerableTableScan scan, RelDataType rowType) {        
+    private PlannerOp planEnumerableTableScan(EnumerableTableScan scan, RelDataType rowType) {
         final String tableSpace = scan.getTable().getQualifiedName().get(0);
         final TableImpl tableImpl
                 = (TableImpl) scan.getTable().unwrap(org.apache.calcite.schema.Table.class
@@ -884,11 +892,8 @@ public class CalcitePlanner implements AbstractSQLPlanner {
             fieldNames[i] = col.name;
             columns[i++] = col;
         }
-        // without adding RelCollationTraitDef.INSTANCE the planner
-        // will output merge joins with unsorted inputs
-        final boolean mergeJoin = false;
         return new JoinOp(fieldNames, columns,
-                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, mergeJoin);
+                leftKeys, left, rightKeys, right, generateNullsOnLeft, generateNullsOnRight, true);
     }
 
     private Projection buildProjection(
