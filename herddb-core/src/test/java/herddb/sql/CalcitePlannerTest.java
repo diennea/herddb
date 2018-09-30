@@ -380,6 +380,56 @@ public class CalcitePlannerTest {
                 ))));
 
             }
+            
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)", Arrays.asList("mykey6", 1236), TransactionContext.NO_TRANSACTION);
+            execute(manager, "INSERT INTO tblspace1.tsql2 (k2,n2) values(?,?)", Arrays.asList("mykey6a", 1236), TransactionContext.NO_TRANSACTION);
+            
+            // sort not as top level node
+            {
+                List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
+                        + "                     where n2 in (select n1 from tblspace1.tsql"
+                        + "                                     order by n1 desc limit 1)"
+                        + " ", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+                    System.out.println("tuple -: " + t.toMap());
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("k2", t.getFieldNames()[0]);
+                    assertEquals("n2", t.getFieldNames()[1]);
+                }
+                assertEquals(1, tuples.size());
+
+                assertTrue(
+                        tuples.stream().allMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "mykey6a", "n2", 1236
+                ))));
+                
+
+            }
+            {
+                List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
+                        + "                     where n2 in (select n1 from tblspace1.tsql"
+                        + "                                     order by n1 asc limit 1)"
+                        + " ", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+                    System.out.println("tuple -: " + t.toMap());
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("k2", t.getFieldNames()[0]);
+                    assertEquals("n2", t.getFieldNames()[1]);
+                }
+                assertEquals(2, tuples.size());
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "mykey", "n2", 1234
+                ))));
+                
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "mykey2", "n2", 1234
+                ))));
+
+            }
+            
         }
     }
 
