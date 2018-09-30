@@ -50,6 +50,7 @@ import herddb.core.PostCheckpointAction;
 import herddb.core.RecordSetFactory;
 import herddb.index.KeyToPageIndex;
 import herddb.index.blink.BLinkKeyToPageIndex;
+import herddb.index.rocksdb.RocksDBKeyToPageIndex;
 import herddb.log.LogSequenceNumber;
 import herddb.model.Index;
 import herddb.model.Record;
@@ -69,7 +70,9 @@ import herddb.utils.FileUtils;
 import herddb.utils.ManagedFile;
 import herddb.utils.SimpleBufferedOutputStream;
 import herddb.utils.SimpleByteArrayInputStream;
+import herddb.utils.SystemProperties;
 import herddb.utils.XXHash64Utils;
+import java.io.File;
 import java.util.concurrent.TimeUnit;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.OpStatsLogger;
@@ -616,7 +619,8 @@ public class FileDataStorageManager extends DataStorageManager {
      *
      * @param file path from which lookup parent
      * @return parent path
-     * @throws DataStorageManagerException if no parent cannot be resolved (even checking absolute Path)
+     * @throws DataStorageManagerException if no parent cannot be resolved (even
+     * checking absolute Path)
      */
     private static Path getParent(Path file) throws DataStorageManagerException {
 
@@ -1195,12 +1199,19 @@ public class FileDataStorageManager extends DataStorageManager {
             throw new IOException("name " + f.toAbsolutePath() + " is not a directory");
         }
     }
+    private static boolean USE_ROCKSDB = SystemProperties.getBooleanSystemProperty("herddb.pk.userocksdb", true);
 
     @Override
     public KeyToPageIndex createKeyToPageMap(String tablespace, String name, MemoryManager memoryManager) throws DataStorageManagerException {
-
-        return new BLinkKeyToPageIndex(tablespace, name, memoryManager, this);
-
+        if (USE_ROCKSDB) {
+            return new RocksDBKeyToPageIndex(
+                    new File(this.baseDirectory.toFile(),
+                            tablespace + "." + name + "_pk.rocksdb"),
+                    tablespace + "." + name
+            );
+        } else {
+            return new BLinkKeyToPageIndex(tablespace, name, memoryManager, this);
+        }
 //        return new ConcurrentMapKeyToPageIndex(new ConcurrentHashMap<>());
     }
 

@@ -472,7 +472,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } else {
             LOGGER.log(Level.SEVERE, "loading table {0}, uuid {1}", new Object[]{table.name, table.uuid});
             TableStatus tableStatus = dataStorageManager.getLatestTableStatus(tableSpaceUUID, table.uuid);
-            LOGGER.log(Level.SEVERE, "recovery table at " + tableStatus.sequenceNumber);
+            LOGGER.log(Level.SEVERE, "recovery table "+table.name+" at " + tableStatus.sequenceNumber);
             nextPrimaryKeyValue.set(Bytes.toLong(tableStatus.nextPrimaryKeyValue, 0));
             nextPageId = tableStatus.nextPageId;
             bootSequenceNumber = tableStatus.sequenceNumber;
@@ -1155,6 +1155,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }
         }
+        
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records

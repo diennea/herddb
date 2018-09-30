@@ -1504,7 +1504,7 @@ public class TableSpaceManager {
             try {
                 apply(new CommitLogResult(t, false), u, true);
             } catch (DDLException | DataStorageManagerException err) {
-                throw new RuntimeException(err);
+                throw new HerdDBInternalException("Error recoverying log entry at "+t+": "+err, err);
             }
         }
     }
