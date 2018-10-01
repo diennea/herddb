@@ -71,6 +71,9 @@ import herddb.model.planner.UpdateOp;
 import herddb.utils.DataAccessor;
 import herddb.utils.MapUtils;
 import herddb.utils.RawString;
+import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.util.trace.CalciteTrace;
+import org.slf4j.LoggerFactory;
 
 public class CalcitePlannerTest {
 
@@ -87,6 +90,7 @@ public class CalcitePlannerTest {
 
             execute(manager, "CREATE TABLE tblspace1.tsql (k1 string primary key,n1 int,s1 string)", Collections.emptyList());
             execute(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)", Arrays.asList("mykey", 1234), TransactionContext.NO_TRANSACTION);
+
             try (DataScanner scan = scan(manager, "SELECT n1,k1 FROM tblspace1.tsql where k1='mykey'", Collections.emptyList())) {
                 assertEquals(1, scan.consume().size());
             }
@@ -103,6 +107,9 @@ public class CalcitePlannerTest {
             assertInstanceOf(plan(manager, "delete from tblspace1.tsql where n1 in (select b.n1*2 from tblspace1.tsql b)"), DeleteOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)"), SimpleInsertOp.class);
             assertInstanceOf(plan(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?),(?,?)"), InsertOp.class);
+
+
+            assertInstanceOf(plan(manager, "select * from tblspace1.tsql order by k1"), SortedTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1"), SortedBindableTableScanOp.class);
             assertInstanceOf(plan(manager, "select k1 from tblspace1.tsql order by k1 limit 10"), LimitedSortedBindableTableScanOp.class);
             {
@@ -373,6 +380,56 @@ public class CalcitePlannerTest {
                 ))));
 
             }
+            
+            execute(manager, "INSERT INTO tblspace1.tsql (k1,n1) values(?,?)", Arrays.asList("mykey6", 1236), TransactionContext.NO_TRANSACTION);
+            execute(manager, "INSERT INTO tblspace1.tsql2 (k2,n2) values(?,?)", Arrays.asList("mykey6a", 1236), TransactionContext.NO_TRANSACTION);
+            
+            // sort not as top level node
+            {
+                List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
+                        + "                     where n2 in (select n1 from tblspace1.tsql"
+                        + "                                     order by n1 desc limit 1)"
+                        + " ", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+                    System.out.println("tuple -: " + t.toMap());
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("k2", t.getFieldNames()[0]);
+                    assertEquals("n2", t.getFieldNames()[1]);
+                }
+                assertEquals(1, tuples.size());
+
+                assertTrue(
+                        tuples.stream().allMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "mykey6a", "n2", 1236
+                ))));
+                
+
+            }
+            {
+                List<DataAccessor> tuples = scan(manager, "select k2,n2 from tblspace1.tsql2"
+                        + "                     where n2 in (select n1 from tblspace1.tsql"
+                        + "                                     order by n1 asc limit 1)"
+                        + " ", Collections.emptyList()).consume();
+                for (DataAccessor t : tuples) {
+                    System.out.println("tuple -: " + t.toMap());
+                    assertEquals(2, t.getFieldNames().length);
+                    assertEquals("k2", t.getFieldNames()[0]);
+                    assertEquals("n2", t.getFieldNames()[1]);
+                }
+                assertEquals(2, tuples.size());
+
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "mykey", "n2", 1234
+                ))));
+                
+                assertTrue(
+                        tuples.stream().anyMatch(t -> t.toMap().equals(MapUtils.map(
+                        "k2", "mykey2", "n2", 1234
+                ))));
+
+            }
+            
         }
     }
 
@@ -509,7 +566,7 @@ public class CalcitePlannerTest {
 
         assertTrue(CalcitePlanner.isDDL("CREATE TABLE"));
         assertTrue(CalcitePlanner.isDDL("   CREATE TABLE `sm_machine`"));
-          assertTrue(CalcitePlanner.isDDL("CREATE TABLE `sm_machine` (\n"
+        assertTrue(CalcitePlanner.isDDL("CREATE TABLE `sm_machine` (\n"
                 + "  `ip` varchar(20) NOT NULL DEFAULT '',"));
         assertTrue(CalcitePlanner.isDDL("CREATE TABLE `sm_machine` (\n"
                 + "  `ip` varchar(20) NOT NULL DEFAULT '',\n"
