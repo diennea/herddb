@@ -21,11 +21,6 @@ package herddb.sql.expressions;
 
 import static herddb.sql.functions.BuiltinFunctions.CURRENT_TIMESTAMP;
 
-import herddb.model.StatementExecutionException;
-import herddb.sql.CalcitePlanner;
-import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
-import herddb.sql.functions.BuiltinFunctions;
-import herddb.utils.RawString;
 import java.math.BigDecimal;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -33,6 +28,24 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexCorrelVariable;
+import org.apache.calcite.rex.RexDynamicParam;
+import org.apache.calcite.rex.RexFieldAccess;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.sql.SqlOperator;
+import org.apache.calcite.sql.type.BasicSqlType;
+import org.apache.calcite.sql.type.SqlTypeName;
+
+import herddb.model.StatementExecutionException;
+import herddb.sql.CalcitePlanner;
+import herddb.sql.expressions.CompiledSQLExpression.BinaryExpressionBuilder;
+import herddb.sql.functions.BuiltinFunctions;
+import herddb.utils.RawString;
 import net.sf.jsqlparser.expression.BinaryExpression;
 import net.sf.jsqlparser.expression.CaseExpression;
 import net.sf.jsqlparser.expression.DoubleValue;
@@ -62,16 +75,6 @@ import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
 import net.sf.jsqlparser.expression.operators.relational.MinorThanEquals;
 import net.sf.jsqlparser.expression.operators.relational.NotEqualsTo;
-import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexCorrelVariable;
-import org.apache.calcite.rex.RexDynamicParam;
-import org.apache.calcite.rex.RexFieldAccess;
-import org.apache.calcite.rex.RexInputRef;
-import org.apache.calcite.rex.RexLiteral;
-import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlOperator;
-import org.apache.calcite.sql.fun.SqlCastFunction;
-import org.apache.calcite.sql.type.SqlTypeName;
 
 /**
  * Created a pure Java implementation of the expression which represents the given jSQLParser Expression
@@ -259,7 +262,7 @@ public class SQLExpressionCompiler {
             if (p.isNull()) {
                 return new ConstantExpression(null);
             } else {
-                return new ConstantExpression(safeValue(p.getValue3(), p.getTypeName()));
+                return new ConstantExpression(safeValue(p.getValue3(), p.getType(), p.getTypeName()));
             }
         } else if (expression instanceof RexInputRef) {
             RexInputRef p = (RexInputRef) expression;
@@ -350,9 +353,12 @@ public class SQLExpressionCompiler {
         throw new StatementExecutionException("not implemented expression type " + expression.getClass() + ": " + expression);
     }
 
-    private static Object safeValue(Object value3, SqlTypeName typeName) {
+    private static Object safeValue(Object value3, RelDataType relDataType, SqlTypeName sqlTypeName) {
         if (value3 instanceof BigDecimal) {
-            if (typeName == SqlTypeName.DECIMAL) {
+            if (relDataType instanceof BasicSqlType) {
+                sqlTypeName = ((BasicSqlType) relDataType).getSqlTypeName();
+            }
+            if (sqlTypeName == SqlTypeName.DECIMAL) {
                 return ((BigDecimal) value3).doubleValue();
             }
             return ((BigDecimal) value3).longValue();
