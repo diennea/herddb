@@ -15,7 +15,7 @@ import herddb.server.Server;
 import herddb.server.ServerConfiguration;
 import herddb.server.StaticClientSideMetadataProvider;
 
-public class CheckBigIntConversion {
+public class CheckBigIntConversionTest {
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
