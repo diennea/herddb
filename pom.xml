@@ -65,8 +65,8 @@
         <project.build.sourceEncoding>utf-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <libs.netty4>4.1.27.Final</libs.netty4>
-        <libs.netty4ssl>2.0.12.Final</libs.netty4ssl>
+        <libs.netty4>4.1.30.Final</libs.netty4>
+        <libs.netty4ssl>2.0.17.Final</libs.netty4ssl>
         <libs.calcite>1.17.0</libs.calcite>
         <libs.commonslang>2.6</libs.commonslang>
         <libs.jackson.mapper>1.9.11</libs.jackson.mapper>
