@@ -46,6 +46,7 @@ import herddb.log.LogEntryType;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
 import herddb.utils.EnsureLongIncrementAccumulator;
+import io.netty.buffer.ByteBuf;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
@@ -135,7 +136,8 @@ public class BookkeeperCommitLog extends CommitLog {
         }
 
         public CompletableFuture<LogSequenceNumber> writeEntry(LogEntry edit) {
-            byte[] serialize = edit.serialize();
+            // BK will release the buffer after handling the entry
+            ByteBuf serialize = edit.serializeAsByteBuf();
             CompletableFuture<LogSequenceNumber> res = new CompletableFuture<>();
             this.out.asyncAddEntry(serialize, (int rc, LedgerHandle lh, long offset, Object o) -> {
                 if (rc == BKException.Code.OK) {

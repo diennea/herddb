@@ -25,6 +25,9 @@ import herddb.log.CommitLogResult;
 import herddb.log.LogEntry;
 import herddb.log.LogNotAvailableException;
 import herddb.log.LogSequenceNumber;
+import herddb.utils.ExtendedDataOutputStream;
+import herddb.utils.NullOutputStream;
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 
@@ -47,7 +50,11 @@ public class MemoryCommitLogManager extends CommitLogManager {
                     synch = true;
                 }
                 // NOOP
-                entry.serialize();
+                try {
+                    entry.serialize(ExtendedDataOutputStream.NULL);
+                } catch (IOException err) {
+                    throw new LogNotAvailableException(err);
+                }
                 LogSequenceNumber logPos = new LogSequenceNumber(1, offset.incrementAndGet());
                 notifyListeners(logPos, entry);
                 return new CommitLogResult(logPos, !synch);
