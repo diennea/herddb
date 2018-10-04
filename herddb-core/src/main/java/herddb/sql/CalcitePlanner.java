@@ -217,6 +217,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
     }
 
     static final boolean isDDL(String query) {
+        // this is quite expensive and it allocates temporary objects
         return USE_DDL_PARSER.matcher(query).matches();
     }
 
@@ -226,12 +227,7 @@ public class CalcitePlanner implements AbstractSQLPlanner {
         int idx = SQLUtils.findQueryStart(query);
         if (idx != -1) {
             query = query.substring(idx);
-        }
-
-        if (isDDL(query)) {
-            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
-            return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
-        }
+        }       
         if (parameters == null) {
             parameters = Collections.emptyList();
         }
@@ -246,6 +242,10 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                 return new TranslatedQuery(cached, new SQLStatementEvaluationContext(query, parameters));
             }
         }
+        if (isDDL(query)) {
+            query = DDLSQLPlanner.rewriteExecuteSyntax(query);
+            return fallback.translate(defaultTableSpace, query, parameters, scan, allowCache, returnValues, maxRows);
+        }        
         if (!isCachable(query)) {
             allowCache = false;
         }

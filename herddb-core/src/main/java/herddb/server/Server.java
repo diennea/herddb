@@ -256,9 +256,14 @@ public class Server implements AutoCloseable, ServerSideConnectionAcceptor<Serve
         int realPort = Integer.parseInt(serverHostData.getAdditionalData().get(ServerConfiguration.PROPERTY_PORT));
 
         NettyChannelAcceptor acceptor = new NettyChannelAcceptor(realHost, realPort, serverHostData.isSsl());
+        // with 'local' mode we are disabling network by default
+        // but in case you want to run benchmarks with 'local' mode using
+        // the client on a separate process/machine you should be able
+        // to enable network
+        boolean isLocal = ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode);
         boolean nextworkEnabled = configuration.getBoolean(ServerConfiguration.PROPERTY_NETWORK_ENABLED,
-                ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
-        if (!nextworkEnabled || ServerConfiguration.PROPERTY_MODE_LOCAL.equals(mode)) {
+                isLocal ? false : ServerConfiguration.PROPERTY_NETWORK_ENABLED_DEFAULT);
+        if (!nextworkEnabled) {
             acceptor.setEnableRealNetwork(false);
             LOGGER.log(Level.INFO, "Local in-JVM acceptor on {0}:{1} ssl:{2}",
                     new Object[]{realHost, realPort, serverHostData.isSsl()});
