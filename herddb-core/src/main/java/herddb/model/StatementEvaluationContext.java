@@ -21,16 +21,9 @@ package herddb.model;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.core.DBManager;
-import herddb.utils.DataAccessor;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.logging.Level;
 import java.util.logging.Logger;
-import net.sf.jsqlparser.statement.select.PlainSelect;
-import net.sf.jsqlparser.statement.select.Select;
 
 /**
  * Context for each statement evaluation. Statements are immutable and cachable
@@ -44,8 +37,6 @@ public class StatementEvaluationContext {
 
     private DBManager manager;
     private TransactionContext transactionContext;
-    private final Map<PlainSelect, List<DataAccessor>> subqueryCache = new IdentityHashMap<>();
-    private final Map<PlainSelect, ExecutionPlan> planCache = new IdentityHashMap<>();
     private String defaultTablespace = TableSpace.DEFAULT;
 
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
@@ -87,37 +78,7 @@ public class StatementEvaluationContext {
             throw new MissingJDBCParameterException(index + 1);
         }
     }
-
-    public List<DataAccessor> executeSubquery(PlainSelect select) throws StatementExecutionException {
-        List<DataAccessor> cached = subqueryCache.get(select);
-        if (cached != null) {
-            return cached;
-        }
-        LOGGER.log(Level.SEVERE, "executing subquery {0}", select);
-        ExecutionPlan plan = compileSubplan(select);
-        try (ScanResult result = (ScanResult) manager.executePlan(plan, this, transactionContext);) {
-            List<DataAccessor> fullResult = result.dataScanner.consume();
-            LOGGER.log(Level.SEVERE, "executing subquery " + select + " -> " + fullResult);
-            subqueryCache.put(select, fullResult);
-            return fullResult;
-        } catch (DataScannerException error) {
-            throw new StatementExecutionException(error);
-        }
-    }
-
-    public ExecutionPlan compileSubplan(PlainSelect select) {
-        ExecutionPlan plan = planCache.get(select);
-        if (plan != null) {
-            return plan;
-        }
-
-        Select fullSelect = new Select();
-        fullSelect.setSelectBody(select);
-        plan = manager.getPlanner().plan(defaultTablespace,
-                fullSelect, true, false, -1);
-        planCache.put(select, plan);
-        return plan;
-    }
+   
     private java.sql.Timestamp currentTimestamp;
 
     @SuppressFBWarnings({"EI_EXPOSE_REP2", "EI_EXPOSE_REP"})

@@ -69,7 +69,6 @@ import net.sf.jsqlparser.expression.operators.relational.Between;
 import net.sf.jsqlparser.expression.operators.relational.EqualsTo;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThan;
 import net.sf.jsqlparser.expression.operators.relational.GreaterThanEquals;
-import net.sf.jsqlparser.expression.operators.relational.InExpression;
 import net.sf.jsqlparser.expression.operators.relational.IsNullExpression;
 import net.sf.jsqlparser.expression.operators.relational.LikeExpression;
 import net.sf.jsqlparser.expression.operators.relational.MinorThan;
@@ -172,9 +171,6 @@ public class SQLExpressionCompiler {
             SignedExpression s = (SignedExpression) exp;
             CompiledSQLExpression inner = compileExpression(validatedTableAlias, s.getExpression());
             return new CompiledSignedExpression(s.getSign(), inner);
-        } else if (exp instanceof InExpression) {
-            InExpression in = (InExpression) exp;
-            return CompiledInExpression.create(in, validatedTableAlias);
         } else if (exp instanceof IsNullExpression) {
             IsNullExpression i = (IsNullExpression) exp;
             CompiledSQLExpression left = compileExpression(validatedTableAlias, i.getLeftExpression());
