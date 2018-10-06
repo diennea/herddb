@@ -30,7 +30,7 @@ import java.util.concurrent.Future;
  */
 public final class CommitLogResult {
 
-    public final Future<LogSequenceNumber> logSequenceNumber;
+    public final CompletableFuture<LogSequenceNumber> logSequenceNumber;
     public final boolean deferred;
 
     public CommitLogResult(LogSequenceNumber logSequenceNumber, boolean deferred) {
@@ -38,7 +38,7 @@ public final class CommitLogResult {
         this.deferred = deferred;
     }
 
-    public CommitLogResult(Future<LogSequenceNumber> logSequenceNumber, boolean deferred) {
+    public CommitLogResult(CompletableFuture<LogSequenceNumber> logSequenceNumber, boolean deferred) {
         this.logSequenceNumber = logSequenceNumber;
         this.deferred = deferred;
     }

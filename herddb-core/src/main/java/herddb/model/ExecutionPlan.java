@@ -37,66 +37,29 @@ public class ExecutionPlan {
     public final Aggregator mainAggregator;
     public final ScanLimits limits;
     public final TupleComparator comparator;
-    public final List<ScanStatement> joinStatements;
-    public final TuplePredicate joinFilter;
-    public final Projection joinProjection;
-    public final ExecutionPlan dataSource;
-    public final List<InsertStatement> insertStatements;
 
     private ExecutionPlan(Statement mainStatement,
-        Aggregator mainAggregator,
-        ScanLimits limits,
-        TupleComparator comparator,
-        ExecutionPlan dataSource,
-        List<ScanStatement> joinStatements,
-        TuplePredicate joinFilter,
-        Projection joinProjection,
-        List<InsertStatement> insertStatements) {
+            Aggregator mainAggregator,
+            ScanLimits limits,
+            TupleComparator comparator) {
         this.mainStatement = mainStatement;
         this.mainAggregator = mainAggregator;
         this.limits = limits;
         this.comparator = comparator;
-        this.dataSource = dataSource;
-        this.joinStatements = joinStatements;
-        this.joinFilter = joinFilter;
-        this.joinProjection = joinProjection;
-        this.insertStatements = insertStatements;
+
     }
 
     public static ExecutionPlan simple(Statement statement) {
-        return new ExecutionPlan(statement, null, null, null, null, null, null, null, null);
-    }
-
-    public static ExecutionPlan multiInsert(List<InsertStatement> statements) {
-        return new ExecutionPlan(null, null, null, null, null, null, null, null, statements);
+        return new ExecutionPlan(statement, null, null, null);
     }
 
     public static ExecutionPlan make(Statement statement, Aggregator aggregator, ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(statement, aggregator, limits, comparator, null, null, null, null, null);
-    }
-
-    public static ExecutionPlan joinedScan(List<ScanStatement> statements,
-        TuplePredicate joinFilter,
-        Projection joinProjection,
-        ScanLimits limits, TupleComparator comparator) {
-        return new ExecutionPlan(null, null, limits, comparator, null, statements, joinFilter, joinProjection, null);
-    }
-
-    public static ExecutionPlan dataManipulationFromSelect(DMLStatement statement, ExecutionPlan dataSource) {
-        return new ExecutionPlan(statement, null, null, null, dataSource, null, null, null, null);
+        return new ExecutionPlan(statement, aggregator, limits, comparator);
     }
 
     public void validateContext(StatementEvaluationContext context) throws StatementExecutionException {
         if (mainStatement != null) {
             mainStatement.validateContext(context);
-        }
-        if (joinStatements != null) {
-            joinStatements.forEach(s -> {
-                s.validateContext(context);
-            });
-        }
-        if (insertStatements != null) {
-            insertStatements.forEach(s -> s.validateContext(context));
         }
     }
 
