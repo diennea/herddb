@@ -119,6 +119,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void requestReceived(MessageWrapper messageWrapper, Channel _channel) {
+        // message is handled by current thread
+        boolean releaseMessageSync = true;
         Request message = messageWrapper.getRequest();
         try {
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
@@ -145,7 +147,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         sendAuthRequiredError(_channel, message);
                         break;
                     }
-                    handleTxCommand(message, _channel);
+                    releaseMessageSync = false;
+                    handleTxCommand(message, messageWrapper, _channel);
                 }
                 break;
                 case MessageType.TYPE_EXECUTE_STATEMENTS: {
@@ -243,7 +246,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unsupported message type " + message.type())));
             }
         } finally {
-            messageWrapper.close();
+            if (releaseMessageSync) {
+                messageWrapper.close();
+            }
         }
     }
 
@@ -702,7 +707,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
-    private void handleTxCommand(Request message, Channel _channel) {
+    private void handleTxCommand(Request message, MessageWrapper messageWrapper, Channel _channel) {
         long txId = message.tx();
         int type = message.txCommand();
         ByteBuffer byteBuffer = message.getByteBuffer();
@@ -711,32 +716,35 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
         ((Buffer) byteBuffer).position(position);
         ((Buffer) byteBuffer).limit(limit);
-        try {
-            TransactionContext transactionContext = new TransactionContext(txId);
-            Statement statement;
-            switch (type) {
-                case MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION:
-                    statement = new CommitTransactionStatement(tableSpace.toString(), txId);
-                    break;
-                case MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION:
-                    statement = new RollbackTransactionStatement(tableSpace.toString(), txId);
-                    break;
-                case MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION:
-                    statement = new BeginTransactionStatement(tableSpace.toString());
-                    break;
-                default:
-                    statement = null;
+        TransactionContext transactionContext = new TransactionContext(txId);
+        Statement statement;
+        switch (type) {
+            case MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION:
+                statement = new CommitTransactionStatement(tableSpace.toString(), txId);
+                break;
+            case MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION:
+                statement = new RollbackTransactionStatement(tableSpace.toString(), txId);
+                break;
+            case MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION:
+                statement = new BeginTransactionStatement(tableSpace.toString());
+                break;
+            default:
+                statement = null;
 
-            }
-            if (statement == null) {
-                _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown command type " + type)));
-            } else {
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
-                CompletableFuture<StatementExecutionResult> res = server
-                        .getManager()
-                        .executeStatementAsync(statement, new StatementEvaluationContext(), transactionContext);
+        }
+        if (statement == null) {
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown command type " + type)));
+            messageWrapper.close();
+        } else {
+//            LOGGER.log(Level.SEVERE, "statement " + statement);
+            CompletableFuture<StatementExecutionResult> res = server
+                    .getManager()
+                    .executeStatementAsync(statement, new StatementEvaluationContext(), transactionContext);
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
-                res.whenComplete((result, err) -> {
+            res.whenComplete((result, err) -> {
+                try {
+//                    LOGGER.log(Level.SEVERE, "statement " + statement + " complete " + err + " " + result);
+
                     if (err != null) {
                         if (err instanceof NotLeaderException) {
                             ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
@@ -769,12 +777,10 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                             _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
                         }
                     }
-                });
-            }
-        } catch (RuntimeException err) {
-            LOGGER.log(Level.SEVERE, "unexpected error on tx command: ", err);
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-            _channel.sendReplyMessage(message.id(), error);
+                } finally {
+                    messageWrapper.close();
+                }
+            });
         }
     }
 
