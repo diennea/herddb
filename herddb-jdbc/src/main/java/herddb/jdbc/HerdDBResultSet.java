@@ -233,6 +233,12 @@ public class HerdDBResultSet implements ResultSet {
         fillLastValue(columnLabel);
         if (lastValue != null) {
             wasNull = false;
+            if (lastValue instanceof Integer) {
+                return ((Integer) lastValue);
+            }
+            if (lastValue instanceof Number) {
+                return ((Number) lastValue).intValue();
+            }
             return Integer.parseInt(lastValue.toString());
         } else {
             wasNull = true;
@@ -261,8 +267,18 @@ public class HerdDBResultSet implements ResultSet {
 
     @Override
     public float getFloat(int columnLabel) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
-    }
+        ensureNextCalled();
+        fillLastValue(columnLabel);
+        if (lastValue != null) {
+            wasNull = false;           
+            if (lastValue instanceof Number) {
+                return ((Number) lastValue).floatValue();
+            }
+            return Float.parseFloat(lastValue.toString());
+        } else {
+            wasNull = true;
+            return 0;
+        }}
 
     @Override
     public double getDouble(int columnLabel) throws SQLException {

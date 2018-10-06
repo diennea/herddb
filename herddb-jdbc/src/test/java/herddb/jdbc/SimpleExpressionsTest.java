@@ -103,8 +103,17 @@ public class SimpleExpressionsTest {
                         try (PreparedStatement statement = con.prepareStatement("SELECT n1*5 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
                                 assertTrue(rs.next());
-                                assertEquals(5.0, rs.getObject(1));
+                                assertEquals(5L, rs.getObject(1));
                                 assertEquals(5, rs.getLong(1));
+                                assertEquals(5, rs.getInt(1));
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT n1*5.0 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(5d, rs.getObject(1));
+                                assertEquals(5, rs.getLong(1));
+                                assertEquals(5, rs.getInt(1));
                             }
                         }
 
@@ -118,8 +127,19 @@ public class SimpleExpressionsTest {
                         try (PreparedStatement statement = con.prepareStatement("SELECT l1*5 FROM mytable")) {
                             try (ResultSet rs = statement.executeQuery()) {
                                 assertTrue(rs.next());
-                                assertEquals(10.0, rs.getObject(1));
+                                assertEquals(10L, rs.getObject(1));
                                 assertEquals(10, rs.getLong(1));
+                                assertEquals(10, rs.getInt(1));
+                                assertEquals(10f, rs.getFloat(1), 0);
+                            }
+                        }
+                        try (PreparedStatement statement = con.prepareStatement("SELECT l1*5.1 FROM mytable")) {
+                            try (ResultSet rs = statement.executeQuery()) {
+                                assertTrue(rs.next());
+                                assertEquals(10.2, rs.getObject(1));
+                                assertEquals(10, rs.getLong(1));
+                                assertEquals(10, rs.getInt(1));
+                                assertEquals(10.2f, rs.getFloat(1), 0);
                             }
                         }
 
