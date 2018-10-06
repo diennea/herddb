@@ -1041,13 +1041,14 @@ public class TableSpaceManager {
                         executePlannedOperationStatement(statement, transactionContext, context));
             } else if (statement instanceof BeginTransactionStatement) {
                 if (transaction != null) {
-                    throw new IllegalArgumentException("transaction already started");
+                    res = FutureUtils.exception(new StatementExecutionException("transaction already started"));
+                } else {
+                    res = CompletableFuture.completedFuture(beginTransaction());
                 }
-                res = CompletableFuture.completedFuture(beginTransaction());
-            } else if (statement instanceof RollbackTransactionStatement) {
-                res = rollbackTransaction((RollbackTransactionStatement) statement);
             } else if (statement instanceof CommitTransactionStatement) {
                 res = commitTransaction((CommitTransactionStatement) statement);
+            } else if (statement instanceof RollbackTransactionStatement) {
+                res = rollbackTransaction((RollbackTransactionStatement) statement);
             } else if (statement instanceof CreateTableStatement) {
                 res = CompletableFuture.completedFuture(createTable((CreateTableStatement) statement, transaction));
             } else if (statement instanceof CreateIndexStatement) {
