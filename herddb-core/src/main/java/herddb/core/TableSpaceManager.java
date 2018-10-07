@@ -530,7 +530,14 @@ public class TableSpaceManager {
             return tableManager.scan(statement, context, transaction, lockRequired, forWrite);
         } catch (StatementExecutionException error) {
             if (rollbackOnError) {
-                rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId));
+                try {
+                    rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, transactionContext.transactionId)).get();
+                } catch (ExecutionException err) {
+                    throw new StatementExecutionException(err.getCause());
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    error.addSuppressed(ex);
+                }
             }
             throw error;
         }
@@ -1006,10 +1013,14 @@ public class TableSpaceManager {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
-            if (err.getCause() instanceof StatementExecutionException) {
-                throw (StatementExecutionException) err.getCause();
+            Throwable cause = err.getCause();
+            if (cause instanceof HerdDBInternalException && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof StatementExecutionException) {
+                throw (StatementExecutionException) cause;
             } else {
-                throw new StatementExecutionException(err.getCause());
+                throw new StatementExecutionException(cause);
             }
         }
     }
@@ -1068,12 +1079,25 @@ public class TableSpaceManager {
         }
         if (rollbackOnError) {
             long txId = transactionContext.transactionId;
-            res.whenComplete((xx, error) -> {
-                if (error != null) {
-                    LOGGER.log(Level.SEVERE, "forcing rollback of tx " + txId + " due to " + error);
-                    rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId));
-                }
-            });
+            if (txId > 0) {
+                res = res.handle((xx, error) -> {
+                    if (error != null) {
+                        LOGGER.log(Level.SEVERE, "forcing rollback of tx " + txId + " due to " + error);
+                        try {
+                            rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
+                                    .get();
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            error.addSuppressed(ex);
+                        } catch (ExecutionException ex) {
+                            error.addSuppressed(ex.getCause());
+                        }
+                        throw new HerdDBInternalException(error);
+                    } else {
+                        return xx;
+                    }
+                });
+            }
         }
         return res;
     }

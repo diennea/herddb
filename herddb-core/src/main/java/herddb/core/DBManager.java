@@ -564,10 +564,14 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
-            if (err.getCause() instanceof StatementExecutionException) {
-                throw (StatementExecutionException) err.getCause();
+            Throwable cause = err.getCause();
+            if (cause instanceof HerdDBInternalException && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof StatementExecutionException) {
+                throw (StatementExecutionException) cause;
             } else {
-                throw new StatementExecutionException(err.getCause());
+                throw new StatementExecutionException(cause);
             }
         }
     }
