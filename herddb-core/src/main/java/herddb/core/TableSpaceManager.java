@@ -286,7 +286,7 @@ public class TableSpaceManager {
             downloadTableSpaceData();
             log.recovery(actualLogSequenceNumber, new ApplyEntryOnRecovery(), false);
         }
-        checkpoint(false, false);
+        checkpoint(false, false, false);
 
     }
 
@@ -610,7 +610,7 @@ public class TableSpaceManager {
     }
 
     private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
-        generalLock.asWriteLock().lock();
+        long lockTramp = generalLock.writeLock();
         try {
             if (transactionContext.transactionId > 0) {
                 throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
@@ -635,7 +635,7 @@ public class TableSpaceManager {
             }
             return new DDLStatementExecutionResult(transactionContext.transactionId);
         } finally {
-            generalLock.asWriteLock().unlock();
+            generalLock.unlockWrite(lockTramp);
         }
 
     }
@@ -726,27 +726,27 @@ public class TableSpaceManager {
     }
 
     public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException, EOFException {
-        generalLock.asWriteLock().lock();
+        long lockStamp = generalLock.writeLock();
         try {
             for (DumpedLogEntry ld : entries) {
                 apply(new CommitLogResult(ld.logSequenceNumber, false),
                         LogEntry.deserialize(ld.entryData), true);
             }
         } finally {
-            generalLock.asWriteLock().unlock();
+            generalLock.unlockWrite(lockStamp);
         }
     }
 
     public void beginRestoreTable(byte[] tableDef, LogSequenceNumber dumpLogSequenceNumber) {
         Table table = Table.deserialize(tableDef);
-        generalLock.asWriteLock().lock();
+        long lockStamp = generalLock.writeLock();
         try {
             if (tables.containsKey(table.name)) {
                 throw new TableAlreadyExistsException(table.name);
             }
             bootTable(table, 0, dumpLogSequenceNumber);
         } finally {
-            generalLock.asWriteLock().unlock();
+            generalLock.unlockWrite(lockStamp);
         }
     }
 
@@ -784,23 +784,19 @@ public class TableSpaceManager {
             }
         };
 
-        generalLock.asWriteLock().lock();
+        long lockStamp = generalLock.writeLock();
 
-        try {
-
-            if (includeLog) {
-                log.attachCommitLogListener(logDumpReceiver);
-            }
-
-            checkpoint = checkpoint(true, true);
-
-            /* Downgrade lock */
-            generalLock.asReadLock().lock();
-
-        } finally {
-            generalLock.asWriteLock().unlock();
+        if (includeLog) {
+            log.attachCommitLogListener(logDumpReceiver);
         }
 
+        checkpoint = checkpoint(true, true, true /* already locked */);
+
+        /* Downgrade lock */
+        lockStamp = generalLock.tryConvertToReadLock(lockStamp);
+        if (lockStamp == 0) {
+            throw new DataStorageManagerException("unable to downgrade lock");
+        }
         try {
             final int timeout = 60000;
             LogSequenceNumber logSequenceNumber = log.getLastSequenceNumber();
@@ -866,7 +862,7 @@ public class TableSpaceManager {
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
-            generalLock.asReadLock().unlock();
+            generalLock.unlockRead(lockStamp);
 
             if (includeLog) {
                 log.removeCommitLogListener(logDumpReceiver);
@@ -927,7 +923,7 @@ public class TableSpaceManager {
     public void restoreFinished() throws DataStorageManagerException {
         LOGGER.log(Level.INFO, "restore finished of tableSpace " + tableSpaceName + ". requesting checkpoint");
         transactions.clear();
-        checkpoint(false, false);
+        checkpoint(false, false, false);
     }
 
     public boolean isVirtual() {
@@ -1389,7 +1385,7 @@ public class TableSpaceManager {
         }
     }
 
-    TableSpaceCheckpoint checkpoint(boolean full, boolean pin) throws DataStorageManagerException, LogNotAvailableException {
+    TableSpaceCheckpoint checkpoint(boolean full, boolean pin, boolean alreadLocked) throws DataStorageManagerException, LogNotAvailableException {
         if (virtual) {
             return null;
         }
@@ -1399,7 +1395,10 @@ public class TableSpaceManager {
         List<PostCheckpointAction> actions = new ArrayList<>();
         Map<String, LogSequenceNumber> checkpointsTableNameSequenceNumber = new HashMap<>();
 
-        generalLock.asWriteLock().lock();
+        long lockStamp = 0;
+        if (!alreadLocked) {
+            lockStamp = generalLock.writeLock();
+        }
         try {
             logSequenceNumber = log.getLastSequenceNumber();
 
@@ -1445,7 +1444,9 @@ public class TableSpaceManager {
 
             _logSequenceNumber = log.getLastSequenceNumber();
         } finally {
-            generalLock.asWriteLock().unlock();
+            if (lockStamp != 0) {
+                generalLock.unlockWrite(lockStamp);
+            }
         }
 
         for (PostCheckpointAction action : actions) {
