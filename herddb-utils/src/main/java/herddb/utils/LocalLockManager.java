@@ -118,7 +118,7 @@ public class LocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseWriteLockForKey(LockHandle handle) {
+    public void releaseWriteLock(LockHandle handle) {
         /* Retrieve the instance... other threads could have this pointer too */
         LockInstance instance = (LockInstance) handle.handle;
         instance.lock.unlockWrite(handle.stamp);
@@ -141,18 +141,18 @@ public class LocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseReadLockForKey(LockHandle handle) {
+    public void releaseReadLock(LockHandle handle) {
         LockInstance instance = (LockInstance) handle.handle;
         instance.lock.unlockRead(handle.stamp);
         returnLockForKey(instance, handle.key);
     }
 
     @Override
-    public void releaseLock(LockHandle l) {
-        if (l.write) {
-            releaseWriteLockForKey( l);
+    public void releaseLock(LockHandle handle) {
+        if (handle.write) {
+            releaseWriteLock(handle);
         } else {
-            releaseReadLockForKey( l);
+            releaseReadLock(handle);
         }
     }
 

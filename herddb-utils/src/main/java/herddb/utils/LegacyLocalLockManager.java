@@ -173,7 +173,7 @@ public class LegacyLocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseWriteLockForKey(LockHandle handle) {
+    public void releaseWriteLock(LockHandle handle) {
         StampedLock lock = returnLockForKey(handle.key);
         lock.unlockWrite(handle.stamp);
     }
@@ -194,7 +194,7 @@ public class LegacyLocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseReadLockForKey(LockHandle handle) {
+    public void releaseReadLock(LockHandle handle) {
         StampedLock lock = returnLockForKey(handle.key);
         lock.unlockRead(handle.stamp);
     }
@@ -202,9 +202,9 @@ public class LegacyLocalLockManager implements ILocalLockManager {
     @Override
     public void releaseLock(LockHandle handle) {
         if (handle.write) {
-            releaseWriteLockForKey(handle);
+            releaseWriteLock(handle);
         } else {
-            releaseReadLockForKey(handle);
+            releaseReadLock(handle);
         }
     }
 
