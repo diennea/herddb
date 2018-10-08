@@ -297,7 +297,7 @@ public class TableSpaceManager {
     }
 
     void apply(CommitLogResult position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
-        if (!position.deferred) {
+        if (!position.deferred || position.sync) {
             // this will wait for the write to be acknowledged by the log
             // it can throw LogNotAvailableException
             this.actualLogSequenceNumber = position.getLogSequenceNumber();
@@ -731,7 +731,7 @@ public class TableSpaceManager {
         long lockStamp = generalLock.writeLock();
         try {
             for (DumpedLogEntry ld : entries) {
-                apply(new CommitLogResult(ld.logSequenceNumber, false),
+                apply(new CommitLogResult(ld.logSequenceNumber, false, false),
                         LogEntry.deserialize(ld.entryData), true);
             }
         } finally {
@@ -948,7 +948,7 @@ public class TableSpaceManager {
                         public void accept(LogSequenceNumber num, LogEntry u
                         ) {
                             try {
-                                apply(new CommitLogResult(num, false), u, false);
+                                apply(new CommitLogResult(num, false, true), u, false);
                             } catch (Throwable t) {
                                 throw new RuntimeException(t);
                             }
@@ -1415,7 +1415,7 @@ public class TableSpaceManager {
 
             // TODO: transactions checkpoint is not atomic
             actions.addAll(dataStorageManager.writeTransactionsAtCheckpoint(tableSpaceUUID, logSequenceNumber, new ArrayList<>(transactions.values())));
-            actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false)));
+            actions.addAll(writeTablesOnDataStorageManager(new CommitLogResult(logSequenceNumber, false, true)));
 
             // we checkpoint all data to disk and save the actual log sequence number
             for (AbstractTableManager tableManager : tables.values()) {
@@ -1554,7 +1554,7 @@ public class TableSpaceManager {
         @Override
         public void accept(LogSequenceNumber t, LogEntry u) {
             try {
-                apply(new CommitLogResult(t, false), u, true);
+                apply(new CommitLogResult(t, false, true), u, true);
             } catch (DDLException | DataStorageManagerException err) {
                 throw new RuntimeException(err);
             }

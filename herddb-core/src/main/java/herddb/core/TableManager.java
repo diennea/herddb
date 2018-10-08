@@ -1160,6 +1160,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
             }
         }
+        if (writeResult.sync) {
+            // wait for data to be stored to log
+            writeResult.getLogSequenceNumber();
+        }
+        
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records

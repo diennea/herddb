@@ -32,15 +32,18 @@ public final class CommitLogResult {
 
     public final CompletableFuture<LogSequenceNumber> logSequenceNumber;
     public final boolean deferred;
+    public final boolean sync;
 
-    public CommitLogResult(LogSequenceNumber logSequenceNumber, boolean deferred) {
+    public CommitLogResult(LogSequenceNumber logSequenceNumber, boolean deferred, boolean sync) {
         this.logSequenceNumber = CompletableFuture.completedFuture(logSequenceNumber);
         this.deferred = deferred;
+        this.sync = sync;
     }
 
-    public CommitLogResult(CompletableFuture<LogSequenceNumber> logSequenceNumber, boolean deferred) {
+    public CommitLogResult(CompletableFuture<LogSequenceNumber> logSequenceNumber, boolean deferred, boolean sync) {
         this.logSequenceNumber = logSequenceNumber;
         this.deferred = deferred;
+        this.sync = sync;
     }
 
     public LogSequenceNumber getLogSequenceNumber() throws LogNotAvailableException {

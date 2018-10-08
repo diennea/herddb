@@ -22,15 +22,16 @@ package herddb.log;
 import java.util.function.BiConsumer;
 
 /**
- * This is the core write-ahead-log of the system. Every change to data is logged to the CommitLog before beeing applied
- * to memory/storage.
+ * This is the core write-ahead-log of the system. Every change to data is
+ * logged to the CommitLog before beeing applied to memory/storage.
  *
  * @author enrico.olivelli
  */
 public abstract class CommitLog implements AutoCloseable {
 
     /**
-     * Log a single entry and returns only when the entry has been safely written to the log
+     * Log a single entry and returns only when the entry has been safely
+     * written to the log
      *
      * @param entry
      * @param synch

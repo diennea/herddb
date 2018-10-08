@@ -57,7 +57,7 @@ public class MemoryCommitLogManager extends CommitLogManager {
                 }
                 LogSequenceNumber logPos = new LogSequenceNumber(1, offset.incrementAndGet());
                 notifyListeners(logPos, entry);
-                return new CommitLogResult(logPos, !synch);
+                return new CommitLogResult(logPos, !synch, synch);
             }
 
             @Override

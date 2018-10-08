@@ -451,7 +451,7 @@ public class FileCommitLog extends CommitLog {
             writeQueue.put(future);
             LogSequenceNumber logPos = future.ack.get();
             notifyListeners(logPos, edit);
-            return new CommitLogResult(logPos, !sync);
+            return new CommitLogResult(logPos, !sync, sync);
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new LogNotAvailableException(err);

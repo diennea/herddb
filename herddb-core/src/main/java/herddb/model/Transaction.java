@@ -398,7 +398,7 @@ public class Transaction {
         long ledgerId = in.readZLong();
         long offset = in.readZLong();
         LogSequenceNumber lastSequenceNumber = new LogSequenceNumber(ledgerId, offset);
-        Transaction t = new Transaction(id, tableSpace, new CommitLogResult(lastSequenceNumber, false));
+        Transaction t = new Transaction(id, tableSpace, new CommitLogResult(lastSequenceNumber, false, true));
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String table = in.readUTF();

@@ -263,7 +263,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 }
             }
             );
-            if (isHasListeners()) {
+            if (synch || isHasListeners()) {
                 res = res.handle((pos, error) -> {
                     if (pos != null) {
                         notifyListeners(pos, edit);
@@ -275,7 +275,7 @@ public class BookkeeperCommitLog extends CommitLog {
                 );
             }
         }
-        return new CommitLogResult(res, true /*deferred always true on BK*/);
+        return new CommitLogResult(res, true /*deferred always true on BK*/, synch);
     }
 
     private String tableSpaceDescription() {
