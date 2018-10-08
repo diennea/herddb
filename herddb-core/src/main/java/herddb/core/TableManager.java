@@ -102,6 +102,8 @@ import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.EnsureLongIncrementAccumulator;
 import herddb.utils.Holder;
+import herddb.utils.ILocalLockManager;
+import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
@@ -134,6 +136,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     private static final boolean ENABLE_STREAMING_DATA_SCANNER = SystemProperties.
             getBooleanSystemProperty("herddb.tablemanager.enableStreamingDataScanner", true);
 
+    private static final boolean USE_LEGACY_LOCK_MANAGER = SystemProperties
+            .getBooleanSystemProperty("herddb.tablemanager.legacylocks", false);
+
     private final ConcurrentMap<Long, DataPage> newPages;
 
     private final ConcurrentMap<Long, DataPage> pages;
@@ -160,11 +165,11 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
      * Counts how many pages had been loaded
      */
     private final LongAdder unloadedPagesCount = new LongAdder();
-
     /**
      * Local locks
      */
-    private final LocalLockManager locksManager = new LocalLockManager();
+    private final ILocalLockManager locksManager
+            = USE_LEGACY_LOCK_MANAGER ? new LegacyLocalLockManager() : new LocalLockManager();
 
     /**
      * Set to {@code true} when this {@link TableManage} is fully started

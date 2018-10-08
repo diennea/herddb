@@ -38,7 +38,7 @@ import herddb.log.LogSequenceNumber;
 import herddb.utils.Bytes;
 import herddb.utils.ExtendedDataInputStream;
 import herddb.utils.ExtendedDataOutputStream;
-import herddb.utils.LocalLockManager;
+import herddb.utils.ILocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
@@ -165,7 +165,7 @@ public class Transaction {
 
     }
 
-    public void releaseLocksOnTable(String tableName, LocalLockManager lockManager) {
+    public void releaseLocksOnTable(String tableName, ILocalLockManager lockManager) {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll != null) {
             for (LockHandle l : ll.values()) {
@@ -477,7 +477,7 @@ public class Transaction {
 
     }
 
-    public void releaseLockOnKey(String tableName, Bytes key, LocalLockManager locksManager) {
+    public void releaseLockOnKey(String tableName, Bytes key, ILocalLockManager locksManager) {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll != null) {
             LockHandle lock = ll.remove(key);

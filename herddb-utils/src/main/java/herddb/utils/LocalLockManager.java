@@ -21,9 +21,8 @@ package herddb.utils;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -32,9 +31,12 @@ import java.util.logging.Logger;
  * @author enrico.olivelli
  * @author diego.salvi
  */
-public class LocalLockManager {
+public class LocalLockManager implements ILocalLockManager {
 
     private static final Logger LOGGER = Logger.getLogger(LocalLockManager.class.getName());
+    private int writeLockTimeout = 60 * 30;
+
+    private int readLockTimeout = 60 * 30;
 
     private StampedLock makeLock() {
         return new StampedLock();
@@ -43,7 +45,7 @@ public class LocalLockManager {
     private final ConcurrentMap<Bytes, LockInstance> locks = new ConcurrentHashMap<Bytes, LockInstance>();
 
     @SuppressWarnings("serial")
-    private static final class LockInstance extends ReentrantLock {
+    private static final class LockInstance {
 
         private final StampedLock lock;
         private int count;
@@ -53,109 +55,102 @@ public class LocalLockManager {
             this.lock = lock;
             this.count = count;
         }
+
+        @Override
+        public String toString() {
+            return "LockInstance{" + "lock=" + lock + ", count=" + count + '}';
+        }
+
     }
 
-    private StampedLock makeLockForKey(Bytes key) {
-
-        LockInstance instance = locks.computeIfAbsent(key, (k) -> {
-
-            /* No existing instance, inserting an already locked instance */
-            final LockInstance li = new LockInstance(makeLock(), 1);
-            li.lock();
-
-            return li;
-
+    private LockInstance makeLockForKey(Bytes key) {
+        LockInstance instance = locks.compute(key, (k, existing) -> {
+            if (existing != null) {
+                existing.count++;
+                return existing;
+            } else {
+                LockInstance lock = new LockInstance(makeLock(), 1);
+                return lock;
+            }
         });
-
-        try {
-            /* If held by current thread all work has been already done! */
-            if (!instance.isHeldByCurrentThread()) {
-                instance.lock();
-
-                /*
-                 * The lock wasn't created by this thread. We should check if it was released from another thread
-                 * between instance retrieval from map and instance lock.
-                 */
-                if (instance.count < 1) {
-                    /* Worst concurrent case: released by another thread, retry */
-
- /*
-                     * Do not release current lock before doing another attemp. Other threads checking the
-                     * same instance will have to wait here untill a live lock is created (trying to avoid
-                     * spinning and contention between threads). The lock will released in finally block upon
-                     * method exit.
-                     */
-                    return makeLockForKey(key);
-                }
-
-                ++instance.count;
-            }
-        } finally {
-            instance.unlock();
-        }
-
-        return instance.lock;
+        return instance;
     }
 
-    private StampedLock returnLockForKey(Bytes key) throws IllegalStateException {
-
-        /* Retrieve the instance... other threads could have this pointer too */
-        LockInstance instance = locks.get(key);
-
-        /* If there was no instance fail */
-        if (instance == null) {
-            LOGGER.log(Level.SEVERE, "no lock object exists for key {0}", key);
-            throw new IllegalStateException("no lock object exists for key " + key);
-        }
-
-        instance.lock();
-
-        try {
-
-            if (--instance.count < 1) {
-
-                /*
-                 * If was already released too much times fail (multiple concurrent releases, if they weren't
-                 * really concurrent the map would have returned a null instance)
-                 */
-                if (instance.count < 0) {
-                    LOGGER.log(Level.SEVERE, "too much lock releases for key {0}", key);
-                    throw new IllegalStateException("too much lock releases for key " + key);
-                } else {
-                    boolean ok = locks.remove(key, instance);
-                    if (!ok) {
-                        throw new IllegalStateException("illegal lock releases for key " + key);
-                    }
-                }
-
+    private void returnLockForKey(LockInstance instance, Bytes key) throws IllegalStateException {
+        locks.compute(key, (Bytes t, LockInstance u) -> {
+            if (instance != u) {
+                throw new IllegalStateException("trying to release un-owned lock");
             }
-        } finally {
-            instance.unlock();
-        }
-
-        return instance.lock;
+            if (--u.count == 0) {
+                return null;
+            } else {
+                return u;
+            }
+        });
     }
 
+    public int getWriteLockTimeout() {
+        return writeLockTimeout;
+    }
+
+    public void setWriteLockTimeout(int writeLockTimeout) {
+        this.writeLockTimeout = writeLockTimeout;
+    }
+
+    public int getReadLockTimeout() {
+        return readLockTimeout;
+    }
+
+    public void setReadLockTimeout(int readLockTimeout) {
+        this.readLockTimeout = readLockTimeout;
+    }
+
+    @Override
     public LockHandle acquireWriteLockForKey(Bytes key) {
-        StampedLock lock = makeLockForKey(key);
-        return new LockHandle(lock.writeLock(), key, true);
+        LockInstance lock = makeLockForKey(key);
+        try {
+            long tryWriteLock = lock.lock.tryWriteLock(writeLockTimeout, TimeUnit.SECONDS);
+            if (tryWriteLock == 0) {
+                throw new RuntimeException("timed out acquiring lock for write");
+            }
+            return new LockHandle(tryWriteLock, key, true, lock);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(err);
+        }
     }
 
+    @Override
     public void releaseWriteLockForKey(Bytes key, LockHandle lockStamp) {
-        StampedLock lock = returnLockForKey(key);
-        lock.unlockWrite(lockStamp.stamp);
+        /* Retrieve the instance... other threads could have this pointer too */
+        LockInstance instance = (LockInstance) lockStamp.handle;
+        instance.lock.unlockWrite(lockStamp.stamp);
+        returnLockForKey(instance, key);
     }
 
+    @Override
     public LockHandle acquireReadLockForKey(Bytes key) {
-        StampedLock lock = makeLockForKey(key);
-        return new LockHandle(lock.readLock(), key, false);
+        LockInstance lock = makeLockForKey(key);
+        try {
+            long tryReadLock = lock.lock.tryReadLock(readLockTimeout, TimeUnit.SECONDS);
+            if (tryReadLock == 0) {
+                throw new RuntimeException("timedout trying to read lock");
+            }
+            return new LockHandle(tryReadLock, key, false, lock);
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(err);
+        }
     }
 
+    @Override
     public void releaseReadLockForKey(Bytes key, LockHandle lockStamp) {
-        StampedLock lock = returnLockForKey(key);
-        lock.unlockRead(lockStamp.stamp);
+        LockInstance instance = (LockInstance) lockStamp.handle;
+        instance.lock.unlockRead(lockStamp.stamp);
+        returnLockForKey(instance, key);
     }
 
+    @Override
     public void releaseLock(LockHandle l) {
         if (l.write) {
             releaseWriteLockForKey(l.key, l);
@@ -164,8 +159,14 @@ public class LocalLockManager {
         }
     }
 
+    @Override
     public void clear() {
         this.locks.clear();
+    }
+
+    @Override
+    public int getNumKeys() {
+        return locks.size();
     }
 
 }

@@ -20,29 +20,24 @@
 package herddb.utils;
 
 /**
- * Handle to a lock
+ * Handle locks by key
  *
  * @author enrico.olivelli
  */
-public class LockHandle {
+public interface ILocalLockManager {
 
-    public final long stamp;
-    public final boolean write;
-    public final Bytes key;
-    public final Object handle;
+    LockHandle acquireReadLockForKey(Bytes key);
 
-    public LockHandle(long stamp, Bytes key, boolean write) {
-        this.stamp = stamp;
-        this.key = key;
-        this.write = write;
-        this.handle = null;
-    }
+    LockHandle acquireWriteLockForKey(Bytes key);
 
-    public LockHandle(long stamp, Bytes key, boolean write, Object handle) {
-        this.stamp = stamp;
-        this.key = key;
-        this.write = write;
-        this.handle = handle;
-    }
+    void clear();
+
+    void releaseLock(LockHandle l);
+
+    void releaseReadLockForKey(Bytes key, LockHandle lockStamp);
+
+    void releaseWriteLockForKey(Bytes key, LockHandle lockStamp);
+
+    public int getNumKeys();
 
 }
