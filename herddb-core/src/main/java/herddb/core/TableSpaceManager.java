@@ -298,6 +298,8 @@ public class TableSpaceManager {
 
     void apply(CommitLogResult position, LogEntry entry, boolean recovery) throws DataStorageManagerException, DDLException {
         if (!position.deferred) {
+            // this will wait for the write to be acknowledged by the log
+            // it can throw LogNotAvailableException
             this.actualLogSequenceNumber = position.getLogSequenceNumber();
         }
         if (LOGGER.isLoggable(Level.FINEST)) {
