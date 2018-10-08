@@ -505,10 +505,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         long lockStamp = checkpointLock.readLock();
         if (statement instanceof UpdateStatement) {
             UpdateStatement update = (UpdateStatement) statement;
-            res = CompletableFuture.completedFuture(executeUpdate(update, transaction, context));
+            res = executeUpdateAsync(update, transaction, context);
         } else if (statement instanceof InsertStatement) {
             InsertStatement insert = (InsertStatement) statement;
-            res = CompletableFuture.completedFuture(executeInsert(insert, transaction, context));
+            res = executeInsertAsync(insert, transaction, context);
         } else if (statement instanceof GetStatement) {
             GetStatement get = (GetStatement) statement;
             res = CompletableFuture.completedFuture(executeGet(get, transaction, context));
@@ -853,7 +853,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
     }
 
-    private StatementExecutionResult executeInsert(InsertStatement insert, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
+    private CompletableFuture<StatementExecutionResult> executeInsertAsync(InsertStatement insert, Transaction transaction, StatementEvaluationContext context) {
         /*
          an insert can succeed only if the row is valid and the "keys" structure  does not contain the requested key
          the insert will add the row in the 'buffer' without assigning a page to it
@@ -870,7 +870,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
                 }
             } catch (IllegalArgumentException err) {
-                throw new StatementExecutionException(err.getMessage(), err);
+                return FutureUtils.exception(new StatementExecutionException(err.getMessage(), err));
             }
         }
 
@@ -880,30 +880,42 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         LockHandle lock = lockForWrite(key, transaction);
-        try {
-            if (transaction != null) {
-                if (transaction.recordDeleted(table.name, key)) {
-                    // OK, INSERT on a DELETED record inside this transaction
-                } else if (transaction.recordInserted(table.name, key) != null) {
-                    // ERROR, INSERT on a INSERTED record inside this transaction
-                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId);
-                } else if (keyToPage.containsKey(key)) {
-                    throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId);
-                }
+        if (transaction != null) {
+            if (transaction.recordDeleted(table.name, key)) {
+                // OK, INSERT on a DELETED record inside this transaction
+            } else if (transaction.recordInserted(table.name, key) != null) {
+                // ERROR, INSERT on a INSERTED record inside this transaction
+                return FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " inside transaction " + transaction.transactionId));
             } else if (keyToPage.containsKey(key)) {
-                throw new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name);
+                return FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name + " during transaction " + transaction.transactionId));
             }
-            LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
-            CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+        } else if (keyToPage.containsKey(key)) {
+            return FutureUtils.exception(new DuplicatePrimaryKeyException(key, "key " + key + ", decoded as " + RecordSerializer.deserializePrimaryKey(key.data, table) + ", already exists in table " + table.name));
+        }
+        LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
+        CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
+            if (error != null) {
+                throw new HerdDBInternalException(error);
+            }
             apply(pos, entry, false);
             return new DMLStatementExecutionResult(entry.transactionId, 1, key, insert.isReturnValues() ? Bytes.from_array(value) : null);
-        } catch (LogNotAvailableException err) {
-            throw new StatementExecutionException(err);
-        } finally {
-            if (transaction == null) {
-                locksManager.releaseWriteLock(lock);
-            }
+        });
+        if (transaction == null) {
+            res = releaseWriteLock(res, lock);
         }
+        return res;
+    }
+
+    private CompletableFuture<StatementExecutionResult> releaseWriteLock(
+            CompletableFuture<StatementExecutionResult> promise, LockHandle lock) {
+        return promise.handle((tr, error) -> {
+            locksManager.releaseWriteLock(lock);
+            if (error != null) {
+                throw new HerdDBInternalException(error);
+            }
+            return tr;
+        });
     }
 
     @SuppressWarnings("serial")
@@ -935,7 +947,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
     }
 
-    private StatementExecutionResult executeUpdate(UpdateStatement update, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
+    private CompletableFuture<StatementExecutionResult> executeUpdateAsync(UpdateStatement update, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
         Holder<byte[]> lastValue = new Holder<>();
@@ -951,6 +963,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         Map<String, AbstractIndexManager> indexes = tableSpaceManager.getIndexesOnTable(table.name);
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
+        List<CompletableFuture<LogSequenceNumber>> writes = new ArrayList<>();
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
@@ -963,27 +976,57 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
                         }
                     } catch (IllegalArgumentException err) {
-                        throw new StatementExecutionException(err.getMessage(), err);
+                        writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
+                        return;
                     }
                 }
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
                 if (size > maxLogicalPageSize) {
-                    throw new RecordTooBigException("New version of record " + actual.key
+                    writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
                             + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
-                            + ", max size " + maxLogicalPageSize);
+                            + ", max size " + maxLogicalPageSize)));
+                    return;
                 }
 
                 LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                apply(pos, entry, false);
+                CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
+                        .handleAsync((lsn, error) -> {
+                            if (error != null) {
+                                throw new HerdDBInternalException(error);
+                            }
+                            apply(pos, entry, false);
+                            return lsn;
+                        });
+                writes.add(promise);
                 lastKey.value = actual.key;
                 lastValue.value = newValue;
                 updateCount.incrementAndGet();
             }
         }, transaction, true, true);
 
-        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+        if (writes.isEmpty()) {
+            return CompletableFuture
+                    .completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
+        } else if (writes.isEmpty()) {
+            return writes.get(0).handle((lsn, error) -> {
+                if (error != null) {
+                    throw new HerdDBInternalException(error);
+                }
+                return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+                        update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+            });
+        } else {
+            return FutureUtils
+                    .collect(writes)
+                    .handle((lsn, error) -> {
+                        if (error != null) {
+                            throw new HerdDBInternalException(error);
+                        }
+                        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+                                update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                    });
+        }
 
     }
 

@@ -1044,10 +1044,9 @@ public class TableSpaceManager {
         CompletableFuture<StatementExecutionResult> res;
         try {
             if (statement instanceof TableAwareStatement) {
-                res = CompletableFuture.completedFuture(executeTableAwareStatement(statement, transaction, context));
+                res = executeTableAwareStatement(statement, transaction, context);
             } else if (statement instanceof SQLPlannedOperationStatement) {
-                res = CompletableFuture.completedFuture(
-                        executePlannedOperationStatement(statement, transactionContext, context));
+                res = executePlannedOperationStatement(statement, transactionContext, context);
             } else if (statement instanceof BeginTransactionStatement) {
                 if (transaction != null) {
                     res = FutureUtils.exception(new StatementExecutionException("transaction already started"));
@@ -1100,8 +1099,8 @@ public class TableSpaceManager {
         return res;
     }
 
-    private StatementExecutionResult executePlannedOperationStatement(Statement statement,
-            TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> executePlannedOperationStatement(Statement statement,
+            TransactionContext transactionContext, StatementEvaluationContext context) {
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
         if (lockStamp == 0) {
@@ -1109,18 +1108,21 @@ public class TableSpaceManager {
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }
-        try {
-            SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
-            return planned.getRootOp().execute(this, transactionContext, context, false, false);
-        } finally {
-            if (lockAcquired) {
-                context.setTableSpaceLock(0);
-                generalLock.unlockRead(lockStamp);
-            }
+
+        SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
+        CompletableFuture<StatementExecutionResult> res
+                = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        if (lockAcquired) {
+            res = releaseReadLock(res, lockStamp)
+                    .thenApply(s -> {
+                        context.setTableSpaceLock(0);
+                        return s;
+                    });
         }
+        return res;
     }
 
-    private StatementExecutionResult executeTableAwareStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws TableDoesNotExistException, StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> executeTableAwareStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws TableDoesNotExistException, StatementExecutionException {
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
         if (lockStamp == 0) {
@@ -1128,25 +1130,27 @@ public class TableSpaceManager {
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }
-        try {
-            TableAwareStatement st = (TableAwareStatement) statement;
-            String table = st.getTable();
-            AbstractTableManager manager = tables.get(table);
-            if (manager == null) {
-                throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName);
-            }
-            if (manager.getCreatedInTransaction() > 0) {
-                if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
-                    throw new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction());
-                }
-            }
-            return manager.executeStatement(statement, transaction, context);
-        } finally {
-            if (lockAcquired) {
-                context.setTableSpaceLock(0);
-                generalLock.unlockRead(lockStamp);
+        TableAwareStatement st = (TableAwareStatement) statement;
+        String table = st.getTable();
+        AbstractTableManager manager = tables.get(table);
+        if (manager == null) {
+            return FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName));
+        }
+        if (manager.getCreatedInTransaction() > 0) {
+            if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
+                return FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction()));
             }
         }
+        CompletableFuture<StatementExecutionResult> res = manager.executeStatementAsync(statement, transaction, context);
+        if (lockAcquired) {
+            res = releaseReadLock(res, lockStamp)
+                    .thenApply(s -> {
+                        context.setTableSpaceLock(0);
+                        return s;
+                    });
+        }
+        return res;
+
     }
 
     private StatementExecutionResult createTable(CreateTableStatement statement, Transaction transaction) throws StatementExecutionException {
@@ -1520,10 +1524,7 @@ public class TableSpaceManager {
                 throw new HerdDBInternalException(error);
             }
         });
-        res.whenComplete((tr, error) -> {
-            generalLock.unlockRead(lockStamp);
-        });
-        return res;
+        return releaseReadLock(res, lockStamp);
     }
 
     private CompletableFuture<StatementExecutionResult> commitTransaction(CommitTransactionStatement commitTransactionStatement) throws StatementExecutionException {
@@ -1539,10 +1540,18 @@ public class TableSpaceManager {
                 throw new HerdDBInternalException(error);
             }
         });
-        res.whenComplete((tr, error) -> {
+        return releaseReadLock(res, lockStamp);
+    }
+
+    private CompletableFuture<StatementExecutionResult> releaseReadLock(
+            CompletableFuture<StatementExecutionResult> promise, long lockStamp) {
+        return promise.handle((tr, error) -> {
             generalLock.unlockRead(lockStamp);
+            if (error != null) {
+                throw new HerdDBInternalException(error);
+            }
+            return tr;
         });
-        return res;
     }
 
     public boolean isLeader() {

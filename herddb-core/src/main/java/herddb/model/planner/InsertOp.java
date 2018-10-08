@@ -39,11 +39,12 @@ import herddb.sql.SQLRecordFunction;
 import herddb.sql.SQLRecordKeyFunction;
 import herddb.sql.expressions.CompiledSQLExpression;
 import herddb.sql.expressions.ConstantExpression;
-import herddb.utils.Bytes;
 import herddb.utils.DataAccessor;
 import herddb.utils.Wrapper;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 public class InsertOp implements PlannerOp {
 
@@ -65,7 +66,7 @@ public class InsertOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context,
             boolean lockRequired, boolean forWrite) {
         StatementExecutionResult input = this.input.execute(tableSpaceManager,
@@ -73,9 +74,9 @@ public class InsertOp implements PlannerOp {
         ScanResult downstreamScanResult = (ScanResult) input;
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
-        int updateCount = 0;
-        Bytes key = null;
-        Bytes newValue = null;
+
+        List<CompletableFuture<StatementExecutionResult>> rows = new ArrayList<>();
+
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
 
@@ -118,24 +119,37 @@ public class InsertOp implements PlannerOp {
 
                 DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
 
-                DMLStatementExecutionResult _result = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
-                updateCount += _result.getUpdateCount();
-                if (_result.transactionId > 0 && _result.transactionId != transactionId) {
-                    transactionId = _result.transactionId;
-                    transactionContext = new TransactionContext(transactionId);
-                }
-                key = _result.getKey();
-                newValue = _result.getNewvalue();
+                CompletableFuture<StatementExecutionResult> insertRecordPromise = tableSpaceManager.executeStatementAsync(insertStatement, context, transactionContext);
+                rows.add(insertRecordPromise);
+//   DMLStatementExecutionResult _result = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
+//                updateCount += _result.getUpdateCount();
+//                if (_result.transactionId > 0 && _result.transactionId != transactionId) {
+//                    transactionId = _result.transactionId;
+//                    transactionContext = new TransactionContext(transactionId);
+//                }F
             }
-            if (updateCount > 1 && returnValues) {
-                if (transactionId > 0) {
-                    // usually the first record will be rolledback with transaction failure
-                    throw new StatementExecutionException("cannot 'return values' on multi-values insert");
-                } else {
-                    throw new StatementExecutionException("cannot 'return values' on multi-values insert, at least record could have been written because autocommit=true");
-                }
+            if (rows.isEmpty()) {
+                return CompletableFuture.completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
             }
-            return new DMLStatementExecutionResult(transactionId, updateCount, key, newValue);
+            if (rows.size() == 1) {
+                return rows.get(0);
+            }
+
+            CompletableFuture<StatementExecutionResult> res = new CompletableFuture<>();
+            for (CompletableFuture<StatementExecutionResult> record : rows) {
+                res = record.thenCombine(res, (resA, resB) -> {
+                    DMLStatementExecutionResult _resA = (DMLStatementExecutionResult) resA;
+                    DMLStatementExecutionResult _resB = (DMLStatementExecutionResult) resB;
+                    return new DMLStatementExecutionResult(
+                            _resA.transactionId > 0 ? _resA.transactionId : _resB.transactionId,
+                            _resA.getUpdateCount() + _resB.getUpdateCount(),
+                            _resB.getKey() != null ? _resB.getKey() : _resA.getKey(),
+                            _resB.getKey() != null ? _resB.getNewvalue() : _resA.getNewvalue());
+                });
+            }
+
+            return FutureUtils.exception(new StatementExecutionException("TODO - reimplement MULTI INSERT"));
+
         } catch (DataScannerException err) {
             throw new StatementExecutionException(err);
         }
