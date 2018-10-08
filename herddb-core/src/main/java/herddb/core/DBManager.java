@@ -103,6 +103,9 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.DataAccessor;
 import herddb.utils.DefaultJVMHalt;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * General Manager of the local instance of HerdDB
@@ -554,48 +557,72 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executeStatement(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        context.setDefaultTablespace(statement.getTableSpace());
-        context.setManager(this);
-        context.setTransactionContext(transactionContext);
-        //LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
-        String tableSpace = statement.getTableSpace();
-        if (tableSpace == null) {
-            throw new StatementExecutionException("invalid null tableSpace");
-        }
+        CompletableFuture<StatementExecutionResult> res = executeStatementAsync(statement, context, transactionContext);
         try {
-            if (statement instanceof CreateTableSpaceStatement) {
-                if (transactionContext.transactionId > 0) {
-                    throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
-                }
-                return createTableSpace((CreateTableSpaceStatement) statement);
+            return res.get();
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new StatementExecutionException(err);
+        } catch (ExecutionException err) {
+            Throwable cause = err.getCause();
+            if (cause instanceof HerdDBInternalException && cause.getCause() != null) {
+                cause = cause.getCause();
             }
+            if (cause instanceof StatementExecutionException) {
+                throw (StatementExecutionException) cause;
+            } else {
+                throw new StatementExecutionException(cause);
+            }
+        }
+    }
 
-            if (statement instanceof AlterTableSpaceStatement) {
-                if (transactionContext.transactionId > 0) {
-                    throw new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction");
-                }
-                return alterTableSpace((AlterTableSpaceStatement) statement);
+    public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) {
+        try {
+            context.setDefaultTablespace(statement.getTableSpace());
+            context.setManager(this);
+            context.setTransactionContext(transactionContext);
+            //LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
+            String tableSpace = statement.getTableSpace();
+            if (tableSpace == null) {
+                throw new StatementExecutionException("invalid null tableSpace");
             }
-            if (statement instanceof DropTableSpaceStatement) {
-                if (transactionContext.transactionId > 0) {
-                    throw new StatementExecutionException("DROP TABLESPACE cannot be issued inside a transaction");
+            try {
+                if (statement instanceof CreateTableSpaceStatement) {
+                    if (transactionContext.transactionId > 0) {
+                        throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
+                    }
+                    return CompletableFuture.completedFuture(createTableSpace((CreateTableSpaceStatement) statement));
                 }
-                return dropTableSpace((DropTableSpaceStatement) statement);
-            }
 
-            TableSpaceManager manager = tablesSpaces.get(tableSpace);
-            if (manager == null) {
-                throw new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
-                        + "Maybe the server is starting ");
+                if (statement instanceof AlterTableSpaceStatement) {
+                    if (transactionContext.transactionId > 0) {
+                        throw new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction");
+                    }
+                    return CompletableFuture.completedFuture(alterTableSpace((AlterTableSpaceStatement) statement));
+                }
+                if (statement instanceof DropTableSpaceStatement) {
+                    if (transactionContext.transactionId > 0) {
+                        throw new StatementExecutionException("DROP TABLESPACE cannot be issued inside a transaction");
+                    }
+                    return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
+                }
+
+                TableSpaceManager manager = tablesSpaces.get(tableSpace);
+                if (manager == null) {
+                    throw new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
+                            + "Maybe the server is starting ");
+                }
+                if (errorIfNotLeader && !manager.isLeader()) {
+                    throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
+                }
+                return manager.executeStatementAsync(statement, context, transactionContext);
+            } finally {
+                if (statement instanceof DDLStatement) {
+                    translator.clearCache();
+                }
             }
-            if (errorIfNotLeader && !manager.isLeader()) {
-                throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
-            }
-            return manager.executeStatement(statement, context, transactionContext);
-        } finally {
-            if (statement instanceof DDLStatement) {
-                translator.clearCache();
-            }
+        } catch (StatementExecutionException err) {
+            return FutureUtils.exception(err);
         }
     }
 
@@ -613,56 +640,37 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public StatementExecutionResult executePlan(ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) throws StatementExecutionException {
-        context.setManager(this);
-        plan.validateContext(context);
-        if (plan.mainStatement instanceof ScanStatement) {
-            DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
-            // transction can be auto generated during the scan
-            transactionContext = new TransactionContext(result.transactionId);
-            return executeDataScannerPlan(plan, result, context, transactionContext);
-        } else if (plan.dataSource != null) {
-            // INSERT from SELECT
-            try {
-                ScanResult data = (ScanResult) executePlan(plan.dataSource, context, transactionContext);
-                int insertCount = 0;
-                try {
-                    // transction can be auto generated during the scan
-                    transactionContext = new TransactionContext(data.transactionId);
-                    while (data.dataScanner.hasNext()) {
-                        DataAccessor tuple = data.dataScanner.next();
-                        SQLStatementEvaluationContext tmp_context = new SQLStatementEvaluationContext("--", Arrays.asList(tuple.getValues()));
-                        DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(plan.mainStatement, tmp_context, transactionContext);
-                        insertCount += res.getUpdateCount();
-                    }
-                } finally {
-                    data.dataScanner.close();
-                }
-                return new DMLStatementExecutionResult(transactionContext.transactionId, insertCount);
-            } catch (DataScannerException err) {
-                throw new StatementExecutionException(err);
+        CompletableFuture<StatementExecutionResult> res = executePlanAsync(plan, context, transactionContext);
+        try {
+            return res.get();
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new StatementExecutionException(err);
+        } catch (ExecutionException err) {
+            if (err.getCause() instanceof StatementExecutionException) {
+                throw (StatementExecutionException) err.getCause();
+            } else {
+                throw new StatementExecutionException(err.getCause());
             }
-        } else if (plan.joinStatements != null) {
-            List<DataScanner> scanResults = new ArrayList<>();
-            for (ScanStatement statement : plan.joinStatements) {
-                DataScanner result = scan(statement, context, transactionContext);
+        }
+    }
+
+    public CompletableFuture<StatementExecutionResult> executePlanAsync(ExecutionPlan plan, StatementEvaluationContext context, TransactionContext transactionContext) {
+        try {
+            context.setManager(this);
+            plan.validateContext(context);
+            if (plan.mainStatement instanceof ScanStatement) {
+                DataScanner result = scan((ScanStatement) plan.mainStatement, context, transactionContext);
                 // transction can be auto generated during the scan
                 transactionContext = new TransactionContext(result.transactionId);
-                scanResults.add(result);
+                return CompletableFuture
+                        .completedFuture(executeDataScannerPlan(plan, result, context, transactionContext));
+            } else {
+                return CompletableFuture
+                        .completedFuture(executeStatement(plan.mainStatement, context, transactionContext));
             }
-            return executeJoinedScansPlan(scanResults, context, transactionContext,
-                    plan);
-
-        } else if (plan.insertStatements != null) {
-            int insertCount = 0;
-            for (InsertStatement insert : plan.insertStatements) {
-                DMLStatementExecutionResult res = (DMLStatementExecutionResult) executeStatement(insert, context, transactionContext);
-                // transction can be auto generated during the loop
-                transactionContext = new TransactionContext(res.transactionId);
-                insertCount += res.getUpdateCount();
-            }
-            return new DMLStatementExecutionResult(transactionContext.transactionId, insertCount);
-        } else {
-            return executeStatement(plan.mainStatement, context, transactionContext);
+        } catch (StatementExecutionException err) {
+            return FutureUtils.exception(err);
         }
     }
 
@@ -698,63 +706,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             }
         } else {
             return scanResult;
-        }
-    }
-
-    private StatementExecutionResult executeJoinedScansPlan(List<DataScanner> scanResults,
-            StatementEvaluationContext context,
-            TransactionContext transactionContext,
-            ExecutionPlan plan) throws StatementExecutionException {
-        try {
-            List<Column> composedSchema = new ArrayList<>();
-            for (DataScanner ds : scanResults) {
-                composedSchema.addAll(Arrays.asList(ds.getSchema()));
-            }
-            Column[] finalSchema = new Column[composedSchema.size()];
-            composedSchema.toArray(finalSchema);
-            String[] finalSchemaFieldNames = Column.buildFieldNamesList(finalSchema);
-            MaterializedRecordSet finalResultSet = recordSetFactory.createRecordSet(finalSchemaFieldNames, finalSchema);
-
-            DataScannerJoinExecutor joinExecutor;
-            if (plan.joinProjection != null) {
-                if (plan.joinFilter != null) {
-                    TuplePredicate joinFilter = plan.joinFilter;
-                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
-                        if (joinFilter.matches(t, context)) {
-                            finalResultSet.add(plan.joinProjection.map(t, context));
-                        }
-                    });
-                } else {
-                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
-                        finalResultSet.add(plan.joinProjection.map(t, context));
-                    });
-                }
-            } else {
-                if (plan.joinFilter != null) {
-                    TuplePredicate joinFilter = plan.joinFilter;
-                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
-                        if (joinFilter.matches(t, context)) {
-                            finalResultSet.add(t);
-                        }
-                    });
-                } else {
-                    joinExecutor = new DataScannerJoinExecutor(finalSchemaFieldNames, finalSchema, scanResults, t -> {
-                        finalResultSet.add(t);
-                    });
-                }
-            }
-            joinExecutor.executeJoin();
-
-            finalResultSet.writeFinished();
-            finalResultSet.sort(plan.comparator);
-            finalResultSet.applyLimits(plan.limits, context);
-
-            return new ScanResult(
-                    transactionContext.transactionId,
-                    new SimpleDataScanner(transactionContext.transactionId,
-                            finalResultSet));
-        } catch (DataScannerException err) {
-            throw new StatementExecutionException(err);
         }
     }
 
@@ -864,7 +815,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
     public void checkpoint() throws DataStorageManagerException, LogNotAvailableException {
         for (TableSpaceManager man : tablesSpaces.values()) {
-            man.checkpoint(false, false);
+            man.checkpoint(false, false, false);
         }
     }
 

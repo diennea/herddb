@@ -80,6 +80,7 @@ import herddb.utils.MessageUtils;
 import herddb.utils.RawString;
 import herddb.utils.TuplesList;
 import io.netty.buffer.ByteBuf;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Handles a client Connection
@@ -118,6 +119,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     @Override
     public void requestReceived(MessageWrapper messageWrapper, Channel _channel) {
+        // message is handled by current thread
+        boolean releaseMessageSync = true;
         Request message = messageWrapper.getRequest();
         try {
             LOGGER.log(Level.FINEST, "messageReceived {0}", message);
@@ -144,7 +147,8 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                         sendAuthRequiredError(_channel, message);
                         break;
                     }
-                    handleTxCommand(message, _channel);
+                    releaseMessageSync = false;
+                    handleTxCommand(message, messageWrapper, _channel);
                 }
                 break;
                 case MessageType.TYPE_EXECUTE_STATEMENTS: {
@@ -242,7 +246,9 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
                     _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unsupported message type " + message.type())));
             }
         } finally {
-            messageWrapper.close();
+            if (releaseMessageSync) {
+                messageWrapper.close();
+            }
         }
     }
 
@@ -425,8 +431,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
             TransactionContext transactionContext = new TransactionContext(txId);
             if (translatedQuery.plan.mainStatement instanceof SQLPlannedOperationStatement
-                    || translatedQuery.plan.mainStatement instanceof ScanStatement
-                    || translatedQuery.plan.joinStatements != null) {
+                    || translatedQuery.plan.mainStatement instanceof ScanStatement) {
 
                 server.getManager().registerRunningStatement(statementInfo);
                 ScanResult scanResult = (ScanResult) server.getManager().executePlan(translatedQuery.plan, translatedQuery.context, transactionContext);
@@ -459,7 +464,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     private void handleFetchScannerData(Request message, Channel _channel) {
-        ByteBuffer byteBuffer= message.getByteBuffer();
+        ByteBuffer byteBuffer = message.getByteBuffer();
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString scannerId = MessageUtils.readRawString(message.scannerIdInByteBuffer(byteBuffer));
@@ -495,7 +500,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
     }
 
     private void handleCloseScanner(Request message, Channel _channel) {
-        ByteBuffer byteBuffer= message.getByteBuffer();
+        ByteBuffer byteBuffer = message.getByteBuffer();
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();
         RawString scannerId = MessageUtils.readRawString(message.scannerIdInByteBuffer(byteBuffer));
@@ -613,7 +618,6 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         ((Buffer) byteBuffer).position(position);
         ((Buffer) byteBuffer).limit(limit);
 
-
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
         ((Buffer) byteBuffer).position(position);
         ((Buffer) byteBuffer).limit(limit);
@@ -703,7 +707,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         }
     }
 
-    private void handleTxCommand(Request message, Channel _channel) {
+    private void handleTxCommand(Request message, MessageWrapper messageWrapper, Channel _channel) {
         long txId = message.tx();
         int type = message.txCommand();
         ByteBuffer byteBuffer = message.getByteBuffer();
@@ -712,62 +716,71 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
         RawString tableSpace = MessageUtils.readRawString(message.tableSpaceInByteBuffer(byteBuffer));
         ((Buffer) byteBuffer).position(position);
         ((Buffer) byteBuffer).limit(limit);
-        try {
-            TransactionContext transactionContext = new TransactionContext(txId);
-            Statement statement;
-            switch (type) {
-                case MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION:
-                    statement = new CommitTransactionStatement(tableSpace.toString(), txId);
-                    break;
-                case MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION:
-                    statement = new RollbackTransactionStatement(tableSpace.toString(), txId);
-                    break;
-                case MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION:
-                    statement = new BeginTransactionStatement(tableSpace.toString());
-                    break;
-                default:
-                    statement = null;
+        TransactionContext transactionContext = new TransactionContext(txId);
+        Statement statement;
+        switch (type) {
+            case MessageBuilder.TX_COMMAND_COMMIT_TRANSACTION:
+                statement = new CommitTransactionStatement(tableSpace.toString(), txId);
+                break;
+            case MessageBuilder.TX_COMMAND_ROLLBACK_TRANSACTION:
+                statement = new RollbackTransactionStatement(tableSpace.toString(), txId);
+                break;
+            case MessageBuilder.TX_COMMAND_BEGIN_TRANSACTION:
+                statement = new BeginTransactionStatement(tableSpace.toString());
+                break;
+            default:
+                statement = null;
 
-            }
-            if (statement == null) {
-                _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown command type " + type)));
-            } else {
-//                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", plan: " + translatedQuery.plan);
-                StatementExecutionResult result = server
-                        .getManager()
-                        .executeStatement(statement, new StatementEvaluationContext(), transactionContext);
+        }
+        if (statement == null) {
+            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown command type " + type)));
+            messageWrapper.close();
+        } else {
+//            LOGGER.log(Level.SEVERE, "statement " + statement);
+            CompletableFuture<StatementExecutionResult> res = server
+                    .getManager()
+                    .executeStatementAsync(statement, new StatementEvaluationContext(), transactionContext);
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
-                if (result instanceof TransactionResult) {
-                    TransactionResult txresult = (TransactionResult) result;
+            res.whenComplete((result, err) -> {
+                try {
+//                    LOGGER.log(Level.SEVERE, "statement " + statement + " complete " + err + " " + result);
 
-                    Set<Long> transactionsForTableSpace = openTransactions.computeIfAbsent(
-                            RawString.of(statement.getTableSpace()), k -> new ConcurrentSkipListSet<>());
-                    switch (txresult.getOutcome()) {
-                        case BEGIN: {
-                            transactionsForTableSpace.add(txresult.getTransactionId());
-                            break;
+                    if (err != null) {
+                        if (err instanceof NotLeaderException) {
+                            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
+                            _channel.sendReplyMessage(message.id(), error);
+                        } else if (err instanceof StatementExecutionException) {
+                            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+                            _channel.sendReplyMessage(message.id(), error);
+                        } else {
+                            LOGGER.log(Level.SEVERE, "unexpected error on tx command: ", err);
+                            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
+                            _channel.sendReplyMessage(message.id(), error);
                         }
-                        case COMMIT:
-                        case ROLLBACK:
-                            transactionsForTableSpace.remove(txresult.getTransactionId());
-                            break;
+                    } else {
+                        if (result instanceof TransactionResult) {
+                            TransactionResult txresult = (TransactionResult) result;
+                            Set<Long> transactionsForTableSpace = openTransactions.computeIfAbsent(
+                                    RawString.of(statement.getTableSpace()), k -> new ConcurrentSkipListSet<>());
+                            switch (txresult.getOutcome()) {
+                                case BEGIN: {
+                                    transactionsForTableSpace.add(txresult.getTransactionId());
+                                    break;
+                                }
+                                case COMMIT:
+                                case ROLLBACK:
+                                    transactionsForTableSpace.remove(txresult.getTransactionId());
+                                    break;
+                            }
+                            _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
+                        } else {
+                            _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+                        }
                     }
-
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.EXECUTE_STATEMENT_RESULT(message.id(), 1, null, txresult.transactionId));
-                } else {
-                    _channel.sendReplyMessage(message.id(), MessageBuilder.ERROR(message.id(), new Exception("unknown result type " + result.getClass() + " (" + result + ")")));
+                } finally {
+                    messageWrapper.close();
                 }
-            }
-        } catch (NotLeaderException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err, null, true);
-            _channel.sendReplyMessage(message.id(), error);
-        } catch (StatementExecutionException err) {
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-            _channel.sendReplyMessage(message.id(), error);
-        } catch (RuntimeException err) {
-            LOGGER.log(Level.SEVERE, "unexpected error on tx command: ", err);
-            ByteBuf error = MessageBuilder.ERROR(message.id(), err);
-            _channel.sendReplyMessage(message.id(), error);
+            });
         }
     }
 
