@@ -40,6 +40,8 @@ import herddb.model.Transaction;
 import herddb.model.commands.ScanStatement;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Abstract of Table
@@ -47,7 +49,6 @@ import herddb.storage.FullTableScanConsumer;
  * @author enrico.olivelli
  */
 public interface AbstractTableManager extends AutoCloseable {
-
 
     public TableManagerStats getStats();
 
@@ -65,7 +66,9 @@ public interface AbstractTableManager extends AutoCloseable {
 
     public boolean isSystemTable();
 
-    /** Check if the table manage has been fully started */
+    /**
+     * Check if the table manage has been fully started
+     */
     boolean isStarted();
 
     public void start() throws DataStorageManagerException;
@@ -85,14 +88,16 @@ public interface AbstractTableManager extends AutoCloseable {
     /**
      * Performs a full deep checkpoint cleaning as much space as possible.
      * <p>
-     * It's an hint for table manager for perform a more aggressive checkpoint. Table manager implementations
-     * can resolve to perform a normal checkpoint if they need for internal logic.
+     * It's an hint for table manager for perform a more aggressive checkpoint.
+     * Table manager implementations can resolve to perform a normal checkpoint
+     * if they need for internal logic.
      * </p>
      */
     public TableCheckpoint fullCheckpoint(boolean pin) throws DataStorageManagerException;
 
     /**
      * Unpin a previously pinned checkpont (see {@link #checkpoint(boolean)})
+     *
      * @throws DataStorageManagerException
      */
     public abstract void unpinCheckpoint(LogSequenceNumber sequenceNumber) throws DataStorageManagerException;
@@ -107,15 +112,35 @@ public interface AbstractTableManager extends AutoCloseable {
 
     public void apply(CommitLogResult pos, LogEntry entry, boolean recovery) throws DataStorageManagerException;
 
-    StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException;
+    default StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
+        CompletableFuture<StatementExecutionResult> res = executeStatementAsync(statement, transaction, context);
+        try {
+            return res.get();
+        } catch (InterruptedException err) {
+            Thread.currentThread().interrupt();
+            throw new StatementExecutionException(err);
+        } catch (ExecutionException err) {
+            Throwable cause = err.getCause();
+            if (cause instanceof HerdDBInternalException && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof StatementExecutionException) {
+                throw (StatementExecutionException) cause;
+            } else {
+                throw new StatementExecutionException(cause);
+            }
+        }
+    }
+
+    CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, Transaction transaction, StatementEvaluationContext context);
 
     public DataScanner scan(ScanStatement statement, StatementEvaluationContext context,
             Transaction transaction, boolean lockRequired, boolean forWrite) throws StatementExecutionException;
 
     public void scanForIndexRebuild(Consumer<Record> records) throws DataStorageManagerException;
 
+    static final class TableCheckpoint {
 
-    static final class TableCheckpoint {        
         final String tableName;
         final LogSequenceNumber sequenceNumber;
         final List<PostCheckpointAction> actions;

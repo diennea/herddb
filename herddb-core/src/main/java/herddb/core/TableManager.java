@@ -107,6 +107,8 @@ import herddb.utils.LegacyLocalLockManager;
 import herddb.utils.LocalLockManager;
 import herddb.utils.LockHandle;
 import herddb.utils.SystemProperties;
+import java.util.concurrent.CompletableFuture;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 /**
  * Handles Data of a Table
@@ -498,44 +500,49 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     @Override
-    public StatementExecutionResult executeStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException {
-        checkpointLock.asReadLock().lock();
-        try {
-            if (statement instanceof UpdateStatement) {
-                UpdateStatement update = (UpdateStatement) statement;
-                return executeUpdate(update, transaction, context);
+    public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, Transaction transaction, StatementEvaluationContext context) {
+        CompletableFuture<StatementExecutionResult> res;
+        long lockStamp = checkpointLock.readLock();
+        if (statement instanceof UpdateStatement) {
+            UpdateStatement update = (UpdateStatement) statement;
+            res = CompletableFuture.completedFuture(executeUpdate(update, transaction, context));
+        } else if (statement instanceof InsertStatement) {
+            InsertStatement insert = (InsertStatement) statement;
+            res = CompletableFuture.completedFuture(executeInsert(insert, transaction, context));
+        } else if (statement instanceof GetStatement) {
+            GetStatement get = (GetStatement) statement;
+            res = CompletableFuture.completedFuture(executeGet(get, transaction, context));
+        } else if (statement instanceof DeleteStatement) {
+            DeleteStatement delete = (DeleteStatement) statement;
+            res = CompletableFuture.completedFuture(executeDelete(delete, transaction, context));
+        } else if (statement instanceof TruncateTableStatement) {
+            TruncateTableStatement truncate = (TruncateTableStatement) statement;
+            res = CompletableFuture.completedFuture(executeTruncate(truncate, transaction, context));
+        } else {
+            res = FutureUtils.exception(new StatementExecutionException("not imèplemented " + statement.getClass()));
+        }
+
+        res = res.handle((r, error) -> {
+            checkpointLock.unlockRead(lockStamp);
+            if (error != null) {
+                throw new HerdDBInternalException(error);
             }
-            if (statement instanceof InsertStatement) {
-                InsertStatement insert = (InsertStatement) statement;
-                return executeInsert(insert, transaction, context);
-            }
-            if (statement instanceof GetStatement) {
-                GetStatement get = (GetStatement) statement;
-                return executeGet(get, transaction, context);
-            }
-            if (statement instanceof DeleteStatement) {
-                DeleteStatement delete = (DeleteStatement) statement;
-                return executeDelete(delete, transaction, context);
-            }
-            if (statement instanceof TruncateTableStatement) {
-                TruncateTableStatement truncate = (TruncateTableStatement) statement;
-                return executeTruncate(truncate, transaction, context);
-            }
-        } catch (DataStorageManagerException err) {
-            throw new StatementExecutionException("internal data error: " + err, err);
-        } finally {
-            checkpointLock.asReadLock().unlock();
-            if (statement instanceof TruncateTableStatement) {
+            return r;
+        });
+        if (statement instanceof TruncateTableStatement) {
+            res = res.handle((r, error) -> {
+                if (error != null) {
+                    throw new HerdDBInternalException(error);
+                }
                 try {
                     flush();
                 } catch (DataStorageManagerException err) {
-                    throw new StatementExecutionException("internal data error: " + err, err);
+                    throw new HerdDBInternalException(new StatementExecutionException("internal data error: " + err, err));
                 }
-            }
-
+                return r;
+            });
         }
-
-        throw new StatementExecutionException("unsupported statement " + statement);
+        return res;
     }
 
     /**
@@ -1164,7 +1171,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             // wait for data to be stored to log
             writeResult.getLogSequenceNumber();
         }
-        
+
         switch (entry.type) {
             case LogEntryType.DELETE: {
                 // remove the record from the set of existing records
