@@ -32,11 +32,11 @@ public interface ILocalLockManager {
 
     void clear();
 
-    void releaseLock(LockHandle l);
+    void releaseLock(LockHandle handle);
 
-    void releaseReadLockForKey(LockHandle lockStamp);
+    void releaseReadLock(LockHandle handle);
 
-    void releaseWriteLockForKey(LockHandle lockStamp);
+    void releaseWriteLock(LockHandle handle);
 
     public int getNumKeys();
 
