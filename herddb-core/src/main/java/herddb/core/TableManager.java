@@ -894,7 +894,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             throw new StatementExecutionException(err);
         } finally {
             if (transaction == null) {
-                locksManager.releaseWriteLockForKey(key, lock);
+                locksManager.releaseWriteLock(lock);
             }
         }
     }
@@ -1444,7 +1444,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             } catch (DataStorageManagerException | StatementExecutionException error) {
                 throw new RuntimeException(error);
             } finally {
-                locksManager.releaseReadLockForKey(key, lock);
+                locksManager.releaseReadLock(lock);
             }
         };
         try {
@@ -1620,7 +1620,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         } finally {
             if (transaction == null && lock != null) {
-                locksManager.releaseReadLockForKey(key, lock);
+                locksManager.releaseReadLock(lock);
             }
         }
     }
@@ -2403,11 +2403,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         // release the lock on the key if it did not match scan criteria
                         if (transaction == null) {
                             if (lock != null) {
-                                if (forWrite) {
-                                    locksManager.releaseWriteLockForKey(key, lock);
-                                } else {
-                                    locksManager.releaseReadLockForKey(key, lock);
-                                }
+                                locksManager.releaseLock(lock);
                             }
                         } else if (!keep_lock && !already_locked) {
                             transaction.releaseLockOnKey(table.name, key, locksManager);
@@ -2552,11 +2548,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             // release the lock on the key if it did not match scan criteria
             if (transaction == null) {
                 if (lock != null) {
-                    if (forWrite) {
-                        locksManager.releaseWriteLockForKey(key, lock);
-                    } else {
-                        locksManager.releaseReadLockForKey(key, lock);
-                    }
+                    locksManager.releaseLock(lock);
                 }
             } else if (!keep_lock && !already_locked) {
                 transaction.releaseLockOnKey(table.name, key, locksManager);

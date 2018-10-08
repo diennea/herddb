@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.StampedLock;
-import java.util.logging.Logger;
 
 /**
  * Handle locks by key
@@ -33,7 +32,6 @@ import java.util.logging.Logger;
  */
 public class LocalLockManager implements ILocalLockManager {
 
-    private static final Logger LOGGER = Logger.getLogger(LocalLockManager.class.getName());
     private int writeLockTimeout = 60 * 30;
 
     private int readLockTimeout = 60 * 30;
@@ -42,9 +40,8 @@ public class LocalLockManager implements ILocalLockManager {
         return new StampedLock();
     }
 
-    private final ConcurrentMap<Bytes, LockInstance> locks = new ConcurrentHashMap<Bytes, LockInstance>();
+    private final ConcurrentMap<Bytes, LockInstance> locks = new ConcurrentHashMap<>();
 
-    @SuppressWarnings("serial")
     private static final class LockInstance {
 
         private final StampedLock lock;
@@ -121,11 +118,11 @@ public class LocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseWriteLockForKey(Bytes key, LockHandle lockStamp) {
+    public void releaseWriteLockForKey(LockHandle handle) {
         /* Retrieve the instance... other threads could have this pointer too */
-        LockInstance instance = (LockInstance) lockStamp.handle;
-        instance.lock.unlockWrite(lockStamp.stamp);
-        returnLockForKey(instance, key);
+        LockInstance instance = (LockInstance) handle.handle;
+        instance.lock.unlockWrite(handle.stamp);
+        returnLockForKey(instance, handle.key);
     }
 
     @Override
@@ -144,18 +141,18 @@ public class LocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseReadLockForKey(Bytes key, LockHandle lockStamp) {
-        LockInstance instance = (LockInstance) lockStamp.handle;
-        instance.lock.unlockRead(lockStamp.stamp);
-        returnLockForKey(instance, key);
+    public void releaseReadLockForKey(LockHandle handle) {
+        LockInstance instance = (LockInstance) handle.handle;
+        instance.lock.unlockRead(handle.stamp);
+        returnLockForKey(instance, handle.key);
     }
 
     @Override
     public void releaseLock(LockHandle l) {
         if (l.write) {
-            releaseWriteLockForKey(l.key, l);
+            releaseWriteLockForKey( l);
         } else {
-            releaseReadLockForKey(l.key, l);
+            releaseReadLockForKey( l);
         }
     }
 

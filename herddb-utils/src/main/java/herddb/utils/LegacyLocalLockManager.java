@@ -41,7 +41,7 @@ public class LegacyLocalLockManager implements ILocalLockManager {
         return new StampedLock();
     }
 
-    private final ConcurrentMap<Bytes, LockInstance> locks = new ConcurrentHashMap<Bytes, LockInstance>();
+    private final ConcurrentMap<Bytes, LockInstance> locks = new ConcurrentHashMap<>();
 
     @SuppressWarnings("serial")
     private static final class LockInstance extends ReentrantLock {
@@ -80,7 +80,7 @@ public class LegacyLocalLockManager implements ILocalLockManager {
                 if (instance.count < 1) {
                     /* Worst concurrent case: released by another thread, retry */
 
- /*
+                    /*
                      * Do not release current lock before doing another attemp. Other threads checking the
                      * same instance will have to wait here untill a live lock is created (trying to avoid
                      * spinning and contention between threads). The lock will released in finally block upon
@@ -173,9 +173,9 @@ public class LegacyLocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseWriteLockForKey(Bytes key, LockHandle lockStamp) {
-        StampedLock lock = returnLockForKey(key);
-        lock.unlockWrite(lockStamp.stamp);
+    public void releaseWriteLockForKey(LockHandle handle) {
+        StampedLock lock = returnLockForKey(handle.key);
+        lock.unlockWrite(handle.stamp);
     }
 
     @Override
@@ -194,17 +194,17 @@ public class LegacyLocalLockManager implements ILocalLockManager {
     }
 
     @Override
-    public void releaseReadLockForKey(Bytes key, LockHandle lockStamp) {
-        StampedLock lock = returnLockForKey(key);
-        lock.unlockRead(lockStamp.stamp);
+    public void releaseReadLockForKey(LockHandle handle) {
+        StampedLock lock = returnLockForKey(handle.key);
+        lock.unlockRead(handle.stamp);
     }
 
     @Override
-    public void releaseLock(LockHandle l) {
-        if (l.write) {
-            releaseWriteLockForKey(l.key, l);
+    public void releaseLock(LockHandle handle) {
+        if (handle.write) {
+            releaseWriteLockForKey(handle);
         } else {
-            releaseReadLockForKey(l.key, l);
+            releaseReadLockForKey(handle);
         }
     }
 
