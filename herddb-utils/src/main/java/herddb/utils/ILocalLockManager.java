@@ -34,9 +34,9 @@ public interface ILocalLockManager {
 
     void releaseLock(LockHandle l);
 
-    void releaseReadLockForKey(Bytes key, LockHandle lockStamp);
+    void releaseReadLockForKey(LockHandle lockStamp);
 
-    void releaseWriteLockForKey(Bytes key, LockHandle lockStamp);
+    void releaseWriteLockForKey(LockHandle lockStamp);
 
     public int getNumKeys();
 
