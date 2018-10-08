@@ -38,6 +38,8 @@ public class StatementEvaluationContext {
     private DBManager manager;
     private TransactionContext transactionContext;
     private String defaultTablespace = TableSpace.DEFAULT;
+    private long tableSpaceLock;
+    private boolean tableSpaceLockWriteLockProtomoted;
 
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {
         return new StatementEvaluationContext();
@@ -87,6 +89,22 @@ public class StatementEvaluationContext {
             currentTimestamp = new java.sql.Timestamp(System.currentTimeMillis());
         }
         return currentTimestamp;
+    }
+
+    public long getTableSpaceLock() {
+        return tableSpaceLock;
+    }
+
+    public void setTableSpaceLock(long tableSpaceLock) {
+        this.tableSpaceLock = tableSpaceLock;
+    }
+
+    public boolean isTableSpaceLockWriteLockProtomoted() {
+        return tableSpaceLockWriteLockProtomoted;
+    }
+
+    public void setTableSpaceLockWriteLockProtomoted(boolean tableSpaceLockWriteLockProtomoted) {
+        this.tableSpaceLockWriteLockProtomoted = tableSpaceLockWriteLockProtomoted;
     }
 
 }

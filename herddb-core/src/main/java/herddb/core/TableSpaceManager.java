@@ -1100,18 +1100,34 @@ public class TableSpaceManager {
         return res;
     }
 
-    private StatementExecutionResult executePlannedOperationStatement(Statement statement, TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
-        generalLock.asReadLock().lock();
+    private StatementExecutionResult executePlannedOperationStatement(Statement statement,
+            TransactionContext transactionContext, StatementEvaluationContext context) throws StatementExecutionException {
+        long lockStamp = context.getTableSpaceLock();
+        boolean lockAcquired = false;
+        if (lockStamp == 0) {
+            lockStamp = generalLock.readLock();
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         try {
             SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
             return planned.getRootOp().execute(this, transactionContext, context, false, false);
         } finally {
-            generalLock.asReadLock().unlock();
+            if (lockAcquired) {
+                context.setTableSpaceLock(0);
+                generalLock.unlockRead(lockStamp);
+            }
         }
     }
 
     private StatementExecutionResult executeTableAwareStatement(Statement statement, Transaction transaction, StatementEvaluationContext context) throws TableDoesNotExistException, StatementExecutionException {
-        generalLock.asReadLock().lock();
+        long lockStamp = context.getTableSpaceLock();
+        boolean lockAcquired = false;
+        if (lockStamp == 0) {
+            lockStamp = generalLock.readLock();
+            context.setTableSpaceLock(lockStamp);
+            lockAcquired = true;
+        }
         try {
             TableAwareStatement st = (TableAwareStatement) statement;
             String table = st.getTable();
@@ -1126,7 +1142,10 @@ public class TableSpaceManager {
             }
             return manager.executeStatement(statement, transaction, context);
         } finally {
-            generalLock.asReadLock().unlock();
+            if (lockAcquired) {
+                context.setTableSpaceLock(0);
+                generalLock.unlockRead(lockStamp);
+            }
         }
     }
 
