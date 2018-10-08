@@ -58,7 +58,7 @@ import herddb.utils.Bytes;
 import herddb.utils.ZKTestEnv;
 
 /**
- * Booting two servers, one table space
+ * Tests around backup/restore
  *
  * @author enrico.olivelli
  */

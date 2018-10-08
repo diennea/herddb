@@ -259,13 +259,16 @@ public class BookkeeperCommitLog extends CommitLog {
                         lastSequenceNumber.accumulateAndGet(pos.offset,
                                 EnsureLongIncrementAccumulator.INSTANCE);
                     }
-                    notifyListeners(pos, edit);
                 }
             }
             );
             if (synch || isHasListeners()) {
                 res = res.handle((pos, error) -> {
                     if (pos != null) {
+                        if (lastLedgerId == pos.ledgerId) {
+                            lastSequenceNumber.accumulateAndGet(pos.offset,
+                                    EnsureLongIncrementAccumulator.INSTANCE);
+                        }
                         notifyListeners(pos, edit);
                         return pos;
                     } else {
