@@ -38,7 +38,7 @@ public class StatementEvaluationContext {
     private DBManager manager;
     private TransactionContext transactionContext;
     private String defaultTablespace = TableSpace.DEFAULT;
-    private long tableSpaceLock;
+    private volatile long tableSpaceLock;
     private boolean tableSpaceLockWriteLockProtomoted;
 
     public static StatementEvaluationContext DEFAULT_EVALUATION_CONTEXT() {

@@ -510,16 +510,28 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             InsertStatement insert = (InsertStatement) statement;
             res = executeInsertAsync(insert, transaction, context);
         } else if (statement instanceof GetStatement) {
-            GetStatement get = (GetStatement) statement;
-            res = CompletableFuture.completedFuture(executeGet(get, transaction, context));
+            try {
+                GetStatement get = (GetStatement) statement;
+                res = CompletableFuture.completedFuture(executeGet(get, transaction, context));
+            } catch (StatementExecutionException err) {
+                res = FutureUtils.exception(err);
+            }
         } else if (statement instanceof DeleteStatement) {
-            DeleteStatement delete = (DeleteStatement) statement;
-            res = CompletableFuture.completedFuture(executeDelete(delete, transaction, context));
+            try {
+                DeleteStatement delete = (DeleteStatement) statement;
+                res = CompletableFuture.completedFuture(executeDelete(delete, transaction, context));
+            } catch (StatementExecutionException err) {
+                res = FutureUtils.exception(err);
+            }
         } else if (statement instanceof TruncateTableStatement) {
-            TruncateTableStatement truncate = (TruncateTableStatement) statement;
-            res = CompletableFuture.completedFuture(executeTruncate(truncate, transaction, context));
+            try {
+                TruncateTableStatement truncate = (TruncateTableStatement) statement;
+                res = CompletableFuture.completedFuture(executeTruncate(truncate, transaction, context));
+            } catch (StatementExecutionException err) {
+                res = FutureUtils.exception(err);
+            }
         } else {
-            res = FutureUtils.exception(new StatementExecutionException("not imèplemented " + statement.getClass()));
+            res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
 
         res = res.handle((r, error) -> {

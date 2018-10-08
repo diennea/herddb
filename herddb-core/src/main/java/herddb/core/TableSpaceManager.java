@@ -122,6 +122,7 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.storage.FullTableScanConsumer;
 import herddb.utils.Bytes;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.StampedLock;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
@@ -612,7 +613,7 @@ public class TableSpaceManager {
     }
 
     private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
-        long lockTramp = generalLock.writeLock();
+        long lockStamp = generalLock.writeLock();
         try {
             if (transactionContext.transactionId > 0) {
                 throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
@@ -637,9 +638,14 @@ public class TableSpaceManager {
             }
             return new DDLStatementExecutionResult(transactionContext.transactionId);
         } finally {
-            generalLock.unlockWrite(lockTramp);
+            releaseWriteLock(lockStamp);
         }
 
+    }
+
+    private void releaseWriteLock(long lockStamp) {
+        System.out.println("RELEASE WRITE LOCK "+lockStamp);
+        generalLock.unlockWrite(lockStamp);
     }
 
     public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
@@ -735,7 +741,7 @@ public class TableSpaceManager {
                         LogEntry.deserialize(ld.entryData), true);
             }
         } finally {
-            generalLock.unlockWrite(lockStamp);
+            releaseWriteLock(lockStamp);
         }
     }
 
@@ -748,7 +754,7 @@ public class TableSpaceManager {
             }
             bootTable(table, 0, dumpLogSequenceNumber);
         } finally {
-            generalLock.unlockWrite(lockStamp);
+            releaseWriteLock(lockStamp);
         }
     }
 
@@ -786,7 +792,7 @@ public class TableSpaceManager {
             }
         };
 
-        long lockStamp = generalLock.writeLock();
+        long lockStamp = acquireWriteLock(null);
 
         if (includeLog) {
             log.attachCommitLogListener(logDumpReceiver);
@@ -795,6 +801,7 @@ public class TableSpaceManager {
         checkpoint = checkpoint(true, true, true /* already locked */);
 
         /* Downgrade lock */
+        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
         lockStamp = generalLock.tryConvertToReadLock(lockStamp);
         if (lockStamp == 0) {
             throw new DataStorageManagerException("unable to downgrade lock");
@@ -864,7 +871,7 @@ public class TableSpaceManager {
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
-            generalLock.unlockRead(lockStamp);
+            releaseReadLock(lockStamp);
 
             if (includeLog) {
                 log.removeCommitLogListener(logDumpReceiver);
@@ -1012,7 +1019,8 @@ public class TableSpaceManager {
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
             Throwable cause = err.getCause();
-            if (cause instanceof HerdDBInternalException && cause.getCause() != null) {
+            while ((cause instanceof HerdDBInternalException || cause instanceof CompletionException)
+                    && cause.getCause() != null) {
                 cause = cause.getCause();
             }
             if (cause instanceof StatementExecutionException) {
@@ -1104,7 +1112,7 @@ public class TableSpaceManager {
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
         if (lockStamp == 0) {
-            lockStamp = generalLock.readLock();
+            lockStamp = acquireReadLock(statement);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }
@@ -1126,7 +1134,7 @@ public class TableSpaceManager {
         long lockStamp = context.getTableSpaceLock();
         boolean lockAcquired = false;
         if (lockStamp == 0) {
-            lockStamp = generalLock.readLock();
+            lockStamp = acquireReadLock(statement);
             context.setTableSpaceLock(lockStamp);
             lockAcquired = true;
         }
@@ -1153,8 +1161,20 @@ public class TableSpaceManager {
 
     }
 
+    private long acquireReadLock(Statement statement) {
+        long lockStamp = generalLock.readLock();
+        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
+        return lockStamp;
+    }
+
+    private long acquireWriteLock(Statement statement) {
+        long lockStamp = generalLock.writeLock();
+        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
+        return lockStamp;
+    }
+
     private StatementExecutionResult createTable(CreateTableStatement statement, Transaction transaction) throws StatementExecutionException {
-        generalLock.asWriteLock().lock();
+        long lockStamp = acquireWriteLock(statement);
         try {
             if (tables.containsKey(statement.getTableDefinition().name)) {
                 throw new TableAlreadyExistsException(statement.getTableDefinition().name);
@@ -1179,12 +1199,12 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            generalLock.asWriteLock().unlock();
+            releaseWriteLock(lockStamp);
         }
     }
 
     private StatementExecutionResult createIndex(CreateIndexStatement statement, Transaction transaction) throws StatementExecutionException {
-        generalLock.asWriteLock().lock();
+        long lockStamp = acquireWriteLock(statement);
         try {
             if (indexes.containsKey(statement.getIndexefinition().name)) {
                 throw new IndexAlreadyExistsException(statement.getIndexefinition().name);
@@ -1203,12 +1223,12 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {
-            generalLock.asWriteLock().unlock();
+            releaseWriteLock(lockStamp);
         }
     }
 
     private StatementExecutionResult dropTable(DropTableStatement statement, Transaction transaction) throws StatementExecutionException {
-        generalLock.asWriteLock().lock();
+        long lockStamp = acquireWriteLock(statement);
         try {
             if (!tables.containsKey(statement.getTable())) {
                 if (statement.isIfExists()) {
@@ -1240,12 +1260,12 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            generalLock.asWriteLock().unlock();
+            releaseWriteLock(lockStamp);
         }
     }
 
     private StatementExecutionResult dropIndex(DropIndexStatement statement, Transaction transaction) throws StatementExecutionException {
-        generalLock.asWriteLock().lock();
+        long lockStamp = acquireWriteLock(statement);
         try {
             if (!indexes.containsKey(statement.getIndexName())) {
                 if (statement.isIfExists()) {
@@ -1273,7 +1293,7 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {
-            generalLock.asWriteLock().unlock();
+            releaseWriteLock(lockStamp);
         }
     }
 
@@ -1375,21 +1395,20 @@ public class TableSpaceManager {
         boolean useJmx = dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT);
         closed = true;
         if (!virtual) {
-            generalLock.asWriteLock().lock();
+            long lockStamp = acquireWriteLock(null);
             try {
                 for (Map.Entry<String, AbstractTableManager> table : tables.entrySet()) {
                     if (useJmx) {
                         JMXUtils.unregisterTableManagerStatsMXBean(tableSpaceName, table.getKey());
                     }
                     table.getValue().close();
-
                 }
                 for (AbstractIndexManager index : indexes.values()) {
                     index.close();
                 }
                 log.close();
             } finally {
-                generalLock.asWriteLock().unlock();
+                releaseWriteLock(lockStamp);
             }
         }
         if (useJmx) {
@@ -1422,7 +1441,7 @@ public class TableSpaceManager {
 
         long lockStamp = 0;
         if (!alreadLocked) {
-            lockStamp = generalLock.writeLock();
+            lockStamp = acquireWriteLock(null);
         }
         try {
             logSequenceNumber = log.getLastSequenceNumber();
@@ -1470,7 +1489,7 @@ public class TableSpaceManager {
             _logSequenceNumber = log.getLastSequenceNumber();
         } finally {
             if (lockStamp != 0) {
-                generalLock.unlockWrite(lockStamp);
+                releaseWriteLock(lockStamp);
             }
         }
 
@@ -1495,7 +1514,7 @@ public class TableSpaceManager {
 
         LogEntry entry = LogEntryFactory.beginTransaction(id);
         CommitLogResult pos;
-        generalLock.asReadLock().lock();
+        long lockStamp = acquireReadLock(new BeginTransactionStatement(tableSpaceName));
         try {
             pos = log.log(entry, false);
             apply(pos, entry, false);
@@ -1503,14 +1522,14 @@ public class TableSpaceManager {
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         } finally {
-            generalLock.asReadLock().unlock();
+            releaseReadLock(lockStamp);;
         }
     }
 
     private CompletableFuture<StatementExecutionResult> rollbackTransaction(RollbackTransactionStatement rollbackTransactionStatement) throws StatementExecutionException {
         long txId = rollbackTransactionStatement.getTransactionId();
         LogEntry entry = LogEntryFactory.rollbackTransaction(txId);
-        final long lockStamp = generalLock.readLock();
+        final long lockStamp = acquireReadLock(rollbackTransactionStatement);
         Transaction tx = transactions.get(txId);
         if (tx == null) {
             throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
@@ -1530,7 +1549,7 @@ public class TableSpaceManager {
     private CompletableFuture<StatementExecutionResult> commitTransaction(CommitTransactionStatement commitTransactionStatement) throws StatementExecutionException {
         long txId = commitTransactionStatement.getTransactionId();
         LogEntry entry = LogEntryFactory.commitTransaction(txId);
-        final long lockStamp = generalLock.readLock();
+        final long lockStamp = acquireReadLock(commitTransactionStatement);
         CommitLogResult pos = log.log(entry, true);
         CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
             if (error == null) {
@@ -1546,12 +1565,17 @@ public class TableSpaceManager {
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
             CompletableFuture<StatementExecutionResult> promise, long lockStamp) {
         return promise.handle((tr, error) -> {
-            generalLock.unlockRead(lockStamp);
+            releaseReadLock(lockStamp);
             if (error != null) {
                 throw new HerdDBInternalException(error);
             }
             return tr;
         });
+    }
+
+    private void releaseReadLock(long lockStamp) {
+        System.err.println("RELEASED TS READLOCK " + lockStamp);
+        generalLock.unlockRead(lockStamp);
     }
 
     public boolean isLeader() {

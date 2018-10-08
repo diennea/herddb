@@ -104,6 +104,7 @@ import herddb.storage.DataStorageManagerException;
 import herddb.utils.DataAccessor;
 import herddb.utils.DefaultJVMHalt;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
@@ -647,10 +648,15 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
-            if (err.getCause() instanceof StatementExecutionException) {
-                throw (StatementExecutionException) err.getCause();
+            Throwable cause = err.getCause();
+            while ( (cause instanceof HerdDBInternalException || cause instanceof CompletionException) 
+                    && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            if (cause instanceof StatementExecutionException) {
+                throw (StatementExecutionException) cause;
             } else {
-                throw new StatementExecutionException(err.getCause());
+                throw new StatementExecutionException(cause);
             }
         }
     }

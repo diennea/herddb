@@ -76,7 +76,8 @@ public class InsertOp implements PlannerOp {
         long transactionId = transactionContext.transactionId;
 
         List<CompletableFuture<StatementExecutionResult>> rows = new ArrayList<>();
-
+        CompletableFuture<StatementExecutionResult> current = CompletableFuture.completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
+        
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
 
