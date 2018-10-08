@@ -19,6 +19,7 @@
  */
 package herddb.cluster;
 
+import herddb.core.HerdDBInternalException;
 import java.io.EOFException;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
@@ -241,19 +242,16 @@ public class BookkeeperCommitLog extends CommitLog {
 
     @Override
     public CommitLogResult log(LogEntry edit, boolean synch) throws LogNotAvailableException {
-        if (isHasListeners()) {
-            synch = true;
-        }
         CommitFileWriter _writer = writer;
         CompletableFuture<LogSequenceNumber> res;
         if (closed || _writer == null) {
             res = new CompletableFuture();
             res.completeExceptionally(
-                    new LogNotAvailableException(new Exception("this commitlog has been closed"))
+                    new LogNotAvailableException(new Exception("this commitlog has been closed for tablespace " + tableSpaceDescription()))
                             .fillInStackTrace());
         } else {
             res = _writer.writeEntry(edit);
-            res.handleAsync((pos, error) -> {
+            res.whenCompleteAsync((pos, error) -> {
                 if (error != null) {
                     handleBookKeeperAsyncFailure(error, edit);
                 } else if (pos != null) {
@@ -261,33 +259,23 @@ public class BookkeeperCommitLog extends CommitLog {
                         lastSequenceNumber.accumulateAndGet(pos.offset,
                                 EnsureLongIncrementAccumulator.INSTANCE);
                     }
+                    notifyListeners(pos, edit);
                 }
-                return null;
             }
             );
-        }
-
-        if (synch) {
-            try {
-                LogSequenceNumber logPos = res.get();
-                if (lastLedgerId == logPos.ledgerId) {
-                    lastSequenceNumber.accumulateAndGet(logPos.offset,
-                            EnsureLongIncrementAccumulator.INSTANCE);
+            if (isHasListeners()) {
+                res = res.handle((pos, error) -> {
+                    if (pos != null) {
+                        notifyListeners(pos, edit);
+                        return pos;
+                    } else {
+                        throw new HerdDBInternalException(error);
+                    }
                 }
-                notifyListeners(logPos, edit);
-            } catch (ExecutionException errorOnSynch) {
-                Throwable cause = errorOnSynch.getCause();
-                if (cause instanceof LogNotAvailableException) {
-                    throw (LogNotAvailableException) cause;
-                } else {
-                    throw new LogNotAvailableException(cause);
-                }
-            } catch (InterruptedException cause) {
-                LOGGER.log(Level.SEVERE, "bookkeeper client interrupted", cause);
-                throw new LogNotAvailableException(cause);
+                );
             }
         }
-        return new CommitLogResult(res, !synch);
+        return new CommitLogResult(res, true /*deferred always true on BK*/);
     }
 
     private String tableSpaceDescription() {
@@ -298,13 +286,13 @@ public class BookkeeperCommitLog extends CommitLog {
 
         LOGGER.log(Level.SEVERE, "bookkeeper async failure on tablespace " + tableSpaceDescription() + " while writing entry " + edit, cause);
         if (cause instanceof BKException.BKLedgerClosedException) {
-            LOGGER.log(Level.SEVERE, "ledger has been closed, need to open a new ledger", closed);
+            LOGGER.log(Level.SEVERE, "ledger has been closed, need to open a new ledger for tablespace " + tableSpaceDescription(), closed);
         } else if (cause instanceof BKException.BKLedgerFencedException) {
-            LOGGER.log(Level.SEVERE, "this server was fenced!", cause);
+            LOGGER.log(Level.SEVERE, "this server was fenced for tablespace " + tableSpaceDescription() + " !", cause);
             close();
             signalLogFailed();
         } else if (cause instanceof BKException.BKNotEnoughBookiesException) {
-            LOGGER.log(Level.SEVERE, "bookkeeper failure", cause);
+            LOGGER.log(Level.SEVERE, "bookkeeper failure for tablespace " + tableSpaceDescription(), cause);
             close();
             signalLogFailed();
         }
