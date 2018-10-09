@@ -1017,12 +1017,10 @@ public class TableSpaceManager {
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
-        } catch (ExecutionException err) {
+        } catch (ExecutionException err) {  
+            System.err.println("QUIIIIIIIIIIIII");
+            err.printStackTrace();
             Throwable cause = err.getCause();
-            while ((cause instanceof HerdDBInternalException || cause instanceof CompletionException)
-                    && cause.getCause() != null) {
-                cause = cause.getCause();
-            }
             if (cause instanceof StatementExecutionException) {
                 throw (StatementExecutionException) cause;
             } else {
@@ -1085,7 +1083,7 @@ public class TableSpaceManager {
         if (rollbackOnError) {
             long txId = transactionContext.transactionId;
             if (txId > 0) {
-                res = res.handle((xx, error) -> {
+                res = res.whenComplete((xx, error) -> {
                     if (error != null) {
                         LOGGER.log(Level.SEVERE, "forcing rollback of tx " + txId + " due to " + error);
                         try {
@@ -1098,8 +1096,6 @@ public class TableSpaceManager {
                             error.addSuppressed(ex.getCause());
                         }
                         throw new HerdDBInternalException(error);
-                    } else {
-                        return xx;
                     }
                 });
             }
@@ -1535,13 +1531,9 @@ public class TableSpaceManager {
             throw new StatementExecutionException("no such transaction " + statement.getTransactionId());
         }
         CommitLogResult pos = log.log(entry, true);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
-            if (error == null) {
-                apply(pos, entry, false);
-                return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
-            } else {
-                throw new HerdDBInternalException(error);
-            }
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
+            apply(pos, entry, false);
+            return new TransactionResult(txId, TransactionResult.OutcomeType.ROLLBACK);
         });
         return releaseReadLock(res, lockStamp, statement);
     }
@@ -1551,25 +1543,17 @@ public class TableSpaceManager {
         LogEntry entry = LogEntryFactory.commitTransaction(txId);
         final long lockStamp = acquireReadLock(statement);
         CommitLogResult pos = log.log(entry, true);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
-            if (error == null) {
-                apply(pos, entry, false);
-                return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
-            } else {
-                throw new HerdDBInternalException(error);
-            }
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApply((lsn) -> {
+            apply(pos, entry, false);
+            return new TransactionResult(txId, TransactionResult.OutcomeType.COMMIT);
         });
         return releaseReadLock(res, lockStamp, statement);
     }
 
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
             CompletableFuture<StatementExecutionResult> promise, long lockStamp, Object description) {
-        return promise.handle((tr, error) -> {
+        return promise.whenComplete((r, error) -> {
             releaseReadLock(lockStamp, description);
-            if (error != null) {
-                throw new HerdDBInternalException(error);
-            }
-            return tr;
         });
     }
 

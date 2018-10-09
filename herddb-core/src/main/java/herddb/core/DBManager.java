@@ -22,7 +22,6 @@ package herddb.core;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,7 +48,6 @@ import java.util.stream.Collectors;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import herddb.client.ClientConfiguration;
-import herddb.core.join.DataScannerJoinExecutor;
 import herddb.core.stats.ConnectionsInfoProvider;
 import herddb.file.FileMetadataStorageManager;
 import herddb.jmx.DBManagerStatsMXBean;
@@ -61,7 +59,6 @@ import herddb.mem.MemoryMetadataStorageManager;
 import herddb.metadata.MetadataChangeListener;
 import herddb.metadata.MetadataStorageManager;
 import herddb.metadata.MetadataStorageManagerException;
-import herddb.model.Column;
 import herddb.model.DDLException;
 import herddb.model.DDLStatement;
 import herddb.model.DDLStatementExecutionResult;
@@ -83,12 +80,10 @@ import herddb.model.TableSpace;
 import herddb.model.TableSpaceDoesNotExistException;
 import herddb.model.TableSpaceReplicaState;
 import herddb.model.TransactionContext;
-import herddb.model.TuplePredicate;
 import herddb.model.commands.AlterTableSpaceStatement;
 import herddb.model.commands.CreateTableSpaceStatement;
 import herddb.model.commands.DropTableSpaceStatement;
 import herddb.model.commands.GetStatement;
-import herddb.model.commands.InsertStatement;
 import herddb.model.commands.ScanStatement;
 import herddb.network.Channel;
 import herddb.network.MessageBuilder;
@@ -98,10 +93,8 @@ import herddb.server.ServerConfiguration;
 import herddb.sql.AbstractSQLPlanner;
 import herddb.sql.CalcitePlanner;
 import herddb.sql.DDLSQLPlanner;
-import herddb.sql.SQLStatementEvaluationContext;
 import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
-import herddb.utils.DataAccessor;
 import herddb.utils.DefaultJVMHalt;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -566,9 +559,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
             Throwable cause = err.getCause();
-            if (cause instanceof HerdDBInternalException && cause.getCause() != null) {
-                cause = cause.getCause();
-            }
             if (cause instanceof StatementExecutionException) {
                 throw (StatementExecutionException) cause;
             } else {
@@ -649,10 +639,6 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
             Throwable cause = err.getCause();
-            while ( (cause instanceof HerdDBInternalException || cause instanceof CompletionException) 
-                    && cause.getCause() != null) {
-                cause = cause.getCause();
-            }
             if (cause instanceof StatementExecutionException) {
                 throw (StatementExecutionException) cause;
             } else {

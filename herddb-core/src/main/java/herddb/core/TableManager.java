@@ -535,26 +535,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
 
-        res = res.handle((r, error) -> {
+        res = res.whenComplete((r, error) -> {
             LOGGER.log(Level.SEVERE, "Unlocking " + r, error);
             checkpointLock.unlockRead(lockStamp);
-            if (error != null) {
-                throw new HerdDBInternalException(error);
-            }
-            return r;
         });
         if (statement instanceof TruncateTableStatement) {
-            res = res.handle((r, error) -> {
+            res = res.whenComplete((r, error) -> {
                 LOGGER.log(Level.SEVERE, "Handling " + statement, error);
-                if (error != null) {
-                    throw new HerdDBInternalException(error);
+                if (error == null) {
+                    try {
+                        flush();
+                    } catch (DataStorageManagerException err) {
+                        throw new HerdDBInternalException(new StatementExecutionException("internal data error: " + err, err));
+                    }
                 }
-                try {
-                    flush();
-                } catch (DataStorageManagerException err) {
-                    throw new HerdDBInternalException(new StatementExecutionException("internal data error: " + err, err));
-                }
-                return r;
             });
         }
         return res;
@@ -909,12 +903,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
         LogEntry entry = LogEntryFactory.insert(table, key.data, value, transaction);
         CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
-            if (error != null) {
-                throw new HerdDBInternalException(error);
-            }
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApplyAsync((lsn) -> {
             apply(pos, entry, false);
-            return new DMLStatementExecutionResult(entry.transactionId, 1, key, insert.isReturnValues() ? Bytes.from_array(value) : null);
+            return new DMLStatementExecutionResult(entry.transactionId, 1, key,
+                    insert.isReturnValues() ? Bytes.from_array(value) : null);
         });
         if (transaction == null) {
             res = releaseWriteLock(res, lock);
@@ -924,12 +916,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     private CompletableFuture<StatementExecutionResult> releaseWriteLock(
             CompletableFuture<StatementExecutionResult> promise, LockHandle lock) {
-        return promise.handle((tr, error) -> {
+        return promise.whenComplete((tr, error) -> {
             locksManager.releaseWriteLock(lock);
-            if (error != null) {
-                throw new HerdDBInternalException(error);
-            }
-            return tr;
         });
     }
 
@@ -1006,10 +994,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 LogEntry entry = LogEntryFactory.update(table, actual.key.data, newValue, transaction);
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
-                        .handleAsync((lsn, error) -> {
-                            if (error != null) {
-                                throw new HerdDBInternalException(error);
-                            }
+                        .thenApplyAsync((lsn) -> {
                             apply(pos, entry, false);
                             return lsn;
                         });
@@ -1024,20 +1009,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             return CompletableFuture
                     .completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
         } else if (writes.isEmpty()) {
-            return writes.get(0).handle((lsn, error) -> {
-                if (error != null) {
-                    throw new HerdDBInternalException(error);
-                }
+            return writes.get(0).thenApply((lsn) -> {
                 return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
                         update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
             });
         } else {
             return FutureUtils
                     .collect(writes)
-                    .handle((lsn, error) -> {
-                        if (error != null) {
-                            throw new HerdDBInternalException(error);
-                        }
+                    .thenApply((lsn) -> {
                         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
                                 update.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
                     });

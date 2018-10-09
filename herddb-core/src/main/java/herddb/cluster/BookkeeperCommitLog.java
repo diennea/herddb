@@ -148,7 +148,7 @@ public class BookkeeperCommitLog extends CommitLog {
                     res.complete(new LogSequenceNumber(lh.getId(), offset));
                 } else {
                     errorOccurredDuringWrite = true;
-                    res.completeExceptionally(BKException.create(rc));
+                    res.completeExceptionally(new LogNotAvailableException(BKException.create(rc)));
                 }
             }, null);
             return res;
@@ -263,22 +263,25 @@ public class BookkeeperCommitLog extends CommitLog {
             }
             );
             if (synch || isHasListeners()) {
-                res = res.handle((pos, error) -> {
-                    if (pos != null) {
-                        if (lastLedgerId == pos.ledgerId) {
-                            lastSequenceNumber.accumulateAndGet(pos.offset,
-                                    EnsureLongIncrementAccumulator.INSTANCE);
-                        }
-                        notifyListeners(pos, edit);
-                        return pos;
-                    } else {
-                        throw new HerdDBInternalException(error);
+                res = res.whenComplete((pos, error) -> {
+                    if (error == null) {
+                        return;
                     }
+                    if (lastLedgerId == pos.ledgerId) {
+                        lastSequenceNumber.accumulateAndGet(pos.offset,
+                                EnsureLongIncrementAccumulator.INSTANCE);
+                    }
+                    notifyListeners(pos, edit);
                 }
                 );
             }
         }
-        return new CommitLogResult(res, true /*deferred always true on BK*/, synch);
+        if (!synch) {
+            // client is not really interested to the result of the write
+            return new CommitLogResult(CompletableFuture.completedFuture(null), true /*deferred always true on BK*/, false);
+        } else {
+            return new CommitLogResult(res, true /*deferred always true on BK*/, true);
+        }
     }
 
     private String tableSpaceDescription() {
@@ -286,7 +289,9 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     private void handleBookKeeperAsyncFailure(Throwable cause, LogEntry edit) {
-
+        if (cause.getCause() != null && cause instanceof LogNotAvailableException) {
+            cause = cause.getCause();
+        }
         LOGGER.log(Level.SEVERE, "bookkeeper async failure on tablespace " + tableSpaceDescription() + " while writing entry " + edit, cause);
         if (cause instanceof BKException.BKLedgerClosedException) {
             LOGGER.log(Level.SEVERE, "ledger has been closed, need to open a new ledger for tablespace " + tableSpaceDescription(), closed);

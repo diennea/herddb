@@ -101,19 +101,19 @@ public class BookkeeperFailuresTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server = new Server(serverconfig_1)) {
             server.start();
             server.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             server.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -128,7 +128,7 @@ public class BookkeeperFailuresTest {
 
             try (BookKeeper bk = createBookKeeper();) {
                 try (LedgerHandle fenceLedger = bk.openLedger(ledgerId,
-                    BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
+                        BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
                 }
             }
 
@@ -185,19 +185,19 @@ public class BookkeeperFailuresTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server = new Server(serverconfig_1)) {
             server.start();
             server.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             server.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
             StatementExecutionResult executeStatement = server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.AUTOTRANSACTION_TRANSACTION);
@@ -214,7 +214,7 @@ public class BookkeeperFailuresTest {
 
             try (BookKeeper bk = createBookKeeper();) {
                 try (LedgerHandle fenceLedger = bk.openLedger(ledgerId,
-                    BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
+                        BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8));) {
                 }
             }
 
@@ -275,19 +275,19 @@ public class BookkeeperFailuresTest {
         serverconfig_1.set(ServerConfiguration.PROPERTY_ENFORCE_LEADERSHIP, false);
 
         ServerConfiguration serverconfig_2 = serverconfig_1
-            .copy()
-            .set(ServerConfiguration.PROPERTY_NODEID, "server2")
-            .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
-            .set(ServerConfiguration.PROPERTY_PORT, 7868);
+                .copy()
+                .set(ServerConfiguration.PROPERTY_NODEID, "server2")
+                .set(ServerConfiguration.PROPERTY_BASEDIR, folder.newFolder().toPath().toAbsolutePath())
+                .set(ServerConfiguration.PROPERTY_PORT, 7868);
 
         try (Server server = new Server(serverconfig_1)) {
             server.start();
             server.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
             server.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 1)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 2)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -360,10 +360,10 @@ public class BookkeeperFailuresTest {
             server.start();
             server.waitForStandaloneBoot();
             Table table = Table.builder()
-                .name("t1")
-                .column("c", ColumnTypes.INTEGER)
-                .primaryKey("c")
-                .build();
+                    .name("t1")
+                    .column("c", ColumnTypes.INTEGER)
+                    .primaryKey("c")
+                    .build();
 
             // create table is done out of the transaction (this is very like autocommit=true)
             server.getManager().executeStatement(new CreateTableStatement(table), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
@@ -442,7 +442,7 @@ public class BookkeeperFailuresTest {
             }
 
             try (BookKeeper bk = createBookKeeper();
-                LedgerHandle handle = bk.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8))) {
+                    LedgerHandle handle = bk.openLedgerNoRecovery(ledgerId, BookKeeper.DigestType.CRC32C, "herddb".getBytes(StandardCharsets.UTF_8))) {
                 BookKeeperAdmin admin = new BookKeeperAdmin(bk);
                 try {
                     LedgerMetadata ledgerMetadata = admin.getLedgerMetadata(handle);
@@ -471,7 +471,6 @@ public class BookkeeperFailuresTest {
             assertNotSame(tableSpaceManager_after_failure, tableSpaceManager);
             assertTrue(!tableSpaceManager_after_failure.isFailed());
 
-            
             // the insert should succeed because the trasaction has been rolledback automatically
             server.getManager().executeUpdate(new InsertStatement(TableSpace.DEFAULT, "t1", RecordSerializer.makeRecord(table, "c", 4)), StatementEvaluationContext.DEFAULT_EVALUATION_CONTEXT(), TransactionContext.NO_TRANSACTION);
 
