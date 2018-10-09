@@ -94,7 +94,7 @@ public class TruncateTableSQLTest {
             }
 
             long txId = execute(manager, "INSERT INTO tblspace1.tsql (k1) values('a')",
-                Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION).transactionId;
+                    Collections.emptyList(), TransactionContext.AUTOTRANSACTION_TRANSACTION).transactionId;
 
             try (DataScanner scan = scan(manager, "SELECT * FROM tblspace1.tsql ", Collections.emptyList(), new TransactionContext(txId));) {
                 assertEquals(1, scan.consume().size());
@@ -105,7 +105,7 @@ public class TruncateTableSQLTest {
                 fail();
             } catch (StatementExecutionException ok) {
                 assertEquals("TRUNCATE TABLE cannot be executed table tsql: at least one transaction is pending on it",
-                    ok.getCause().getMessage());
+                        ok.getCause().getMessage());
             }
             TestUtils.commitTransaction(manager, "tblspace1", txId);
 

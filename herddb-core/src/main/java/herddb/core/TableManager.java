@@ -528,6 +528,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 TruncateTableStatement truncate = (TruncateTableStatement) statement;
                 res = CompletableFuture.completedFuture(executeTruncate(truncate, transaction, context));
             } catch (StatementExecutionException err) {
+                LOGGER.log(Level.SEVERE, "Truncate table failed", err);
                 res = FutureUtils.exception(err);
             }
         } else {
@@ -535,6 +536,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         res = res.handle((r, error) -> {
+            LOGGER.log(Level.SEVERE, "Unlocking " + r, error);
             checkpointLock.unlockRead(lockStamp);
             if (error != null) {
                 throw new HerdDBInternalException(error);
@@ -543,6 +545,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         });
         if (statement instanceof TruncateTableStatement) {
             res = res.handle((r, error) -> {
+                LOGGER.log(Level.SEVERE, "Handling " + statement, error);
                 if (error != null) {
                     throw new HerdDBInternalException(error);
                 }
@@ -1071,15 +1074,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         if (transaction != null) {
             throw new StatementExecutionException("TRUNCATE TABLE cannot be executed within the context of a Transaction");
         }
-
         try {
             long estimatedSize = keyToPage.size();
+            LOGGER.log(Level.INFO, "TRUNCATING TABLE {0} with approx {1} records", new Object[]{table.name, estimatedSize});
             LogEntry entry = LogEntryFactory.truncate(table, null);
             CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
             apply(pos, entry, false);
             return new DMLStatementExecutionResult(0, estimatedSize > Integer.MAX_VALUE
                     ? Integer.MAX_VALUE : (int) estimatedSize, null, null);
-        } catch (LogNotAvailableException error) {
+        } catch (LogNotAvailableException | DataStorageManagerException error) {
+            LOGGER.log(Level.SEVERE, "Error during TRUNCATE table " + table.tablespace + "." + table.name, error);
             throw new StatementExecutionException(error);
         }
     }

@@ -644,8 +644,8 @@ public class TableSpaceManager {
     }
 
     private void releaseWriteLock(long lockStamp) {
-        System.out.println("RELEASE WRITE LOCK "+lockStamp);
         generalLock.unlockWrite(lockStamp);
+        System.out.println("RELEASE WRITE LOCK " + lockStamp);
     }
 
     public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
@@ -801,7 +801,7 @@ public class TableSpaceManager {
         checkpoint = checkpoint(true, true, true /* already locked */);
 
         /* Downgrade lock */
-        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
+//        System.err.println("DOWNGRADING LOCK " + lockStamp + " TO READ");
         lockStamp = generalLock.tryConvertToReadLock(lockStamp);
         if (lockStamp == 0) {
             throw new DataStorageManagerException("unable to downgrade lock");
@@ -871,7 +871,7 @@ public class TableSpaceManager {
         } catch (InterruptedException | TimeoutException error) {
             LOGGER.log(Level.SEVERE, "error sending dump id " + dumpId, error);
         } finally {
-            releaseReadLock(lockStamp);
+            releaseReadLock(lockStamp, "senddump");
 
             if (includeLog) {
                 log.removeCommitLogListener(logDumpReceiver);
@@ -1121,7 +1121,7 @@ public class TableSpaceManager {
         CompletableFuture<StatementExecutionResult> res
                 = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
         if (lockAcquired) {
-            res = releaseReadLock(res, lockStamp)
+            res = releaseReadLock(res, lockStamp, statement)
                     .thenApply(s -> {
                         context.setTableSpaceLock(0);
                         return s;
@@ -1151,7 +1151,7 @@ public class TableSpaceManager {
         }
         CompletableFuture<StatementExecutionResult> res = manager.executeStatementAsync(statement, transaction, context);
         if (lockAcquired) {
-            res = releaseReadLock(res, lockStamp)
+            res = releaseReadLock(res, lockStamp, statement)
                     .thenApply(s -> {
                         context.setTableSpaceLock(0);
                         return s;
@@ -1163,13 +1163,13 @@ public class TableSpaceManager {
 
     private long acquireReadLock(Statement statement) {
         long lockStamp = generalLock.readLock();
-        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
+//        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
     private long acquireWriteLock(Statement statement) {
         long lockStamp = generalLock.writeLock();
-        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
+//        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
@@ -1488,7 +1488,7 @@ public class TableSpaceManager {
 
             _logSequenceNumber = log.getLastSequenceNumber();
         } finally {
-            if (lockStamp != 0) {
+            if (!alreadLocked) {
                 releaseWriteLock(lockStamp);
             }
         }
@@ -1522,17 +1522,17 @@ public class TableSpaceManager {
         } catch (Exception err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseReadLock(lockStamp);;
+            releaseReadLock(lockStamp, "begin transaction " + id);
         }
     }
 
-    private CompletableFuture<StatementExecutionResult> rollbackTransaction(RollbackTransactionStatement rollbackTransactionStatement) throws StatementExecutionException {
-        long txId = rollbackTransactionStatement.getTransactionId();
+    private CompletableFuture<StatementExecutionResult> rollbackTransaction(RollbackTransactionStatement statement) throws StatementExecutionException {
+        long txId = statement.getTransactionId();
         LogEntry entry = LogEntryFactory.rollbackTransaction(txId);
-        final long lockStamp = acquireReadLock(rollbackTransactionStatement);
+        final long lockStamp = acquireReadLock(statement);
         Transaction tx = transactions.get(txId);
         if (tx == null) {
-            throw new StatementExecutionException("no such transaction " + rollbackTransactionStatement.getTransactionId());
+            throw new StatementExecutionException("no such transaction " + statement.getTransactionId());
         }
         CommitLogResult pos = log.log(entry, true);
         CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
@@ -1543,13 +1543,13 @@ public class TableSpaceManager {
                 throw new HerdDBInternalException(error);
             }
         });
-        return releaseReadLock(res, lockStamp);
+        return releaseReadLock(res, lockStamp, statement);
     }
 
-    private CompletableFuture<StatementExecutionResult> commitTransaction(CommitTransactionStatement commitTransactionStatement) throws StatementExecutionException {
-        long txId = commitTransactionStatement.getTransactionId();
+    private CompletableFuture<StatementExecutionResult> commitTransaction(CommitTransactionStatement statement) throws StatementExecutionException {
+        long txId = statement.getTransactionId();
         LogEntry entry = LogEntryFactory.commitTransaction(txId);
-        final long lockStamp = acquireReadLock(commitTransactionStatement);
+        final long lockStamp = acquireReadLock(statement);
         CommitLogResult pos = log.log(entry, true);
         CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.handleAsync((lsn, error) -> {
             if (error == null) {
@@ -1559,13 +1559,13 @@ public class TableSpaceManager {
                 throw new HerdDBInternalException(error);
             }
         });
-        return releaseReadLock(res, lockStamp);
+        return releaseReadLock(res, lockStamp, statement);
     }
 
     private CompletableFuture<StatementExecutionResult> releaseReadLock(
-            CompletableFuture<StatementExecutionResult> promise, long lockStamp) {
+            CompletableFuture<StatementExecutionResult> promise, long lockStamp, Object description) {
         return promise.handle((tr, error) -> {
-            releaseReadLock(lockStamp);
+            releaseReadLock(lockStamp, description);
             if (error != null) {
                 throw new HerdDBInternalException(error);
             }
@@ -1573,8 +1573,8 @@ public class TableSpaceManager {
         });
     }
 
-    private void releaseReadLock(long lockStamp) {
-        System.err.println("RELEASED TS READLOCK " + lockStamp);
+    private void releaseReadLock(long lockStamp, Object description) {
+        // System.err.println("RELEASED TS READLOCK " + lockStamp + " for " + description);
         generalLock.unlockRead(lockStamp);
     }
 
