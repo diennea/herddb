@@ -50,6 +50,8 @@ import herddb.utils.EnsureLongIncrementAccumulator;
 import io.netty.buffer.ByteBuf;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionException;
 import org.apache.bookkeeper.client.BKException.BKClientClosedException;
 
 /**
@@ -241,7 +243,7 @@ public class BookkeeperCommitLog extends CommitLog {
     }
 
     @Override
-    public CommitLogResult log(LogEntry edit, boolean synch) throws LogNotAvailableException {
+    public CommitLogResult log(LogEntry edit, boolean sync) throws LogNotAvailableException {
         CommitFileWriter _writer = writer;
         CompletableFuture<LogSequenceNumber> res;
         if (closed || _writer == null) {
@@ -254,33 +256,25 @@ public class BookkeeperCommitLog extends CommitLog {
             res.whenCompleteAsync((pos, error) -> {
                 if (error != null) {
                     handleBookKeeperAsyncFailure(error, edit);
-                } else if (pos != null) {
-                    if (lastLedgerId == pos.ledgerId) {
-                        lastSequenceNumber.accumulateAndGet(pos.offset,
-                                EnsureLongIncrementAccumulator.INSTANCE);
-                    }
                 }
             }
             );
-            if (synch || isHasListeners()) {
-                res = res.whenComplete((pos, error) -> {
-                    if (error == null) {
-                        return;
-                    }
-                    if (lastLedgerId == pos.ledgerId) {
-                        lastSequenceNumber.accumulateAndGet(pos.offset,
-                                EnsureLongIncrementAccumulator.INSTANCE);
-                    }
-                    notifyListeners(pos, edit);
+            res.thenAccept((pos) -> {
+                if (lastLedgerId == pos.ledgerId) {
+                    lastSequenceNumber.accumulateAndGet(pos.offset,
+                            EnsureLongIncrementAccumulator.INSTANCE);
                 }
-                );
+                notifyListeners(pos, edit);
             }
+            );
         }
-        if (!synch) {
+        if (!sync) {
             // client is not really interested to the result of the write
-            return new CommitLogResult(CompletableFuture.completedFuture(null), true /*deferred always true on BK*/, false);
+            // sending a fake completed result
+            return new CommitLogResult(
+                    CompletableFuture.<LogSequenceNumber>completedFuture(null), true, false);
         } else {
-            return new CommitLogResult(res, true /*deferred always true on BK*/, true);
+            return new CommitLogResult(res, false, true);
         }
     }
 
