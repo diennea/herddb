@@ -44,6 +44,9 @@ import herddb.utils.Wrapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 public class InsertOp implements PlannerOp {
@@ -75,9 +78,10 @@ public class InsertOp implements PlannerOp {
         final Table table = tableSpaceManager.getTableManager(tableName).getTable();
         long transactionId = transactionContext.transactionId;
 
+        List<DMLStatement> statements = new ArrayList<>();
+
         List<CompletableFuture<StatementExecutionResult>> rows = new ArrayList<>();
-        CompletableFuture<StatementExecutionResult> current = CompletableFuture.completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
-        
+
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
 
@@ -119,22 +123,46 @@ public class InsertOp implements PlannerOp {
                 RecordFunction valuesfunction = new SQLRecordFunction(valuesColumns, table, valuesExpressions);
 
                 DMLStatement insertStatement = new InsertStatement(tableSpace, tableName, keyfunction, valuesfunction).setReturnValues(returnValues);
+                statements.add(insertStatement);
 
                 CompletableFuture<StatementExecutionResult> insertRecordPromise = tableSpaceManager.executeStatementAsync(insertStatement, context, transactionContext);
                 rows.add(insertRecordPromise);
-//   DMLStatementExecutionResult _result = (DMLStatementExecutionResult) tableSpaceManager.executeStatement(insertStatement, context, transactionContext);
-//                updateCount += _result.getUpdateCount();
-//                if (_result.transactionId > 0 && _result.transactionId != transactionId) {
-//                    transactionId = _result.transactionId;
-//                    transactionContext = new TransactionContext(transactionId);
-//                }F
             }
-            if (rows.isEmpty()) {
+            if (statements.isEmpty()) {
                 return CompletableFuture.completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
             }
-            if (rows.size() == 1) {
-                return rows.get(0);
+            if (statements.size() == 1) {
+                return tableSpaceManager.executeStatementAsync(statements.get(0), context, transactionContext);
             }
+
+            CompletableFuture<StatementExecutionResult> finalResult = new CompletableFuture<>();
+            AtomicInteger current = new AtomicInteger();
+
+            DMLStatement currentStatement = statements.get(current.incrementAndGet());
+
+            class ComputeNext implements Function<StatementExecutionResult, StatementExecutionResult> {
+
+                int current;
+
+                public ComputeNext(int current) {
+                    this.current = current;
+                }
+
+                @Override
+                public StatementExecutionResult apply(StatementExecutionResult res) {
+                    if (current == statements.size()) {
+                        return res;
+                    }
+                    long newTransactionId = res.transactionId;
+                    DMLStatement nextStatement = statements.get(current);
+                    tableSpaceManager.executeStatementAsync(nextStatement, context, new TransactionContext(newTransactionId));
+                    return res;
+                }
+
+            }
+
+            tableSpaceManager.executeStatementAsync(currentStatement, context, transactionContext)
+                    .thenApply();
 
             CompletableFuture<StatementExecutionResult> res = new CompletableFuture<>();
             for (CompletableFuture<StatementExecutionResult> record : rows) {
