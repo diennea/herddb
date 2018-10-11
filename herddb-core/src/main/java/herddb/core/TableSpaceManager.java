@@ -326,8 +326,9 @@ public class TableSpaceManager {
                 List<AbstractTableManager> managers = new ArrayList<>(tables.values());
                 for (AbstractTableManager manager : managers) {
 
-                    if (transaction.isNewTable(manager.getTable().name)) {
-                        LOGGER.log(Level.INFO, "rollback CREATE TABLE " + manager.getTable().name);
+                    Table table = manager.getTable();
+                    if (transaction.isNewTable(table.name)) {
+                        LOGGER.log(Level.INFO, "rollback CREATE TABLE " + table.tablespace + "." + table.name);
                         manager.dropTableData();
                         manager.close();
                         tables.remove(manager.getTable().name);
@@ -511,9 +512,18 @@ public class TableSpaceManager {
             TransactionContext transactionContext, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
         boolean rollbackOnError = false;
         if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID) {
-            StatementExecutionResult newTransaction = beginTransaction();
-            transactionContext = new TransactionContext(newTransaction.transactionId);
-            rollbackOnError = true;
+            try {
+                // sync on beginTransaction
+                StatementExecutionResult newTransaction = FutureUtils.result(beginTransactionAsync());
+                transactionContext = new TransactionContext(newTransaction.transactionId);
+                rollbackOnError = true;
+            } catch (Exception err) {
+                if (err.getCause() instanceof HerdDBInternalException) {
+                    throw (HerdDBInternalException) err.getCause();
+                } else {
+                    throw new StatementExecutionException(err.getCause());
+                }
+            }
         }
         Transaction transaction = transactions.get(transactionContext.transactionId);
         if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
@@ -645,7 +655,7 @@ public class TableSpaceManager {
 
     private void releaseWriteLock(long lockStamp) {
         generalLock.unlockWrite(lockStamp);
-        System.out.println("RELEASE WRITE LOCK " + lockStamp);
+//        System.out.println("RELEASE WRITE LOCK " + lockStamp);
     }
 
     public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
@@ -1017,7 +1027,7 @@ public class TableSpaceManager {
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
-        } catch (ExecutionException err) {  
+        } catch (ExecutionException err) {
             System.err.println("QUIIIIIIIIIIIII");
             err.printStackTrace();
             Throwable cause = err.getCause();
@@ -1031,21 +1041,51 @@ public class TableSpaceManager {
 
     public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, StatementEvaluationContext context,
             TransactionContext transactionContext) throws StatementExecutionException {
-        boolean rollbackOnError = false;
 
-        /* Do not autostart transaction on alter table statements */
-        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID && statement.supportsTransactionAutoCreate()) {
-            StatementExecutionResult newTransaction = beginTransaction();
-            transactionContext = new TransactionContext(newTransaction.transactionId);
-            rollbackOnError = true;
+        if (transactionContext.transactionId == TransactionContext.AUTOTRANSACTION_ID
+                && statement.supportsTransactionAutoCreate() // Do not autostart transaction on alter table statements
+                ) {
+            AtomicLong capturedTx = new AtomicLong();
+            CompletableFuture<StatementExecutionResult> newTransaction = beginTransactionAsync();
+            CompletableFuture<StatementExecutionResult> finalResult = newTransaction
+                    .thenCompose((StatementExecutionResult begineTransactionResult) -> {
+                        TransactionContext newtransactionContext = new TransactionContext(begineTransactionResult.transactionId);
+                        capturedTx.set(newtransactionContext.transactionId);
+                        return executeStatementAsyncInternal(statement, context, transactionContext, true);
+                    });
+            finalResult.whenComplete((xx, error) -> {
+                long txId = capturedTx.get();
+                if (error != null && txId > 0) {
+                    LOGGER.log(Level.SEVERE, "forcing rollback of tx " + txId + " due to " + error);
+                    try {
+                        rollbackTransaction(new RollbackTransactionStatement(tableSpaceName, txId))
+                                .get();
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                        error.addSuppressed(ex);
+                    } catch (ExecutionException ex) {
+                        error.addSuppressed(ex.getCause());
+                    }
+                    throw new HerdDBInternalException(error);
+                }
+            });
+
         }
+        return executeStatementAsyncInternal(statement, context, transactionContext, false);
+    }
 
+    private CompletableFuture<StatementExecutionResult> executeStatementAsyncInternal(Statement statement, StatementEvaluationContext context,
+            TransactionContext transactionContext, boolean rollbackOnError) throws StatementExecutionException {
         Transaction transaction = transactions.get(transactionContext.transactionId);
-        if (transaction != null && !transaction.tableSpace.equals(tableSpaceName)) {
-            throw new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName);
+        if (transaction != null
+                && !transaction.tableSpace.equals(tableSpaceName)) {
+            return FutureUtils.exception(
+                    new StatementExecutionException("transaction " + transaction.transactionId + " is for tablespace " + transaction.tableSpace + ", not for " + tableSpaceName));
         }
-        if (transactionContext.transactionId > 0 && transaction == null) {
-            throw new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName);
+        if (transactionContext.transactionId > 0
+                && transaction == null) {
+            return FutureUtils.exception(
+                    new StatementExecutionException("transaction " + transactionContext.transactionId + " not found on tablespace " + tableSpaceName));
         }
         CompletableFuture<StatementExecutionResult> res;
         try {
@@ -1057,7 +1097,7 @@ public class TableSpaceManager {
                 if (transaction != null) {
                     res = FutureUtils.exception(new StatementExecutionException("transaction already started"));
                 } else {
-                    res = CompletableFuture.completedFuture(beginTransaction());
+                    res = beginTransactionAsync();
                 }
             } else if (statement instanceof CommitTransactionStatement) {
                 res = commitTransaction((CommitTransactionStatement) statement);
@@ -1504,22 +1544,21 @@ public class TableSpaceManager {
         return new TableSpaceCheckpoint(logSequenceNumber, checkpointsTableNameSequenceNumber);
     }
 
-    private StatementExecutionResult beginTransaction() throws StatementExecutionException {
+    private CompletableFuture<StatementExecutionResult> beginTransactionAsync() throws StatementExecutionException {
 
         long id = newTransactionId.incrementAndGet();
 
         LogEntry entry = LogEntryFactory.beginTransaction(id);
         CommitLogResult pos;
         long lockStamp = acquireReadLock(new BeginTransactionStatement(tableSpaceName));
-        try {
-            pos = log.log(entry, false);
+        pos = log.log(entry, false);
+        CompletableFuture<StatementExecutionResult> res = pos.logSequenceNumber.thenApply((lsn) -> {
             apply(pos, entry, false);
             return new TransactionResult(id, TransactionResult.OutcomeType.BEGIN);
-        } catch (Exception err) {
-            throw new StatementExecutionException(err);
-        } finally {
-            releaseReadLock(lockStamp, "begin transaction " + id);
-        }
+        });
+        releaseReadLock(res, lockStamp, "begin transaction " + id);
+        return res;
+
     }
 
     private CompletableFuture<StatementExecutionResult> rollbackTransaction(RollbackTransactionStatement statement) throws StatementExecutionException {

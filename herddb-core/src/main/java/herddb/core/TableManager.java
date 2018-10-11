@@ -535,8 +535,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
 
-        res = res.whenComplete((r, error) -> {
-            LOGGER.log(Level.SEVERE, "Unlocking " + r, error);
+        res = res.whenComplete((r, error) -> {            
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {
