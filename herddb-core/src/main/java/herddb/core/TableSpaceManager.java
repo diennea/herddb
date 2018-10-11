@@ -1051,7 +1051,7 @@ public class TableSpaceManager {
                     .thenCompose((StatementExecutionResult begineTransactionResult) -> {
                         TransactionContext newtransactionContext = new TransactionContext(begineTransactionResult.transactionId);
                         capturedTx.set(newtransactionContext.transactionId);
-                        return executeStatementAsyncInternal(statement, context, transactionContext, true);
+                        return executeStatementAsyncInternal(statement, context, newtransactionContext, true);
                     });
             finalResult.whenComplete((xx, error) -> {
                 long txId = capturedTx.get();
