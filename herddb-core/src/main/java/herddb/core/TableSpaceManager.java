@@ -623,7 +623,7 @@ public class TableSpaceManager {
     }
 
     private StatementExecutionResult alterTable(AlterTableStatement alterTableStatement, TransactionContext transactionContext) throws TableDoesNotExistException, StatementExecutionException {
-        long lockStamp = generalLock.writeLock();
+        long lockStamp = acquireWriteLock(alterTableStatement);
         try {
             if (transactionContext.transactionId > 0) {
                 throw new StatementExecutionException("ALTER TABLE cannot be executed inside a transaction (txid=" + transactionContext.transactionId + ")");
@@ -648,14 +648,14 @@ public class TableSpaceManager {
             }
             return new DDLStatementExecutionResult(transactionContext.transactionId);
         } finally {
-            releaseWriteLock(lockStamp);
+            releaseWriteLock(lockStamp, alterTableStatement);
         }
 
     }
 
-    private void releaseWriteLock(long lockStamp) {
+    private void releaseWriteLock(long lockStamp, Object description) {
+        System.out.println("RELEASE WRITE LOCK " + lockStamp + " for " + description);
         generalLock.unlockWrite(lockStamp);
-//        System.out.println("RELEASE WRITE LOCK " + lockStamp);
     }
 
     public Map<String, AbstractIndexManager> getIndexesOnTable(String name) {
@@ -744,27 +744,27 @@ public class TableSpaceManager {
     }
 
     public void restoreRawDumpedEntryLogs(List<DumpedLogEntry> entries) throws DataStorageManagerException, DDLException, EOFException {
-        long lockStamp = generalLock.writeLock();
+        long lockStamp = acquireWriteLock("restoreRawDumpedEntryLogs");
         try {
             for (DumpedLogEntry ld : entries) {
                 apply(new CommitLogResult(ld.logSequenceNumber, false, false),
                         LogEntry.deserialize(ld.entryData), true);
             }
         } finally {
-            releaseWriteLock(lockStamp);
+            releaseWriteLock(lockStamp, "restoreRawDumpedEntryLogs");
         }
     }
 
     public void beginRestoreTable(byte[] tableDef, LogSequenceNumber dumpLogSequenceNumber) {
         Table table = Table.deserialize(tableDef);
-        long lockStamp = generalLock.writeLock();
+        long lockStamp = acquireWriteLock("beginRestoreTable " + table.name);
         try {
             if (tables.containsKey(table.name)) {
                 throw new TableAlreadyExistsException(table.name);
             }
             bootTable(table, 0, dumpLogSequenceNumber);
         } finally {
-            releaseWriteLock(lockStamp);
+            releaseWriteLock(lockStamp, "beginRestoreTable " + table.name);
         }
     }
 
@@ -1028,8 +1028,6 @@ public class TableSpaceManager {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
-            System.err.println("QUIIIIIIIIIIIII");
-            err.printStackTrace();
             Throwable cause = err.getCause();
             if (cause instanceof StatementExecutionException) {
                 throw (StatementExecutionException) cause;
@@ -1177,15 +1175,15 @@ public class TableSpaceManager {
         TableAwareStatement st = (TableAwareStatement) statement;
         String table = st.getTable();
         AbstractTableManager manager = tables.get(table);
+        CompletableFuture<StatementExecutionResult> res;
         if (manager == null) {
-            return FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName));
+            res = FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName));
+        } else if (manager.getCreatedInTransaction() > 0
+                && (transaction == null || transaction.transactionId != manager.getCreatedInTransaction())) {
+            res = FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction()));
+        } else {
+            res = manager.executeStatementAsync(statement, transaction, context);
         }
-        if (manager.getCreatedInTransaction() > 0) {
-            if (transaction == null || transaction.transactionId != manager.getCreatedInTransaction()) {
-                return FutureUtils.exception(new TableDoesNotExistException("no table " + table + " in tablespace " + tableSpaceName + ". created temporary in transaction " + manager.getCreatedInTransaction()));
-            }
-        }
-        CompletableFuture<StatementExecutionResult> res = manager.executeStatementAsync(statement, transaction, context);
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
                     .thenApply(s -> {
@@ -1197,15 +1195,15 @@ public class TableSpaceManager {
 
     }
 
-    private long acquireReadLock(Statement statement) {
+    private long acquireReadLock(Object statement) {
         long lockStamp = generalLock.readLock();
-//        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
+        System.err.println("ACQUIRED TS READLOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
-    private long acquireWriteLock(Statement statement) {
+    private long acquireWriteLock(Object statement) {
         long lockStamp = generalLock.writeLock();
-//        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
+        System.err.println("ACQUIRED TS WRITELOCK " + lockStamp + " for " + statement);
         return lockStamp;
     }
 
@@ -1235,7 +1233,7 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp);
+            releaseWriteLock(lockStamp, statement);
         }
     }
 
@@ -1259,7 +1257,7 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp);
+            releaseWriteLock(lockStamp, statement);
         }
     }
 
@@ -1296,7 +1294,7 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException | LogNotAvailableException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp);
+            releaseWriteLock(lockStamp, statement);
         }
     }
 
@@ -1329,7 +1327,7 @@ public class TableSpaceManager {
         } catch (DataStorageManagerException err) {
             throw new StatementExecutionException(err);
         } finally {
-            releaseWriteLock(lockStamp);
+            releaseWriteLock(lockStamp, statement);
         }
     }
 
@@ -1431,7 +1429,7 @@ public class TableSpaceManager {
         boolean useJmx = dbmanager.getServerConfiguration().getBoolean(ServerConfiguration.PROPERTY_JMX_ENABLE, ServerConfiguration.PROPERTY_JMX_ENABLE_DEFAULT);
         closed = true;
         if (!virtual) {
-            long lockStamp = acquireWriteLock(null);
+            long lockStamp = acquireWriteLock("closeTablespace");
             try {
                 for (Map.Entry<String, AbstractTableManager> table : tables.entrySet()) {
                     if (useJmx) {
@@ -1444,7 +1442,7 @@ public class TableSpaceManager {
                 }
                 log.close();
             } finally {
-                releaseWriteLock(lockStamp);
+                releaseWriteLock(lockStamp, "closeTablespace");
             }
         }
         if (useJmx) {
@@ -1477,7 +1475,7 @@ public class TableSpaceManager {
 
         long lockStamp = 0;
         if (!alreadLocked) {
-            lockStamp = acquireWriteLock(null);
+            lockStamp = acquireWriteLock("checkpoint");
         }
         try {
             logSequenceNumber = log.getLastSequenceNumber();
@@ -1525,7 +1523,7 @@ public class TableSpaceManager {
             _logSequenceNumber = log.getLastSequenceNumber();
         } finally {
             if (!alreadLocked) {
-                releaseWriteLock(lockStamp);
+                releaseWriteLock(lockStamp, "checkpoint");
             }
         }
 
@@ -1597,7 +1595,7 @@ public class TableSpaceManager {
     }
 
     private void releaseReadLock(long lockStamp, Object description) {
-        // System.err.println("RELEASED TS READLOCK " + lockStamp + " for " + description);
+        System.err.println("RELEASED TS READLOCK " + lockStamp + " for " + description);
         generalLock.unlockRead(lockStamp);
     }
 
