@@ -517,12 +517,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 res = FutureUtils.exception(err);
             }
         } else if (statement instanceof DeleteStatement) {
-            try {
-                DeleteStatement delete = (DeleteStatement) statement;
-                res = CompletableFuture.completedFuture(executeDelete(delete, transaction, context));
-            } catch (StatementExecutionException err) {
-                res = FutureUtils.exception(err);
-            }
+            DeleteStatement delete = (DeleteStatement) statement;
+            res = executeDeleteAsync(delete, transaction, context);
+            LOGGER.log(Level.SEVERE, "COMPLETABLE FUTURE FOR DELETE is " + res);
         } else if (statement instanceof TruncateTableStatement) {
             try {
                 TruncateTableStatement truncate = (TruncateTableStatement) statement;
@@ -536,6 +533,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         }
 
         res = res.whenComplete((r, error) -> {
+            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + r, error);
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {
@@ -987,8 +985,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             RecordSerializer.validatePrimaryKey(values, index.getIndex(), index.getColumnNames());
                         }
                     } catch (IllegalArgumentException err) {
-                        writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
                         locksManager.releaseLock(lockHandle);
+                        writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
                         return;
                     }
                 }
@@ -1009,6 +1007,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             return lsn;
                         });
                 promise.whenComplete((lns, error) -> {
+                    LOGGER.log(Level.SEVERE, "UPDATE, release lock " + lockHandle);
                     locksManager.releaseLock(lockHandle);
                 });
                 writes.add(promise);
@@ -1037,7 +1036,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     }
 
-    private StatementExecutionResult executeDelete(DeleteStatement delete, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
+    private CompletableFuture<StatementExecutionResult> executeDeleteAsync(DeleteStatement delete, Transaction transaction, StatementEvaluationContext context) {
 
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
@@ -1045,7 +1044,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
         long transactionId = transaction != null ? transaction.transactionId : 0;
         Predicate predicate = delete.getPredicate();
-
+        List<CompletableFuture<LogSequenceNumber>> writes = new ArrayList<>();
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
@@ -1053,17 +1052,47 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 try {
                     LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
                     CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                    apply(pos, entry, false);
+                    CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
+                            .thenApplyAsync((lsn) -> {
+                                LOGGER.log(Level.SEVERE, "LOGGED " + delete + " to log");
+                                apply(pos, entry, false);
+                                LOGGER.log(Level.SEVERE, "APPLIED " + delete);
+                                return lsn;
+                            });
+                    promise.whenComplete((lns, error) -> {
+                        LOGGER.log(Level.SEVERE, "DELETE, release lock " + lockHandle);
+                        try {
+                            locksManager.releaseLock(lockHandle);
+                        } catch (Throwable t) {
+                            LOGGER.log(Level.SEVERE, "DELETE, release lock " + lockHandle, t);
+                        }
+                    });
+                    writes.add(promise);
                     lastKey.value = actual.key;
                     lastValue.value = actual.value.data;
                     updateCount.incrementAndGet();
+
                 } finally {
                     locksManager.releaseLock(lockHandle);
                 }
             }
         }, transaction, true, true);
-        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
-                delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+        if (writes.isEmpty()) {
+            return CompletableFuture
+                    .completedFuture(new DMLStatementExecutionResult(transactionId, 0, null, null));
+        } else if (writes.isEmpty()) {
+            return writes.get(0).thenApply((lsn) -> {
+                return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+                        delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+            });
+        } else {
+            return FutureUtils
+                    .collect(writes)
+                    .thenApply((lsn) -> {
+                        return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
+                                delete.isReturnValues() ? (lastValue.value != null ? Bytes.from_array(lastValue.value) : null) : null);
+                    });
+        }
     }
 
     private StatementExecutionResult executeTruncate(TruncateTableStatement truncate, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
@@ -2444,9 +2473,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             BatchOrderedExecutor.Executor<Map.Entry<Bytes, Long>> scanExecutor = (List<Map.Entry<Bytes, Long>> batch) -> {
                 for (Map.Entry<Bytes, Long> entry : batch) {
                     Bytes key = entry.getKey();
-                    boolean keep_lock = false;
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
+                    boolean record_discarded = !already_locked;
                     LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
+                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock);
                     try {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {
@@ -2457,8 +2487,10 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             if (record != null) {
                                 // use current transaction version of the record
                                 if (predicate == null || predicate.evaluate(record, context)) {
-                                    consumer.accept(record, lock);
-                                    keep_lock = true;
+                                    // now the consumer is the owner of the lock on the record
+                                    record_discarded = false;
+                                    consumer.accept(record, transaction == null ? lock : null);
+
                                 }
                                 continue;
                             }
@@ -2477,18 +2509,20 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             }
                             Record record = fetchRecord(key, pageId, lastPageRead);
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
-                                consumer.accept(record, lock);
-                                keep_lock = true;
+                                // now the consumer is the owner of the lock on the record
+                                record_discarded = false;
+                                consumer.accept(record, transaction == null ? lock : null);
+
                             }
                         }
                     } finally {
                         // release the lock on the key if it did not match scan criteria
-                        if (transaction == null) {
-                            if (lock != null && !keep_lock) {
+                        if (record_discarded) {
+                            if (transaction == null) {
                                 locksManager.releaseLock(lock);
+                            } else if (!already_locked) {
+                                transaction.releaseLockOnKey(table.name, key, locksManager);
                             }
-                        } else if (!keep_lock && !already_locked) {
-                            transaction.releaseLockOnKey(table.name, key, locksManager);
                         }
                     }
                 }

@@ -43,6 +43,8 @@ import herddb.utils.LockHandle;
 import herddb.utils.SimpleByteArrayInputStream;
 import herddb.utils.VisibleByteArrayOutputStream;
 import java.util.Collection;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * A Transaction, that is a series of Statement which must be executed with ACID
@@ -169,10 +171,12 @@ public class Transaction {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
         if (ll != null) {
             for (LockHandle l : ll.values()) {
+                LOG.log(Level.SEVERE, "TX " + transactionId + " releasing lock " + l);
                 lockManager.releaseLock(l);
             }
         }
     }
+    private static final Logger LOG = Logger.getLogger(Transaction.class.getName());
 
     public void unregisterUpgradedLocksOnTable(String tableName, LockHandle lock) {
         Map<Bytes, LockHandle> ll = locks.get(tableName);
