@@ -1006,10 +1006,12 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             apply(pos, entry, false);
                             return lsn;
                         });
-                promise.whenComplete((lns, error) -> {
-                    LOGGER.log(Level.SEVERE, "UPDATE, release lock " + lockHandle);
-                    locksManager.releaseLock(lockHandle);
-                });
+                if (lockHandle != null) {
+                    promise.whenComplete((lns, error) -> {
+                        LOGGER.log(Level.SEVERE, "UPDATE, release lock " + lockHandle);
+                        locksManager.releaseLock(lockHandle);
+                    });
+                }
                 writes.add(promise);
                 lastKey.value = actual.key;
                 lastValue.value = newValue;

@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 public class InsertOp implements PlannerOp {
 
@@ -82,8 +81,6 @@ public class InsertOp implements PlannerOp {
         long transactionId = transactionContext.transactionId;
 
         List<DMLStatement> statements = new ArrayList<>();
-
-        List<CompletableFuture<StatementExecutionResult>> rows = new ArrayList<>();
 
         try (DataScanner inputScanner = downstreamScanResult.dataScanner;) {
             while (inputScanner.hasNext()) {
