@@ -1154,6 +1154,9 @@ public class TableSpaceManager {
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
         CompletableFuture<StatementExecutionResult> res
                 = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
+        res.whenComplete((ee,err)-> {
+            LOGGER.log(Level.SEVERE, "COMPLETED "+statement+": "+ee, err);
+        });
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
                     .thenApply(s -> {
@@ -1161,6 +1164,7 @@ public class TableSpaceManager {
                         return s;
                     });
         }
+        LOGGER.log(Level.SEVERE, "CREATED "+res);
         return res;
     }
 

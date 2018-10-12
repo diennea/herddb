@@ -743,7 +743,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 //                    LOGGER.log(Level.SEVERE, "query " + query + ", " + parameters + ", result:" + result);
             res.whenComplete((result, err) -> {
                 try {
-//                    LOGGER.log(Level.SEVERE, "statement " + statement + " complete " + err + " " + result);
+                    LOGGER.log(Level.SEVERE, "statement " + statement + " complete " + err + " " + result);
 
                     if (err != null) {
                         if (err instanceof NotLeaderException) {
