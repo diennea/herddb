@@ -26,6 +26,7 @@ import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.Wrapper;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * DELETE
@@ -46,11 +47,11 @@ public class SimpleDeleteOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
             TransactionContext transaction, StatementEvaluationContext context, boolean lockRequired, boolean forWrite)
             throws StatementExecutionException {
 
-        return tableSpaceManager.executeStatement(statement, context, transaction);
+        return tableSpaceManager.executeStatementAsync(statement, context, transaction);
     }
 
     @Override

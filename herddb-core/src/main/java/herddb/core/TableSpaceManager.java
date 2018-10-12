@@ -1032,6 +1032,8 @@ public class TableSpaceManager {
             } else {
                 throw new StatementExecutionException(cause);
             }
+        } catch (Throwable t) {
+            throw new StatementExecutionException(t);
         }
     }
 

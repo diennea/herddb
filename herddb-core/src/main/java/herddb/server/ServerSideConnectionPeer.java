@@ -534,7 +534,7 @@ public class ServerSideConnectionPeer implements ServerSideConnection, ChannelEv
 
     private void handleExecuteStatements(Request message, Channel _channel) {
         long txId = message.tx();
-        long transactionId = txId;
+        long transactionId = txId;        
         ByteBuffer byteBuffer = message.getByteBuffer();
         int position = byteBuffer.position();
         int limit = byteBuffer.limit();

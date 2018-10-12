@@ -564,6 +564,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             } else {
                 throw new StatementExecutionException(cause);
             }
+        } catch (Throwable t) {
+            throw new StatementExecutionException(t);
         }
     }
 
@@ -612,7 +614,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             planner.clearCache();
         }
         res.whenComplete((s, err) -> {
-            LOGGER.log(Level.SEVERE, "completed " + statement+": "+s, err);
+            LOGGER.log(Level.SEVERE, "completed " + statement + ": " + s, err);
         });
         return res;
     }
@@ -644,6 +646,8 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             } else {
                 throw new StatementExecutionException(cause);
             }
+        } catch (Throwable t) {
+            throw new StatementExecutionException(t);
         }
     }
 

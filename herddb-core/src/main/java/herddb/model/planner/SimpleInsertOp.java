@@ -21,12 +21,12 @@ package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
 import herddb.model.DMLStatement;
-import herddb.model.DMLStatementExecutionResult;
 import herddb.model.StatementEvaluationContext;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.model.commands.InsertStatement;
 import herddb.utils.Wrapper;
+import java.util.concurrent.CompletableFuture;
 
 public class SimpleInsertOp implements PlannerOp {
 
@@ -42,12 +42,12 @@ public class SimpleInsertOp implements PlannerOp {
     }
 
     @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
             TransactionContext transactionContext, StatementEvaluationContext context,
             boolean lockRequired, boolean forWrite) {
 
-        return (DMLStatementExecutionResult) tableSpaceManager
-                .executeStatement(statement, context, transactionContext);
+        return tableSpaceManager
+                .executeStatementAsync(statement, context, transactionContext);
     }
 
     @Override

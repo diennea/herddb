@@ -58,6 +58,8 @@ public interface PlannerOp extends Wrapper {
             } else {
                 throw new StatementExecutionException(cause);
             }
+        } catch (Throwable t) {
+            throw new StatementExecutionException(t);
         }
     }
 

@@ -819,6 +819,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private LockHandle lockForWrite(Bytes key, Transaction transaction) {
+        LOGGER.log(Level.SEVERE, "lockForWrite for "+key+" tx "+transaction);
         if (transaction != null) {
             LockHandle lock = transaction.lookupLock(table.name, key);
             if (lock != null) {
@@ -957,6 +958,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
     }
 
     private CompletableFuture<StatementExecutionResult> executeUpdateAsync(UpdateStatement update, Transaction transaction, StatementEvaluationContext context) throws StatementExecutionException, DataStorageManagerException {
+        LOGGER.log(Level.SEVERE, "executeUpdateAsync, "+update+", transaction "+transaction);
         AtomicInteger updateCount = new AtomicInteger();
         Holder<Bytes> lastKey = new Holder<>();
         Holder<byte[]> lastValue = new Holder<>();
@@ -976,6 +978,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
             public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle);
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
 
                 if (indexes != null) {
@@ -991,6 +994,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
                 }
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
+                LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle + " size " + size);
                 if (size > maxLogicalPageSize) {
                     locksManager.releaseLock(lockHandle);
                     writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
@@ -1003,7 +1007,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
                 CompletableFuture<LogSequenceNumber> promise = pos.logSequenceNumber
                         .thenApplyAsync((lsn) -> {
+                            LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle + " LOGGED!");
                             apply(pos, entry, false);
+                            LOGGER.log(Level.SEVERE, "got record " + actual + " to UPDATE, lock " + lockHandle + " APPLIED!");
                             return lsn;
                         });
                 if (lockHandle != null) {
@@ -2478,7 +2484,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     boolean already_locked = transaction != null && transaction.lookupLock(table.name, key) != null;
                     boolean record_discarded = !already_locked;
                     LockHandle lock = acquireLock ? (forWrite ? lockForWrite(key, transaction) : lockForRead(key, transaction)) : null;
-                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock);
+                    LOGGER.log(Level.SEVERE, "CREATED LOCK " + lock+" for "+key);
                     try {
                         if (transaction != null) {
                             if (transaction.recordDeleted(table.name, key)) {
@@ -2513,8 +2519,8 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
                                 // now the consumer is the owner of the lock on the record
                                 record_discarded = false;
+                                LOGGER.log(Level.SEVERE, "QUI "+lock+", tx "+transaction);
                                 consumer.accept(record, transaction == null ? lock : null);
-
                             }
                         }
                     } finally {
@@ -2522,7 +2528,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         if (record_discarded) {
                             if (transaction == null) {
                                 locksManager.releaseLock(lock);
-                            } else if (!already_locked) {
+                            } else if (!already_locked) {                                
                                 transaction.releaseLockOnKey(table.name, key, locksManager);
                             }
                         }
