@@ -535,7 +535,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
             res = FutureUtils.exception(new StatementExecutionException("not implemented " + statement.getClass()));
         }
 
-        res = res.whenComplete((r, error) -> {            
+        res = res.whenComplete((r, error) -> {
             checkpointLock.unlockRead(lockStamp);
         });
         if (statement instanceof TruncateTableStatement) {
@@ -933,7 +933,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
 
     static interface ScanResultOperation {
 
-        public default void accept(Record record) throws StatementExecutionException, DataStorageManagerException, LogNotAvailableException {
+        /**
+         * This function is expected to release the lock
+         *
+         * @param record
+         * @param lockHandle lock on the record, maybe null
+         * @throws StatementExecutionException
+         * @throws DataStorageManagerException
+         * @throws LogNotAvailableException
+         */
+        public default void accept(Record record, LockHandle lockHandle) throws StatementExecutionException, DataStorageManagerException, LogNotAvailableException {
         }
 
         public default void beginNewRecordsInTransactionBlock() {
@@ -968,7 +977,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         List<CompletableFuture<LogSequenceNumber>> writes = new ArrayList<>();
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
-            public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+            public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
                 byte[] newValue = function.computeNewValue(actual, context, tableContext);
 
                 if (indexes != null) {
@@ -979,11 +988,13 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                         }
                     } catch (IllegalArgumentException err) {
                         writes.add(FutureUtils.exception(new StatementExecutionException(err.getMessage(), err)));
+                        locksManager.releaseLock(lockHandle);
                         return;
                     }
                 }
                 final long size = DataPage.estimateEntrySize(actual.key, newValue);
                 if (size > maxLogicalPageSize) {
+                    locksManager.releaseLock(lockHandle);
                     writes.add(FutureUtils.exception(new RecordTooBigException("New version of record " + actual.key
                             + " is to big to be update: new size " + size + ", actual size " + DataPage.estimateEntrySize(actual)
                             + ", max size " + maxLogicalPageSize)));
@@ -997,6 +1008,9 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             apply(pos, entry, false);
                             return lsn;
                         });
+                promise.whenComplete((lns, error) -> {
+                    locksManager.releaseLock(lockHandle);
+                });
                 writes.add(promise);
                 lastKey.value = actual.key;
                 lastValue.value = newValue;
@@ -1035,13 +1049,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         ScanStatement scan = new ScanStatement(table.tablespace, table, predicate);
         accessTableData(scan, context, new ScanResultOperation() {
             @Override
-            public void accept(Record actual) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
-                LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
-                CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
-                apply(pos, entry, false);
-                lastKey.value = actual.key;
-                lastValue.value = actual.value.data;
-                updateCount.incrementAndGet();
+            public void accept(Record actual, LockHandle lockHandle) throws StatementExecutionException, LogNotAvailableException, DataStorageManagerException {
+                try {
+                    LogEntry entry = LogEntryFactory.delete(table, actual.key.data, transaction);
+                    CommitLogResult pos = log.log(entry, entry.transactionId <= 0);
+                    apply(pos, entry, false);
+                    lastKey.value = actual.key;
+                    lastValue.value = actual.value.data;
+                    updateCount.incrementAndGet();
+                } finally {
+                    locksManager.releaseLock(lockHandle);
+                }
             }
         }, transaction, true, true);
         return new DMLStatementExecutionResult(transactionId, updateCount.get(), lastKey.value,
@@ -2215,22 +2233,26 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                     }
 
                     @Override
-                    public void accept(Record record) throws StatementExecutionException {
-                        if (applyProjectionDuringScan) {
-                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
-                            recordSet.add(tuple);
-                        } else {
-                            recordSet.add(record.getDataAccessor(table));
-                        }
-                        if (!inTransactionData) {
-                            // we have scanned the table and kept top K record already sorted by the PK
-                            // we can exit now from the loop on the primary key
-                            // we have to keep all data from the transaction buffer, because it is not sorted
-                            // in the same order as the clustered index
-                            if (remaining.decrementAndGet() == 0) {
-                                // we want to receive transaction data uncommitted records too
-                                throw new ExitLoop(true);
+                    public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
+                        try {
+                            if (applyProjectionDuringScan) {
+                                DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                                recordSet.add(tuple);
+                            } else {
+                                recordSet.add(record.getDataAccessor(table));
                             }
+                            if (!inTransactionData) {
+                                // we have scanned the table and kept top K record already sorted by the PK
+                                // we can exit now from the loop on the primary key
+                                // we have to keep all data from the transaction buffer, because it is not sorted
+                                // in the same order as the clustered index
+                                if (remaining.decrementAndGet() == 0) {
+                                    // we want to receive transaction data uncommitted records too
+                                    throw new ExitLoop(true);
+                                }
+                            }
+                        } finally {
+                            locksManager.releaseLock(lockHandle);
                         }
 
                     }
@@ -2241,12 +2263,16 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 InStreamTupleSorter sorter = new InStreamTupleSorter(offset + maxRows, statement.getComparator());
                 accessTableData(statement, context, new ScanResultOperation() {
                     @Override
-                    public void accept(Record record) throws StatementExecutionException {
-                        if (applyProjectionDuringScan) {
-                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
-                            sorter.collect(tuple);
-                        } else {
-                            sorter.collect(record.getDataAccessor(table));
+                    public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
+                        try {
+                            if (applyProjectionDuringScan) {
+                                DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                                sorter.collect(tuple);
+                            } else {
+                                sorter.collect(record.getDataAccessor(table));
+                            }
+                        } finally {
+                            locksManager.releaseLock(lockHandle);
                         }
                     }
                 }, transaction, lockRequired, forWrite);
@@ -2261,15 +2287,19 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 }
                 accessTableData(statement, context, new ScanResultOperation() {
                     @Override
-                    public void accept(Record record) throws StatementExecutionException {
-                        if (applyProjectionDuringScan) {
-                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
-                            recordSet.add(tuple);
-                        } else {
-                            recordSet.add(record.getDataAccessor(table));
-                        }
-                        if (remaining.decrementAndGet() == 0) {
-                            throw new ExitLoop(false);
+                    public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
+                        try {
+                            if (applyProjectionDuringScan) {
+                                DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                                recordSet.add(tuple);
+                            } else {
+                                recordSet.add(record.getDataAccessor(table));
+                            }
+                            if (remaining.decrementAndGet() == 0) {
+                                throw new ExitLoop(false);
+                            }
+                        } finally {
+                            locksManager.releaseLock(lockHandle);
                         }
                     }
                 }, transaction, lockRequired, forWrite);
@@ -2277,14 +2307,17 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
         } else {
             accessTableData(statement, context, new ScanResultOperation() {
                 @Override
-                public void accept(Record record) throws StatementExecutionException {
-                    if (applyProjectionDuringScan) {
-                        DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
-                        recordSet.add(tuple);
-                    } else {
-                        recordSet.add(record.getDataAccessor(table));
+                public void accept(Record record, LockHandle lockHandle) throws StatementExecutionException {
+                    try {
+                        if (applyProjectionDuringScan) {
+                            DataAccessor tuple = projection.map(record.getDataAccessor(table), context);
+                            recordSet.add(tuple);
+                        } else {
+                            recordSet.add(record.getDataAccessor(table));
+                        }
+                    } finally {
+                        locksManager.releaseLock(lockHandle);
                     }
-
                 }
             }, transaction, lockRequired, forWrite);
         }
@@ -2424,7 +2457,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             if (record != null) {
                                 // use current transaction version of the record
                                 if (predicate == null || predicate.evaluate(record, context)) {
-                                    consumer.accept(record);
+                                    consumer.accept(record, lock);
                                     keep_lock = true;
                                 }
                                 continue;
@@ -2444,14 +2477,14 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             }
                             Record record = fetchRecord(key, pageId, lastPageRead);
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
-                                consumer.accept(record);
+                                consumer.accept(record, lock);
                                 keep_lock = true;
                             }
                         }
                     } finally {
                         // release the lock on the key if it did not match scan criteria
                         if (transaction == null) {
-                            if (lock != null) {
+                            if (lock != null && !keep_lock) {
                                 locksManager.releaseLock(lock);
                             }
                         } else if (!keep_lock && !already_locked) {
@@ -2493,7 +2526,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                 for (Record record : newRecordsForTable) {
                     if (!transaction.recordDeleted(table.name, record.key)
                             && (predicate == null || predicate.evaluate(record, context))) {
-                        consumer.accept(record);
+                        consumer.accept(record, null);
                     }
                 }
             }

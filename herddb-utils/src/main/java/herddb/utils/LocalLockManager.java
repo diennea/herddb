@@ -149,6 +149,9 @@ public class LocalLockManager implements ILocalLockManager {
 
     @Override
     public void releaseLock(LockHandle handle) {
+        if (handle == null) {
+            return;
+        }
         if (handle.write) {
             releaseWriteLock(handle);
         } else {

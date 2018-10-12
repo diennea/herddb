@@ -97,7 +97,6 @@ import herddb.storage.DataStorageManager;
 import herddb.storage.DataStorageManagerException;
 import herddb.utils.DefaultJVMHalt;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
@@ -120,7 +119,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     private final Activator activatorJ;
     private final AtomicBoolean stopped = new AtomicBoolean();
 
-    private final AbstractSQLPlanner translator;
+    private final AbstractSQLPlanner planner;
     private final Path tmpDirectory;
     private final RecordSetFactory recordSetFactory;
     private MemoryManager memoryManager;
@@ -172,10 +171,10 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
                 ServerConfiguration.PROPERTY_PLANNER_TYPE_DEFAULT);
         switch (plannerType) {
             case ServerConfiguration.PLANNER_TYPE_CALCITE:
-                translator = new CalcitePlanner(this, planCacheMem);
+                planner = new CalcitePlanner(this, planCacheMem);
                 break;
             case ServerConfiguration.PLANNER_TYPE_JSQLPARSER:
-                translator = new DDLSQLPlanner(this, planCacheMem);
+                planner = new DDLSQLPlanner(this, planCacheMem);
                 break;
             default:
                 throw new IllegalArgumentException("invalid planner type " + plannerType);
@@ -267,7 +266,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public AbstractSQLPlanner getPlanner() {
-        return translator;
+        return planner;
     }
 
     public long getMaxMemoryReference() {
@@ -306,17 +305,17 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
 
         @Override
         public long getCachedPlans() {
-            return translator.getCacheSize();
+            return planner.getCacheSize();
         }
 
         @Override
         public long getCachePlansHits() {
-            return translator.getCacheHits();
+            return planner.getCacheHits();
         }
 
         @Override
         public long getCachePlansMisses() {
-            return translator.getCacheMisses();
+            return planner.getCacheMisses();
         }
 
     };
@@ -558,6 +557,7 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
             Thread.currentThread().interrupt();
             throw new StatementExecutionException(err);
         } catch (ExecutionException err) {
+            err.printStackTrace();
             Throwable cause = err.getCause();
             if (cause instanceof StatementExecutionException) {
                 throw (StatementExecutionException) cause;
@@ -568,53 +568,53 @@ public class DBManager implements AutoCloseable, MetadataChangeListener {
     }
 
     public CompletableFuture<StatementExecutionResult> executeStatementAsync(Statement statement, StatementEvaluationContext context, TransactionContext transactionContext) {
-        try {
-            context.setDefaultTablespace(statement.getTableSpace());
-            context.setManager(this);
-            context.setTransactionContext(transactionContext);
-            //LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
-            String tableSpace = statement.getTableSpace();
-            if (tableSpace == null) {
-                throw new StatementExecutionException("invalid null tableSpace");
-            }
-            try {
-                if (statement instanceof CreateTableSpaceStatement) {
-                    if (transactionContext.transactionId > 0) {
-                        throw new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction");
-                    }
-                    return CompletableFuture.completedFuture(createTableSpace((CreateTableSpaceStatement) statement));
-                }
-
-                if (statement instanceof AlterTableSpaceStatement) {
-                    if (transactionContext.transactionId > 0) {
-                        throw new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction");
-                    }
-                    return CompletableFuture.completedFuture(alterTableSpace((AlterTableSpaceStatement) statement));
-                }
-                if (statement instanceof DropTableSpaceStatement) {
-                    if (transactionContext.transactionId > 0) {
-                        throw new StatementExecutionException("DROP TABLESPACE cannot be issued inside a transaction");
-                    }
-                    return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
-                }
-
-                TableSpaceManager manager = tablesSpaces.get(tableSpace);
-                if (manager == null) {
-                    throw new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
-                            + "Maybe the server is starting ");
-                }
-                if (errorIfNotLeader && !manager.isLeader()) {
-                    throw new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace);
-                }
-                return manager.executeStatementAsync(statement, context, transactionContext);
-            } finally {
-                if (statement instanceof DDLStatement) {
-                    translator.clearCache();
-                }
-            }
-        } catch (StatementExecutionException err) {
-            return FutureUtils.exception(err);
+        context.setDefaultTablespace(statement.getTableSpace());
+        context.setManager(this);
+        context.setTransactionContext(transactionContext);
+        LOGGER.log(Level.SEVERE, "executeStatement {0}", new Object[]{statement});
+        String tableSpace = statement.getTableSpace();
+        if (tableSpace == null) {
+            return FutureUtils.exception(new StatementExecutionException("invalid null tableSpace"));
         }
+        if (statement instanceof CreateTableSpaceStatement) {
+            if (transactionContext.transactionId > 0) {
+                return FutureUtils.exception(new StatementExecutionException("CREATE TABLESPACE cannot be issued inside a transaction"));
+            }
+            return CompletableFuture.completedFuture(createTableSpace((CreateTableSpaceStatement) statement));
+        }
+
+        if (statement instanceof AlterTableSpaceStatement) {
+            if (transactionContext.transactionId > 0) {
+                return FutureUtils.exception(new StatementExecutionException("ALTER TABLESPACE cannot be issued inside a transaction"));
+            }
+            return CompletableFuture.completedFuture(alterTableSpace((AlterTableSpaceStatement) statement));
+        }
+        if (statement instanceof DropTableSpaceStatement) {
+            if (transactionContext.transactionId > 0) {
+                return FutureUtils.exception(new StatementExecutionException("DROP TABLESPACE cannot be issued inside a transaction"));
+            }
+            return CompletableFuture.completedFuture(dropTableSpace((DropTableSpaceStatement) statement));
+        }
+
+        TableSpaceManager manager = tablesSpaces.get(tableSpace);
+        if (manager == null) {
+            return FutureUtils.exception(new StatementExecutionException("No such tableSpace " + tableSpace + " here. "
+                    + "Maybe the server is starting "));
+        }
+        if (errorIfNotLeader && !manager.isLeader()) {
+            return FutureUtils.exception(new NotLeaderException("node " + nodeId + " is not leader for tableSpace " + tableSpace));
+        }
+        CompletableFuture<StatementExecutionResult> res = manager.executeStatementAsync(statement, context, transactionContext);
+        if (statement instanceof DDLStatement) {
+            res.whenComplete((s, err) -> {
+                planner.clearCache();
+            });
+            planner.clearCache();
+        }
+        res.whenComplete((s, err) -> {
+            LOGGER.log(Level.SEVERE, "completed " + statement+": "+s, err);
+        });
+        return res;
     }
 
     /**
