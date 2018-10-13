@@ -19,53 +19,17 @@
  */
 package herddb.model.planner;
 
-import herddb.core.TableSpaceManager;
-import herddb.model.DataScanner;
-import herddb.model.ScanResult;
-import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
-import herddb.model.StatementExecutionResult;
-import herddb.model.TransactionContext;
 import herddb.model.commands.ScanStatement;
-import herddb.utils.Wrapper;
 
 /**
  * Full table scan
  *
  * @author eolivelli
  */
-public class TableScanOp implements PlannerOp {
-
-    final ScanStatement statement;
+public class TableScanOp extends SimpleScanOp {
 
     public TableScanOp(ScanStatement statement) {
-        this.statement = statement;
-    }
-
-    ScanStatement getStatement() {
-        return statement;
-    }
-
-    @Override
-    public String getTablespace() {
-        return statement.getTableSpace();
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> clazz) {
-        T unwrapped = statement.unwrap(clazz);
-        if (unwrapped != null) {
-            return unwrapped;
-        }
-        return Wrapper.unwrap(this, clazz);
-    }
-
-    @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-        TransactionContext transactionContext,
-        StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
-        DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
-        return new ScanResult(transactionContext.transactionId, scan);
+        super(statement);
     }
 
     @Override

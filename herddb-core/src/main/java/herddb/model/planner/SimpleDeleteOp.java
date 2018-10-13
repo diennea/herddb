@@ -62,4 +62,10 @@ public class SimpleDeleteOp implements PlannerOp {
         }
         return Wrapper.unwrap(this, clazz);
     }
+
+    @Override
+    public boolean isSimpleStatementWrapper() {
+        return true;
+    }
+
 }

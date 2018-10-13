@@ -34,38 +34,10 @@ import herddb.utils.Wrapper;
  *
  * @author eolivelli
  */
-public class SortedTableScanOp implements PlannerOp {
-
-    final ScanStatement statement;
+public class SortedTableScanOp extends SimpleScanOp {
 
     public SortedTableScanOp(ScanStatement scan) {
-        this.statement = scan;
-    }
-
-    @Override
-    public String getTablespace() {
-        return statement.getTableSpace();
-    }
-
-    public ScanStatement getStatement() {
-        return statement;
-    }
-
-    @Override
-    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
-        TransactionContext transactionContext,
-        StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
-        DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
-        return new ScanResult(transactionContext.transactionId, scan);
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> clazz) {
-        T unwrapped = statement.unwrap(clazz);
-        if (unwrapped != null) {
-            return unwrapped;
-        }
-        return Wrapper.unwrap(this, clazz);
+        super(scan);
     }
 
     @Override

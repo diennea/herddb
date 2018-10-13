@@ -81,4 +81,14 @@ public interface PlannerOp extends Wrapper {
     public default PlannerOp optimize() {
         return this;
     }
+    
+    /**
+     * This operation is barely a directly a wrapper for a low level Statement.
+     * It is expected that unwrap(Statement.class) will return the wrapped statement
+     * 
+     * @return true for simple DML operations
+     */
+    public default boolean isSimpleStatementWrapper() {
+        return false;
+    }
 }

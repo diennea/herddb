@@ -22,7 +22,6 @@ package herddb.model.planner;
 import herddb.core.TableSpaceManager;
 import herddb.model.DMLStatement;
 import herddb.model.StatementEvaluationContext;
-import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
 import herddb.utils.Wrapper;
@@ -62,5 +61,10 @@ public class SimpleUpdateOp implements PlannerOp {
             return unwrapped;
         }
         return Wrapper.unwrap(this, clazz);
+    }        
+
+    @Override
+    public boolean isSimpleStatementWrapper() {
+        return true;
     }
 }

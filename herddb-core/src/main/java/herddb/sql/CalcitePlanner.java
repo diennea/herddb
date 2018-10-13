@@ -320,9 +320,13 @@ public class CalcitePlanner implements AbstractSQLPlanner {
                         .optimize();
                 sqlPlannedOperationStatement = new SQLPlannedOperationStatement(op);
             }
-            ExecutionPlan executionPlan = ExecutionPlan.simple(
-                    sqlPlannedOperationStatement
-            );
+            PlannerOp rootOp = sqlPlannedOperationStatement.getRootOp();
+            ExecutionPlan executionPlan;
+            if (rootOp.isSimpleStatementWrapper()) {
+                executionPlan = ExecutionPlan.simple(rootOp.unwrap(herddb.model.Statement.class));            
+            } else {
+                executionPlan = ExecutionPlan.simple(sqlPlannedOperationStatement);
+            }
             if (allowCache) {
                 cache.put(cacheKey, executionPlan);
             }

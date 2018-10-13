@@ -20,34 +20,34 @@
 package herddb.model.planner;
 
 import herddb.core.TableSpaceManager;
-import herddb.model.DMLStatement;
-import herddb.model.Statement;
+import herddb.model.DataScanner;
+import herddb.model.ScanResult;
 import herddb.model.StatementEvaluationContext;
+import herddb.model.StatementExecutionException;
 import herddb.model.StatementExecutionResult;
 import herddb.model.TransactionContext;
+import herddb.model.commands.ScanStatement;
 import herddb.utils.Wrapper;
-import java.util.concurrent.CompletableFuture;
 
-public class SimpleInsertOp implements PlannerOp {
+/**
+ * A generic wrapper for a ScanStatement
+ * @author eolivelli
+ */
+public abstract class SimpleScanOp implements PlannerOp {
 
-    private final DMLStatement statement;
+    final ScanStatement statement;
 
-    public SimpleInsertOp(DMLStatement statement) {
+    protected SimpleScanOp(ScanStatement statement) {
         this.statement = statement;
+    }
+
+    public ScanStatement getStatement() {
+        return statement;
     }
 
     @Override
     public String getTablespace() {
         return statement.getTableSpace();
-    }
-
-    @Override
-    public CompletableFuture<StatementExecutionResult> executeAsync(TableSpaceManager tableSpaceManager,
-            TransactionContext transactionContext, StatementEvaluationContext context,
-            boolean lockRequired, boolean forWrite) {
-
-        return tableSpaceManager
-                .executeStatementAsync(statement, context, transactionContext);
     }
 
     @Override
@@ -62,6 +62,14 @@ public class SimpleInsertOp implements PlannerOp {
     @Override
     public boolean isSimpleStatementWrapper() {
         return true;
+    }
+
+    @Override
+    public StatementExecutionResult execute(TableSpaceManager tableSpaceManager,
+            TransactionContext transactionContext,
+            StatementEvaluationContext context, boolean lockRequired, boolean forWrite) throws StatementExecutionException {
+        DataScanner scan = tableSpaceManager.scan(statement, context, transactionContext, lockRequired, forWrite);
+        return new ScanResult(transactionContext.transactionId, scan);
     }
 
 }
