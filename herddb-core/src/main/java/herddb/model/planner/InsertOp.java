@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.apache.bookkeeper.common.concurrent.FutureUtils;
 
 public class InsertOp implements PlannerOp {
 
@@ -91,7 +92,7 @@ public class InsertOp implements PlannerOp {
                     transactionId = transactionIdFromScanner;
                     transactionContext = new TransactionContext(transactionId);
                 }
-                LOG.severe("transactionIdFromScanner:"+transactionIdFromScanner+","+transactionId);
+                LOG.severe("transactionIdFromScanner:" + transactionIdFromScanner + "," + transactionId);
                 int index = 0;
                 List<CompiledSQLExpression> keyValueExpression = new ArrayList<>();
                 List<String> keyExpressionToColumn = new ArrayList<>();
@@ -132,7 +133,9 @@ public class InsertOp implements PlannerOp {
             if (statements.size() == 1) {
                 return tableSpaceManager.executeStatementAsync(statements.get(0), context, transactionContext);
             }
-
+            if (returnValues) {
+                return FutureUtils.exception(new StatementExecutionException("cannot 'return values' on multi-values insert"));
+            }
             CompletableFuture<StatementExecutionResult> finalResult = new CompletableFuture<>();
 
             AtomicInteger updateCounts = new AtomicInteger();
@@ -161,7 +164,7 @@ public class InsertOp implements PlannerOp {
                     }
                     long newTransactionId = res.transactionId;
                     if (current == statements.size()) {
-                        LOG.severe("multiinsert finished with tx "+newTransactionId+" and "+updateCounts+" recods");
+                        LOG.severe("multiinsert finished with tx " + newTransactionId + " and " + updateCounts + " recods");
                         DMLStatementExecutionResult finalDMLResult
                                 = new DMLStatementExecutionResult(newTransactionId, updateCounts.get(),
                                         lastKey.get(), lastNewValue.get());
@@ -170,7 +173,7 @@ public class InsertOp implements PlannerOp {
                     }
 
                     DMLStatement nextStatement = statements.get(current);
-                    LOG.log(Level.SEVERE, "executing # " + current + " newTx "+newTransactionId+" -" + nextStatement);
+                    LOG.log(Level.SEVERE, "executing # " + current + " newTx " + newTransactionId + " -" + nextStatement);
                     TransactionContext transactionContext = new TransactionContext(newTransactionId);
                     CompletableFuture<StatementExecutionResult> nextPromise
                             = tableSpaceManager.executeStatementAsync(nextStatement, context, transactionContext);
