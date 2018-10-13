@@ -1052,6 +1052,9 @@ public class TableSpaceManager {
                         return executeStatementAsyncInternal(statement, context, newtransactionContext, true);
                     });
             finalResult.whenComplete((xx, error) -> {
+                if (xx != null) {
+                    LOGGER.severe("wrapped statement finished with " + xx.transactionId + " txid");
+                }
                 long txId = capturedTx.get();
                 if (error != null && txId > 0) {
                     LOGGER.log(Level.SEVERE, "forcing rollback of tx " + txId + " due to " + error);
@@ -1067,9 +1070,10 @@ public class TableSpaceManager {
                     throw new HerdDBInternalException(error);
                 }
             });
-
+            return finalResult;
+        } else {
+            return executeStatementAsyncInternal(statement, context, transactionContext, false);
         }
-        return executeStatementAsyncInternal(statement, context, transactionContext, false);
     }
 
     private CompletableFuture<StatementExecutionResult> executeStatementAsyncInternal(Statement statement, StatementEvaluationContext context,
@@ -1154,8 +1158,8 @@ public class TableSpaceManager {
         SQLPlannedOperationStatement planned = (SQLPlannedOperationStatement) statement;
         CompletableFuture<StatementExecutionResult> res
                 = planned.getRootOp().executeAsync(this, transactionContext, context, false, false);
-        res.whenComplete((ee,err)-> {
-            LOGGER.log(Level.SEVERE, "COMPLETED "+statement+": "+ee, err);
+        res.whenComplete((ee, err) -> {
+            LOGGER.log(Level.SEVERE, "COMPLETED " + statement + ": " + ee, err);
         });
         if (lockAcquired) {
             res = releaseReadLock(res, lockStamp, statement)
@@ -1164,7 +1168,7 @@ public class TableSpaceManager {
                         return s;
                     });
         }
-        LOGGER.log(Level.SEVERE, "CREATED "+res);
+        LOGGER.log(Level.SEVERE, "CREATED " + res);
         return res;
     }
 
