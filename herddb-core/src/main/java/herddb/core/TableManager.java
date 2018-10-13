@@ -2491,7 +2491,7 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                                 if (predicate == null || predicate.evaluate(record, context)) {
                                     // now the consumer is the owner of the lock on the record
                                     record_discarded = false;
-                                    consumer.accept(record, transaction == null ? lock : null);
+                                    consumer.accept(record,  null /* transaction holds the lock */);
 
                                 }
                                 continue;
@@ -2513,7 +2513,6 @@ public final class TableManager implements AbstractTableManager, Page.Owner {
                             if (record != null && (pkFilterCompleteMatch || predicate == null || predicate.evaluate(record, context))) {
                                 // now the consumer is the owner of the lock on the record
                                 record_discarded = false;
-                                LOGGER.log(Level.SEVERE, "QUI " + lock + ", tx " + transaction);
                                 consumer.accept(record, transaction == null ? lock : null);
                             }
                         }
